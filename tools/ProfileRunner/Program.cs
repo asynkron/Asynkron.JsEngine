@@ -4,10 +4,15 @@ using System.Text.Json;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Microsoft.Extensions.Logging;
+using ProfileRunner;
 
 const string listCommand = "list";
+const string memoryFlag = "--memory";
 
-var profileKey = args.Length > 0 ? args[0] : "fib";
+var argList = new List<string>(args);
+var runMemory = argList.Remove(memoryFlag);
+
+var profileKey = argList.Count > 0 ? argList[0] : "fib";
 var repoRoot = FindRepoRoot();
 var manifestPath = Path.Combine(repoRoot, "tools", "profile-manifest.json");
 var manifest = LoadManifest(manifestPath);
@@ -54,6 +59,12 @@ if (!string.IsNullOrWhiteSpace(profile.Header))
         .Replace("{runs}", runsForAverage.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
         .Replace("{traceRealm}", traceRealm.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     Console.WriteLine(header);
+}
+
+if (runMemory)
+{
+    await RunMemoryProfileAsync(script, isAsync, profile, traceRealm);
+    return;
 }
 
 if (profile.FreshEnginePerIteration)
@@ -163,6 +174,100 @@ void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAvera
     var elapsedText = elapsedMs.ToString(CultureInfo.InvariantCulture);
     var avgText = avgMs.ToString("F2", CultureInfo.InvariantCulture);
     Console.WriteLine($"Done in {elapsedText}ms (avg {avgText}ms per iteration)");
+}
+
+async Task RunMemoryProfileAsync(
+    string source,
+    bool isAsyncRun,
+    ProfileDefinition profile,
+    bool traceRealm)
+{
+    var iterations = profile.Iterations > 0 ? profile.Iterations : 100;
+    var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
+
+    using var allocationListener = new AllocationEventListener();
+
+    for (var i = 0; i < warmup; i++)
+    {
+        await using var warmEngine = CreateEngine(traceRealm);
+        var warmParsed = warmEngine.ParseProgram(source);
+        await EvaluateAsync(warmEngine, warmParsed, isAsyncRun);
+    }
+
+    GC.Collect(2, GCCollectionMode.Forced, true, true);
+    GC.WaitForPendingFinalizers();
+    GC.Collect(2, GCCollectionMode.Forced, true, true);
+
+    var baselineAllocated = GC.GetAllocatedBytesForCurrentThread();
+    var baselineGen0 = GC.CollectionCount(0);
+    var baselineGen1 = GC.CollectionCount(1);
+    var baselineGen2 = GC.CollectionCount(2);
+    var baselineTotal = GC.GetTotalMemory(false);
+
+    allocationListener.Reset();
+    allocationListener.Start();
+
+    var sw = Stopwatch.StartNew();
+    for (var i = 0; i < iterations; i++)
+    {
+        await using var iterEngine = CreateEngine(traceRealm);
+        var iterParsed = iterEngine.ParseProgram(source);
+        await EvaluateAsync(iterEngine, iterParsed, isAsyncRun);
+    }
+    sw.Stop();
+
+    allocationListener.Stop();
+
+    var finalAllocated = GC.GetAllocatedBytesForCurrentThread();
+    var finalGen0 = GC.CollectionCount(0);
+    var finalGen1 = GC.CollectionCount(1);
+    var finalGen2 = GC.CollectionCount(2);
+    var finalTotal = GC.GetTotalMemory(false);
+
+    var totalAllocated = finalAllocated - baselineAllocated;
+    var perIterationBytes = iterations > 0 ? totalAllocated / iterations : 0;
+    var gen0Collections = finalGen0 - baselineGen0;
+    var gen1Collections = finalGen1 - baselineGen1;
+    var gen2Collections = finalGen2 - baselineGen2;
+
+    Console.WriteLine("=== ALLOCATION REPORT ===");
+    Console.WriteLine();
+    Console.WriteLine($"Iterations:           {iterations.ToString(CultureInfo.InvariantCulture)}");
+    Console.WriteLine($"Total time:           {sw.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)} ms");
+    Console.WriteLine(
+        $"Per iteration:        {(sw.ElapsedMilliseconds / (double)iterations).ToString("F2", CultureInfo.InvariantCulture)} ms");
+    Console.WriteLine();
+    Console.WriteLine($"Total allocated:      {FormatBytes(totalAllocated)}");
+    Console.WriteLine($"Per iteration:        {FormatBytes(perIterationBytes)}");
+    Console.WriteLine();
+    Console.WriteLine($"GC Gen0 collections:  {gen0Collections.ToString(CultureInfo.InvariantCulture)}");
+    Console.WriteLine($"GC Gen1 collections:  {gen1Collections.ToString(CultureInfo.InvariantCulture)}");
+    Console.WriteLine($"GC Gen2 collections:  {gen2Collections.ToString(CultureInfo.InvariantCulture)}");
+    Console.WriteLine();
+    Console.WriteLine($"Heap before:          {FormatBytes(baselineTotal)}");
+    Console.WriteLine($"Heap after:           {FormatBytes(finalTotal)}");
+    Console.WriteLine();
+
+    Console.WriteLine("=== PER-PHASE BREAKDOWN (single iteration) ===");
+    Console.WriteLine();
+
+    GC.Collect(2, GCCollectionMode.Forced, true, true);
+
+    await using var phaseEngine = CreateEngine(traceRealm);
+    var parseStart = GC.GetAllocatedBytesForCurrentThread();
+    var parsed = phaseEngine.ParseProgram(source);
+    var parseEnd = GC.GetAllocatedBytesForCurrentThread();
+    Console.WriteLine($"Parse:                {FormatBytes(parseEnd - parseStart)}");
+
+    var evalStart = GC.GetAllocatedBytesForCurrentThread();
+    await EvaluateAsync(phaseEngine, parsed, isAsyncRun);
+    var evalEnd = GC.GetAllocatedBytesForCurrentThread();
+    Console.WriteLine($"Evaluate:             {FormatBytes(evalEnd - evalStart)}");
+    Console.WriteLine();
+
+    allocationListener.PrintReport(50);
+
+    Console.WriteLine("=== END REPORT ===");
 }
 
 JsEngine CreateEngine(bool traceRealm)
@@ -276,6 +381,21 @@ static string FindRepoRoot()
     }
 
     throw new InvalidOperationException("Unable to locate profile-manifest.json.");
+}
+
+static string FormatBytes(long bytes)
+{
+    if (bytes < 1024)
+    {
+        return bytes.ToString(CultureInfo.InvariantCulture) + " B";
+    }
+
+    if (bytes < 1024 * 1024)
+    {
+        return (bytes / 1024.0).ToString("F2", CultureInfo.InvariantCulture) + " KB";
+    }
+
+    return (bytes / (1024.0 * 1024.0)).ToString("F2", CultureInfo.InvariantCulture) + " MB";
 }
 
 sealed class ProfileManifest

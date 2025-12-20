@@ -2,6 +2,8 @@
 #:package System.CommandLine@2.0.0-beta4.22272.1
 #:package Spectre.Console@0.49.1
 
+#pragma warning disable MA0048 // Script file name does not match implicit Program type.
+
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
@@ -11,15 +13,13 @@ using Spectre.Console;
 
 void PrintHeader(string text)
 {
-    AnsiConsole.WriteLine();
-    AnsiConsole.Write(new Rule($"[bold green]{text}[/]").RuleStyle("green").DoubleBorder());
-    AnsiConsole.WriteLine();
+    Console.WriteLine(text);
 }
 
 void PrintSection(string text)
 {
-    AnsiConsole.WriteLine();
-    AnsiConsole.Write(new Rule($"[bold cyan]{text}[/]").RuleStyle("cyan"));
+    Console.WriteLine();
+    Console.WriteLine(text);
 }
 
 (bool Success, string StdOut, string StdErr) RunCommand(string command, string? workingDir = null, int timeoutMs = 300000)
@@ -59,8 +59,7 @@ var outputDir = Path.Combine(toolsDir, "profile-output");
 Directory.CreateDirectory(outputDir);
 
 var manifestPath = Path.Combine(toolsDir, "profile-manifest.json");
-var manifest = LoadManifest(manifestPath);
-var profiles = manifest.Profiles;
+var profiles = LoadManifest(manifestPath);
 
 var runnerDir = Path.Combine(toolsDir, "ProfileRunner");
 var runnerName = "ProfileRunner";
@@ -69,7 +68,7 @@ bool BuildRunner()
 {
     return AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
-        .Start($"Building [yellow]{runnerName}[/]...", ctx =>
+        .Start($"Building [yellow]{runnerName}[/]...", _ =>
         {
             var (success, _, stderr) = RunCommand("dotnet build -c Release -v q --nologo", runnerDir);
 
@@ -202,7 +201,7 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
         var name = frameIdx < framesList.Count ? framesList[frameIdx] : "Unknown";
         frameCounts.TryGetValue(frameIdx, out var calls);
 
-        var entry = new Dictionary<string, object>
+        var entry = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["name"] = name,
             ["time_ms"] = timeSpent,
@@ -219,7 +218,7 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
         }
     }
 
-    return new Dictionary<string, object>
+    return new Dictionary<string, object>(StringComparer.Ordinal)
     {
         ["all_functions"] = allFunctions,
         ["jsengine_functions"] = jsEngineFunctions,
@@ -336,27 +335,17 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey)
     AnsiConsole.Write(summaryTable);
 }
 
-Dictionary<string, string>? MemoryProfile(string profileKey, int iterations = 50)
+Dictionary<string, string>? MemoryProfile(string profileKey)
 {
-    var allocProfileDir = Path.Combine(toolsDir, "AllocationProfile");
-    var allocProject = Path.Combine(allocProfileDir, "AllocationProfile.csproj");
-
-    if (!File.Exists(allocProject))
+    var exePath = GetExecutable();
+    if (exePath == null)
     {
-        AnsiConsole.MarkupLine("[yellow]AllocationProfile project not found, using basic GC stats[/]");
-        return BasicMemoryProfile(profileKey, iterations);
-    }
-
-    var (buildSuccess, _, buildErr) = RunCommand("dotnet build -c Release -v q --nologo", allocProfileDir);
-    if (!buildSuccess)
-    {
-        AnsiConsole.MarkupLine($"[yellow]AllocationProfile build failed, using basic GC stats:[/] {Markup.Escape(buildErr)}");
-        return BasicMemoryProfile(profileKey, iterations);
+        AnsiConsole.MarkupLine("[red]Executable not found. Run build first.[/]");
+        return null;
     }
 
     var (success, stdout, stderr) = RunCommand(
-        $"dotnet run -c Release --no-build -- {profileKey}",
-        allocProfileDir,
+        $"\"{exePath}\" {profileKey} --memory",
         timeoutMs: 180000);
 
     if (!success)
@@ -368,29 +357,6 @@ Dictionary<string, string>? MemoryProfile(string profileKey, int iterations = 50
     return ParseAllocationOutput(stdout);
 }
 
-Dictionary<string, string>? BasicMemoryProfile(string profileKey, int iterations)
-{
-    var exePath = GetExecutable();
-    if (exePath == null)
-    {
-        AnsiConsole.MarkupLine("[red]Executable not found. Run build first.[/]");
-        return null;
-    }
-
-    AnsiConsole.MarkupLine($"[dim]Running basic memory profile (iterations: {iterations.ToString(CultureInfo.InvariantCulture)})[/]");
-    var (success, stdout, stderr) = RunCommand($"\"{exePath}\" {profileKey}", timeoutMs: 120000);
-
-    if (!success)
-    {
-        AnsiConsole.MarkupLine($"[red]Basic memory profile failed:[/] {Markup.Escape(stderr)}");
-    }
-
-    return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["raw_output"] = success ? stdout : $"{stdout}\n{stderr}"
-    };
-}
-
 Dictionary<string, string> ParseAllocationOutput(string output)
 {
     var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -398,11 +364,32 @@ Dictionary<string, string> ParseAllocationOutput(string output)
         ["raw_output"] = output
     };
 
+    var allocationLines = new List<string>();
+    var inAllocationByType = false;
+
     using var reader = new StringReader(output);
     string? line;
     while ((line = reader.ReadLine()) != null)
     {
         var trimmed = line.Trim();
+        if (trimmed.StartsWith("=== ALLOCATION BY TYPE", StringComparison.Ordinal))
+        {
+            inAllocationByType = true;
+            continue;
+        }
+
+        if (inAllocationByType)
+        {
+            if (trimmed.StartsWith("===", StringComparison.Ordinal))
+            {
+                inAllocationByType = false;
+            }
+            else
+            {
+                allocationLines.Add(line);
+            }
+        }
+
         if (trimmed.Length == 0)
         {
             continue;
@@ -449,6 +436,14 @@ Dictionary<string, string> ParseAllocationOutput(string output)
         {
             results["gen2_collections"] = value;
         }
+        else if (trimmed.StartsWith("Parse:", StringComparison.Ordinal))
+        {
+            results["parse_allocated"] = value;
+        }
+        else if (trimmed.StartsWith("Evaluate:", StringComparison.Ordinal))
+        {
+            results["evaluate_allocated"] = value;
+        }
         else if (trimmed.StartsWith("Heap before:", StringComparison.Ordinal))
         {
             results["heap_before"] = value;
@@ -457,6 +452,11 @@ Dictionary<string, string> ParseAllocationOutput(string output)
         {
             results["heap_after"] = value;
         }
+    }
+
+    if (allocationLines.Count > 0)
+    {
+        results["allocation_by_type"] = string.Join(Environment.NewLine, allocationLines).Trim();
     }
 
     return results;
@@ -512,6 +512,8 @@ void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
     AddRow("GC Gen0 collections", "gen0_collections");
     AddRow("GC Gen1 collections", "gen1_collections");
     AddRow("GC Gen2 collections", "gen2_collections");
+    AddRow("Parse (allocated)", "parse_allocated");
+    AddRow("Evaluate (allocated)", "evaluate_allocated");
     AddRow("Heap before", "heap_before");
     AddRow("Heap after", "heap_after");
 
@@ -519,7 +521,14 @@ void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
     {
         AnsiConsole.Write(table);
     }
-    else if (results.TryGetValue("raw_output", out var rawOutput))
+
+    if (results.TryGetValue("allocation_by_type", out var allocationTable) &&
+        !string.IsNullOrWhiteSpace(allocationTable))
+    {
+        PrintSection("Allocation By Type (Sampled)");
+        AnsiConsole.WriteLine(allocationTable);
+    }
+    else if (!hasRows && results.TryGetValue("raw_output", out var rawOutput))
     {
         AnsiConsole.WriteLine(rawOutput);
     }
@@ -580,7 +589,7 @@ Dictionary<string, object>? HeapProfile(string profileKey)
     }
 
     AnsiConsole.MarkupLine($"[yellow]Could not parse gcdump, showing raw output:[/] {Markup.Escape(reportErr)}");
-    return new Dictionary<string, object>
+    return new Dictionary<string, object>(StringComparer.Ordinal)
     {
         ["raw_output"] = reportOut
     };
@@ -588,12 +597,12 @@ Dictionary<string, object>? HeapProfile(string profileKey)
 
 Dictionary<string, object> ParseGcdumpReport(string output)
 {
-    var results = new Dictionary<string, object>
+    var results = new Dictionary<string, object>(StringComparer.Ordinal)
     {
         ["raw_output"] = output
     };
 
-    var types = new List<HeapTypeEntry>();
+    var types = new List<(long Size, long Count, string Type)>();
     using var reader = new StringReader(output);
     var inTable = false;
 
@@ -628,7 +637,7 @@ Dictionary<string, object> ParseGcdumpReport(string output)
         }
 
         var typeName = string.Join(' ', parts.Skip(2));
-        types.Add(new HeapTypeEntry(size, count, typeName));
+        types.Add((size, count, typeName));
     }
 
     results["types"] = types;
@@ -660,7 +669,7 @@ void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
     AnsiConsole.MarkupLine($"[dim]{description}[/]");
 
     if (results.TryGetValue("types", out var typesObj) &&
-        typesObj is List<HeapTypeEntry> types &&
+        typesObj is List<(long Size, long Count, string Type)> types &&
         types.Count > 0)
     {
         var table = new Table()
@@ -714,7 +723,7 @@ void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
     }
 }
 
-ProfileManifest LoadManifest(string manifestPath)
+Dictionary<string, (string Name, string Description)> LoadManifest(string manifestPath)
 {
     using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
     var root = doc.RootElement;
@@ -723,7 +732,7 @@ ProfileManifest LoadManifest(string manifestPath)
         throw new InvalidOperationException($"Manifest missing profiles: {manifestPath}");
     }
 
-    var profiles = new Dictionary<string, ProfileDefinition>(StringComparer.OrdinalIgnoreCase);
+    var profiles = new Dictionary<string, (string Name, string Description)>(StringComparer.OrdinalIgnoreCase);
     foreach (var profileProperty in profilesElement.EnumerateObject())
     {
         var profileElement = profileProperty.Value;
@@ -740,17 +749,9 @@ ProfileManifest LoadManifest(string manifestPath)
             description = descElement.GetString() ?? string.Empty;
         }
 
-        profiles[profileProperty.Name] = new ProfileDefinition
-        {
-            Name = name,
-            Description = description
-        };
+        profiles[profileProperty.Name] = (name, description);
     }
-
-    return new ProfileManifest
-    {
-        Profiles = profiles
-    };
+    return profiles;
 }
 
 string FindRepoRoot()
@@ -784,7 +785,7 @@ void RunBenchmarks()
 
     AnsiConsole.Status()
         .Spinner(Spinner.Known.Dots)
-        .Start("[yellow]Running benchmarks (this may take several minutes)...[/]", ctx =>
+        .Start("[yellow]Running benchmarks (this may take several minutes)...[/]", _ =>
         {
             var (success, stdout, stderr) = RunCommand(
                 "dotnet run -c Release -- jint --job short",
@@ -846,10 +847,6 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
 
 rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool compare) =>
 {
-    // Show banner
-    AnsiConsole.Write(new FigletText("JsEngine Profiler")
-        .Color(Color.Green));
-
     if (compare)
     {
         RunBenchmarks();
@@ -883,69 +880,34 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
     var runMemory = memory || (!cpu && !memory && !heap);
     var runHeap = heap;
 
-    // Show configuration
-    var configTable = new Table()
-        .Border(TableBorder.Rounded)
-        .Title("[bold]Configuration[/]")
-        .HideHeaders()
-        .AddColumn("")
-        .AddColumn("");
-
-    configTable.AddRow("[bold]Profiles[/]", string.Join(", ", profilesToRun.Select(p => $"[cyan]{p}[/]")));
-    configTable.AddRow("[bold]CPU Profiling[/]", runCpu ? "[green]Yes[/]" : "[dim]No[/]");
-    configTable.AddRow("[bold]Memory Profiling[/]", runMemory ? "[green]Yes[/]" : "[dim]No[/]");
-    configTable.AddRow("[bold]Heap Snapshot[/]", runHeap ? "[green]Yes[/]" : "[dim]No[/]");
-
-    AnsiConsole.Write(configTable);
-    AnsiConsole.WriteLine();
-
     foreach (var profileKey in profilesToRun)
     {
         var profileInfo = profiles[profileKey];
-        PrintHeader($"PROFILING: {profileInfo.Name}");
-        AnsiConsole.MarkupLine($"[dim]{profileInfo.Description}[/]");
-        AnsiConsole.WriteLine();
-
         if (!BuildRunner())
             continue;
 
         if (runCpu)
         {
+            Console.WriteLine($"{profileKey} - cpu");
             var results = CpuProfile(profileKey);
             PrintCpuResults(results, profileKey);
         }
 
         if (runMemory)
         {
+            Console.WriteLine($"{profileKey} - memory");
             var results = MemoryProfile(profileKey);
             PrintMemoryResults(results, profileKey);
         }
 
         if (runHeap)
         {
+            Console.WriteLine($"{profileKey} - heap");
             var results = HeapProfile(profileKey);
             PrintHeapResults(results, profileKey);
         }
     }
 
-    AnsiConsole.WriteLine();
-    AnsiConsole.Write(new Rule("[green]Profiling complete![/]").RuleStyle("green"));
-
 }, profileArg, cpuOption, memoryOption, heapOption, compareOption);
 
 return await rootCommand.InvokeAsync(args);
-
-sealed class ProfileManifest
-{
-    public Dictionary<string, ProfileDefinition> Profiles { get; init; } =
-        new(StringComparer.OrdinalIgnoreCase);
-}
-
-sealed class ProfileDefinition
-{
-    public string Name { get; init; } = string.Empty;
-
-    public string Description { get; init; } = string.Empty;
-}
-
-record HeapTypeEntry(long Size, long Count, string Type);

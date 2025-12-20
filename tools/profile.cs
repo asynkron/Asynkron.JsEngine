@@ -144,13 +144,21 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
     var frames = root.GetProperty("shared").GetProperty("frames");
     var profile = root.GetProperty("profiles")[0];
 
+    var framesList = new List<string>();
+    foreach (var frame in frames.EnumerateArray())
+    {
+        framesList.Add(frame.GetProperty("name").GetString() ?? "Unknown");
+    }
+
     var frameTimes = new Dictionary<int, double>();
     var frameSelfTimes = new Dictionary<int, double>();
     var frameCounts = new Dictionary<int, int>();
     var callerCallee = new Dictionary<int, Dictionary<int, int>>();
-    var stack = new List<(int FrameIdx, double At)>();
+    var callTreeRoot = CreateCallTreeNode(-1, "Total");
+    var stack = new List<(Dictionary<string, object> Node, double Start, int FrameIdx)>();
     var hasLast = false;
     var lastAt = 0d;
+    var callTreeTotal = 0d;
 
     if (profile.TryGetProperty("events", out var events))
     {
@@ -164,7 +172,9 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
             {
                 var topIdx = stack[^1].FrameIdx;
                 frameSelfTimes.TryGetValue(topIdx, out var selfTime);
-                frameSelfTimes[topIdx] = selfTime + (at - lastAt);
+                var delta = at - lastAt;
+                frameSelfTimes[topIdx] = selfTime + delta;
+                AddCallTreeTime(stack[^1].Node, "self", delta);
             }
 
             hasLast = true;
@@ -180,7 +190,10 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
                     callerCallee[callerIdx].TryGetValue(frameIdx, out var cnt);
                     callerCallee[callerIdx][frameIdx] = cnt + 1;
                 }
-                stack.Add((frameIdx, at));
+                var parentNode = stack.Count > 0 ? stack[^1].Node : callTreeRoot;
+                var childNode = GetOrCreateCallTreeChild(parentNode, frameIdx, framesList);
+                IncrementCallTreeCalls(childNode);
+                stack.Add((childNode, at, frameIdx));
                 frameCounts.TryGetValue(frameIdx, out var count);
                 frameCounts[frameIdx] = count + 1;
             }
@@ -188,10 +201,16 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
             {
                 if (stack.Count > 0 && stack[^1].FrameIdx == frameIdx)
                 {
-                    var (_, openTime) = stack[^1];
+                    var (node, openTime, _) = stack[^1];
                     stack.RemoveAt(stack.Count - 1);
+                    var duration = at - openTime;
                     frameTimes.TryGetValue(frameIdx, out var time);
-                    frameTimes[frameIdx] = time + (at - openTime);
+                    frameTimes[frameIdx] = time + duration;
+                    AddCallTreeTime(node, "total", duration);
+                    if (stack.Count == 0)
+                    {
+                        callTreeTotal += duration;
+                    }
                 }
             }
         }
@@ -202,11 +221,12 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
     double totalTime = frameTimes.Values.Sum();
     double jsEngineTime = 0;
 
-    var framesList = new List<string>();
-    foreach (var frame in frames.EnumerateArray())
+    if (callTreeTotal <= 0)
     {
-        framesList.Add(frame.GetProperty("name").GetString() ?? "Unknown");
+        callTreeTotal = SumCallTreeTotals(callTreeRoot);
     }
+    callTreeRoot["total"] = callTreeTotal;
+    callTreeRoot["calls"] = SumCallTreeCalls(callTreeRoot);
 
     var sortedFrames = frameTimes.OrderByDescending(kv => kv.Value).ToList();
 
@@ -242,11 +262,13 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
         ["caller_callee"] = callerCallee,
         ["frame_counts"] = frameCounts,
         ["frame_times"] = frameTimes,
-        ["frame_self_times"] = frameSelfTimes
+        ["frame_self_times"] = frameSelfTimes,
+        ["call_tree_root"] = callTreeRoot,
+        ["call_tree_total"] = callTreeTotal
     };
 }
 
-void PrintCpuResults(Dictionary<string, object>? results, string profileKey, bool showCallTree)
+void PrintCpuResults(Dictionary<string, object>? results, string profileKey, bool showCallTree, string? rootFilter)
 {
     if (results == null)
     {
@@ -349,10 +371,8 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
 
     if (showCallTree)
     {
-        PrintSection("Call Tree (Total Time)");
-        PrintCallTree(results, useSelfTime: false);
-        PrintSection("Call Tree (Self Time)");
-        PrintCallTree(results, useSelfTime: true);
+        AnsiConsole.Write(BuildCallTree(results, useSelfTime: false, rootFilter));
+        AnsiConsole.Write(BuildCallTree(results, useSelfTime: true, rootFilter));
     }
 }
 
@@ -624,94 +644,210 @@ void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
     }
 }
 
-void PrintCallTree(Dictionary<string, object> results, bool useSelfTime)
+Panel BuildCallTree(Dictionary<string, object> results, bool useSelfTime, string? rootFilter)
 {
-    var frames = (List<string>)results["frames"];
-    var callerCallee = (Dictionary<int, Dictionary<int, int>>)results["caller_callee"];
-    var frameCounts = (Dictionary<int, int>)results["frame_counts"];
-    var frameTimes = (Dictionary<int, double>)results["frame_times"];
-    var frameSelfTimes = (Dictionary<int, double>)results["frame_self_times"];
-    var totalTime = (double)results["total_time"];
+    var callTreeRoot = (Dictionary<string, object>)results["call_tree_root"];
+    var totalTime = (double)results["call_tree_total"];
+    var title = useSelfTime ? "Call Tree (Self Time)" : "Call Tree (Total Time)";
 
-    var timeSource = useSelfTime ? frameSelfTimes : frameTimes;
-    var roots = timeSource
-        .OrderByDescending(kv => kv.Value)
-        .Take(5)
-        .Select(kv => kv.Key)
-        .ToList();
-
-    foreach (var rootIdx in roots)
+    var rootNode = callTreeRoot;
+    var rootTotal = totalTime;
+    if (!string.IsNullOrWhiteSpace(rootFilter))
     {
-        PrintCallTreeNode(rootIdx, frames, frameCounts, timeSource, totalTime, 0);
-        PrintCallTreeChildren(rootIdx, frames, frameCounts, timeSource, totalTime, callerCallee, 1, 4, new HashSet<int> { rootIdx });
-        Console.WriteLine();
+        var matches = FindCallTreeMatches(callTreeRoot, rootFilter);
+        if (matches.Count > 0)
+        {
+            rootNode = matches
+                .OrderByDescending(node => GetCallTreeTime(node, useSelfTime: false))
+                .First();
+            rootTotal = GetCallTreeTime(rootNode, useSelfTime: false);
+            title = $"{title} - root: {Markup.Escape(rootFilter)}";
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"[yellow]No call tree nodes matched '{Markup.Escape(rootFilter)}'. Showing full tree.[/]");
+        }
     }
+
+    var rootLabel = FormatCallTreeLine(rootNode, rootTotal, useSelfTime, isRoot: true);
+    var tree = new Tree(rootLabel).Guide(TreeGuide.Line);
+    var children = GetCallTreeChildren(rootNode)
+        .OrderByDescending(child => GetCallTreeTime(child.Value, useSelfTime))
+        .Take(5);
+    foreach (var child in children)
+    {
+        var childNode = tree.AddNode(FormatCallTreeLine(child.Value, rootTotal, useSelfTime, isRoot: false));
+        AddCallTreeChildren(childNode, child.Value, rootTotal, useSelfTime, 2, 4);
+    }
+
+    return new Panel(tree)
+        .Header($"[bold yellow]{title}[/]")
+        .Border(BoxBorder.Rounded);
 }
 
-void PrintCallTreeChildren(
-    int frameIdx,
-    List<string> frames,
-    Dictionary<int, int> frameCounts,
-    Dictionary<int, double> timeSource,
+void AddCallTreeChildren(
+    TreeNode parent,
+    Dictionary<string, object> node,
     double totalTime,
-    Dictionary<int, Dictionary<int, int>> callerCallee,
+    bool useSelfTime,
     int depth,
-    int maxDepth,
-    HashSet<int> path)
+    int maxDepth)
 {
     if (depth > maxDepth)
     {
         return;
     }
 
-    if (!callerCallee.TryGetValue(frameIdx, out var children))
-    {
-        return;
-    }
-
-    var ordered = children.Keys
-        .OrderByDescending(child => timeSource.TryGetValue(child, out var t) ? t : 0d)
+    var children = GetCallTreeChildren(node)
+        .OrderByDescending(child => GetCallTreeTime(child.Value, useSelfTime))
         .Take(5);
 
-    foreach (var child in ordered)
+    foreach (var child in children)
     {
-        if (path.Contains(child))
-        {
-            continue;
-        }
-
-        PrintCallTreeNode(child, frames, frameCounts, timeSource, totalTime, depth);
-        path.Add(child);
-        PrintCallTreeChildren(child, frames, frameCounts, timeSource, totalTime, callerCallee, depth + 1, maxDepth, path);
-        path.Remove(child);
+        var childNode = parent.AddNode(FormatCallTreeLine(child.Value, totalTime, useSelfTime, isRoot: false));
+        AddCallTreeChildren(childNode, child.Value, totalTime, useSelfTime, depth + 1, maxDepth);
     }
 }
 
-void PrintCallTreeNode(
-    int frameIdx,
-    List<string> frames,
-    Dictionary<int, int> frameCounts,
-    Dictionary<int, double> timeSource,
+string FormatCallTreeLine(
+    Dictionary<string, object> node,
     double totalTime,
-    int depth)
+    bool useSelfTime,
+    bool isRoot)
 {
-    var name = frameIdx < frames.Count ? frames[frameIdx] : "Unknown";
+    var name = GetCallTreeName(node);
     name = FormatMethodDisplayName(name);
     if (name.Length > 80)
     {
         name = name[..77] + "...";
     }
 
-    timeSource.TryGetValue(frameIdx, out var timeSpent);
-    frameCounts.TryGetValue(frameIdx, out var calls);
+    var timeSpent = isRoot && useSelfTime
+        ? GetCallTreeTime(node, useSelfTime: false)
+        : GetCallTreeTime(node, useSelfTime);
+    var calls = GetCallTreeCalls(node);
 
     var pct = totalTime > 0 ? 100 * timeSpent / totalTime : 0;
     var timeText = timeSpent.ToString("F2", CultureInfo.InvariantCulture);
     var pctText = pct.ToString("F1", CultureInfo.InvariantCulture);
     var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
+    var nameText = Markup.Escape(name);
 
-    var indent = new string(' ', depth * 2);
-    Console.WriteLine($"{indent}- {timeText} ms ({pctText}%) [{callsText}x] {name}");
+    return $"[green]{timeText} ms[/] [cyan]{pctText}%[/] [blue]{callsText}x[/] [white]{nameText}[/]";
+}
+
+Dictionary<string, object> CreateCallTreeNode(int frameIdx, string name)
+{
+    return new Dictionary<string, object>(StringComparer.Ordinal)
+    {
+        ["frame"] = frameIdx,
+        ["name"] = name,
+        ["total"] = 0d,
+        ["self"] = 0d,
+        ["calls"] = 0,
+        ["children"] = new Dictionary<int, Dictionary<string, object>>()
+    };
+}
+
+Dictionary<string, object> GetOrCreateCallTreeChild(
+    Dictionary<string, object> parent,
+    int frameIdx,
+    List<string> frames)
+{
+    var children = GetCallTreeChildren(parent);
+    if (!children.TryGetValue(frameIdx, out var child))
+    {
+        var name = frameIdx >= 0 && frameIdx < frames.Count ? frames[frameIdx] : "Unknown";
+        child = CreateCallTreeNode(frameIdx, name);
+        children[frameIdx] = child;
+    }
+
+    return child;
+}
+
+Dictionary<int, Dictionary<string, object>> GetCallTreeChildren(Dictionary<string, object> node)
+{
+    return (Dictionary<int, Dictionary<string, object>>)node["children"];
+}
+
+int GetCallTreeFrame(Dictionary<string, object> node)
+{
+    return (int)node["frame"];
+}
+
+string GetCallTreeName(Dictionary<string, object> node)
+{
+    return (string)node["name"];
+}
+
+int GetCallTreeCalls(Dictionary<string, object> node)
+{
+    return (int)node["calls"];
+}
+
+double GetCallTreeTime(Dictionary<string, object> node, bool useSelfTime)
+{
+    return useSelfTime ? (double)node["self"] : (double)node["total"];
+}
+
+void AddCallTreeTime(Dictionary<string, object> node, string key, double delta)
+{
+    node[key] = (double)node[key] + delta;
+}
+
+void IncrementCallTreeCalls(Dictionary<string, object> node)
+{
+    node["calls"] = (int)node["calls"] + 1;
+}
+
+double SumCallTreeTotals(Dictionary<string, object> node)
+{
+    var sum = 0d;
+    foreach (var child in GetCallTreeChildren(node).Values)
+    {
+        sum += (double)child["total"];
+    }
+    return sum;
+}
+
+int SumCallTreeCalls(Dictionary<string, object> node)
+{
+    var sum = 0;
+    foreach (var child in GetCallTreeChildren(node).Values)
+    {
+        sum += (int)child["calls"];
+    }
+    return sum;
+}
+
+List<Dictionary<string, object>> FindCallTreeMatches(Dictionary<string, object> node, string filter)
+{
+    var matches = new List<Dictionary<string, object>>();
+    var normalizedFilter = filter.Trim();
+    if (normalizedFilter.Length == 0)
+    {
+        return matches;
+    }
+
+    void Visit(Dictionary<string, object> current)
+    {
+        if (GetCallTreeFrame(current) >= 0)
+        {
+            var displayName = FormatMethodDisplayName(GetCallTreeName(current));
+            if (displayName.Contains(normalizedFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(current);
+            }
+        }
+
+        foreach (var child in GetCallTreeChildren(current).Values)
+        {
+            Visit(child);
+        }
+    }
+
+    Visit(node);
+    return matches;
 }
 void PrintAllocationTable(string allocationJson, string? allocationTotal)
 {
@@ -1139,6 +1275,7 @@ var cpuOption = new Option<bool>("--cpu", "Run CPU profiling only");
 var memoryOption = new Option<bool>("--memory", "Run memory profiling only");
 var heapOption = new Option<bool>("--heap", "Capture heap snapshot");
 var callTreeOption = new Option<bool>("--calltree", "Show call tree for CPU hotspots");
+var callTreeRootOption = new Option<string?>("--root", "Filter call tree to a root method (substring match)");
 var compareOption = new Option<bool>("--compare", "Run Jint comparison benchmarks");
 
 var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling for JsEngine benchmarks")
@@ -1148,10 +1285,11 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
     memoryOption,
     heapOption,
     callTreeOption,
+    callTreeRootOption,
     compareOption
 };
 
-rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool calltree, bool compare) =>
+rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool calltree, string? callTreeRoot, bool compare) =>
 {
     if (compare)
     {
@@ -1196,7 +1334,7 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
         {
             Console.WriteLine($"{profileKey} - cpu");
             var results = CpuProfile(profileKey);
-            PrintCpuResults(results, profileKey, calltree);
+            PrintCpuResults(results, profileKey, calltree, callTreeRoot);
         }
 
         if (runMemory)
@@ -1214,6 +1352,6 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
         }
     }
 
-}, profileArg, cpuOption, memoryOption, heapOption, callTreeOption, compareOption);
+}, profileArg, cpuOption, memoryOption, heapOption, callTreeOption, callTreeRootOption, compareOption);
 
 return await rootCommand.InvokeAsync(args);

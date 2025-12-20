@@ -919,8 +919,7 @@ public static partial class StandardLibrary
                     "NFD" => value.Normalize(NormalizationForm.FormD),
                     "NFKC" => value.Normalize(NormalizationForm.FormKC),
                     "NFKD" => value.Normalize(NormalizationForm.FormKD),
-                    _ => throw new Exception(
-                        "RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
+                    _ => throw new Exception("RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
                 });
             }
             catch

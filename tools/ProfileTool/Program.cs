@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
+using Asynkron.JsEngine.Tools.ProfileTool;
 using Spectre.Console;
 
 void PrintHeader(string text)
@@ -85,7 +86,7 @@ string? GetExecutable()
     return File.Exists(exePath) ? exePath : null;
 }
 
-Dictionary<string, object>? CpuProfile(string profileKey)
+CpuProfileResult? CpuProfile(string profileKey)
 {
     var profile = profiles[profileKey];
     var exePath = GetExecutable();
@@ -129,7 +130,7 @@ Dictionary<string, object>? CpuProfile(string profileKey)
         });
 }
 
-Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
+CpuProfileResult? AnalyzeSpeedscope(string speedscopePath)
 {
     var json = File.ReadAllText(speedscopePath);
     using var doc = JsonDocument.Parse(json);
@@ -147,9 +148,8 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
     var frameTimes = new Dictionary<int, double>();
     var frameSelfTimes = new Dictionary<int, double>();
     var frameCounts = new Dictionary<int, int>();
-    var callerCallee = new Dictionary<int, Dictionary<int, int>>();
-    var callTreeRoot = CreateCallTreeNode(-1, "Total");
-    var stack = new List<(Dictionary<string, object> Node, double Start, int FrameIdx)>();
+    var callTreeRoot = new CallTreeNode(-1, "Total");
+    var stack = new List<(CallTreeNode Node, double Start, int FrameIdx)>();
     var hasLast = false;
     var lastAt = 0d;
     var callTreeTotal = 0d;
@@ -168,7 +168,7 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
                 frameSelfTimes.TryGetValue(topIdx, out var selfTime);
                 var delta = at - lastAt;
                 frameSelfTimes[topIdx] = selfTime + delta;
-                AddCallTreeTime(stack[^1].Node, "self", delta);
+                stack[^1].Node.Self += delta;
             }
 
             hasLast = true;
@@ -176,17 +176,9 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
 
             if (string.Equals(eventType, "O", StringComparison.Ordinal)) // Open
             {
-                if (stack.Count > 0)
-                {
-                    var callerIdx = stack[^1].FrameIdx;
-                    if (!callerCallee.ContainsKey(callerIdx))
-                        callerCallee[callerIdx] = new Dictionary<int, int>();
-                    callerCallee[callerIdx].TryGetValue(frameIdx, out var cnt);
-                    callerCallee[callerIdx][frameIdx] = cnt + 1;
-                }
                 var parentNode = stack.Count > 0 ? stack[^1].Node : callTreeRoot;
                 var childNode = GetOrCreateCallTreeChild(parentNode, frameIdx, framesList);
-                IncrementCallTreeCalls(childNode);
+                childNode.Calls += 1;
                 stack.Add((childNode, at, frameIdx));
                 frameCounts.TryGetValue(frameIdx, out var count);
                 frameCounts[frameIdx] = count + 1;
@@ -200,7 +192,7 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
                     var duration = at - openTime;
                     frameTimes.TryGetValue(frameIdx, out var time);
                     frameTimes[frameIdx] = time + duration;
-                    AddCallTreeTime(node, "total", duration);
+                    node.Total += duration;
                     if (stack.Count == 0)
                     {
                         callTreeTotal += duration;
@@ -210,8 +202,8 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
         }
     }
 
-    var allFunctions = new List<Dictionary<string, object>>();
-    var jsEngineFunctions = new List<Dictionary<string, object>>();
+    var allFunctions = new List<FunctionSample>();
+    var jsEngineFunctions = new List<FunctionSample>();
     double totalTime = frameTimes.Values.Sum();
     double jsEngineTime = 0;
 
@@ -219,50 +211,34 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
     {
         callTreeTotal = SumCallTreeTotals(callTreeRoot);
     }
-    callTreeRoot["total"] = callTreeTotal;
-    callTreeRoot["calls"] = SumCallTreeCalls(callTreeRoot);
+    callTreeRoot.Total = callTreeTotal;
+    callTreeRoot.Calls = SumCallTreeCalls(callTreeRoot);
 
-    var sortedFrames = frameTimes.OrderByDescending(kv => kv.Value).ToList();
-
-    foreach (var (frameIdx, timeSpent) in sortedFrames)
+    foreach (var (frameIdx, timeSpent) in frameTimes.OrderByDescending(kv => kv.Value))
     {
         var name = frameIdx < framesList.Count ? framesList[frameIdx] : "Unknown";
         frameCounts.TryGetValue(frameIdx, out var calls);
 
-        var entry = new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["name"] = name,
-            ["time_ms"] = timeSpent,
-            ["calls"] = calls,
-            ["frame_idx"] = frameIdx
-        };
-
+        var entry = new FunctionSample(name, timeSpent, calls, frameIdx);
         allFunctions.Add(entry);
 
-        if (name.Contains("Asynkron"))
+        if (name.Contains("Asynkron", StringComparison.Ordinal))
         {
             jsEngineFunctions.Add(entry);
             jsEngineTime += timeSpent;
         }
     }
 
-    return new Dictionary<string, object>(StringComparer.Ordinal)
-    {
-        ["all_functions"] = allFunctions,
-        ["jsengine_functions"] = jsEngineFunctions,
-        ["total_time"] = totalTime,
-        ["jsengine_time"] = jsEngineTime,
-        ["frames"] = framesList,
-        ["caller_callee"] = callerCallee,
-        ["frame_counts"] = frameCounts,
-        ["frame_times"] = frameTimes,
-        ["frame_self_times"] = frameSelfTimes,
-        ["call_tree_root"] = callTreeRoot,
-        ["call_tree_total"] = callTreeTotal
-    };
+    return new CpuProfileResult(
+        allFunctions,
+        jsEngineFunctions,
+        totalTime,
+        jsEngineTime,
+        callTreeRoot,
+        callTreeTotal);
 }
 
-void PrintCpuResults(Dictionary<string, object>? results, string profileKey, bool showCallTree, string? rootFilter)
+void PrintCpuResults(CpuProfileResult? results, string profileKey, bool showCallTree, string? rootFilter)
 {
     if (results == null)
     {
@@ -277,15 +253,16 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
     PrintSection($"CPU PROFILE: {name}");
     AnsiConsole.MarkupLine($"[dim]{description}[/]");
 
-    var allFunctions = (List<Dictionary<string, object>>)results["all_functions"];
-    var jsEngineFunctions = (List<Dictionary<string, object>>)results["jsengine_functions"];
-    var totalTime = (double)results["total_time"];
-    var jsEngineTime = (double)results["jsengine_time"];
+    var allFunctions = results.AllFunctions;
+    var jsEngineFunctions = results.JsEngineFunctions;
+    var totalTime = results.TotalTime;
+    var jsEngineTime = results.JsEngineTime;
 
     // Top functions overall - using Spectre table
     AnsiConsole.WriteLine();
     var table = new Table()
         .Border(TableBorder.Rounded)
+        .Expand()
         .Title("[bold]Top Functions (All)[/]")
         .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
@@ -293,11 +270,11 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
 
     foreach (var entry in allFunctions.Take(15))
     {
-        var funcName = FormatMethodDisplayName((string)entry["name"]);
+        var funcName = FormatMethodDisplayName(entry.Name);
         if (funcName.Length > 70) funcName = funcName[..67] + "...";
 
-        var timeMs = (double)entry["time_ms"];
-        var calls = (int)entry["calls"];
+        var timeMs = entry.TimeMs;
+        var calls = entry.Calls;
         var timeMsText = timeMs.ToString("F2", CultureInfo.InvariantCulture);
         var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
 
@@ -315,6 +292,7 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
 
     var jsTable = new Table()
         .Border(TableBorder.Rounded)
+        .Expand()
         .AddColumn(new TableColumn("[yellow]Time (ms)[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Calls[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]% Total[/]").RightAligned())
@@ -322,11 +300,11 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
 
     foreach (var entry in jsEngineFunctions.Take(20))
     {
-        var funcName = FormatMethodDisplayName((string)entry["name"]);
+        var funcName = FormatMethodDisplayName(entry.Name);
         if (funcName.Length > 60) funcName = funcName[..57] + "...";
 
-        var timeMs = (double)entry["time_ms"];
-        var calls = (int)entry["calls"];
+        var timeMs = entry.TimeMs;
+        var calls = entry.Calls;
         var pct = totalTime > 0 ? 100 * timeMs / totalTime : 0;
         var timeMsText = timeMs.ToString("F2", CultureInfo.InvariantCulture);
         var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
@@ -348,6 +326,7 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
 
     var summaryTable = new Table()
         .Border(TableBorder.Double)
+        .Expand()
         .Title("[bold yellow]Summary[/]")
         .HideHeaders()
         .AddColumn("")
@@ -370,7 +349,7 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey, boo
     }
 }
 
-Dictionary<string, string>? MemoryProfile(string profileKey)
+MemoryProfileResult? MemoryProfile(string profileKey)
 {
     var exePath = GetExecutable();
     if (exePath == null)
@@ -400,66 +379,81 @@ Dictionary<string, string>? MemoryProfile(string profileKey)
     return ParseAllocationOutput(stdout);
 }
 
-Dictionary<string, string> ParseMemoryJson(string jsonPath)
+MemoryProfileResult ParseMemoryJson(string jsonPath)
 {
     var json = File.ReadAllText(jsonPath);
     using var doc = JsonDocument.Parse(json);
     var root = doc.RootElement;
 
-    var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-    AddJsonValue(results, root, "iterations");
-    AddJsonValue(results, root, "total_time");
-    AddJsonValue(results, root, "per_iteration_time");
-    AddJsonValue(results, root, "total_allocated");
-    AddJsonValue(results, root, "per_iteration_allocated");
-    AddJsonValue(results, root, "gen0_collections");
-    AddJsonValue(results, root, "gen1_collections");
-    AddJsonValue(results, root, "gen2_collections");
-    AddJsonValue(results, root, "parse_allocated");
-    AddJsonValue(results, root, "evaluate_allocated");
-    AddJsonValue(results, root, "heap_before");
-    AddJsonValue(results, root, "heap_after");
-    AddJsonValue(results, root, "allocation_total");
-    AddJsonValue(results, root, "allocation_total_count");
-
+    var allocationEntries = new List<AllocationEntry>();
     if (root.TryGetProperty("allocation_by_type", out var allocations) &&
         allocations.ValueKind == JsonValueKind.Array)
     {
-        results["allocation_entries_json"] = allocations.GetRawText();
+        foreach (var entry in allocations.EnumerateArray())
+        {
+            var typeName = entry.TryGetProperty("type", out var typeElement)
+                ? typeElement.GetString() ?? "Unknown"
+                : "Unknown";
+            var count = entry.TryGetProperty("count", out var countElement) && countElement.TryGetInt64(out var countValue)
+                ? countValue
+                : 0;
+            var totalText = entry.TryGetProperty("total", out var totalElement)
+                ? totalElement.GetString() ?? string.Empty
+                : string.Empty;
+
+            allocationEntries.Add(new AllocationEntry(typeName, count, totalText));
+        }
     }
 
-    return results;
+    return new MemoryProfileResult(
+        ReadJsonValue(root, "iterations"),
+        ReadJsonValue(root, "total_time"),
+        ReadJsonValue(root, "per_iteration_time"),
+        ReadJsonValue(root, "total_allocated"),
+        ReadJsonValue(root, "per_iteration_allocated"),
+        ReadJsonValue(root, "gen0_collections"),
+        ReadJsonValue(root, "gen1_collections"),
+        ReadJsonValue(root, "gen2_collections"),
+        ReadJsonValue(root, "parse_allocated"),
+        ReadJsonValue(root, "evaluate_allocated"),
+        ReadJsonValue(root, "heap_before"),
+        ReadJsonValue(root, "heap_after"),
+        ReadJsonValue(root, "allocation_total"),
+        allocationEntries,
+        null,
+        null);
 }
 
-void AddJsonValue(Dictionary<string, string> results, JsonElement root, string key)
+string? ReadJsonValue(JsonElement root, string key)
 {
     if (!root.TryGetProperty(key, out var element))
     {
-        return;
+        return null;
     }
 
-    switch (element.ValueKind)
+    return element.ValueKind switch
     {
-        case JsonValueKind.String:
-            results[key] = element.GetString() ?? string.Empty;
-            break;
-        case JsonValueKind.Number:
-            results[key] = element.GetRawText();
-            break;
-        case JsonValueKind.True:
-        case JsonValueKind.False:
-            results[key] = element.GetBoolean().ToString();
-            break;
-    }
+        JsonValueKind.String => element.GetString(),
+        JsonValueKind.Number => element.GetRawText(),
+        JsonValueKind.True or JsonValueKind.False => element.GetBoolean().ToString(),
+        _ => null
+    };
 }
 
-Dictionary<string, string> ParseAllocationOutput(string output)
+MemoryProfileResult ParseAllocationOutput(string output)
 {
-    var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["raw_output"] = output
-    };
+    string? iterations = null;
+    string? totalTime = null;
+    string? perIterationTime = null;
+    string? totalAllocated = null;
+    string? perIterationAllocated = null;
+    string? gen0Collections = null;
+    string? gen1Collections = null;
+    string? gen2Collections = null;
+    string? parseAllocated = null;
+    string? evaluateAllocated = null;
+    string? heapBefore = null;
+    string? heapAfter = null;
 
     var allocationLines = new List<string>();
     var inAllocationByType = false;
@@ -500,63 +494,78 @@ Dictionary<string, string> ParseAllocationOutput(string output)
 
         if (trimmed.StartsWith("Iterations:", StringComparison.Ordinal))
         {
-            results["iterations"] = value;
+            iterations = value;
         }
         else if (trimmed.StartsWith("Total time:", StringComparison.Ordinal))
         {
-            results["total_time"] = value;
+            totalTime = value;
         }
         else if (trimmed.StartsWith("Per iteration:", StringComparison.Ordinal))
         {
             if (value.EndsWith("ms", StringComparison.OrdinalIgnoreCase))
             {
-                results["per_iteration_time"] = value;
+                perIterationTime = value;
             }
             else
             {
-                results["per_iteration_allocated"] = value;
+                perIterationAllocated = value;
             }
         }
         else if (trimmed.StartsWith("Total allocated:", StringComparison.Ordinal))
         {
-            results["total_allocated"] = value;
+            totalAllocated = value;
         }
         else if (trimmed.StartsWith("GC Gen0 collections:", StringComparison.Ordinal))
         {
-            results["gen0_collections"] = value;
+            gen0Collections = value;
         }
         else if (trimmed.StartsWith("GC Gen1 collections:", StringComparison.Ordinal))
         {
-            results["gen1_collections"] = value;
+            gen1Collections = value;
         }
         else if (trimmed.StartsWith("GC Gen2 collections:", StringComparison.Ordinal))
         {
-            results["gen2_collections"] = value;
+            gen2Collections = value;
         }
         else if (trimmed.StartsWith("Parse:", StringComparison.Ordinal))
         {
-            results["parse_allocated"] = value;
+            parseAllocated = value;
         }
         else if (trimmed.StartsWith("Evaluate:", StringComparison.Ordinal))
         {
-            results["evaluate_allocated"] = value;
+            evaluateAllocated = value;
         }
         else if (trimmed.StartsWith("Heap before:", StringComparison.Ordinal))
         {
-            results["heap_before"] = value;
+            heapBefore = value;
         }
         else if (trimmed.StartsWith("Heap after:", StringComparison.Ordinal))
         {
-            results["heap_after"] = value;
+            heapAfter = value;
         }
     }
 
-    if (allocationLines.Count > 0)
-    {
-        results["allocation_by_type"] = string.Join(Environment.NewLine, allocationLines).Trim();
-    }
+    var allocationByTypeRaw = allocationLines.Count > 0
+        ? string.Join(Environment.NewLine, allocationLines).Trim()
+        : null;
 
-    return results;
+    return new MemoryProfileResult(
+        iterations,
+        totalTime,
+        perIterationTime,
+        totalAllocated,
+        perIterationAllocated,
+        gen0Collections,
+        gen1Collections,
+        gen2Collections,
+        parseAllocated,
+        evaluateAllocated,
+        heapBefore,
+        heapAfter,
+        null,
+        Array.Empty<AllocationEntry>(),
+        allocationByTypeRaw,
+        output);
 }
 
 string? GetValueAfterColon(string line)
@@ -570,7 +579,7 @@ string? GetValueAfterColon(string line)
     return line[(idx + 1)..].Trim();
 }
 
-void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
+void PrintMemoryResults(MemoryProfileResult? results, string profileKey)
 {
     if (results == null)
     {
@@ -587,61 +596,59 @@ void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
 
     var table = new Table()
         .Border(TableBorder.Rounded)
+        .Expand()
         .AddColumn(new TableColumn("[yellow]Metric[/]"))
         .AddColumn(new TableColumn("[yellow]Value[/]"));
 
     var hasRows = false;
 
-    void AddRow(string label, string key)
+    void AddRow(string label, string? value)
     {
-        if (results.TryGetValue(key, out var value))
+        if (!string.IsNullOrWhiteSpace(value))
         {
             table.AddRow(label, Markup.Escape(value));
             hasRows = true;
         }
     }
 
-    AddRow("Iterations", "iterations");
-    AddRow("Total time", "total_time");
-    AddRow("Per iteration (time)", "per_iteration_time");
-    AddRow("Total allocated", "total_allocated");
-    AddRow("Per iteration (allocated)", "per_iteration_allocated");
-    AddRow("GC Gen0 collections", "gen0_collections");
-    AddRow("GC Gen1 collections", "gen1_collections");
-    AddRow("GC Gen2 collections", "gen2_collections");
-    AddRow("Parse (allocated)", "parse_allocated");
-    AddRow("Evaluate (allocated)", "evaluate_allocated");
-    AddRow("Heap before", "heap_before");
-    AddRow("Heap after", "heap_after");
+    AddRow("Iterations", results.Iterations);
+    AddRow("Total time", results.TotalTime);
+    AddRow("Per iteration (time)", results.PerIterationTime);
+    AddRow("Total allocated", results.TotalAllocated);
+    AddRow("Per iteration (allocated)", results.PerIterationAllocated);
+    AddRow("GC Gen0 collections", results.Gen0Collections);
+    AddRow("GC Gen1 collections", results.Gen1Collections);
+    AddRow("GC Gen2 collections", results.Gen2Collections);
+    AddRow("Parse (allocated)", results.ParseAllocated);
+    AddRow("Evaluate (allocated)", results.EvaluateAllocated);
+    AddRow("Heap before", results.HeapBefore);
+    AddRow("Heap after", results.HeapAfter);
 
     if (hasRows)
     {
         AnsiConsole.Write(table);
     }
 
-    if (results.TryGetValue("allocation_by_type", out var allocationTable) &&
-        !string.IsNullOrWhiteSpace(allocationTable))
+    if (!string.IsNullOrWhiteSpace(results.AllocationByTypeRaw))
     {
         PrintSection("Allocation By Type (Sampled)");
-        AnsiConsole.WriteLine(allocationTable);
+        AnsiConsole.WriteLine(results.AllocationByTypeRaw);
     }
-    else if (results.TryGetValue("allocation_entries_json", out var allocationJson) &&
-             !string.IsNullOrWhiteSpace(allocationJson))
+    else if (results.AllocationEntries.Count > 0)
     {
         PrintSection("Allocation By Type (Sampled)");
-        results.TryGetValue("allocation_total", out var allocationTotal);
-        PrintAllocationTable(allocationJson, allocationTotal);
+        PrintAllocationTable(results.AllocationEntries, results.AllocationTotal);
     }
-    else if (!hasRows && results.TryGetValue("raw_output", out var rawOutput))
+    else if (!hasRows && !string.IsNullOrWhiteSpace(results.RawOutput))
     {
-        AnsiConsole.WriteLine(rawOutput);
+        AnsiConsole.WriteLine(results.RawOutput);
     }
 }
 
-Panel BuildCallTree(Dictionary<string, object> results, bool useSelfTime, string? rootFilter)
+Panel BuildCallTree(CpuProfileResult results, bool useSelfTime, string? rootFilter)
 {
-    var callTreeRoot = (Dictionary<string, object>)results["call_tree_root"];
-    var totalTime = (double)results["call_tree_total"];
+    var callTreeRoot = results.CallTreeRoot;
+    var totalTime = results.CallTreeTotal;
     var title = useSelfTime ? "Call Tree (Self Time)" : "Call Tree (Total Time)";
 
     var rootNode = callTreeRoot;
@@ -665,13 +672,13 @@ Panel BuildCallTree(Dictionary<string, object> results, bool useSelfTime, string
 
     var rootLabel = FormatCallTreeLine(rootNode, rootTotal, useSelfTime, isRoot: true);
     var tree = new Tree(rootLabel).Guide(TreeGuide.Line);
-    var children = GetCallTreeChildren(rootNode)
-        .OrderByDescending(child => GetCallTreeTime(child.Value, useSelfTime))
+    var children = rootNode.Children.Values
+        .OrderByDescending(child => GetCallTreeTime(child, useSelfTime))
         .Take(5);
     foreach (var child in children)
     {
-        var childNode = tree.AddNode(FormatCallTreeLine(child.Value, rootTotal, useSelfTime, isRoot: false));
-        AddCallTreeChildren(childNode, child.Value, rootTotal, useSelfTime, 2, 4);
+        var childNode = tree.AddNode(FormatCallTreeLine(child, rootTotal, useSelfTime, isRoot: false));
+        AddCallTreeChildren(childNode, child, rootTotal, useSelfTime, 2, 4);
     }
 
     return new Panel(tree)
@@ -681,7 +688,7 @@ Panel BuildCallTree(Dictionary<string, object> results, bool useSelfTime, string
 
 void AddCallTreeChildren(
     TreeNode parent,
-    Dictionary<string, object> node,
+    CallTreeNode node,
     double totalTime,
     bool useSelfTime,
     int depth,
@@ -692,25 +699,24 @@ void AddCallTreeChildren(
         return;
     }
 
-    var children = GetCallTreeChildren(node)
-        .OrderByDescending(child => GetCallTreeTime(child.Value, useSelfTime))
+    var children = node.Children.Values
+        .OrderByDescending(child => GetCallTreeTime(child, useSelfTime))
         .Take(5);
 
     foreach (var child in children)
     {
-        var childNode = parent.AddNode(FormatCallTreeLine(child.Value, totalTime, useSelfTime, isRoot: false));
-        AddCallTreeChildren(childNode, child.Value, totalTime, useSelfTime, depth + 1, maxDepth);
+        var childNode = parent.AddNode(FormatCallTreeLine(child, totalTime, useSelfTime, isRoot: false));
+        AddCallTreeChildren(childNode, child, totalTime, useSelfTime, depth + 1, maxDepth);
     }
 }
 
 string FormatCallTreeLine(
-    Dictionary<string, object> node,
+    CallTreeNode node,
     double totalTime,
     bool useSelfTime,
     bool isRoot)
 {
-    var name = GetCallTreeName(node);
-    name = FormatMethodDisplayName(name);
+    var name = FormatMethodDisplayName(node.Name);
     if (name.Length > 80)
     {
         name = name[..77] + "...";
@@ -719,7 +725,7 @@ string FormatCallTreeLine(
     var timeSpent = isRoot && useSelfTime
         ? GetCallTreeTime(node, useSelfTime: false)
         : GetCallTreeTime(node, useSelfTime);
-    var calls = GetCallTreeCalls(node);
+    var calls = node.Calls;
 
     var pct = totalTime > 0 ? 100 * timeSpent / totalTime : 0;
     var timeText = timeSpent.ToString("F2", CultureInfo.InvariantCulture);
@@ -730,111 +736,67 @@ string FormatCallTreeLine(
     return $"[green]{timeText} ms[/] [cyan]{pctText}%[/] [blue]{callsText}x[/] [white]{nameText}[/]";
 }
 
-Dictionary<string, object> CreateCallTreeNode(int frameIdx, string name)
-{
-    return new Dictionary<string, object>(StringComparer.Ordinal)
-    {
-        ["frame"] = frameIdx,
-        ["name"] = name,
-        ["total"] = 0d,
-        ["self"] = 0d,
-        ["calls"] = 0,
-        ["children"] = new Dictionary<int, Dictionary<string, object>>()
-    };
-}
-
-Dictionary<string, object> GetOrCreateCallTreeChild(
-    Dictionary<string, object> parent,
+CallTreeNode GetOrCreateCallTreeChild(
+    CallTreeNode parent,
     int frameIdx,
-    List<string> frames)
+    IReadOnlyList<string> frames)
 {
-    var children = GetCallTreeChildren(parent);
-    if (!children.TryGetValue(frameIdx, out var child))
+    if (!parent.Children.TryGetValue(frameIdx, out var child))
     {
         var name = frameIdx >= 0 && frameIdx < frames.Count ? frames[frameIdx] : "Unknown";
-        child = CreateCallTreeNode(frameIdx, name);
-        children[frameIdx] = child;
+        child = new CallTreeNode(frameIdx, name);
+        parent.Children[frameIdx] = child;
     }
 
     return child;
 }
 
-Dictionary<int, Dictionary<string, object>> GetCallTreeChildren(Dictionary<string, object> node)
+double GetCallTreeTime(CallTreeNode node, bool useSelfTime)
 {
-    return (Dictionary<int, Dictionary<string, object>>)node["children"];
+    return useSelfTime ? node.Self : node.Total;
 }
 
-int GetCallTreeFrame(Dictionary<string, object> node)
-{
-    return (int)node["frame"];
-}
-
-string GetCallTreeName(Dictionary<string, object> node)
-{
-    return (string)node["name"];
-}
-
-int GetCallTreeCalls(Dictionary<string, object> node)
-{
-    return (int)node["calls"];
-}
-
-double GetCallTreeTime(Dictionary<string, object> node, bool useSelfTime)
-{
-    return useSelfTime ? (double)node["self"] : (double)node["total"];
-}
-
-void AddCallTreeTime(Dictionary<string, object> node, string key, double delta)
-{
-    node[key] = (double)node[key] + delta;
-}
-
-void IncrementCallTreeCalls(Dictionary<string, object> node)
-{
-    node["calls"] = (int)node["calls"] + 1;
-}
-
-double SumCallTreeTotals(Dictionary<string, object> node)
+double SumCallTreeTotals(CallTreeNode node)
 {
     var sum = 0d;
-    foreach (var child in GetCallTreeChildren(node).Values)
+    foreach (var child in node.Children.Values)
     {
-        sum += (double)child["total"];
+        sum += child.Total;
     }
     return sum;
 }
 
-int SumCallTreeCalls(Dictionary<string, object> node)
+int SumCallTreeCalls(CallTreeNode node)
 {
     var sum = 0;
-    foreach (var child in GetCallTreeChildren(node).Values)
+    foreach (var child in node.Children.Values)
     {
-        sum += (int)child["calls"];
+        sum += child.Calls;
     }
     return sum;
 }
 
-List<Dictionary<string, object>> FindCallTreeMatches(Dictionary<string, object> node, string filter)
+List<CallTreeNode> FindCallTreeMatches(CallTreeNode node, string filter)
 {
-    var matches = new List<Dictionary<string, object>>();
+    var matches = new List<CallTreeNode>();
     var normalizedFilter = filter.Trim();
     if (normalizedFilter.Length == 0)
     {
         return matches;
     }
 
-    void Visit(Dictionary<string, object> current)
+    void Visit(CallTreeNode current)
     {
-        if (GetCallTreeFrame(current) >= 0)
+        if (current.FrameIdx >= 0)
         {
-            var displayName = FormatMethodDisplayName(GetCallTreeName(current));
+            var displayName = FormatMethodDisplayName(current.Name);
             if (displayName.Contains(normalizedFilter, StringComparison.OrdinalIgnoreCase))
             {
                 matches.Add(current);
             }
         }
 
-        foreach (var child in GetCallTreeChildren(current).Values)
+        foreach (var child in current.Children.Values)
         {
             Visit(child);
         }
@@ -843,39 +805,32 @@ List<Dictionary<string, object>> FindCallTreeMatches(Dictionary<string, object> 
     Visit(node);
     return matches;
 }
-void PrintAllocationTable(string allocationJson, string? allocationTotal)
+
+void PrintAllocationTable(IReadOnlyList<AllocationEntry> entries, string? allocationTotal)
 {
-    using var doc = JsonDocument.Parse(allocationJson);
-    var entries = doc.RootElement;
-    if (entries.ValueKind != JsonValueKind.Array || entries.GetArrayLength() == 0)
+    if (entries.Count == 0)
     {
         return;
     }
 
     var table = new Table()
         .Border(TableBorder.Rounded)
+        .Expand()
         .AddColumn(new TableColumn("[yellow]Type[/]"))
         .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
         .AddColumn(new TableColumn("[yellow]Total[/]").RightAligned());
 
     long totalCount = 0;
 
-    foreach (var entry in entries.EnumerateArray())
+    foreach (var entry in entries)
     {
-        var typeName = entry.TryGetProperty("type", out var typeElement)
-            ? typeElement.GetString() ?? "Unknown"
-            : "Unknown";
-        typeName = FormatTypeDisplayName(typeName);
+        var typeName = FormatTypeDisplayName(entry.Type);
         if (typeName.Length > 80)
         {
             typeName = typeName[..77] + "...";
         }
-        var count = entry.TryGetProperty("count", out var countElement) && countElement.TryGetInt64(out var countValue)
-            ? countValue
-            : 0;
-        var totalText = entry.TryGetProperty("total", out var totalElement)
-            ? totalElement.GetString() ?? string.Empty
-            : string.Empty;
+        var count = entry.Count;
+        var totalText = entry.Total ?? string.Empty;
 
         totalCount += count;
 
@@ -968,7 +923,7 @@ string CleanTypeName(string name)
     return normalized;
 }
 
-Dictionary<string, object>? HeapProfile(string profileKey)
+HeapProfileResult? HeapProfile(string profileKey)
 {
     var profile = profiles[profileKey];
     var name = profile.Name;
@@ -1023,20 +978,12 @@ Dictionary<string, object>? HeapProfile(string profileKey)
     }
 
     AnsiConsole.MarkupLine($"[yellow]Could not parse gcdump, showing raw output:[/] {Markup.Escape(reportErr)}");
-    return new Dictionary<string, object>(StringComparer.Ordinal)
-    {
-        ["raw_output"] = reportOut
-    };
+    return new HeapProfileResult(reportOut, Array.Empty<HeapTypeEntry>());
 }
 
-Dictionary<string, object> ParseGcdumpReport(string output)
+HeapProfileResult ParseGcdumpReport(string output)
 {
-    var results = new Dictionary<string, object>(StringComparer.Ordinal)
-    {
-        ["raw_output"] = output
-    };
-
-    var types = new List<(long Size, long Count, string Type)>();
+    var types = new List<HeapTypeEntry>();
     using var reader = new StringReader(output);
     var inTable = false;
 
@@ -1071,11 +1018,10 @@ Dictionary<string, object> ParseGcdumpReport(string output)
         }
 
         var typeName = string.Join(' ', parts.Skip(2));
-        types.Add((size, count, typeName));
+        types.Add(new HeapTypeEntry(size, count, typeName));
     }
 
-    results["types"] = types;
-    return results;
+    return new HeapProfileResult(output, types);
 }
 
 bool TryParseLong(string input, out long value)
@@ -1087,7 +1033,7 @@ bool TryParseLong(string input, out long value)
         out value);
 }
 
-void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
+void PrintHeapResults(HeapProfileResult? results, string profileKey)
 {
     if (results == null)
     {
@@ -1102,17 +1048,16 @@ void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
     PrintSection($"HEAP SNAPSHOT: {name}");
     AnsiConsole.MarkupLine($"[dim]{description}[/]");
 
-    if (results.TryGetValue("types", out var typesObj) &&
-        typesObj is List<(long Size, long Count, string Type)> types &&
-        types.Count > 0)
+    if (results.Types.Count > 0)
     {
         var table = new Table()
             .Border(TableBorder.Rounded)
+            .Expand()
             .AddColumn(new TableColumn("[yellow]Size (bytes)[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Type[/]"));
 
-        foreach (var entry in types.Take(40))
+        foreach (var entry in results.Types.Take(40))
         {
             var sizeText = entry.Size.ToString("N0", CultureInfo.InvariantCulture);
             var countText = entry.Count.ToString("N0", CultureInfo.InvariantCulture);
@@ -1123,13 +1068,14 @@ void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
         AnsiConsole.Write(table);
 
         PrintSection("JsEngine Types Only");
-        var jsTypes = types
+        var jsTypes = results.Types
             .Where(t => t.Type.Contains("Asynkron", StringComparison.Ordinal) ||
                         t.Type.Contains("JsEngine", StringComparison.Ordinal))
             .ToList();
 
         var jsTable = new Table()
             .Border(TableBorder.Rounded)
+            .Expand()
             .AddColumn(new TableColumn("[yellow]Size (bytes)[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Count[/]").RightAligned())
             .AddColumn(new TableColumn("[yellow]Type[/]"));
@@ -1151,13 +1097,13 @@ void PrintHeapResults(Dictionary<string, object>? results, string profileKey)
         var totalCountText = totalCount.ToString("N0", CultureInfo.InvariantCulture);
         AnsiConsole.MarkupLine($"[bold]Total JsEngine:[/] {totalSizeText} bytes, {totalCountText} instances");
     }
-    else if (results.TryGetValue("raw_output", out var rawOutput))
+    else if (!string.IsNullOrWhiteSpace(results.RawOutput))
     {
-        AnsiConsole.WriteLine(rawOutput?.ToString() ?? "No output");
+        AnsiConsole.WriteLine(results.RawOutput);
     }
 }
 
-Dictionary<string, (string Name, string Description)> LoadManifest(string manifestPath)
+Dictionary<string, ProfileDefinition> LoadManifest(string manifestPath)
 {
     using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
     var root = doc.RootElement;
@@ -1166,7 +1112,7 @@ Dictionary<string, (string Name, string Description)> LoadManifest(string manife
         throw new InvalidOperationException($"Manifest missing profiles: {manifestPath}");
     }
 
-    var profiles = new Dictionary<string, (string Name, string Description)>(StringComparer.OrdinalIgnoreCase);
+    var profiles = new Dictionary<string, ProfileDefinition>(StringComparer.OrdinalIgnoreCase);
     foreach (var profileProperty in profilesElement.EnumerateObject())
     {
         var profileElement = profileProperty.Value;
@@ -1183,7 +1129,7 @@ Dictionary<string, (string Name, string Description)> LoadManifest(string manife
             description = descElement.GetString() ?? string.Empty;
         }
 
-        profiles[profileProperty.Name] = (name, description);
+        profiles[profileProperty.Name] = new ProfileDefinition(name, description);
     }
     return profiles;
 }
@@ -1249,6 +1195,7 @@ void ShowAvailableProfiles()
 {
     var table = new Table()
         .Border(TableBorder.Rounded)
+        .Expand()
         .Title("[bold yellow]Available Profiles[/]")
         .AddColumn("[green]Key[/]")
         .AddColumn("[cyan]Name[/]")
@@ -1320,7 +1267,6 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
 
     foreach (var profileKey in profilesToRun)
     {
-        var profileInfo = profiles[profileKey];
         if (!BuildRunner())
             continue;
 

@@ -6,10 +6,10 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("JSON", ToStringTag = "JSON", ObjectKind = PrototypeObjectKind.Object)]
-public sealed partial class JsonPrototype : JsPrototype
+public sealed partial class JsonPrototype
 {
     [JsHostMethod("parse", Length = 2d)]
-    public JsValue Parse(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Parse(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -23,7 +23,7 @@ public sealed partial class JsonPrototype : JsPrototype
     }
 
     [JsHostMethod("stringify", Length = 3d)]
-    public JsValue Stringify(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Stringify(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {

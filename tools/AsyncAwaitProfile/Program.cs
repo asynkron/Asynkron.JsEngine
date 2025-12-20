@@ -2,7 +2,7 @@ using Asynkron.JsEngine;
 
 var engine = new JsEngine();
 var script = """
-    let finalResult = 0;
+    var finalResult = 0;
     async function asyncAdd(a, b) {
         return a + b;
     }

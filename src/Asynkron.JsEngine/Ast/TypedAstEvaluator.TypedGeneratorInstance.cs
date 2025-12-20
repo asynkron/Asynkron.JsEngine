@@ -186,15 +186,16 @@ public static partial class TypedAstEvaluator
                 : "generator function";
 
             var hasParameterExpressions = _function.HasParameterExpressions();
-            var lexicalNamesRaw = _function.Body.CollectLexicalNames();
+            var hoistPlan = ((IAstCacheable<HoistPlan>)_function.Body).GetOrCreateCache();
+            var lexicalNamesRaw = hoistPlan.LexicalNames;
             var lexicalNames = lexicalNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(lexicalNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            var catchParameterNamesRaw = _function.Body.CollectCatchParameterNames();
+            var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
             var catchParameterNames = catchParameterNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(catchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            var simpleCatchParameterNamesRaw = _function.Body.CollectSimpleCatchParameterNames();
+            var simpleCatchParameterNamesRaw = hoistPlan.SimpleCatchParameterNames;
             var simpleCatchParameterNames = simpleCatchParameterNamesRaw.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(simpleCatchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
@@ -203,8 +204,7 @@ public static partial class TypedAstEvaluator
                 : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
 
-            var parameterNames = new List<Symbol>();
-            _function.CollectParameterNamesFromFunction(parameterNames);
+            var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache().ParameterNames;
             var blockedFunctionVarNames = bodyLexicalNames.Count == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
                 : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);

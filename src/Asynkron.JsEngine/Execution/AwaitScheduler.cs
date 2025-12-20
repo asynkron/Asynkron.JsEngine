@@ -79,13 +79,14 @@ internal static class AwaitScheduler
             return directPromise.TryGetSettled(out value, out isRejected);
         }
 
-        // JsObject wrapping a JsPromise - use TryGetJsValue for the internal storage
-        // (matches how JsPromise stores its internal key via SetJsValue, not DefineProperty)
+        // JsObject wrapping a JsPromise - use the internal slot first, then fallback to storage.
         if (candidate.TryGetObject<JsObject>(out var jsObject) &&
-            jsObject.TryGetJsValue(JsPromise.InternalPromiseKey, out var inner) &&
-            inner.TryGetObject<JsPromise>(out var wrappedPromise))
+            (jsObject.TryGetPromiseSlot(out var slotPromise) ||
+             (jsObject.TryGetJsValue(JsPromise.InternalPromiseKey, out var inner) &&
+              inner.TryGetObject<JsPromise>(out slotPromise))) &&
+            slotPromise is not null)
         {
-            return wrappedPromise.TryGetSettled(out value, out isRejected);
+            return slotPromise.TryGetSettled(out value, out isRejected);
         }
 
         // Fallback for other IJsObjectLike types (JsArray etc.)

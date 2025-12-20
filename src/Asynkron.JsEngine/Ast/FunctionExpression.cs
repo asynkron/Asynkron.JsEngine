@@ -29,10 +29,17 @@ public sealed partial record FunctionExpression(
     int ScopeId = -1,
     bool HasClosures = false,
     int FunctionNameScopeId = -1)
-    : ExpressionNode(Source);
+    : ExpressionNode(Source), IAstCacheable<FunctionParameterNamesPlan>;
 
 public sealed partial record FunctionExpression
 {
+    private FunctionParameterNamesPlan? _cachedParameterNames;
+
     internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
         ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+
+    FunctionParameterNamesPlan IAstCacheable<FunctionParameterNamesPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedParameterNames, this, static function => FunctionParameterNamesPlan.Build(function));
+    }
 }

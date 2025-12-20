@@ -33,6 +33,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
     private IJsPropertyAccessor? _prototypeAccessor;
     private IVirtualPropertyProvider? _virtualPropertyProvider;
+    private JsPromise? _promiseSlot;
 
     internal RealmState? RealmState { get; set; }
 
@@ -50,6 +51,17 @@ namespace Asynkron.JsEngine.JsTypes;
 
     // Host-only metadata to help debugging prototype wiring without leaking into JS state.
     public string? Origin { get; set; }
+
+    internal void SetPromiseSlot(JsPromise promise)
+    {
+        _promiseSlot = promise;
+    }
+
+    internal bool TryGetPromiseSlot(out JsPromise? promise)
+    {
+        promise = _promiseSlot;
+        return promise is not null;
+    }
 
     internal void EnableArrayLengthTracking(double initialLength = 0)
     {
@@ -230,7 +242,7 @@ namespace Asynkron.JsEngine.JsTypes;
             // Track if this is a new property before setting it
             var isNewProperty = !_storage.ContainsKey(name);
             SetJsValue(name, value);
-            TrackArrayWriteJsValue(name, value);
+            TrackArrayWriteJsValue(name);
             if (isNewProperty)
             {
                 TrackPropertyInsertion(name);
@@ -242,15 +254,17 @@ namespace Asynkron.JsEngine.JsTypes;
         SetPropertyInternal(name, value.ToObject(), receiver.ToObject());
     }
 
-    private void TrackArrayWriteJsValue(string name, JsValue value)
+    private void TrackArrayWriteJsValue(string name)
     {
         if (!_trackArrayLength) return;
         if (!uint.TryParse(name, out var idx)) return;
-        if (idx >= _trackedArrayLength)
+        if (!(idx >= _trackedArrayLength))
         {
-            _trackedArrayLength = idx + 1;
-            SyncTrackedLengthDescriptor();
+            return;
         }
+
+        _trackedArrayLength = idx + 1;
+        SyncTrackedLengthDescriptor();
     }
 
     // Internal implementation that uses object? for backward compatibility

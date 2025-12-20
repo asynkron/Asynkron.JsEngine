@@ -27,9 +27,8 @@ public sealed class JsPromise
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         JsObject = new JsObject();
-        // Use fast internal storage instead of DefineProperty to avoid descriptor overhead
-        // The promise reference is internal and doesn't need descriptor semantics
-        JsObject.SetJsValue(InternalPromiseKey, JsValue.FromObjectUnsafe(this));
+        // Store the promise reference in a dedicated internal slot to avoid property allocation.
+        JsObject.SetPromiseSlot(this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -41,17 +40,26 @@ public sealed class JsPromise
             return false;
         }
 
-        // Fast path: direct JsObject with internal storage
-        if (candidate.TryGetObject<JsObject>(out var jsObject) &&
-            jsObject.TryGetJsValue(InternalPromiseKey, out var inner) &&
-            inner.TryGetObject<JsPromise>(out var jsPromise))
+        if (candidate.TryGetObject<JsPromise>(out var directPromise))
         {
-            promise = jsPromise;
+            promise = directPromise;
+            return true;
+        }
+
+        // Fast path: direct JsObject with internal storage or slot
+        if (candidate.TryGetObject<JsObject>(out var jsObject) &&
+            (jsObject.TryGetPromiseSlot(out var slotPromise) ||
+             (jsObject.TryGetJsValue(InternalPromiseKey, out var inner) &&
+              inner.TryGetObject<JsPromise>(out slotPromise))) &&
+            slotPromise is not null)
+        {
+            promise = slotPromise;
             return true;
         }
 
         // Fallback for other object types or when property was set differently
-        if (candidate.AsObject().TryGetProperty(InternalPromiseKey, out var fallbackInner) &&
+        if (candidate.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+            accessor.TryGetProperty(InternalPromiseKey, out var fallbackInner) &&
             fallbackInner.TryGetObject<JsPromise>(out var fallbackPromise))
         {
             promise = fallbackPromise;

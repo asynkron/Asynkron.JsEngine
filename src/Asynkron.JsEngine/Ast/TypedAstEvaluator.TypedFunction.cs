@@ -74,8 +74,11 @@ public static partial class TypedAstEvaluator
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             IsArrowFunction = function.IsArrow;
             _isConstructorEnabled = isConstructorFunction;
-            var bodyLexicalNames = function.Body.CollectLexicalNames().ToArray();
-            _hasHoistableDeclarations = function.Body.HasHoistableDeclarations();
+            var hoistPlan = ((IAstCacheable<HoistPlan>)function.Body).GetOrCreateCache();
+            var bodyLexicalNames = hoistPlan.LexicalNames;
+            _hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
+                .GetOrCreateCache()
+                .HasHoistableDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
             // the closure chain has no with environments (functions defined inside with blocks
@@ -95,7 +98,7 @@ public static partial class TypedAstEvaluator
                                !function.IsAsync &&
                                !_wasAsyncFunction &&
                                !_hasParameterExpressions &&
-                               bodyLexicalNames.Length == 0 &&
+                               hoistPlan.LexicalTemplate.Length == 0 &&
                                !_hasHoistableDeclarations &&
                                _allowIdentifierCache &&
                                hasSimpleParams;
@@ -107,17 +110,12 @@ public static partial class TypedAstEvaluator
             // Cache the function description to avoid string allocation per call
             _functionDescription = function.Name is { } funcName ? $"function {funcName.Name}" : "anonymous function";
 
-            var parameterNames = new List<Symbol>();
-            _function.CollectParameterNamesFromFunction(parameterNames);
-            _parameterNames = [..parameterNames];
-            _lexicalTemplate = [..bodyLexicalNames];
-            var catchParams = _function.Body.CollectCatchParameterNames();
-            _catchParameterTemplate = [..catchParams];
-            var simpleCatchParams = _function.Body.CollectSimpleCatchParameterNames();
-            _simpleCatchParameterTemplate = [..simpleCatchParams];
-            var bodyLexicalSet = new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            bodyLexicalSet.ExceptWith(simpleCatchParams);
-            _bodyLexicalTemplate = [..bodyLexicalSet];
+            var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache().ParameterNames;
+            _parameterNames = parameterNames;
+            _lexicalTemplate = hoistPlan.LexicalTemplate;
+            _catchParameterTemplate = hoistPlan.CatchParameterTemplate;
+            _simpleCatchParameterTemplate = hoistPlan.SimpleCatchParameterTemplate;
+            _bodyLexicalTemplate = hoistPlan.BodyLexicalTemplate;
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation steps 17-20:
             // argumentsObjectNeeded is true unless:
@@ -126,7 +124,8 @@ public static partial class TypedAstEvaluator
             // - hasParameterExpressions is false AND "arguments" is in functionNames/lexicalNames (step 20)
             // Note: If hasParameterExpressions is true, arguments object is needed even if body has "let arguments"
             var argumentsIsParameterName = _parameterNames.Contains(Symbol.Arguments);
-            var argumentsInBodyLexicalNames = bodyLexicalSet.Contains(Symbol.Arguments);
+            var argumentsInBodyLexicalNames = bodyLexicalNames.Contains(Symbol.Arguments) &&
+                                              !hoistPlan.SimpleCatchParameterNames.Contains(Symbol.Arguments);
             var canSkipArgumentsForBodyDeclaration = !_hasParameterExpressions && argumentsInBodyLexicalNames;
             _argumentsObjectNeeded = !IsArrowFunction && !argumentsIsParameterName && !canSkipArgumentsForBodyDeclaration;
 
@@ -170,7 +169,7 @@ public static partial class TypedAstEvaluator
                     ? "anonymous function prototype"
                     : $"prototype of {functionNameValue}";
                 functionPrototype.SetPrototype(_realmState.ObjectPrototype);
-                functionPrototype.DefineProperty("constructor",
+                functionPrototype.DefinePropertyDirect("constructor",
                     new PropertyDescriptor
                     {
                         Value = this,
@@ -182,7 +181,7 @@ public static partial class TypedAstEvaluator
                         HasEnumerable = true,
                         HasConfigurable = true
                     });
-                _properties.DefineProperty("prototype",
+                _properties.DefinePropertyDirect("prototype",
                     new PropertyDescriptor
                     {
                         Value = functionPrototype,
@@ -196,7 +195,7 @@ public static partial class TypedAstEvaluator
                     });
             }
 
-            _properties.DefineProperty("length",
+            _properties.DefinePropertyDirect("length",
                 new PropertyDescriptor
                 {
                     Value = (double)paramCount,
@@ -209,7 +208,7 @@ public static partial class TypedAstEvaluator
                     HasConfigurable = true
                 });
 
-            _properties.DefineProperty("name",
+            _properties.DefinePropertyDirect("name",
                 new PropertyDescriptor
                 {
                     Value = functionNameValue,
@@ -323,7 +322,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            _properties.DefineProperty("name",
+            _properties.DefinePropertyDirect("name",
                 new PropertyDescriptor
                 {
                     Value = name,

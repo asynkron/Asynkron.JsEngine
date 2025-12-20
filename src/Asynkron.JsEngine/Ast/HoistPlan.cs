@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Ast;
@@ -11,6 +13,10 @@ internal sealed class HoistPlan
     internal Dictionary<Symbol, bool> LexicalDeclarationKinds { get; }
     internal HashSet<Symbol> CatchParameterNames { get; }
     internal HashSet<Symbol> SimpleCatchParameterNames { get; }
+    internal ImmutableArray<Symbol> LexicalTemplate { get; }
+    internal ImmutableArray<Symbol> CatchParameterTemplate { get; }
+    internal ImmutableArray<Symbol> SimpleCatchParameterTemplate { get; }
+    internal ImmutableArray<Symbol> BodyLexicalTemplate { get; }
     internal bool HasFunctionDeclarations { get; }
     internal bool NeedsEnvironment =>
         HasFunctionDeclarations ||
@@ -23,13 +29,21 @@ internal sealed class HoistPlan
         Dictionary<Symbol, bool> lexicalDeclarationKinds,
         HashSet<Symbol> catchParameterNames,
         HashSet<Symbol> simpleCatchParameterNames,
-        bool hasFunctionDeclarations)
+        bool hasFunctionDeclarations,
+        ImmutableArray<Symbol> lexicalTemplate,
+        ImmutableArray<Symbol> catchParameterTemplate,
+        ImmutableArray<Symbol> simpleCatchParameterTemplate,
+        ImmutableArray<Symbol> bodyLexicalTemplate)
     {
         LexicalNames = lexicalNames;
         LexicalDeclarationKinds = lexicalDeclarationKinds;
         CatchParameterNames = catchParameterNames;
         SimpleCatchParameterNames = simpleCatchParameterNames;
         HasFunctionDeclarations = hasFunctionDeclarations;
+        LexicalTemplate = lexicalTemplate;
+        CatchParameterTemplate = catchParameterTemplate;
+        SimpleCatchParameterTemplate = simpleCatchParameterTemplate;
+        BodyLexicalTemplate = bodyLexicalTemplate;
     }
 
     internal static HoistPlan Build(BlockStatement block)
@@ -44,7 +58,50 @@ internal sealed class HoistPlan
         CollectCatchNames(block, catchNames);
         CollectSimpleCatchNames(block, simpleCatchNames);
 
-        return new HoistPlan(lexicalNames, lexicalKindMap, catchNames, simpleCatchNames, hasFunctionDeclarations);
+        var lexicalTemplate = lexicalNames.Count == 0
+            ? ImmutableArray<Symbol>.Empty
+            : ImmutableArray.CreateRange(lexicalNames);
+        var catchParameterTemplate = catchNames.Count == 0
+            ? ImmutableArray<Symbol>.Empty
+            : ImmutableArray.CreateRange(catchNames);
+        var simpleCatchParameterTemplate = simpleCatchNames.Count == 0
+            ? ImmutableArray<Symbol>.Empty
+            : ImmutableArray.CreateRange(simpleCatchNames);
+
+        ImmutableArray<Symbol> bodyLexicalTemplate;
+        if (lexicalTemplate.IsEmpty)
+        {
+            bodyLexicalTemplate = ImmutableArray<Symbol>.Empty;
+        }
+        else if (simpleCatchNames.Count == 0)
+        {
+            bodyLexicalTemplate = lexicalTemplate;
+        }
+        else
+        {
+            var bodyLexicalNames = new List<Symbol>(lexicalNames.Count);
+            foreach (var name in lexicalNames)
+            {
+                if (!simpleCatchNames.Contains(name))
+                {
+                    bodyLexicalNames.Add(name);
+                }
+            }
+            bodyLexicalTemplate = bodyLexicalNames.Count == 0
+                ? ImmutableArray<Symbol>.Empty
+                : ImmutableArray.CreateRange(bodyLexicalNames);
+        }
+
+        return new HoistPlan(
+            lexicalNames,
+            lexicalKindMap,
+            catchNames,
+            simpleCatchNames,
+            hasFunctionDeclarations,
+            lexicalTemplate,
+            catchParameterTemplate,
+            simpleCatchParameterTemplate,
+            bodyLexicalTemplate);
     }
 
     private static void CollectLexical(

@@ -8,9 +8,10 @@ namespace Asynkron.JsEngine.Ast;
 ///     Represents a block statement with optional strict mode.
 /// </summary>
 public sealed record BlockStatement(SourceReference? Source, ImmutableArray<StatementNode> Statements, bool IsStrict)
-    : StatementNode(Source), IAstCacheable<HoistPlan>
+    : StatementNode(Source), IAstCacheable<HoistPlan>, IAstCacheable<HoistableDeclarationsPlan>
 {
     private HoistPlan? _cachedHoistPlan;
+    private HoistableDeclarationsPlan? _cachedHoistableDeclarations;
     private int _containsInnerFunctionCache = -1; // -1 unknown, 0 false, 1 true
     private int _containsDynamicScopeCache = -1; // -1 unknown, 0 false, 1 true
 
@@ -22,6 +23,11 @@ public sealed record BlockStatement(SourceReference? Source, ImmutableArray<Stat
     HoistPlan IAstCacheable<HoistPlan>.GetOrCreateCache()
     {
         return AstCache.GetOrCreate(ref _cachedHoistPlan, this, static block => HoistPlan.Build(block));
+    }
+
+    HoistableDeclarationsPlan IAstCacheable<HoistableDeclarationsPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedHoistableDeclarations, this, static block => HoistableDeclarationsPlan.Build(block));
     }
 
     internal bool TryGetContainsInnerFunction(out bool contains)

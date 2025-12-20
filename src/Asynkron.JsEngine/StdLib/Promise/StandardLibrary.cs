@@ -56,7 +56,7 @@ public static partial class StandardLibrary
             }
 
             promiseObj.RealmState ??= realm;
-            promiseObj.SetProperty(JsPromise.InternalPromiseKey, promise);
+            promiseObj.SetPromiseSlot(promise);
         }
     }
 }

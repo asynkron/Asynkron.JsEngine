@@ -67,7 +67,7 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private void CollectParameterNamesFromFunction(List<Symbol> names)
+        public void CollectParameterNamesFromFunction(List<Symbol> names)
         {
             foreach (var parameter in function.Parameters)
             {

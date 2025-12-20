@@ -8,6 +8,7 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Spectre.Console;
 
@@ -144,9 +145,12 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
     var profile = root.GetProperty("profiles")[0];
 
     var frameTimes = new Dictionary<int, double>();
+    var frameSelfTimes = new Dictionary<int, double>();
     var frameCounts = new Dictionary<int, int>();
     var callerCallee = new Dictionary<int, Dictionary<int, int>>();
     var stack = new List<(int FrameIdx, double At)>();
+    var hasLast = false;
+    var lastAt = 0d;
 
     if (profile.TryGetProperty("events", out var events))
     {
@@ -155,6 +159,16 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
             var eventType = evt.GetProperty("type").GetString();
             var frameIdx = evt.GetProperty("frame").GetInt32();
             var at = evt.GetProperty("at").GetDouble();
+
+            if (hasLast && stack.Count > 0)
+            {
+                var topIdx = stack[^1].FrameIdx;
+                frameSelfTimes.TryGetValue(topIdx, out var selfTime);
+                frameSelfTimes[topIdx] = selfTime + (at - lastAt);
+            }
+
+            hasLast = true;
+            lastAt = at;
 
             if (string.Equals(eventType, "O", StringComparison.Ordinal)) // Open
             {
@@ -226,11 +240,13 @@ Dictionary<string, object>? AnalyzeSpeedscope(string speedscopePath)
         ["jsengine_time"] = jsEngineTime,
         ["frames"] = framesList,
         ["caller_callee"] = callerCallee,
-        ["frame_counts"] = frameCounts
+        ["frame_counts"] = frameCounts,
+        ["frame_times"] = frameTimes,
+        ["frame_self_times"] = frameSelfTimes
     };
 }
 
-void PrintCpuResults(Dictionary<string, object>? results, string profileKey)
+void PrintCpuResults(Dictionary<string, object>? results, string profileKey, bool showCallTree)
 {
     if (results == null)
     {
@@ -261,7 +277,7 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey)
 
     foreach (var entry in allFunctions.Take(15))
     {
-        var funcName = (string)entry["name"];
+        var funcName = FormatMethodDisplayName((string)entry["name"]);
         if (funcName.Length > 70) funcName = funcName[..67] + "...";
 
         var timeMs = (double)entry["time_ms"];
@@ -290,10 +306,7 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey)
 
     foreach (var entry in jsEngineFunctions.Take(20))
     {
-        var funcName = (string)entry["name"];
-        // Extract just the method part for cleaner display
-        if (funcName.Contains('!'))
-            funcName = funcName.Split('!')[^1];
+        var funcName = FormatMethodDisplayName((string)entry["name"]);
         if (funcName.Length > 60) funcName = funcName[..57] + "...";
 
         var timeMs = (double)entry["time_ms"];
@@ -333,6 +346,14 @@ void PrintCpuResults(Dictionary<string, object>? results, string profileKey)
     summaryTable.AddRow("[bold]Hot Functions[/]", $"[blue]{hotCountText}[/] JsEngine functions profiled");
 
     AnsiConsole.Write(summaryTable);
+
+    if (showCallTree)
+    {
+        PrintSection("Call Tree (Total Time)");
+        PrintCallTree(results, useSelfTime: false);
+        PrintSection("Call Tree (Self Time)");
+        PrintCallTree(results, useSelfTime: true);
+    }
 }
 
 Dictionary<string, string>? MemoryProfile(string profileKey)
@@ -603,6 +624,95 @@ void PrintMemoryResults(Dictionary<string, string>? results, string profileKey)
     }
 }
 
+void PrintCallTree(Dictionary<string, object> results, bool useSelfTime)
+{
+    var frames = (List<string>)results["frames"];
+    var callerCallee = (Dictionary<int, Dictionary<int, int>>)results["caller_callee"];
+    var frameCounts = (Dictionary<int, int>)results["frame_counts"];
+    var frameTimes = (Dictionary<int, double>)results["frame_times"];
+    var frameSelfTimes = (Dictionary<int, double>)results["frame_self_times"];
+    var totalTime = (double)results["total_time"];
+
+    var timeSource = useSelfTime ? frameSelfTimes : frameTimes;
+    var roots = timeSource
+        .OrderByDescending(kv => kv.Value)
+        .Take(5)
+        .Select(kv => kv.Key)
+        .ToList();
+
+    foreach (var rootIdx in roots)
+    {
+        PrintCallTreeNode(rootIdx, frames, frameCounts, timeSource, totalTime, 0);
+        PrintCallTreeChildren(rootIdx, frames, frameCounts, timeSource, totalTime, callerCallee, 1, 4, new HashSet<int> { rootIdx });
+        Console.WriteLine();
+    }
+}
+
+void PrintCallTreeChildren(
+    int frameIdx,
+    List<string> frames,
+    Dictionary<int, int> frameCounts,
+    Dictionary<int, double> timeSource,
+    double totalTime,
+    Dictionary<int, Dictionary<int, int>> callerCallee,
+    int depth,
+    int maxDepth,
+    HashSet<int> path)
+{
+    if (depth > maxDepth)
+    {
+        return;
+    }
+
+    if (!callerCallee.TryGetValue(frameIdx, out var children))
+    {
+        return;
+    }
+
+    var ordered = children.Keys
+        .OrderByDescending(child => timeSource.TryGetValue(child, out var t) ? t : 0d)
+        .Take(5);
+
+    foreach (var child in ordered)
+    {
+        if (path.Contains(child))
+        {
+            continue;
+        }
+
+        PrintCallTreeNode(child, frames, frameCounts, timeSource, totalTime, depth);
+        path.Add(child);
+        PrintCallTreeChildren(child, frames, frameCounts, timeSource, totalTime, callerCallee, depth + 1, maxDepth, path);
+        path.Remove(child);
+    }
+}
+
+void PrintCallTreeNode(
+    int frameIdx,
+    List<string> frames,
+    Dictionary<int, int> frameCounts,
+    Dictionary<int, double> timeSource,
+    double totalTime,
+    int depth)
+{
+    var name = frameIdx < frames.Count ? frames[frameIdx] : "Unknown";
+    name = FormatMethodDisplayName(name);
+    if (name.Length > 80)
+    {
+        name = name[..77] + "...";
+    }
+
+    timeSource.TryGetValue(frameIdx, out var timeSpent);
+    frameCounts.TryGetValue(frameIdx, out var calls);
+
+    var pct = totalTime > 0 ? 100 * timeSpent / totalTime : 0;
+    var timeText = timeSpent.ToString("F2", CultureInfo.InvariantCulture);
+    var pctText = pct.ToString("F1", CultureInfo.InvariantCulture);
+    var callsText = calls.ToString("N0", CultureInfo.InvariantCulture);
+
+    var indent = new string(' ', depth * 2);
+    Console.WriteLine($"{indent}- {timeText} ms ({pctText}%) [{callsText}x] {name}");
+}
 void PrintAllocationTable(string allocationJson, string? allocationTotal)
 {
     using var doc = JsonDocument.Parse(allocationJson);
@@ -625,6 +735,11 @@ void PrintAllocationTable(string allocationJson, string? allocationTotal)
         var typeName = entry.TryGetProperty("type", out var typeElement)
             ? typeElement.GetString() ?? "Unknown"
             : "Unknown";
+        typeName = FormatTypeDisplayName(typeName);
+        if (typeName.Length > 80)
+        {
+            typeName = typeName[..77] + "...";
+        }
         var count = entry.TryGetProperty("count", out var countElement) && countElement.TryGetInt64(out var countValue)
             ? countValue
             : 0;
@@ -635,16 +750,92 @@ void PrintAllocationTable(string allocationJson, string? allocationTotal)
         totalCount += count;
 
         var countText = count.ToString("N0", CultureInfo.InvariantCulture);
-        table.AddRow(Markup.Escape(typeName), countText, Markup.Escape(totalText));
+        table.AddRow(
+            $"[white]{Markup.Escape(typeName)}[/]",
+            $"[blue]{Markup.Escape(countText)}[/]",
+            $"[green]{Markup.Escape(totalText)}[/]");
     }
 
     if (!string.IsNullOrWhiteSpace(allocationTotal))
     {
         var countText = totalCount.ToString("N0", CultureInfo.InvariantCulture);
-        table.AddRow("[bold]TOTAL (shown)[/]", $"[bold]{countText}[/]", $"[bold]{Markup.Escape(allocationTotal)}[/]");
+        table.AddRow(
+            "[bold white]TOTAL (shown)[/]",
+            $"[bold blue]{Markup.Escape(countText)}[/]",
+            $"[bold green]{Markup.Escape(allocationTotal)}[/]");
     }
 
     AnsiConsole.Write(table);
+}
+
+string FormatMethodDisplayName(string rawName)
+{
+    if (string.IsNullOrWhiteSpace(rawName))
+    {
+        return rawName;
+    }
+
+    var name = rawName;
+    if (name.Contains('!'))
+    {
+        name = name.Split('!')[^1];
+    }
+
+    var parenIdx = name.IndexOf('(');
+    if (parenIdx > 0)
+    {
+        name = name[..parenIdx];
+    }
+
+    var lastDot = name.LastIndexOf('.');
+    if (lastDot > 0 && lastDot < name.Length - 1)
+    {
+        var typePart = name[..lastDot].TrimEnd('.');
+        var methodPart = name[(lastDot + 1)..];
+        return $"{CleanTypeName(typePart)}.{methodPart}";
+    }
+
+    return CleanTypeName(name);
+}
+
+string FormatTypeDisplayName(string rawName)
+{
+    if (string.IsNullOrWhiteSpace(rawName))
+    {
+        return rawName;
+    }
+
+    return CleanTypeName(rawName);
+}
+
+string CleanTypeName(string name)
+{
+    if (string.IsNullOrWhiteSpace(name))
+    {
+        return name;
+    }
+
+    var timeout = TimeSpan.FromMilliseconds(100);
+    var normalized = Regex.Replace(
+        name,
+        @"\b(?:[A-Za-z_][A-Za-z0-9_]*\.)+(?<type>[A-Za-z_][A-Za-z0-9_]*)",
+        "${type}",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
+        timeout);
+
+    normalized = Regex.Replace(
+        normalized,
+        @"`\d+",
+        "",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
+        timeout);
+
+    const string arrayToken = "__ARRAY__";
+    normalized = normalized.Replace("[]", arrayToken, StringComparison.Ordinal);
+    normalized = normalized.Replace('[', '<').Replace(']', '>');
+    normalized = normalized.Replace(arrayToken, "[]", StringComparison.Ordinal);
+
+    return normalized;
 }
 
 Dictionary<string, object>? HeapProfile(string profileKey)
@@ -947,6 +1138,7 @@ var profileArg = new Argument<string>("profile", () => "fib",
 var cpuOption = new Option<bool>("--cpu", "Run CPU profiling only");
 var memoryOption = new Option<bool>("--memory", "Run memory profiling only");
 var heapOption = new Option<bool>("--heap", "Capture heap snapshot");
+var callTreeOption = new Option<bool>("--calltree", "Show call tree for CPU hotspots");
 var compareOption = new Option<bool>("--compare", "Run Jint comparison benchmarks");
 
 var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling for JsEngine benchmarks")
@@ -955,10 +1147,11 @@ var rootCommand = new RootCommand("JsEngine Profiler - CPU and Memory profiling 
     cpuOption,
     memoryOption,
     heapOption,
+    callTreeOption,
     compareOption
 };
 
-rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool compare) =>
+rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool calltree, bool compare) =>
 {
     if (compare)
     {
@@ -1003,7 +1196,7 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
         {
             Console.WriteLine($"{profileKey} - cpu");
             var results = CpuProfile(profileKey);
-            PrintCpuResults(results, profileKey);
+            PrintCpuResults(results, profileKey, calltree);
         }
 
         if (runMemory)
@@ -1021,6 +1214,6 @@ rootCommand.SetHandler((string profile, bool cpu, bool memory, bool heap, bool c
         }
     }
 
-}, profileArg, cpuOption, memoryOption, heapOption, compareOption);
+}, profileArg, cpuOption, memoryOption, heapOption, callTreeOption, compareOption);
 
 return await rootCommand.InvokeAsync(args);

@@ -3,7 +3,6 @@ using System.Diagnostics.Tracing;
 using System.Globalization;
 using Microsoft.Diagnostics.NETCore.Client;
 using Microsoft.Diagnostics.Tracing;
-using Microsoft.Diagnostics.Tracing.EventPipe;
 using Microsoft.Diagnostics.Tracing.Parsers;
 
 namespace ProfileRunner;

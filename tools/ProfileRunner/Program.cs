@@ -6,6 +6,9 @@ using Asynkron.JsEngine.Ast;
 using Microsoft.Extensions.Logging;
 using ProfileRunner;
 
+#pragma warning disable MA0047 // Top-level statements live in script-style Program.
+#pragma warning disable MA0048 // File name matches project entry point, not nested types.
+
 const string listCommand = "list";
 const string memoryFlag = "--memory";
 const string jsonOutputFlag = "--json-output";

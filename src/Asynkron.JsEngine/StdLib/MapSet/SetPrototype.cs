@@ -18,7 +18,7 @@ public sealed partial class SetPrototype
     public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        set.Add(args.GetArgument(0).ToObject());
+        set.Add(args.GetArgument(0));
         return thisValue;
     }
 
@@ -26,14 +26,14 @@ public sealed partial class SetPrototype
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return new JsValue(set.Has(args.GetArgument(0).ToObject()));
+        return new JsValue(set.Has(args.GetArgument(0)));
     }
 
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var set = RequireSet(thisValue);
-        return new JsValue(set.Delete(args.GetArgument(0).ToObject()));
+        return new JsValue(set.Delete(args.GetArgument(0)));
     }
 
     [JsHostMethod("clear", Length = 0d)]
@@ -53,7 +53,7 @@ public sealed partial class SetPrototype
             throw StandardLibrary.ThrowTypeError("Set.prototype.forEach callback must be callable", realm: Realm);
         }
 
-        set.ForEach(callback, args.GetArgument(1).ToObject());
+        set.ForEach(callback, args.GetArgument(1));
         return JsValue.Undefined;
     }
 
@@ -139,11 +139,11 @@ public sealed partial class SetPrototype
                 var current = set.GetValue(index++);
                 var value = kind switch
                 {
-                    SetIterationKind.Entries => CreateEntryPair(current, current),
+                    SetIterationKind.Entries => JsValue.FromObjectUnsafe(CreateEntryPair(current, current)),
                     _ => current
                 };
 
-                result.SetProperty("value", JsValue.FromObjectUnsafe(value));
+                result.SetProperty("value", value);
                 result.SetProperty("done", false);
             }
             else
@@ -160,7 +160,7 @@ public sealed partial class SetPrototype
         return iterator;
     }
 
-    private JsArray CreateEntryPair(object? first, object? second)
+    private JsArray CreateEntryPair(JsValue first, JsValue second)
     {
         var pair = new JsArray(Realm);
         pair.SetElement(0, first);

@@ -101,9 +101,9 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     internal int ValueCount => _insertionOrder.Count;
 
-    internal object? GetValue(int index)
+    internal JsValue GetValue(int index)
     {
-        return _insertionOrder[index];
+        return JsValue.FromObjectUnsafe(_insertionOrder[index]);
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -116,10 +116,10 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     ///     Adds a value to the Set. Returns the Set object to allow chaining.
     ///     If the value is already in the Set, it is not added again.
     /// </summary>
-    public JsSet Add(object? value)
+    public JsSet Add(JsValue jsValue)
     {
         // Handle null
-        if (value is null)
+        if (jsValue.IsNull)
         {
             if (!_hasNull)
             {
@@ -130,7 +130,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Handle undefined
-        if (ReferenceEquals(value, Symbol.Undefined))
+        if (jsValue.IsUndefined)
         {
             if (!_hasUndefined)
             {
@@ -140,8 +140,9 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             return this;
         }
 
-        // Regular value - use HashSet
-        if (_set.Add(value))
+        // Regular value - convert to object for HashSet storage
+        var value = jsValue.ToObject();
+        if (value is not null && _set.Add(value))
         {
             _insertionOrder.Add(value);
         }
@@ -151,32 +152,33 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Returns true if the value exists in the Set, false otherwise.
     /// </summary>
-    public bool Has(object? value)
+    public bool Has(JsValue jsValue)
     {
         // Handle null
-        if (value is null)
+        if (jsValue.IsNull)
         {
             return _hasNull;
         }
 
         // Handle undefined
-        if (ReferenceEquals(value, Symbol.Undefined))
+        if (jsValue.IsUndefined)
         {
             return _hasUndefined;
         }
 
         // Regular value - use HashSet
-        return _set.Contains(value);
+        var value = jsValue.ToObject();
+        return value is not null && _set.Contains(value);
     }
 
     /// <summary>
     ///     Removes the specified value from the Set.
     ///     Returns true if the value was in the Set and has been removed, false otherwise.
     /// </summary>
-    public bool Delete(object? value)
+    public bool Delete(JsValue jsValue)
     {
         // Handle null
-        if (value is null)
+        if (jsValue.IsNull)
         {
             if (!_hasNull) return false;
             _hasNull = false;
@@ -185,7 +187,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Handle undefined
-        if (ReferenceEquals(value, Symbol.Undefined))
+        if (jsValue.IsUndefined)
         {
             if (!_hasUndefined) return false;
             _hasUndefined = false;
@@ -194,7 +196,8 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - use HashSet
-        if (!_set.Remove(value)) return false;
+        var value = jsValue.ToObject();
+        if (value is null || !_set.Remove(value)) return false;
         _insertionOrder.Remove(value);
         return true;
     }
@@ -214,12 +217,13 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     ///     Executes a provided function once per each value in the Set, in insertion order.
     ///     The callback receives (value, value, set) - value is passed twice for consistency with Map.
     /// </summary>
-    public void ForEach(IJsCallable callback, object? thisArg)
+    public void ForEach(IJsCallable callback, JsValue thisArg)
     {
         foreach (var value in _insertionOrder)
-            // In Set.forEach, the value is passed as both the first and second argument
         {
-            callback.Invoke([JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(value), (JsValue)this], JsValue.FromObjectUnsafe(thisArg));
+            // In Set.forEach, the value is passed as both the first and second argument
+            var jsValue = JsValue.FromObjectUnsafe(value);
+            callback.Invoke([jsValue, jsValue, (JsValue)this], thisArg);
         }
     }
 
@@ -228,7 +232,8 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        return new JsArray(_insertionOrder.ToList());
+        var values = _insertionOrder.Select(JsValue.FromObjectUnsafe).ToList();
+        return new JsArray(values);
     }
 
     /// <summary>
@@ -237,11 +242,12 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Entries()
     {
-        var entries = new List<object?>();
+        var entries = new List<JsValue>();
         foreach (var value in _insertionOrder)
         {
-            var pair = new JsArray([value, value]);
-            entries.Add(pair);
+            var jsValue = JsValue.FromObjectUnsafe(value);
+            var pair = new JsArray([jsValue, jsValue]);
+            entries.Add(JsValue.FromObjectUnsafe(pair));
         }
 
         return new JsArray(entries);

@@ -785,7 +785,7 @@ public static partial class TypedAstEvaluator
         {
             var key = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            var value = args[1].Expression.EvaluateExpression(env, ctx).ToObject();
+            var value = args[1].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             return (JsValue)map.Set(key, value);
         }
@@ -795,7 +795,7 @@ public static partial class TypedAstEvaluator
         {
             var key = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            return JsValue.FromObjectUnsafe(map.Get(key));
+            return map.Get(key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -826,15 +826,16 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var value = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var value = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            return (JsValue)set.Add(value);
+            set.Add(value);
+            return JsValue.FromObjectUnsafe(set);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var value = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var value = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             return set.Has(value) ? JsValue.True : JsValue.False;
         }
@@ -842,7 +843,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var value = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var value = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             return set.Delete(value) ? JsValue.True : JsValue.False;
         }

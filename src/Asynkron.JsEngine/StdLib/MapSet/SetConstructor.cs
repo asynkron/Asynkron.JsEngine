@@ -81,7 +81,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
 
         foreach (var value in values.Items)
         {
-            set.Add(value.ToObject());
+            set.Add(value);
         }
     }
 

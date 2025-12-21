@@ -12,12 +12,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     // Use List to maintain insertion order for iteration
     private readonly List<object?> _insertionOrder = [];
     // Use Dictionary for O(1) lookups
-    private readonly Dictionary<object, object?> _map = new(SameValueZeroComparer.Instance);
+    private readonly Dictionary<object, JsValue> _map = new(SameValueZeroComparer.Instance);
     // Track null/undefined keys separately (can't be dictionary keys)
     private bool _hasNullKey;
-    private object? _nullValue;
+    private JsValue _nullValue;
     private bool _hasUndefinedKey;
-    private object? _undefinedValue;
+    private JsValue _undefinedValue;
 
     private readonly JsObject _properties = new();
 
@@ -105,11 +105,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     internal int EntryCount => _insertionOrder.Count;
 
-    internal KeyValuePair<object?, object?> GetEntry(int index)
+    internal KeyValuePair<object?, JsValue> GetEntry(int index)
     {
         var key = _insertionOrder[index];
         var value = Get(key);
-        return new KeyValuePair<object?, object?>(key, value);
+        return new KeyValuePair<object?, JsValue>(key, value);
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -121,7 +121,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Sets the value for the key in the Map. Returns the Map object to allow chaining.
     /// </summary>
-    public JsMap Set(object? key, object? value)
+    public JsMap Set(object? key, JsValue value)
     {
         // Handle null key
         if (key is null)
@@ -159,22 +159,22 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Gets the value associated with the key, or undefined if the key doesn't exist.
     /// </summary>
-    public object? Get(object? key)
+    public JsValue Get(object? key)
     {
         // Handle null key
         if (key is null)
         {
-            return _hasNullKey ? _nullValue : Symbol.Undefined;
+            return _hasNullKey ? _nullValue : JsValue.Undefined;
         }
 
         // Handle undefined key
         if (ReferenceEquals(key, Symbol.Undefined))
         {
-            return _hasUndefinedKey ? _undefinedValue : Symbol.Undefined;
+            return _hasUndefinedKey ? _undefinedValue : JsValue.Undefined;
         }
 
         // Regular key - use dictionary
-        return _map.TryGetValue(key, out var value) ? value : Symbol.Undefined;
+        return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
     /// <summary>
@@ -209,7 +209,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             if (!_hasNullKey) return false;
             _hasNullKey = false;
-            _nullValue = null;
+            _nullValue = JsValue.Undefined;
             _insertionOrder.Remove(null);
             return true;
         }
@@ -219,7 +219,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             if (!_hasUndefinedKey) return false;
             _hasUndefinedKey = false;
-            _undefinedValue = null;
+            _undefinedValue = JsValue.Undefined;
             _insertionOrder.Remove(Symbol.Undefined);
             return true;
         }
@@ -238,20 +238,20 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _map.Clear();
         _insertionOrder.Clear();
         _hasNullKey = false;
-        _nullValue = null;
+        _nullValue = JsValue.Undefined;
         _hasUndefinedKey = false;
-        _undefinedValue = null;
+        _undefinedValue = JsValue.Undefined;
     }
 
     /// <summary>
     ///     Executes a provided function once per each key-value pair in the Map, in insertion order.
     /// </summary>
-    public void ForEach(IJsCallable callback, object? thisArg)
+    public void ForEach(IJsCallable callback, JsValue thisArg)
     {
         foreach (var key in _insertionOrder)
         {
             var value = Get(key);
-            callback.Invoke([JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(key), (JsValue)this], JsValue.FromObjectUnsafe(thisArg));
+            callback.Invoke([value, JsValue.FromObjectUnsafe(key), (JsValue)this], thisArg);
         }
     }
 
@@ -261,8 +261,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Entries()
     {
         var entries = _insertionOrder
-            .Select(key => new JsArray([key, Get(key)]))
-            .Cast<object?>()
+            .Select(key => JsValue.FromObjectUnsafe(new JsArray([JsValue.FromObjectUnsafe(key), Get(key)])))
             .ToList();
 
         return new JsArray(entries);
@@ -273,7 +272,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Keys()
     {
-        return new JsArray(_insertionOrder.ToList());
+        var keys = _insertionOrder.Select(JsValue.FromObjectUnsafe).ToList();
+        return new JsArray(keys);
     }
 
     /// <summary>

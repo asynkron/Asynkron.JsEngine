@@ -19,7 +19,7 @@ public sealed partial class MapPrototype
     public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        map.Set(args.GetArgument(0).ToObject(), args.GetArgument(1).ToObject());
+        map.Set(args.GetArgument(0).ToObject(), args.GetArgument(1));
         return thisValue;
     }
 
@@ -61,7 +61,7 @@ public sealed partial class MapPrototype
             throw ThrowTypeError("Map.prototype.forEach callback must be callable", realm: Realm);
         }
 
-        map.ForEach(callback, args.GetArgument(1).ToObject());
+        map.ForEach(callback, args.GetArgument(1));
         return JsValue.Undefined;
     }
 

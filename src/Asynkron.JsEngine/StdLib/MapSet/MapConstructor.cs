@@ -98,7 +98,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
                 continue;
             }
 
-            map.Set(key.ToObject(), value.ToObject());
+            map.Set(key.ToObject(), value);
         }
     }
 

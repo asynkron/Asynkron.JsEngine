@@ -16,9 +16,8 @@ public static partial class TypedAstEvaluator
             var symbolName = symbol.Description ?? symbol.ToString();
             var hashedName = TypedAstSymbol.PropertyKey(symbol);
             var realm = context.RealmState;
-            var thisArgObj = thisArg.ToObject();
-            realm?.Logger?.LogInformation("TryInvokeSymbolMethod name={Name} thisType={Type}", symbolName,
-                thisArgObj?.GetType().Name ?? "null");
+            realm?.Logger?.LogInformation("TryInvokeSymbolMethod name={Name} thisKind={Kind}", symbolName,
+                thisArg.Kind);
 
             if (TryGetCallable(symbol, out var callable) ||
                 TryGetCallable(hashedName, out callable) ||
@@ -41,9 +40,9 @@ public static partial class TypedAstEvaluator
                     thisArg,
                     context,
                     context.RealmState?.Engine?.GlobalEnvironment);
-                realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultType={ResultType}",
+                realm?.Logger?.LogInformation("TryInvokeSymbolMethod completed stop={Stop} resultKind={ResultKind}",
                     context.ShouldStopEvaluation,
-                    result.ToObject()?.GetType().Name ?? "null");
+                    result.Kind);
                 return true;
             }
 

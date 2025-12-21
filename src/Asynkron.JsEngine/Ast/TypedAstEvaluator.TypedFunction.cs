@@ -586,8 +586,8 @@ public static partial class TypedAstEvaluator
                 entryLogger.LogInformation(
                     "ctor entry func={Function} receiver={Receiver} newTarget={NewTarget}",
                     _function.Name?.Name ?? "<anonymous>",
-                    DescribeValue(thisValue.ToObject()),
-                    DescribeValue(newTarget.ToObject()));
+                    DescribeValueJsValue(thisValue),
+                    DescribeValueJsValue(newTarget));
             }
             if (_realmState.Logger is { } logger && _isStrict && !thisValue.IsUndefined)
             {
@@ -1028,10 +1028,9 @@ public static partial class TypedAstEvaluator
                     if (context.IsThrow)
                     {
                         var thrown = context.FlowValue;
-                        var thrownObj = thrown.ToObject();
                         _realmState.Logger?.LogInformation(
-                            "InvokeWithContext propagating throw type={ThrowType} callerHasContext={HasCaller} func={FunctionName}",
-                            thrownObj?.GetType().Name ?? "null",
+                            "InvokeWithContext propagating throw kind={ThrowKind} callerHasContext={HasCaller} func={FunctionName}",
+                            thrown.Kind,
                             callingContext is not null,
                             _function.Name?.Name ?? "<anonymous>");
 
@@ -1151,13 +1150,12 @@ public static partial class TypedAstEvaluator
                         context.ClearReturn();
                     }
 
-                    var completionValueObj = completionValue.ToObject();
                     _realmState.Logger?.LogInformation(
-                        "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionType={Type}",
+                        "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionKind={Kind}",
                         _function.Name?.Name ?? "<anonymous>",
                         IsAsyncFunction,
                         _wasAsyncFunction,
-                        completionValueObj?.GetType().Name ?? "null");
+                        completionValue.Kind);
                     var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
                     return resolvedResult;
             }
@@ -1594,6 +1592,28 @@ public static partial class TypedAstEvaluator
             }
 
             return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+        }
+
+        private static string DescribeValueJsValue(JsValue value)
+        {
+            if (value.Kind == JsValueKind.Object && value.ObjectValue is JsObject jsObj)
+            {
+                var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
+                var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}' proto={DescribePrototype(proto)}";
+            }
+
+            if (value.IsNull)
+            {
+                return "null";
+            }
+
+            if (value.IsUndefined)
+            {
+                return "undefined";
+            }
+
+            return $"{value.Kind}";
         }
 
         private static string DescribeValue(object? value)

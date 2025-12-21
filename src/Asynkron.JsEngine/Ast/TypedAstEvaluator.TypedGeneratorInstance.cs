@@ -262,7 +262,7 @@ public static partial class TypedAstEvaluator
                          !boundThis.IsNullish &&
                          !boundThis.TryGetObject<IIsHtmlDda>(out _))
                 {
-                    boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuring(boundThis.ToObject(), generatorContext));
+                    boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuringJsValue(boundThis, generatorContext));
                 }
             }
 

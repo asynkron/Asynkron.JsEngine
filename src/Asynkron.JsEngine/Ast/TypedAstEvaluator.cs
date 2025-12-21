@@ -114,9 +114,9 @@ public static partial class TypedAstEvaluator
         var iterableValue = JsValue.FromObjectUnsafe(iterable);
         if (accessor.TryInvokeSymbolMethod(iterableValue, Symbols.AsyncIterator, context, out var asyncIterator))
         {
-            logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} type={IterType}",
+            logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} kind={IterKind}",
                 context.ShouldStopEvaluation,
-                asyncIterator.ToObject()?.GetType().Name ?? "null");
+                asyncIterator.Kind);
             if (context.ShouldStopEvaluation)
             {
                 return false;
@@ -135,9 +135,9 @@ public static partial class TypedAstEvaluator
 
         if (accessor.TryInvokeSymbolMethod(iterableValue, Symbols.Iterator, context, out var iteratorValue))
         {
-            logger?.LogInformation("TryGetIteratorFromProtocols iterator invoked stop={Stop} type={IterType}",
+            logger?.LogInformation("TryGetIteratorFromProtocols iterator invoked stop={Stop} kind={IterKind}",
                 context.ShouldStopEvaluation,
-                iteratorValue.ToObject()?.GetType().Name ?? "null");
+                iteratorValue.Kind);
             if (context.ShouldStopEvaluation)
             {
                 return false;
@@ -434,7 +434,7 @@ public static partial class TypedAstEvaluator
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
     private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
     {
-        if (!TryGetIteratorForDestructuring(value.ToObject(), context, out var iterator, out var enumerator))
+        if (!TryGetIteratorForDestructuringJsValue(value, context, out var iterator, out var enumerator))
         {
             if (context.ShouldStopEvaluation)
             {
@@ -450,9 +450,8 @@ public static partial class TypedAstEvaluator
         }
 
         var logger = context.RealmState?.Logger;
-        var valueObj = value.ToObject();
-        logger?.LogInformation("EnumerateSpread start valueType={Type} hasIterator={HasIterator} hasEnumerator={HasEnum}",
-            valueObj?.GetType().Name ?? "null",
+        logger?.LogInformation("EnumerateSpread start valueKind={Kind} hasIterator={HasIterator} hasEnumerator={HasEnum}",
+            value.Kind,
             iterator is not null,
             enumerator is not null);
         var iteratorRecord = new ArrayPatternIterator(iterator, enumerator);
@@ -481,9 +480,7 @@ public static partial class TypedAstEvaluator
 
                 if (index < 5 || index % 1000 == 0)
                 {
-                    var itemObj = item.ToObject();
-                    logger?.LogInformation("EnumerateSpread yield index={Index} type={Type}", index,
-                        itemObj?.GetType().Name ?? "null");
+                    logger?.LogInformation("EnumerateSpread yield index={Index} kind={Kind}", index, item.Kind);
                 }
 
                 yield return item;
@@ -1528,6 +1525,38 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
+    /// <summary>
+    /// JsValue overload - avoids boxing when caller has JsValue.
+    /// </summary>
+    private static bool TryGetIteratorForDestructuringJsValue(JsValue jsValue, EvaluationContext context,
+        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
+    {
+        // Fast path for objects
+        if (jsValue.Kind == JsValueKind.Object)
+        {
+            return TryGetIteratorForDestructuring(jsValue.ObjectValue, context, out iterator, out enumerator);
+        }
+
+        // Fast path for strings
+        if (jsValue.Kind == JsValueKind.String && jsValue.ObjectValue is string s)
+        {
+            iterator = null;
+            enumerator = EnumerateStringCharacters(s);
+            return true;
+        }
+
+        // For other primitives, extract and delegate
+        var value = jsValue.Kind switch
+        {
+            JsValueKind.Boolean => (object?)(jsValue.NumberValue != 0),
+            JsValueKind.Number => jsValue.NumberValue,
+            JsValueKind.Symbol => jsValue.ObjectValue,
+            JsValueKind.BigInt => jsValue.ObjectValue,
+            _ => jsValue.ObjectValue
+        };
+
+        return TryGetIteratorForDestructuring(value, context, out iterator, out enumerator);
+    }
 
     [MustDisposeResource]
     private static IEnumerator<JsValue> EnumerateStringCharacters(string value)
@@ -1580,6 +1609,50 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    /// <summary>
+    /// JsValue overload - avoids boxing when caller has JsValue.
+    /// </summary>
+    private static IJsObjectLike ToObjectForDestructuringJsValue(JsValue jsValue, EvaluationContext context)
+    {
+        var realm = context.RealmState;
+
+        if (jsValue.IsNull || jsValue.IsUndefined)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
+        }
+
+        // Fast path: if it's already an IJsObjectLike, return directly
+        if (jsValue.Kind == JsValueKind.Object && jsValue.ObjectValue is IJsObjectLike objectLike)
+        {
+            return objectLike;
+        }
+
+        // For primitives, extract and coerce
+        var value = jsValue.Kind switch
+        {
+            JsValueKind.Boolean => (object?)(jsValue.NumberValue != 0),
+            JsValueKind.Number => jsValue.NumberValue,
+            JsValueKind.String => jsValue.ObjectValue,
+            JsValueKind.Symbol => jsValue.ObjectValue,
+            JsValueKind.BigInt => jsValue.ObjectValue,
+            JsValueKind.Object => jsValue.ObjectValue,
+            _ => jsValue.ObjectValue
+        };
+
+        if (realm is not null && StandardLibrary.TryGetObject(value, realm, out var coerced))
+        {
+            return coerced;
+        }
+
+        var obj = new JsObject();
+        if (realm?.ObjectPrototype is not null)
+        {
+            obj.SetPrototype(realm.ObjectPrototype);
+        }
+
+        return obj;
+    }
+
     private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)
     {
         var realm = context.RealmState;
@@ -1587,12 +1660,7 @@ public static partial class TypedAstEvaluator
         // Handle boxed JsValue structs - unwrap and check for null/undefined
         if (value is JsValue jsValue)
         {
-            if (jsValue.IsNull || jsValue.IsUndefined)
-            {
-                throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
-            }
-            // Unwrap the JsValue and recurse with the underlying object
-            value = jsValue.ToObject();
+            return ToObjectForDestructuringJsValue(jsValue, context);
         }
 
         switch (value)

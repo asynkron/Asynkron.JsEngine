@@ -31,9 +31,8 @@ public sealed partial class JsonPrototype
             return new JsValue("undefined");
         }
 
-        var value = args[0].ToObject();
-
+        // StringifyValue handles JsValue directly - no need to unwrap
         // TODO: replacer and space are not yet supported; fallback to basic stringify.
-        return new JsValue(StringifyValue(value));
+        return new JsValue(StringifyValue(args[0]));
     }
 }

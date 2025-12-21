@@ -803,8 +803,7 @@ public static partial class TypedAstEvaluator
                 {
                     var constructedThis = new JsObject();
                     constructedThis.RealmState = _realmState;
-                    var newTargetObj = newTarget.ToObject();
-                    if (newTargetObj is IJsPropertyAccessor prototypeSource &&
+                    if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
                         JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
                         protoVal is IJsPropertyAccessor protoAccessor)
                     {
@@ -816,11 +815,11 @@ public static partial class TypedAstEvaluator
                     }
 
                     _realmState.Logger?.LogInformation(
-                        "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetType={NewTargetType}",
+                        "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
                         _function.Name?.Name ?? "<anonymous>",
                         DescribeValue(constructedThis),
                         DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
-                        newTargetObj?.GetType().Name ?? "null");
+                        newTarget.Kind);
 
                     boundThis = constructedThis;
                 }
@@ -1082,7 +1081,6 @@ public static partial class TypedAstEvaluator
 
                         var value = context.FlowValue;
                         context.ClearReturn();
-                        var valueObj = value.ToObject();
                         if (_isClassConstructor &&
                             !value.TryGetObject<JsObject>(out _) &&
                             !value.TryGetObject<IJsObjectLike>(out _))
@@ -1090,7 +1088,7 @@ public static partial class TypedAstEvaluator
                             // Per ES spec 9.2.2 [[Construct]] step 13c:
                             // For derived class constructors, if return value is not undefined,
                             // throw TypeError. For base class constructors, fall back to `this`.
-                            if (_isDerivedClassConstructor && !ReferenceEquals(valueObj, Symbol.Undefined))
+                            if (_isDerivedClassConstructor && !value.IsUndefined)
                             {
                                 throw StandardLibrary.ThrowTypeError(
                                     "Derived constructors may only return object or undefined",
@@ -1113,7 +1111,7 @@ public static partial class TypedAstEvaluator
                                 // throws ReferenceError if `this` is uninitialized (super() not called)
                                 if (_isDerivedClassConstructor &&
                                     (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
-                                     ReferenceEquals(valueObj, Symbol.Undefined)))
+                                     value.IsUndefined))
                                 {
                                     var errorObject = StandardLibrary.CreateReferenceError(
                                         "ReferenceError: this is not defined - must call super() in derived class constructor",
@@ -1140,7 +1138,7 @@ public static partial class TypedAstEvaluator
                             }
                         }
 
-                        return JsValue.FromObjectUnsafe(valueObj);
+                        return value;
                     }
 
                     var completionValue = JsValue.Undefined;
@@ -1467,13 +1465,13 @@ public static partial class TypedAstEvaluator
                         throw new InvalidOperationException("Computed class field is missing name expression.");
                     }
 
-                    var nameValue = field.ComputedName.EvaluateExpression(initEnv, context).ToObject();
+                    var nameValueJs = field.ComputedName.EvaluateExpression(initEnv, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
                     }
 
-                    propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+                    propertyName = JsOps.GetRequiredPropertyName(nameValueJs, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -1523,12 +1521,11 @@ public static partial class TypedAstEvaluator
                 }
 
                 context.RealmState.Logger?.LogInformation(
-                    "InitInstance: ctor={Ctor} instance={Instance} field={Field} valueType={ValueType} value={Value}",
+                    "InitInstance: ctor={Ctor} instance={Instance} field={Field} valueKind={ValueKind}",
                     _function.Name?.Name ?? "<anonymous>",
                     DescribeValue(instance),
                     propertyName,
-                    valueObj?.GetType().Name ?? "null",
-                    valueObj);
+                    valueJs.Kind);
 
                 var descriptor = new PropertyDescriptor
                 {

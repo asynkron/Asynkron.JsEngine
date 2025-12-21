@@ -310,7 +310,7 @@ public static partial class StandardLibrary
             JsValueKind.Number => ConvertNumberToBigInt(value.NumberValue, localContext, realmState),
             JsValueKind.String => new JsBigInt(ParseBigIntString(value.ObjectValue as string ?? string.Empty, localContext, realmState)),
             JsValueKind.Symbol => throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState),
-            JsValueKind.Object => ToBigInt(value.ToObject(), localContext, realmState),
+            JsValueKind.Object => ToBigInt(value.ObjectValue, localContext, realmState),
             _ => throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState)
         };
     }

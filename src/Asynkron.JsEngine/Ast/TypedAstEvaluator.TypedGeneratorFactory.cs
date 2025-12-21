@@ -531,8 +531,9 @@ public static partial class TypedAstEvaluator
                 return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
 
-            var obj = primitive.ToObject();
-            return Convert.ToString(obj, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            // At this point, all primitive types have been handled above;
+            // remaining cases are objects, so use ObjectValue directly.
+            return Convert.ToString(primitive.ObjectValue, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()

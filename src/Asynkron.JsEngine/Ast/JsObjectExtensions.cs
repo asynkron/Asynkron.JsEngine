@@ -182,7 +182,7 @@ public static partial class TypedAstEvaluator
                     var typeError = StandardLibrary.CreateTypeError("Iterator.return() must return an object",
                         context, context.RealmState);
                     context.RealmState.Logger?.LogInformation(
-                        "IteratorClose throwing: type={Type}", typeError.ToObject()?.GetType().Name ?? "null");
+                        "IteratorClose throwing: kind={Kind}", typeError.Kind);
                     // Throw the error as a ThrowSignal so callers that catch ThrowSignal can handle it
                     throw new ThrowSignal(typeError);
                 }

@@ -186,6 +186,27 @@ public static partial class TypedAstEvaluator
         };
     }
 
+    /// <summary>
+    /// JsValue overload for NormalizeIterableTarget. Avoids boxing by handling JsValue directly.
+    /// </summary>
+    private static object NormalizeIterableTargetJsValue(JsValue jsValue, EvaluationContext context)
+    {
+        if (jsValue.IsNull || jsValue.IsUndefined)
+        {
+            var realm = context.RealmState;
+            throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, realm);
+        }
+
+        // For objects, check if already an IJsPropertyAccessor
+        if (jsValue.Kind == JsValueKind.Object && jsValue.ObjectValue is IJsPropertyAccessor accessor)
+        {
+            return accessor;
+        }
+
+        // Use the JsValue overload for proper type handling
+        return ToObjectForDestructuringJsValue(jsValue, context);
+    }
+
     // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
     // This helper synchronously blocks on promise resolution using TaskCompletionSource.
     // It keeps async/await and async iteration usable for now but must be replaced by
@@ -358,6 +379,30 @@ public static partial class TypedAstEvaluator
     private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
     {
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return DelegatedYieldState.FromEnumerable([]);
+        }
+
+        if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
+        {
+            return DelegatedYieldState.FromIterator(iterator);
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            return DelegatedYieldState.FromEnumerable([]);
+        }
+
+        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+    }
+
+    /// <summary>
+    /// JsValue overload for CreateDelegatedState. Avoids boxing by handling JsValue directly.
+    /// </summary>
+    private static DelegatedYieldState CreateDelegatedStateJsValue(JsValue iterable, EvaluationContext context)
+    {
+        var iteratorTarget = NormalizeIterableTargetJsValue(iterable, context);
         if (context.ShouldStopEvaluation)
         {
             return DelegatedYieldState.FromEnumerable([]);
@@ -817,6 +862,33 @@ public static partial class TypedAstEvaluator
 
         var int32Val = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
         return JsValueCache.GetNumber(~int32Val);
+    }
+
+    /// <summary>
+    /// JsValue overload for BitwiseNot. Avoids boxing for numeric types.
+    /// </summary>
+    private static JsValue BitwiseNotJsValue(JsValue operand, EvaluationContext context)
+    {
+        // Fast path for number (most common case)
+        if (operand.IsNumber)
+        {
+            var int32 = JsNumericConversions.ToInt32(operand.NumberValue);
+            return new JsValue((double)~int32);
+        }
+
+        var numeric = JsOps.ToNumeric(operand, context);
+        if (context.IsThrow)
+        {
+            return context.FlowValue;
+        }
+
+        if (numeric.Kind == JsValueKind.BigInt && numeric.ObjectValue is JsBigInt bigInt)
+        {
+            return (JsValue)(~bigInt);
+        }
+
+        var int32Val = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
+        return new JsValue((double)~int32Val);
     }
 
     private static object UnaryMinus(object? operand, EvaluationContext context)

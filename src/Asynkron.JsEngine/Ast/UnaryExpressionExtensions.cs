@@ -268,11 +268,7 @@ public static partial class TypedAstEvaluator
     /// </summary>
     private static JsValue BitwiseNotValue(JsValue operand, EvaluationContext context)
     {
-        if (operand.IsNumber)
-        {
-            return new JsValue((double)~Converters.JsNumericConversions.ToInt32(operand.NumberValue));
-        }
-
-        return JsValue.FromObjectUnsafe(BitwiseNot(operand.ToObject(), context));
+        // Use the JsValue overload that handles all types without boxing
+        return BitwiseNotJsValue(operand, context);
     }
 }

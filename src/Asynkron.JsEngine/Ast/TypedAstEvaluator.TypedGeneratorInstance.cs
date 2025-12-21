@@ -329,7 +329,7 @@ public static partial class TypedAstEvaluator
             IteratorDriverKind kind,
             EvaluationContext context)
         {
-            var iteratorTarget = NormalizeIterableTarget(iterable.ToObject(), context);
+            var iteratorTarget = NormalizeIterableTargetJsValue(iterable, context);
 
             if (!TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) || iterator is null)
             {
@@ -627,7 +627,6 @@ public static partial class TypedAstEvaluator
                                     {
                                         return pendingYieldStarResult;
                                     }
-                                    var yieldStarIterable = yieldStarIterableValue.ToObject();
                                     if (context.IsThrow)
                                     {
                                         var thrown = context.FlowValue;
@@ -641,7 +640,7 @@ public static partial class TypedAstEvaluator
                                         throw new ThrowSignal(thrown);
                                     }
 
-                                    yieldStarState.State = CreateDelegatedState(yieldStarIterable, context);
+                                    yieldStarState.State = CreateDelegatedStateJsValue(yieldStarIterableValue, context);
 
                                     // Check if CreateDelegatedState resulted in a throw (e.g., from calling @@iterator)
                                     if (context.IsThrow)
@@ -1324,7 +1323,6 @@ public static partial class TypedAstEvaluator
                                 {
                                     return pendingWithResult;
                                 }
-                                var objValue = objValueJs.ToObject();
                                 if (context.IsThrow)
                                 {
                                     var thrownWith = context.FlowValue;
@@ -1337,6 +1335,21 @@ public static partial class TypedAstEvaluator
                                     _tryStack.Clear();
                                     throw new ThrowSignal(thrownWith);
                                 }
+
+                                // Extract object value - TryConvertToWithBindingObject will handle wrapping primitives
+                                // and throwing for null/undefined. Must properly box primitives for ToObjectForDestructuring.
+                                var objValue = objValueJs.Kind switch
+                                {
+                                    JsValueKind.Boolean => (object?)(objValueJs.NumberValue != 0),
+                                    JsValueKind.Number => objValueJs.NumberValue,
+                                    JsValueKind.String => objValueJs.ObjectValue,
+                                    JsValueKind.Symbol => objValueJs.ObjectValue,
+                                    JsValueKind.BigInt => objValueJs.ObjectValue,
+                                    JsValueKind.Object => objValueJs.ObjectValue,
+                                    JsValueKind.Null => null,
+                                    JsValueKind.Undefined => null,
+                                    _ => objValueJs.ObjectValue
+                                };
 
                                 // Create the with-environment and store it in the slot
                                 if (TryConvertToWithBindingObject(objValue, context, out var withObject))

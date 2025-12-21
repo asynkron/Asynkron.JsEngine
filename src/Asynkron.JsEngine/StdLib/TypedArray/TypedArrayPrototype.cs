@@ -15,121 +15,124 @@ public sealed partial class TypedArrayPrototype : JsPrototype
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayReduceInternal(thisValue.ToObject(), args, Realm, "%TypedArray%.prototype.reduce", false));
+        return JsValue.FromObjectUnsafe(ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduce", false));
     }
 
     [JsHostMethod("reduceRight", Length = 1d)]
     public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayReduceInternal(thisValue.ToObject(), args, Realm, "%TypedArray%.prototype.reduceRight", true));
+        return JsValue.FromObjectUnsafe(ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduceRight", true));
     }
 
     [JsHostMethod("map", Length = 1d)]
     public JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayMapInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(MapImpl(thisValue, args));
     }
 
     [JsHostMethod("filter", Length = 1d)]
     public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayFilterInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(FilterImpl(thisValue, args));
     }
 
     [JsHostMethod("every", Length = 1d)]
     public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayEveryInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(EveryImpl(thisValue, args));
     }
 
     [JsHostMethod("find", Length = 1d)]
     public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayFindInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(FindImpl(thisValue, args));
     }
 
     [JsHostMethod("findIndex", Length = 1d)]
     public JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayFindIndexInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(FindIndexImpl(thisValue, args));
     }
 
     [JsHostMethod("findLast", Length = 1d)]
     public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayFindLastInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(FindLastImpl(thisValue, args));
     }
 
     [JsHostMethod("findLastIndex", Length = 1d)]
     public JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayFindLastIndexInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(FindLastIndexImpl(thisValue, args));
     }
 
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayForEachInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(ForEachImpl(thisValue, args));
     }
 
     [JsHostMethod("fill", Length = 1d)]
     public JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayFillInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(FillImpl(thisValue, args));
     }
 
     [JsHostMethod("copyWithin", Length = 2d)]
     public JsValue CopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayCopyWithinInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(CopyWithinImpl(thisValue, args));
     }
 
     [JsHostMethod("reverse", Length = 0d)]
     public JsValue Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayReverseInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(ReverseImpl(thisValue));
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
     public JsValue ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayToReversedInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(ToReversedImpl(thisValue));
     }
 
     [JsHostMethod("toSorted", Length = 1d)]
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayToSortedInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(ToSortedImpl(thisValue, args));
     }
 
     [JsHostMethod("toSpliced", Length = 2d)]
     public JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayToSplicedInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(ToSplicedImpl(thisValue, args));
     }
 
     [JsHostMethod("with", Length = 2d)]
     public JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayWithInternal(thisValue.ToObject(), args, Realm));
+        return JsValue.FromObjectUnsafe(WithImpl(thisValue, args));
     }
 
     [JsHostMethod("indexOf", Length = 1d)]
     public JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayIndexOfInternal(thisValue.ToObject(), args, Realm));
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.indexOf");
+        return JsValue.FromObjectUnsafe(TypedArrayBase.IndexOfInternal(typedArray, args));
     }
 
     [JsHostMethod("lastIndexOf", Length = 1d)]
     public JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayLastIndexOfInternal(thisValue.ToObject(), args, Realm));
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.lastIndexOf");
+        return JsValue.FromObjectUnsafe(TypedArrayBase.LastIndexOfInternal(typedArray, args));
     }
 
     [JsHostMethod("includes", Length = 1d)]
     public JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(TypedArrayIncludesInternal(thisValue.ToObject(), args, Realm));
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.includes");
+        return JsValue.FromObjectUnsafe(TypedArrayBase.IncludesInternal(typedArray, args));
     }
 
     [JsHostMethod("some", Length = 1d)]
@@ -141,21 +144,21 @@ public sealed partial class TypedArrayPrototype : JsPrototype
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var typedArray = ValidateTypedArrayReceiverInternal(thisValue, "%TypedArray%.prototype.values", Realm);
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.values");
         return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), Realm));
     }
 
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var typedArray = ValidateTypedArrayReceiverInternal(thisValue, "%TypedArray%.prototype.keys", Realm);
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.keys");
         return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => new JsValue((double)idx), Realm));
     }
 
     [JsHostMethod("entries", Length = 0d)]
     public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var typedArray = ValidateTypedArrayReceiverInternal(thisValue, "%TypedArray%.prototype.entries", Realm);
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.entries");
         return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(
             typedArray,
             idx =>
@@ -185,4 +188,749 @@ public sealed partial class TypedArrayPrototype : JsPrototype
                 });
         }
     }
+
+    #region Private Implementation Methods
+
+    private TypedArrayBase ValidateReceiver(JsValue thisValue, string methodName)
+    {
+        var obj = thisValue.ToObject();
+        if (obj is JsValue jsVal)
+        {
+            obj = jsVal.ToObject();
+        }
+
+        if (obj is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: Realm);
+        }
+
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            throw typedArray.CreateOutOfBoundsTypeError();
+        }
+
+        return typedArray;
+    }
+
+    private object? ReduceImpl(JsValue thisValue, IReadOnlyList<JsValue> args, string methodName, bool fromRight)
+    {
+        var typedArray = ValidateReceiver(thisValue, methodName);
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: Realm);
+        }
+
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        var step = fromRight ? -1 : 1;
+        var k = fromRight ? length - 1 : 0;
+
+        object? accumulator = Symbol.Undefined;
+        var hasAccumulator = false;
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            accumulator = args[1];
+            hasAccumulator = true;
+        }
+
+        while (k >= 0 && k < length)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+
+            if (!hasAccumulator)
+            {
+                accumulator = value;
+                hasAccumulator = true;
+            }
+            else
+            {
+                var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObjectUnsafe(accumulator);
+                accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
+            }
+
+            k += step;
+        }
+
+        if (!hasAccumulator)
+        {
+            throw ThrowTypeError($"{methodName} requires at least one element", realm: Realm);
+        }
+
+        return accumulator;
+    }
+
+    private object? MapImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.map");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.map expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        var result = SpeciesCreate(typedArray, length);
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            result.SetValue(k, mapped);
+        }
+
+        return result;
+    }
+
+    private object? FilterImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.filter");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.filter expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        var kept = new List<JsValue>();
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(result))
+            {
+                kept.Add(value);
+            }
+        }
+
+        var filtered = SpeciesCreate(typedArray, kept.Count);
+        for (var i = 0; i < kept.Count; i++)
+        {
+            filtered.SetValue(i, kept[i]);
+        }
+
+        return filtered;
+    }
+
+    private object? EveryImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.every");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.every expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        if (Realm.Logger is { } logger)
+        {
+            var strictField = callback.GetType().GetField("_isStrict", BindingFlags.NonPublic | BindingFlags.Instance);
+            var strictValue = strictField?.GetValue(callback);
+            var thisArgKind = thisArg.IsUndefined ? "undefined" : thisArg.GetType().Name;
+            logger.LogInformation(
+                "TypedArray.every callback type={Type} strict={Strict} thisArg={ThisArg}",
+                callback.GetType().Name,
+                strictValue ?? "null",
+                thisArgKind);
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var value = typedArray.GetValueForIndex(k);
+            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (!IsTruthy(result))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private object? FindImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.find");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.find expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return value;
+            }
+        }
+
+        return JsValue.Undefined;
+    }
+
+    private object? FindIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findIndex");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.findIndex expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return (double)k;
+            }
+        }
+
+        return -1d;
+    }
+
+    private object? FindLastImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findLast");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.findLast expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = length - 1; k >= 0; k--)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return value;
+            }
+        }
+
+        return JsValue.Undefined;
+    }
+
+    private object? FindLastIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findLastIndex");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.findLastIndex expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = length - 1; k >= 0; k--)
+        {
+            var key = k.ToString(CultureInfo.InvariantCulture);
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            if (IsTruthy(match))
+            {
+                return (double)k;
+            }
+        }
+
+        return -1d;
+    }
+
+    private object? ForEachImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.forEach");
+
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
+        {
+            throw ThrowTypeError("TypedArray.prototype.forEach expects a callable callback", realm: Realm);
+        }
+
+        var thisArg = args.GetArgument(1);
+        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
+        {
+            envAware.CallingJsEnvironment = globalEnv;
+        }
+
+        var length = typedArray.Length;
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(k);
+            callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+        }
+
+        return Symbol.Undefined;
+    }
+
+    private object? FillImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.fill");
+
+        var length = typedArray.Length;
+        var value = args.GetArgument(0);
+        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], Realm.CreateContext()) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], Realm.CreateContext()) : length;
+
+        var start = ClampRelativeIndex(startIndex, length);
+        var end = ClampRelativeIndex(endIndex, length);
+
+        for (var k = start; k < end; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            if (k >= typedArray.Length)
+            {
+                break;
+            }
+
+            typedArray.SetValue(k, value);
+        }
+
+        return typedArray;
+    }
+
+    private object? CopyWithinImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.copyWithin");
+
+        var length = typedArray.Length;
+        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], Realm.CreateContext()) : 0;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], Realm.CreateContext()) : 0;
+        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], Realm.CreateContext()) : length;
+
+        var to = ClampRelativeIndex(toIndex, length);
+        var from = ClampRelativeIndex(fromIndex, length);
+        var final = ClampRelativeIndex(endIndex, length);
+
+        var count = Math.Min(final - from, length - to);
+        if (count <= 0)
+        {
+            return typedArray;
+        }
+
+        var direction = 1;
+        if (from < to && to < from + count)
+        {
+            direction = -1;
+            from += count - 1;
+            to += count - 1;
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var currentLength = typedArray.Length;
+            if (from < 0 || from >= currentLength || to < 0 || to >= currentLength)
+            {
+                break;
+            }
+
+            var value = typedArray.GetValueForIndex(from);
+            typedArray.SetValue(to, value);
+
+            from += direction;
+            to += direction;
+        }
+
+        return typedArray;
+    }
+
+    private object? ReverseImpl(JsValue thisValue)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.reverse");
+
+        var length = typedArray.Length;
+        var middle = length / 2;
+
+        for (var lower = 0; lower < middle; lower++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var upper = length - lower - 1;
+            var lowerValue = typedArray.GetValueForIndex(lower);
+
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var upperValue = typedArray.GetValueForIndex(upper);
+            typedArray.SetValue(lower, upperValue);
+            typedArray.SetValue(upper, lowerValue);
+        }
+
+        return typedArray;
+    }
+
+    private object? ToReversedImpl(JsValue thisValue)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toReversed");
+
+        var length = typedArray.Length;
+        var result = SpeciesCreate(typedArray, length);
+        for (var k = 0; k < length; k++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var value = typedArray.GetValueForIndex(length - 1 - k);
+            result.SetValue(k, value);
+        }
+
+        return result;
+    }
+
+    private object? ToSortedImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toSorted");
+
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && !args[0].IsUndefined)
+        {
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
+            {
+                throw ThrowTypeError("TypedArray.prototype.toSorted comparator must be callable", realm: Realm);
+            }
+
+            compareFn = callable;
+        }
+
+        var length = typedArray.Length;
+        var values = new List<JsValue>(length);
+        for (var i = 0; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            values.Add(typedArray.GetValueForIndex(i));
+        }
+
+        values.Sort(Comparer);
+
+        var result = SpeciesCreate(typedArray, length);
+        for (var i = 0; i < values.Count; i++)
+        {
+            result.SetValue(i, values[i]);
+        }
+
+        return result;
+
+        int Comparer(JsValue left, JsValue right)
+        {
+            if (compareFn is not null)
+            {
+                var res = compareFn.Invoke([left, right], JsValue.Undefined);
+                var numeric = JsOps.ToNumber(res);
+                return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
+            }
+
+            if (typedArray.IsBigIntArray)
+            {
+                var leftObj = left.ToObject();
+                var rightObj = right.ToObject();
+                var leftBig = leftObj as JsBigInt ?? ToBigInt(leftObj, realmState: Realm);
+                var rightBig = rightObj as JsBigInt ?? ToBigInt(rightObj, realmState: Realm);
+                return leftBig.Value.CompareTo(rightBig.Value);
+            }
+
+            var leftNum = JsOps.ToNumber(left);
+            var rightNum = JsOps.ToNumber(right);
+            if (double.IsNaN(leftNum))
+            {
+                return double.IsNaN(rightNum) ? 0 : 1;
+            }
+
+            if (double.IsNaN(rightNum))
+            {
+                return -1;
+            }
+
+            return leftNum.CompareTo(rightNum);
+        }
+    }
+
+    private object? ToSplicedImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toSpliced");
+
+        var length = typedArray.Length;
+        var start = args.Count > 0 ? ToIntegerOrInfinity(args[0], Realm.CreateContext()) : 0;
+        var actualStart = ClampRelativeIndex(start, length);
+
+        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
+        int actualDeleteCount;
+        if (deleteCountIsUndefined)
+        {
+            actualDeleteCount = length - actualStart;
+        }
+        else
+        {
+            var deleteCount = ToIntegerOrInfinity(args[1], Realm.CreateContext());
+            if (double.IsPositiveInfinity(deleteCount))
+            {
+                actualDeleteCount = length - actualStart;
+            }
+            else
+            {
+                var bounded = Math.Max(deleteCount, 0);
+                bounded = Math.Min(bounded, length - actualStart);
+                actualDeleteCount = (int)bounded;
+            }
+        }
+
+        var insertCount = Math.Max(args.Count - 2, 0);
+        var newLength = length - actualDeleteCount + insertCount;
+
+        var result = SpeciesCreate(typedArray, newLength);
+        var targetIndex = 0;
+
+        for (var i = 0; i < actualStart; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            result.SetValue(targetIndex++, typedArray.GetValueForIndex(i));
+        }
+
+        for (var i = 0; i < insertCount; i++)
+        {
+            result.SetValue(targetIndex++, args[i + 2]);
+        }
+
+        for (var i = actualStart + actualDeleteCount; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            result.SetValue(targetIndex++, typedArray.GetValueForIndex(i));
+        }
+
+        return result;
+    }
+
+    private object? WithImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.with");
+
+        if (args.Count < 2)
+        {
+            throw ThrowTypeError("TypedArray.prototype.with requires index and value arguments", realm: Realm);
+        }
+
+        var length = typedArray.Length;
+        var indexNumber = ToIntegerOrInfinity(args[0], Realm.CreateContext());
+        int actualIndex;
+        if (double.IsPositiveInfinity(indexNumber) || double.IsNegativeInfinity(indexNumber))
+        {
+            actualIndex = indexNumber > 0 ? length : -1;
+        }
+        else
+        {
+            var truncated = (int)Math.Truncate(indexNumber);
+            actualIndex = truncated < 0 ? length + truncated : truncated;
+        }
+
+        if (actualIndex < 0 || actualIndex >= length)
+        {
+            throw ThrowRangeError("Index out of range", realm: Realm);
+        }
+
+        var result = SpeciesCreate(typedArray, length);
+        for (var i = 0; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var value = i == actualIndex ? args[1] : typedArray.GetValueForIndex(i);
+            result.SetValue(i, value);
+        }
+
+        return result;
+    }
+
+    private TypedArrayBase SpeciesCreate(TypedArrayBase exemplar, int length)
+    {
+        length = Math.Max(length, 0);
+        var constructorValue = JsValue.Undefined;
+
+        if (exemplar.TryGetProperty("constructor", (JsValue)exemplar, out var ctorValue))
+        {
+            constructorValue = ctorValue;
+        }
+
+        if (constructorValue.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
+            ctorAccessor.TryGetProperty(SymbolSpeciesKey, out var speciesValue))
+        {
+            constructorValue = speciesValue;
+        }
+
+        if (constructorValue.IsNullOrUndefined)
+        {
+            return CreateDefaultTypedArray(exemplar, length);
+        }
+
+        if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
+        }
+
+        var constructed = callable.Invoke([JsValue.FromNumber((double)length)], JsValue.Undefined);
+        if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
+        {
+            throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: Realm);
+        }
+
+        if (typedResult.Length < length)
+        {
+            throw ThrowTypeError("TypedArray species constructor result has insufficient length", realm: Realm);
+        }
+
+        return typedResult;
+
+        static TypedArrayBase CreateDefaultTypedArray(TypedArrayBase exemplarArray, int len)
+        {
+            var fallback = exemplarArray.CreateSpeciesDefault(len);
+            if (exemplarArray.Prototype is not null)
+            {
+                fallback.SetPrototype(exemplarArray.Prototype);
+            }
+
+            return fallback;
+        }
+    }
+
+    private static int ClampRelativeIndex(double index, int length)
+    {
+        if (double.IsNegativeInfinity(index))
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(index))
+        {
+            return length;
+        }
+
+        var integer = (int)Math.Truncate(index);
+        if (integer >= 0)
+        {
+            return integer > length ? length : integer;
+        }
+
+        var relative = length + integer;
+        return relative < 0 ? 0 : relative;
+    }
+
+    #endregion
 }

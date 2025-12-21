@@ -2,10 +2,11 @@ using System.Text.RegularExpressions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class RegExpHelper
 {
     public static HostFunction CreateRegExpConstructor(RealmState realm)
     {

@@ -1,7 +1,12 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-
+using static Asynkron.JsEngine.StdLib.BigIntHelper;
+using static Asynkron.JsEngine.StdLib.BooleanHelper;
+using static Asynkron.JsEngine.StdLib.NumberHelper;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StringHelper;
+using static Asynkron.JsEngine.StdLib.SymbolHelper;
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -433,7 +438,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     ? target
                     : newTargetCtor;
 
-                return StandardLibrary.Construct(target, finalArgs, effectiveNewTarget, realm);
+                return Construct(target, finalArgs, effectiveNewTarget, realm);
             }
 
             return target.Invoke(finalArgs, boundThis);

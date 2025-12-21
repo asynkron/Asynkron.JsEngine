@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -64,7 +66,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
 
     private object ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
-        var proto = StandardLibrary.ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         if (proto is not null && instance.Prototype is null)
         {
@@ -98,7 +100,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
             return;
         }
 
-        var proto = StandardLibrary.ResolveConstructPrototype(target, target, Realm) ?? Prototype;
+        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
         if (proto is not null)
         {
             instance.SetPrototype(proto);

@@ -1,5 +1,8 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.ArrayHelper;
+using static Asynkron.JsEngine.StdLib.PromiseHelper;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 

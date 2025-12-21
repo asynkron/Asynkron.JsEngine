@@ -1,7 +1,9 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.JsonHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+using static Asynkron.JsEngine.StdLib.StringHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 

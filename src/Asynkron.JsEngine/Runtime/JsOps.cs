@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+using static Asynkron.JsEngine.StdLib.BooleanHelper;
 
 namespace Asynkron.JsEngine.Runtime;
 
@@ -1700,7 +1701,7 @@ internal static class JsOps
                 }
 
                 // Fallback when no realm prototype is available.
-                var booleanWrapper = StandardLibrary.CreateBooleanWrapper(b, context, context?.RealmState);
+                var booleanWrapper = CreateBooleanWrapper(b, context, context?.RealmState);
                 if (booleanWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
@@ -1715,7 +1716,7 @@ internal static class JsOps
                 }
 
                 // Fallback when no realm prototype is available yet.
-                var numberWrapper = StandardLibrary.CreateNumberWrapper(num, context, context?.RealmState);
+                var numberWrapper = NumberHelper.CreateNumberWrapper(num, context, context?.RealmState);
                 if (numberWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
@@ -1730,7 +1731,7 @@ internal static class JsOps
                 }
 
                 // Fallback when no realm prototype is available.
-                var bigIntWrapper = StandardLibrary.CreateBigIntWrapper(bigInt, context, context?.RealmState);
+                var bigIntWrapper = BigIntHelper.CreateBigIntWrapper(bigInt, context, context?.RealmState);
                 if (bigIntWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
@@ -1758,7 +1759,7 @@ internal static class JsOps
                 }
 
                 // Fallback when no realm prototype is available yet.
-                var stringWrapper = StandardLibrary.CreateStringWrapper(str, context, context?.RealmState);
+                var stringWrapper = StringHelper.CreateStringWrapper(str, context, context?.RealmState);
                 if (stringWrapper.TryGetProperty(propertyName, receiver: target, context, out value))
                 {
                     return true;
@@ -1788,7 +1789,7 @@ internal static class JsOps
                 }
 
                 // Fallback when no realm prototype is available yet.
-                var ropeWrapper = StandardLibrary.CreateStringWrapper(ropeStr, context, context?.RealmState);
+                var ropeWrapper = StringHelper.CreateStringWrapper(ropeStr, context, context?.RealmState);
                 if (ropeWrapper.TryGetProperty(propertyName, receiver: ropeStr, context, out value))
                 {
                     return true;

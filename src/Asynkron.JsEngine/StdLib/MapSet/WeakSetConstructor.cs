@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -39,7 +41,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
 
     private object ConstructWeakSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
     {
-        var proto = StandardLibrary.ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
+        var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
         var instance = new JsWeakSet();
         instance.SetPrototype(proto);
         PopulateWeakSet(instance, args);

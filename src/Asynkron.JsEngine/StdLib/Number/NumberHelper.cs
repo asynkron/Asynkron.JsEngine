@@ -3,10 +3,11 @@ using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static partial class NumberHelper
 {
     public static JsObject CreateNumberWrapper(double num, EvaluationContext? context = null, RealmState? realm = null)
     {

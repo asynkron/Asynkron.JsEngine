@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.IntlHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -12,7 +14,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var localesArg = args.GetArgument(0);
-        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
         var instance = PrepareThisObject(thisValue);
         IntlDurationFormatPrototype.InitializeInternalSlots(instance, resolvedLocale);
         return new JsValue(instance);
@@ -41,7 +43,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
 
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
-        var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        var result = IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
         return JsValue.FromObjectUnsafe(result);
     }
 }

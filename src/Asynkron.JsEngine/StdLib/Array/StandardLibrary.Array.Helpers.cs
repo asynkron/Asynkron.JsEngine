@@ -2,6 +2,7 @@ using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.ArrayHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 

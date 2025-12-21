@@ -1,10 +1,11 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.ObjectHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class ReflectHelper
 {
     internal static JsValue ReflectApply(JsValue _, IReadOnlyList<JsValue> args)
     {
@@ -587,7 +588,7 @@ public static partial class StandardLibrary
         return null;
     }
 
-    private static bool TryGetRealmInfo(object candidate, out RealmState? realmState, out JsObject? realmObject)
+    public static bool TryGetRealmInfo(object candidate, out RealmState? realmState, out JsObject? realmObject)
     {
         switch (candidate)
         {

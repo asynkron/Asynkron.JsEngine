@@ -3,10 +3,12 @@ using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class TypedArrayHelper
 {
     internal static HostFunction EnsureTypedArrayIntrinsic(RealmState realm)
     {

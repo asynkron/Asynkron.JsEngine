@@ -3,10 +3,11 @@ using System.Text.Json;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class JsonHelper
 {
     internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
         object? reviverCandidate)

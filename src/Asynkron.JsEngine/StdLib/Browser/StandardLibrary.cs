@@ -2,7 +2,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class BrowserHelper
 {
     public static JsObject CreateLocalStorageObject()
     {

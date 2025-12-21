@@ -2,6 +2,9 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.ArrayHelper;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -33,7 +36,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             {
                 newTargetCallable = targetCtor;
             }
-            var proto = StandardLibrary.ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
+            var proto = ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
                         Prototype;
             var instanceRealm = ResolveInstanceRealm(proto, newTargetCallable);
             var array = new JsArray(instanceRealm);
@@ -109,7 +112,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
                 throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
             }
 
-            if (lengthNumber > StandardLibrary.MaxConcreteArrayLength)
+            if (lengthNumber > ArrayHelper.MaxConcreteArrayLength)
             {
                 throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
             }

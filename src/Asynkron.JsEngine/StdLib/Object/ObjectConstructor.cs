@@ -2,7 +2,11 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.BigIntHelper;
+using static Asynkron.JsEngine.StdLib.ObjectHelper;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+using static Asynkron.JsEngine.StdLib.SymbolHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -62,15 +66,15 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
         if (value.TryGetBoolean(out var boolValue))
         {
-            return CreateBooleanWrapper(boolValue, realm: Realm);
+            return BooleanHelper.CreateBooleanWrapper(boolValue, realm: Realm);
         }
         if (value.TryGetString(out var strValue))
         {
-            return CreateStringWrapper(strValue!, realm: Realm);
+            return StringHelper.CreateStringWrapper(strValue!, realm: Realm);
         }
         if (value.TryGetDouble(out var numValue))
         {
-            return CreateNumberWrapper(numValue, realm: Realm);
+            return NumberHelper.CreateNumberWrapper(numValue, realm: Realm);
         }
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {

@@ -1,6 +1,8 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -40,7 +42,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
     private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? providedThis = null)
     {
-        var proto = StandardLibrary.ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        var proto = ReflectHelper.ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var backing = new JsSet();
         object receiver;
 

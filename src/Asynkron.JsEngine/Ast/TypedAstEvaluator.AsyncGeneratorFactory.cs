@@ -450,7 +450,7 @@ public static partial class TypedAstEvaluator
 
             if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {
-                var proto = StandardLibrary.ResolveConstructPrototype(
+                var proto = ReflectHelper.ResolveConstructPrototype(
                     newTarget,
                     realm.AsyncGeneratorFunctionConstructor!,
                     realm);

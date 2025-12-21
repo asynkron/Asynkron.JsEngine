@@ -1,10 +1,11 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class ArrayBufferHelper
 {
     internal static void StoreInternalArrayBuffer(JsObject obj, JsArrayBuffer buffer)
     {

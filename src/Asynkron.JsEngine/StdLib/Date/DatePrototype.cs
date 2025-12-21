@@ -3,7 +3,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
+using static Asynkron.JsEngine.StdLib.DateHelper;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Date", ToStringTag = "Date")]
@@ -352,7 +352,7 @@ public sealed partial class DatePrototype
         var year = JsOps.ToNumber(args.GetArgument(0));
         var month = args.Count > 1 ? JsOps.ToNumber(args[1]) : MonthFromTime(time);
         var date = args.Count > 2 ? JsOps.ToNumber(args[2]) : DateFromTime(time);
-        var clipped = StandardLibrary.SetFullYear(year, month, date, time, Realm, false);
+        var clipped = DateHelper.SetFullYear(year, month, date, time, Realm, false);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -364,7 +364,7 @@ public sealed partial class DatePrototype
         var year = JsOps.ToNumber(args.GetArgument(0));
         var month = args.Count > 1 ? JsOps.ToNumber(args[1]) : MonthFromTime(timeValue);
         var date = args.Count > 2 ? JsOps.ToNumber(args[2]) : DateFromTime(timeValue);
-        var clipped = StandardLibrary.SetFullYear(year, month, date, timeValue, Realm, true);
+        var clipped = DateHelper.SetFullYear(year, month, date, timeValue, Realm, true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }

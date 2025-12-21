@@ -4,10 +4,11 @@ using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class StringHelper
 {
     internal static JsObject InitializeStringWrapper(string str, JsObject wrapper, RealmState? realm = null)
     {

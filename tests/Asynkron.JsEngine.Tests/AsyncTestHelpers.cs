@@ -21,7 +21,7 @@ internal static class AsyncTestHelpers
             }
 
             var value = args.Count > 1 ? args[1] : JsValue.Undefined;
-            var promiseConstructor = StandardLibrary.CreatePromiseConstructor(engine.RealmState);
+            var promiseConstructor = PromiseHelper.CreatePromiseConstructor(engine.RealmState);
             if (!JsValue.FromObjectUnsafe(promiseConstructor).TryGetObject<IJsCallable>(out var promiseCtor))
             {
                 return JsValue.Undefined;

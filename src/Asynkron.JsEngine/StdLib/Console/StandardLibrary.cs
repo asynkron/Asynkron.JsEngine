@@ -1,8 +1,10 @@
 using Asynkron.JsEngine.JsTypes;
+using static Asynkron.JsEngine.StdLib.JsonHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class ConsoleHelper
 {
     internal static string FormatConsoleArgs(IReadOnlyList<JsValue> args)
     {

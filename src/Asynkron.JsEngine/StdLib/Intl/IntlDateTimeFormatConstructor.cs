@@ -2,6 +2,8 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.IntlHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -23,7 +25,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
     private DateTimeFormatInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
     {
-        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
 
         var options = NormalizeOptions(optionsArg);
         var localeMatcher = ReadStringOption(
@@ -221,7 +223,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     {
         var supportedLocales = new HostFunction((_, args) =>
         {
-            var result = StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+            var result = IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
             return JsValue.FromObjectUnsafe(result);
         }, isConstructor: false);
 

@@ -3,7 +3,7 @@ using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class SharedArrayBufferHelper
 {
     public static HostFunction CreateSharedArrayBufferConstructor(RealmState realm)
     {

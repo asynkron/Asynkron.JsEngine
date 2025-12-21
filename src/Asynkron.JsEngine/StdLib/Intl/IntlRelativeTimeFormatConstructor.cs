@@ -13,7 +13,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     {
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
-        var (_, resolvedLocale) = StandardLibrary.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
         var options = NormalizeOptions(optionsArg);
         var numberingSystem = ReadNumberingSystem(options);
         var numeric = ReadStringOption(options, "numeric", ["always", "auto"], "always");
@@ -28,7 +28,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocalesOf = new HostFunction(
-            (_, args) => JsValue.FromObjectUnsafe(StandardLibrary.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
+            (_, args) => JsValue.FromObjectUnsafe(IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",

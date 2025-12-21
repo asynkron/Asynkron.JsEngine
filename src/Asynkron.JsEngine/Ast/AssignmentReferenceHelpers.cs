@@ -227,12 +227,12 @@ public static partial class TypedAstEvaluator
         // ToObject: convert primitive to wrapper
         var wrapper = primitiveTarget switch
         {
-            string s => StandardLibrary.CreateStringWrapper(s, context, realm),
+            string s => StringHelper.CreateStringWrapper(s, context, realm),
             bool b => CreateBooleanWrapper(b, realm),
             TypedAstSymbol sym => CreateSymbolWrapper(sym, realm),
-            JsBigInt bi => StandardLibrary.CreateBigIntWrapper(bi, context, realm),
+            JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi, context, realm),
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
-                StandardLibrary.CreateNumberWrapper(JsOps.ToNumber(primitiveTarget), context, realm),
+                NumberHelper.CreateNumberWrapper(JsOps.ToNumber(primitiveTarget), context, realm),
             _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget?.GetType()}")
         };
 

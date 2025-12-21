@@ -1,6 +1,11 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.BigIntHelper;
+using static Asynkron.JsEngine.StdLib.BooleanHelper;
+using static Asynkron.JsEngine.StdLib.NumberHelper;
+using static Asynkron.JsEngine.StdLib.StringHelper;
+using static Asynkron.JsEngine.StdLib.SymbolHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 

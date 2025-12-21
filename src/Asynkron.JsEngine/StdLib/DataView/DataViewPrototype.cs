@@ -2,7 +2,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
+using static Asynkron.JsEngine.StdLib.DataViewHelper;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("DataView", ToStringTag = "DataView")]

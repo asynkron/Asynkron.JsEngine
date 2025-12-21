@@ -55,7 +55,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         }
 
         var byteLength = args.Count > 0 && !args[0].IsUndefined
-            ? ToIndexAsLong(args[0], Realm)
+            ? NumberHelper.ToIndexAsLong(args[0], Realm)
             : 0L;
 
         var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined);
@@ -74,7 +74,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         }
 
         var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
-        var proto = ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm) ?? Prototype;
+        var proto = ReflectHelper.ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm) ?? Prototype;
         if (proto is not null)
         {
             instance.SetPrototype(proto);
@@ -83,7 +83,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         var derivedLength = RequireAllocatableLength(byteLength);
         int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
         var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, isShared: true);
-        StoreInternalArrayBuffer(instance, buffer);
+        ArrayBufferHelper.StoreInternalArrayBuffer(instance, buffer);
         return instance;
     }
 
@@ -125,7 +125,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             return null;
         }
 
-        return ToIndexAsLong(maxVal, Realm);
+        return NumberHelper.ToIndexAsLong(maxVal, Realm);
     }
 
     private HostFunction ConstructFallback =>

@@ -135,7 +135,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register standard library objects
         SetGlobal("console", ConsolePrototype.CreatePrototype(RealmState));
         SetGlobal("Math", MathPrototype.CreatePrototype(RealmState));
-        SetGlobal("Object", StandardLibrary.CreateObjectConstructor(RealmState));
+        SetGlobal("Object", ObjectHelper.CreateObjectConstructor(RealmState));
 
         // Per ECMAScript spec, the global object's [[Prototype]] is Object.prototype.
         // This ensures that methods like hasOwnProperty are inherited by the global object.
@@ -144,12 +144,12 @@ public sealed class JsEngine : IAsyncDisposable
             GlobalObject.SetPrototype(RealmState.ObjectPrototype);
         }
 
-        SetGlobal("Function", StandardLibrary.CreateFunctionConstructor(RealmState, this));
-        SetGlobal("Number", StandardLibrary.CreateNumberConstructor(RealmState));
-        var bigIntFunction = StandardLibrary.CreateBigIntFunction(RealmState);
+        SetGlobal("Function", FunctionHelper.CreateFunctionConstructor(RealmState, this));
+        SetGlobal("Number", NumberHelper.CreateNumberConstructor(RealmState));
+        var bigIntFunction = BigIntHelper.CreateBigIntFunction(RealmState);
         SetGlobal("BigInt", bigIntFunction);
-        SetGlobal("Boolean", StandardLibrary.CreateBooleanConstructor(RealmState));
-        SetGlobal("String", StandardLibrary.CreateStringConstructor(RealmState));
+        SetGlobal("Boolean", BooleanHelper.CreateBooleanConstructor(RealmState));
+        SetGlobal("String", StringHelper.CreateStringConstructor(RealmState));
         var arrayConstructor = StandardLibrary.CreateArrayConstructor(RealmState);
         arrayConstructor.RealmState = RealmState;
         SetGlobal("Array", arrayConstructor);
@@ -185,39 +185,39 @@ public sealed class JsEngine : IAsyncDisposable
             });
 
         // Register global functions
-        SetGlobal("parseInt", StandardLibrary.CreateParseIntFunction());
-        SetGlobal("parseFloat", StandardLibrary.CreateParseFloatFunction());
-        SetGlobal("isNaN", StandardLibrary.CreateIsNaNFunction());
-        SetGlobal("isFinite", StandardLibrary.CreateIsFiniteFunction());
+        SetGlobal("parseInt", GlobalHelper.CreateParseIntFunction());
+        SetGlobal("parseFloat", GlobalHelper.CreateParseFloatFunction());
+        SetGlobal("isNaN", GlobalHelper.CreateIsNaNFunction());
+        SetGlobal("isFinite", GlobalHelper.CreateIsFiniteFunction());
 
         // Shared TypedArray intrinsic (abstract)
-        var typedArrayCtor = StandardLibrary.EnsureTypedArrayIntrinsic(RealmState);
+        var typedArrayCtor = TypedArrayHelper.EnsureTypedArrayIntrinsic(RealmState);
         SetGlobal("TypedArray", typedArrayCtor);
 
         // Register Date constructor
-        SetGlobal("Date", StandardLibrary.CreateDateConstructor(RealmState));
+        SetGlobal("Date", DateHelper.CreateDateConstructor(RealmState));
         SetGlobal("JSON", JsonPrototype.CreatePrototype(RealmState));
 
         // Register RegExp constructor
-        SetGlobal("RegExp", StandardLibrary.CreateRegExpConstructor(RealmState));
+        SetGlobal("RegExp", RegExpHelper.CreateRegExpConstructor(RealmState));
 
         // Error constructors
-        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(RealmState));
-        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(RealmState, "TypeError"));
-        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(RealmState, "RangeError"));
-        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(RealmState, "ReferenceError"));
-        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(RealmState, "SyntaxError"));
-        SetGlobal("EvalError", StandardLibrary.CreateErrorConstructor(RealmState, "EvalError"));
-        SetGlobal("URIError", StandardLibrary.CreateErrorConstructor(RealmState, "URIError"));
-        SetGlobal("AggregateError", StandardLibrary.CreateErrorConstructor(RealmState, "AggregateError"));
+        SetGlobal("Error", ErrorHelper.CreateErrorConstructor(RealmState));
+        SetGlobal("TypeError", ErrorHelper.CreateErrorConstructor(RealmState, "TypeError"));
+        SetGlobal("RangeError", ErrorHelper.CreateErrorConstructor(RealmState, "RangeError"));
+        SetGlobal("ReferenceError", ErrorHelper.CreateErrorConstructor(RealmState, "ReferenceError"));
+        SetGlobal("SyntaxError", ErrorHelper.CreateErrorConstructor(RealmState, "SyntaxError"));
+        SetGlobal("EvalError", ErrorHelper.CreateErrorConstructor(RealmState, "EvalError"));
+        SetGlobal("URIError", ErrorHelper.CreateErrorConstructor(RealmState, "URIError"));
+        SetGlobal("AggregateError", ErrorHelper.CreateErrorConstructor(RealmState, "AggregateError"));
 
         // Register Promise constructor
-        var promiseConstructor = StandardLibrary.CreatePromiseConstructor(RealmState);
+        var promiseConstructor = PromiseHelper.CreatePromiseConstructor(RealmState);
         SetGlobal("Promise", promiseConstructor);
         RealmState.PromiseConstructor = promiseConstructor as IJsCallable;
 
         // Register Symbol constructor
-        SetGlobal("Symbol", StandardLibrary.CreateSymbolConstructor(RealmState));
+        SetGlobal("Symbol", SymbolHelper.CreateSymbolConstructor(RealmState));
 
         // Register Map constructor
         SetGlobal("Map", MapConstructor.CreateConstructor(RealmState));
@@ -229,53 +229,53 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("WeakMap", WeakMapConstructor.CreateConstructor(RealmState));
 
         // Minimal Proxy constructor (used by Array.isArray proxy tests)
-        SetGlobal("Proxy", StandardLibrary.CreateProxyConstructor(RealmState));
+        SetGlobal("Proxy", ProxyHelper.CreateProxyConstructor(RealmState));
 
         // Register WeakSet constructor
         SetGlobal("WeakSet", WeakSetConstructor.CreateConstructor(RealmState));
 
-        SetGlobal("WeakRef", StandardLibrary.CreateWeakRefConstructor(RealmState));
+        SetGlobal("WeakRef", WeakRefHelper.CreateWeakRefConstructor(RealmState));
 
         // Minimal browser-like storage object used by debug/babel-standalone.
-        SetGlobal("localStorage", StandardLibrary.CreateLocalStorageObject());
+        SetGlobal("localStorage", BrowserHelper.CreateLocalStorageObject());
 
         // Reflect object
         SetGlobal("Reflect", ReflectPrototype.CreatePrototype(RealmState));
 
         // Register ArrayBuffer and TypedArray constructors
         SetGlobal("ArrayBuffer", StandardLibrary.CreateArrayBufferConstructor(RealmState));
-        SetGlobal("SharedArrayBuffer", StandardLibrary.CreateSharedArrayBufferConstructor(RealmState));
+        SetGlobal("SharedArrayBuffer", SharedArrayBufferHelper.CreateSharedArrayBufferConstructor(RealmState));
         SetGlobal("DataView", StandardLibrary.CreateDataViewConstructor(RealmState));
-        SetGlobal("Int8Array", StandardLibrary.CreateInt8ArrayConstructor(RealmState));
-        SetGlobal("Uint8Array", StandardLibrary.CreateUint8ArrayConstructor(RealmState));
-        SetGlobal("Uint8ClampedArray", StandardLibrary.CreateUint8ClampedArrayConstructor(RealmState));
-        SetGlobal("Int16Array", StandardLibrary.CreateInt16ArrayConstructor(RealmState));
-        SetGlobal("Uint16Array", StandardLibrary.CreateUint16ArrayConstructor(RealmState));
-        SetGlobal("Int32Array", StandardLibrary.CreateInt32ArrayConstructor(RealmState));
-        SetGlobal("Uint32Array", StandardLibrary.CreateUint32ArrayConstructor(RealmState));
-        SetGlobal("Float32Array", StandardLibrary.CreateFloat32ArrayConstructor(RealmState));
-        SetGlobal("Float64Array", StandardLibrary.CreateFloat64ArrayConstructor(RealmState));
-        SetGlobal("BigInt64Array", StandardLibrary.CreateBigInt64ArrayConstructor(RealmState));
-        SetGlobal("BigUint64Array", StandardLibrary.CreateBigUint64ArrayConstructor(RealmState));
-        SetGlobal("Intl", StandardLibrary.CreateIntlObject(RealmState));
-        SetGlobal("Temporal", StandardLibrary.CreateTemporalObject(RealmState));
+        SetGlobal("Int8Array", TypedArrayHelper.CreateInt8ArrayConstructor(RealmState));
+        SetGlobal("Uint8Array", TypedArrayHelper.CreateUint8ArrayConstructor(RealmState));
+        SetGlobal("Uint8ClampedArray", TypedArrayHelper.CreateUint8ClampedArrayConstructor(RealmState));
+        SetGlobal("Int16Array", TypedArrayHelper.CreateInt16ArrayConstructor(RealmState));
+        SetGlobal("Uint16Array", TypedArrayHelper.CreateUint16ArrayConstructor(RealmState));
+        SetGlobal("Int32Array", TypedArrayHelper.CreateInt32ArrayConstructor(RealmState));
+        SetGlobal("Uint32Array", TypedArrayHelper.CreateUint32ArrayConstructor(RealmState));
+        SetGlobal("Float32Array", TypedArrayHelper.CreateFloat32ArrayConstructor(RealmState));
+        SetGlobal("Float64Array", TypedArrayHelper.CreateFloat64ArrayConstructor(RealmState));
+        SetGlobal("BigInt64Array", TypedArrayHelper.CreateBigInt64ArrayConstructor(RealmState));
+        SetGlobal("BigUint64Array", TypedArrayHelper.CreateBigUint64ArrayConstructor(RealmState));
+        SetGlobal("Intl", IntlHelper.CreateIntlObject(RealmState));
+        SetGlobal("Temporal", IntlHelper.CreateTemporalObject(RealmState));
 
         // Register Error constructors
-        SetGlobal("Error", StandardLibrary.CreateErrorConstructor(RealmState));
-        SetGlobal("TypeError", StandardLibrary.CreateErrorConstructor(RealmState, "TypeError"));
-        SetGlobal("RangeError", StandardLibrary.CreateErrorConstructor(RealmState, "RangeError"));
-        SetGlobal("ReferenceError", StandardLibrary.CreateErrorConstructor(RealmState, "ReferenceError"));
-        SetGlobal("SyntaxError", StandardLibrary.CreateErrorConstructor(RealmState, "SyntaxError"));
-        SetGlobal("EvalError", StandardLibrary.CreateErrorConstructor(RealmState, "EvalError"));
+        SetGlobal("Error", ErrorHelper.CreateErrorConstructor(RealmState));
+        SetGlobal("TypeError", ErrorHelper.CreateErrorConstructor(RealmState, "TypeError"));
+        SetGlobal("RangeError", ErrorHelper.CreateErrorConstructor(RealmState, "RangeError"));
+        SetGlobal("ReferenceError", ErrorHelper.CreateErrorConstructor(RealmState, "ReferenceError"));
+        SetGlobal("SyntaxError", ErrorHelper.CreateErrorConstructor(RealmState, "SyntaxError"));
+        SetGlobal("EvalError", ErrorHelper.CreateErrorConstructor(RealmState, "EvalError"));
 
         // Register eval function as an environment-aware callable
         // This allows eval to execute code in the caller's scope without blocking the event loop
         SetGlobal("eval", new EvalHostFunction(this));
 
         // Register internal helpers for async iteration
-        SetGlobal("__getAsyncIterator", StandardLibrary.CreateGetAsyncIteratorHelper(this));
-        SetGlobal("__iteratorNext", StandardLibrary.CreateIteratorNextHelper(this));
-        SetGlobal("__awaitHelper", StandardLibrary.CreateAwaitHelper(this));
+        SetGlobal("__getAsyncIterator", IterationHelper.CreateGetAsyncIteratorHelper(this));
+        SetGlobal("__iteratorNext", IterationHelper.CreateIteratorNextHelper(this));
+        SetGlobal("__awaitHelper", IterationHelper.CreateAwaitHelper(this));
         SetGlobal("$DETACHBUFFER", new HostFunction((_, args) =>
         {
             if (args.Count > 0 && args[0].TryGetObject<TypedArrayBase>(out var view))
@@ -1552,8 +1552,8 @@ public sealed class JsEngine : IAsyncDisposable
     {
         var prototype = ResolvePromisePrototypeInternal();
         var promise = prototype is null
-            ? StandardLibrary.CreatePromise(RealmState)
-            : StandardLibrary.CreatePromise(RealmState, prototype as IJsObjectLike);
+            ? PromiseHelper.CreatePromise(RealmState)
+            : PromiseHelper.CreatePromise(RealmState, prototype as IJsObjectLike);
         return promise;
     }
 
@@ -2656,7 +2656,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         // Add promise instance methods (then, catch, finally)
-        StandardLibrary.AddPromiseInstanceMethods(promiseObj, promise, this);
+        PromiseHelper.AddPromiseInstanceMethods(promiseObj, promise, this);
 
         // IMPORTANT: Capture the referrer path NOW, before scheduling the task.
         // CallingJsEnvironment and _currentModulePath may change by the time the task runs.
@@ -2987,7 +2987,7 @@ public sealed class JsEngine : IAsyncDisposable
     private ModuleEntry CreateJsonModule(string source, string resolvedPath)
     {
         // Parse JSON using JSON.parse
-        var jsonValue = StandardLibrary.ParseJsonWithReviver(source, RealmState, null, null);
+        var jsonValue = JsonHelper.ParseJsonWithReviver(source, RealmState, null, null);
 
         // Create a synthetic module with the JSON value as default export
         var exports = new JsObject();
@@ -5053,7 +5053,7 @@ public sealed class JsEngine : IAsyncDisposable
                         throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
                     }
 
-                    var constructed = StandardLibrary.Construct(callable, evaluatedArgs, callable, _engine.RealmState);
+                    var constructed = ReflectHelper.Construct(callable, evaluatedArgs, callable, _engine.RealmState);
                     continuation(constructed);
                 }
                 catch (ThrowSignal signal)

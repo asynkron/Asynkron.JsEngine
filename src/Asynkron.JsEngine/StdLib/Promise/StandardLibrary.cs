@@ -1,9 +1,10 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class PromiseHelper
 {
     public static IJsCallable CreatePromiseConstructor(RealmState realm)
     {

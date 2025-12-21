@@ -157,7 +157,7 @@ public static partial class TypedAstEvaluator
                 _properties.SetPrototype(_realmState.FunctionPrototype);
             }
 
-            // Functions expose a prototype object so instances created via `new` can inherit from it.
+            // Functions expose a prototype objeßct, so instances created via `new` can inherit from it.
             // Async functions do NOT have a prototype property per ES spec 15.8.3 (MakeConstructor is not called).
             // We need to check both IsAsyncFunction and _wasAsyncFunction because the CPS transformer
             // transforms async functions to sync with WasAsync=true.
@@ -268,23 +268,23 @@ public static partial class TypedAstEvaluator
             // Primitives → boxed objects
             if (thisValue.IsNumber)
             {
-                return JsValue.FromObjectUnsafe(StandardLibrary.CreateNumberWrapper(thisValue.AsDouble(), realm: _realmState));
+                return JsValue.FromObjectUnsafe(NumberHelper.CreateNumberWrapper(thisValue.AsDouble(), realm: _realmState));
             }
             if (thisValue.IsString)
             {
-                return JsValue.FromObjectUnsafe(StandardLibrary.CreateStringWrapper(thisValue.AsString(), realm: _realmState));
+                return JsValue.FromObjectUnsafe(StringHelper.CreateStringWrapper(thisValue.AsString(), realm: _realmState));
             }
             if (thisValue.IsBoolean)
             {
-                return JsValue.FromObjectUnsafe(StandardLibrary.CreateBooleanWrapper(thisValue.AsBoolean(), realm: _realmState));
+                return JsValue.FromObjectUnsafe(BooleanHelper.CreateBooleanWrapper(thisValue.AsBoolean(), realm: _realmState));
             }
             if (thisValue.IsBigInt)
             {
-                return JsValue.FromObjectUnsafe(StandardLibrary.CreateBigIntWrapper(thisValue.AsBigInt(), realm: _realmState));
+                return JsValue.FromObjectUnsafe(BigIntHelper.CreateBigIntWrapper(thisValue.AsBigInt(), realm: _realmState));
             }
             if (thisValue.IsSymbol && thisValue.TryUnwrap<TypedAstSymbol>(out var typedSymbol))
             {
-                return JsValue.FromObjectUnsafe(StandardLibrary.CreateSymbolWrapper(typedSymbol, realm: _realmState));
+                return JsValue.FromObjectUnsafe(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: _realmState));
             }
 
             // Already an object
@@ -982,17 +982,20 @@ public static partial class TypedAstEvaluator
                 // are properly caught and converted to rejected promises.
                 try
                 {
-                // Bind parameters using the same converted array
-                _function.BindFunctionParameters(argumentValues, parameterEnvironment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    if (context.IsThrow)
+                    // Bind parameters using the same converted array
+                    _function.BindFunctionParameters(argumentValues, parameterEnvironment, context);
+                    if (context.ShouldStopEvaluation)
                     {
+                        if (!context.IsThrow)
+                        {
+                            return JsValue.Undefined;
+                        }
+
                         var thrownDuringBinding = context.FlowValue;
                         if (IsAsyncFunction || _wasAsyncFunction)
                         {
                             // Async functions must reject instead of throwing synchronously.
-                            // Use CreateRejectedPromiseFromRealm which uses the RealmState's
+                            // Use CreateRejectedPromiseFromRealm, which uses the RealmState's
                             // PromiseConstructor, ensuring we always have access to Promise.
                             callingContext?.Clear();
 
@@ -1000,172 +1003,170 @@ public static partial class TypedAstEvaluator
                             return rejectedBindingResult;
                         }
 
-                        if (callingContext is not null)
+                        if (callingContext is null)
                         {
-                            callingContext.SetThrow(thrownDuringBinding);
-                            return thrownDuringBinding;
+                            throw new ThrowSignal(thrownDuringBinding);
                         }
 
-                        throw new ThrowSignal(thrownDuringBinding);
+                        callingContext.SetThrow(thrownDuringBinding);
+                        return thrownDuringBinding;
+
                     }
 
-                    return JsValue.Undefined;
-                }
+                    if (_hasHoistableDeclarations)
+                    {
+                        _function.Body.HoistVarDeclarations(executionEnvironment, context,
+                            lexicalNames: lexicalNames,
+                            catchParameterNames: catchParameterNames,
+                            simpleCatchParameterNames: simpleCatchParameterNames);
+                    }
 
-                if (_hasHoistableDeclarations)
-                {
-                    _function.Body.HoistVarDeclarations(executionEnvironment, context,
-                        lexicalNames: lexicalNames,
-                        catchParameterNames: catchParameterNames,
-                        simpleCatchParameterNames: simpleCatchParameterNames);
-                }
-
-                if (_hasFunctionNameEnvironment &&
-                    _function.Name is { } hoistedName &&
-                    ContainsVarDeclaration(_function, hoistedName) &&
-                    !functionEnvironment.TryGet(hoistedName, out _))
-                {
-                    functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false, context: context);
-                }
+                    if (_hasFunctionNameEnvironment &&
+                        _function.Name is { } hoistedName &&
+                        ContainsVarDeclaration(_function, hoistedName) &&
+                        !functionEnvironment.TryGet(hoistedName, out _))
+                    {
+                        functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false, context: context);
+                    }
 
                     _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,
                         context);
 
-                if (context.IsThrow)
-                {
-                    var thrown = context.FlowValue;
-                    var thrownObj = thrown.ToObject();
-                    _realmState.Logger?.LogInformation(
-                        "InvokeWithContext propagating throw type={ThrowType} callerHasContext={HasCaller} func={FunctionName}",
-                        thrownObj?.GetType().Name ?? "null",
-                        callingContext is not null,
-                        _function.Name?.Name ?? "<anonymous>");
-
-                    if (IsAsyncFunction || _wasAsyncFunction)
+                    if (context.IsThrow)
                     {
-                        var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
-                        return rejectedThrowResult is JsValue rejThrowJs ? rejThrowJs : JsValue.FromObjectUnsafe(rejectedThrowResult);
-                    }
+                        var thrown = context.FlowValue;
+                        var thrownObj = thrown.ToObject();
+                        _realmState.Logger?.LogInformation(
+                            "InvokeWithContext propagating throw type={ThrowType} callerHasContext={HasCaller} func={FunctionName}",
+                            thrownObj?.GetType().Name ?? "null",
+                            callingContext is not null,
+                            _function.Name?.Name ?? "<anonymous>");
 
-                    if (callingContext is not null)
-                    {
-                        callingContext.SetThrow(thrown);
-                        return thrown;
-                    }
-
-                    throw new ThrowSignal(thrown);
-                }
-
-                // Use IsAsyncLike so CPS-transformed async functions (WasAsync=true, IsAsync=false)
-                // still wrap completion values in a promise.
-                if (!IsAsyncLike)
-                {
-                    if (!context.IsReturn)
-                    {
-                        if (_isClassConstructor)
+                        if (IsAsyncFunction || _wasAsyncFunction)
                         {
+                            var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
+                            return rejectedThrowResult is JsValue rejThrowJs ? rejThrowJs : JsValue.FromObjectUnsafe(rejectedThrowResult);
+                        }
+
+                        if (callingContext is not null)
+                        {
+                            callingContext.SetThrow(thrown);
+                            return thrown;
+                        }
+
+                        throw new ThrowSignal(thrown);
+                    }
+
+                    // Use IsAsyncLike so CPS-transformed async functions (WasAsync=true, IsAsync=false)
+                    // still wrap completion values in a promise.
+                    if (!IsAsyncLike)
+                    {
+                        if (!context.IsReturn)
+                        {
+                            if (_isClassConstructor)
+                            {
+                                try
+                                {
+                                    if (functionEnvironment.TryGet(Symbol.This, out var currentThis))
+                                    {
+                                        _realmState.Logger?.LogInformation(
+                                            "Class constructor returning this={This}",
+                                            DescribeValue(currentThis));
+                                        return JsValue.FromObjectUnsafe(currentThis);
+                                    }
+                                }
+                                catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                                               "ReferenceError: this",
+                                                                               StringComparison.Ordinal))
+                                {
+                                    // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
+                                    var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                                    throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                                }
+                            }
+
+                            return JsValue.Undefined;
+                        }
+
+                        var value = context.FlowValue;
+                        context.ClearReturn();
+                        var valueObj = value.ToObject();
+                        if (_isClassConstructor &&
+                            !value.TryGetObject<JsObject>(out _) &&
+                            !value.TryGetObject<IJsObjectLike>(out _))
+                        {
+                            // Per ES spec 9.2.2 [[Construct]] step 13c:
+                            // For derived class constructors, if return value is not undefined,
+                            // throw TypeError. For base class constructors, fall back to `this`.
+                            if (_isDerivedClassConstructor && !ReferenceEquals(valueObj, Symbol.Undefined))
+                            {
+                                throw StandardLibrary.ThrowTypeError(
+                                    "Derived constructors may only return object or undefined",
+                                    context,
+                                    _realmState);
+                            }
+
                             try
                             {
-                                if (functionEnvironment.TryGet(Symbol.This, out var currentThis))
+                                if (functionEnvironment.TryGet(Symbol.This, out var currentThis) &&
+                                    !ReferenceEquals(currentThis, JsEnvironment.Uninitialized))
+                                {
+                                    _realmState.Logger?.LogInformation(
+                                        "Class constructor returning bound this instead of non-object return value");
+                                    return JsValue.FromObjectUnsafe(currentThis);
+                                }
+
+                                // Per ES spec 9.2.2 [[Construct]] step 15:
+                                // If return value is undefined, call GetThisBinding() which
+                                // throws ReferenceError if `this` is uninitialized (super() not called)
+                                if (_isDerivedClassConstructor &&
+                                    (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
+                                     ReferenceEquals(valueObj, Symbol.Undefined)))
+                                {
+                                    var errorObject = StandardLibrary.CreateReferenceError(
+                                        "ReferenceError: this is not defined - must call super() in derived class constructor",
+                                        context,
+                                        context.RealmState);
+                                    throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                                }
+                            }
+                            catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                                           "ReferenceError: this",
+                                                                           StringComparison.Ordinal))
                             {
+                                // Per ES spec 9.2.2 [[Construct]] step 15:
+                                // For derived class constructors, if return value is undefined (or not an object),
+                                // the spec calls GetThisBinding() which throws ReferenceError if this is uninitialized
+                                if (_isDerivedClassConstructor)
+                                {
+                                    var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                                    throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                                }
                                 _realmState.Logger?.LogInformation(
-                                    "Class constructor returning this={This}",
-                                    DescribeValue(currentThis));
-                                return JsValue.FromObjectUnsafe(currentThis);
+                                    "Class constructor missing initialized this; falling back to return value reason={Reason}",
+                                    ex.Message);
                             }
                         }
-                        catch (InvalidOperationException ex) when (ex.Message.StartsWith(
-                                   "ReferenceError: this",
-                                   StringComparison.Ordinal))
-                        {
-                            // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
-                            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
-                        }
+
+                        return JsValue.FromObjectUnsafe(valueObj);
                     }
 
-                        return JsValue.Undefined;
-                    }
-
-                    var value = context.FlowValue;
-                    context.ClearReturn();
-                    var valueObj = value.ToObject();
-                    if (_isClassConstructor &&
-                        !value.TryGetObject<JsObject>(out _) &&
-                        !value.TryGetObject<IJsObjectLike>(out _))
+                    var completionValue = JsValue.Undefined;
+                    if (context.IsReturn)
                     {
-                        // Per ES spec 9.2.2 [[Construct]] step 13c:
-                        // For derived class constructors, if return value is not undefined,
-                        // throw TypeError. For base class constructors, fall back to `this`.
-                        if (_isDerivedClassConstructor && !ReferenceEquals(valueObj, Symbol.Undefined))
-                        {
-                            throw StandardLibrary.ThrowTypeError(
-                                "Derived constructors may only return object or undefined",
-                                context,
-                                _realmState);
-                        }
-
-                        try
-                        {
-                            if (functionEnvironment.TryGet(Symbol.This, out var currentThis) &&
-                                !ReferenceEquals(currentThis, JsEnvironment.Uninitialized))
-                            {
-                                _realmState.Logger?.LogInformation(
-                                    "Class constructor returning bound this instead of non-object return value");
-                                return JsValue.FromObjectUnsafe(currentThis);
-                            }
-
-                            // Per ES spec 9.2.2 [[Construct]] step 15:
-                            // If return value is undefined, call GetThisBinding() which
-                            // throws ReferenceError if `this` is uninitialized (super() not called)
-                            if (_isDerivedClassConstructor &&
-                                (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
-                                 ReferenceEquals(valueObj, Symbol.Undefined)))
-                            {
-                                var errorObject = StandardLibrary.CreateReferenceError(
-                                    "ReferenceError: this is not defined - must call super() in derived class constructor",
-                                    context,
-                                    context.RealmState);
-                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
-                            }
-                        }
-                        catch (InvalidOperationException ex) when (ex.Message.StartsWith(
-                                     "ReferenceError: this",
-                                     StringComparison.Ordinal))
-                        {
-                            // Per ES spec 9.2.2 [[Construct]] step 15:
-                            // For derived class constructors, if return value is undefined (or not an object),
-                            // the spec calls GetThisBinding() which throws ReferenceError if this is uninitialized
-                            if (_isDerivedClassConstructor)
-                            {
-                                var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
-                            }
-                            _realmState.Logger?.LogInformation(
-                                "Class constructor missing initialized this; falling back to return value reason={Reason}",
-                                ex.Message);
-                        }
+                        completionValue = context.FlowValue;
+                        context.ClearReturn();
                     }
 
-                    return JsValue.FromObjectUnsafe(valueObj);
-                }
-
-                var completionValue = JsValue.Undefined;
-                if (context.IsReturn)
-                {
-                    completionValue = context.FlowValue;
-                    context.ClearReturn();
-                }
-
-                var completionValueObj = completionValue.ToObject();
-                _realmState.Logger?.LogInformation(
-                    "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionType={Type}",
-                    _function.Name?.Name ?? "<anonymous>",
-                    IsAsyncFunction,
-                    _wasAsyncFunction,
-                    completionValueObj?.GetType().Name ?? "null");
-                var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
-                return resolvedResult;
+                    var completionValueObj = completionValue.ToObject();
+                    _realmState.Logger?.LogInformation(
+                        "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionType={Type}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        IsAsyncFunction,
+                        _wasAsyncFunction,
+                        completionValueObj?.GetType().Name ?? "null");
+                    var resolvedResult = CreateResolvedPromise(completionValue, executionEnvironment);
+                    return resolvedResult;
             }
             catch (ThrowSignal signal) when (IsAsyncFunction || _wasAsyncFunction)
             {

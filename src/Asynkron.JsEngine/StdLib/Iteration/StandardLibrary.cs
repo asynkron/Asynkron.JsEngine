@@ -1,11 +1,13 @@
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using static Asynkron.JsEngine.StdLib.PromiseHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using JsEngineInstance = Asynkron.JsEngine.JsEngine;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class IterationHelper
 {
     public static HostFunction CreateGetAsyncIteratorHelper(JsEngineInstance engine)
     {

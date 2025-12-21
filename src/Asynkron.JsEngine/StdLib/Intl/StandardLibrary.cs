@@ -5,7 +5,7 @@ using Asynkron.JsEngine.StdLib.Intl;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class IntlHelper
 {
     public static JsObject CreateIntlObject(RealmState realm)
     {
@@ -113,7 +113,7 @@ public static partial class StandardLibrary
         JsArray CreateSupportedValuesResult(IReadOnlyList<JsValue> args)
         {
             var keyValue = args.GetArgument(0);
-            var key = JsValueToString(keyValue, realm);
+            var key = StandardLibrary.JsValueToString(keyValue, realm);
             var values = IntlUtilities.GetSupportedValues(key, realm);
             var result = new JsArray(realm);
             foreach (var value in values)

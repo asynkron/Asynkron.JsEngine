@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+using static Asynkron.JsEngine.StdLib.RegExpHelper;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -12,7 +13,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private JsValue EvaluateRegexLiteral(EvaluationContext context)
         {
-            return new JsValue(StandardLibrary.CreateRegExpLiteral(regex.Pattern, regex.Flags, context.RealmState));
+            return new JsValue(CreateRegExpLiteral(regex.Pattern, regex.Flags, context.RealmState));
         }
     }
 }

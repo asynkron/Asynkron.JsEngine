@@ -1,10 +1,11 @@
 using System.Numerics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-public static partial class StandardLibrary
+public static class BigIntHelper
 {
     public static IJsCallable CreateBigIntFunction(RealmState realm)
     {

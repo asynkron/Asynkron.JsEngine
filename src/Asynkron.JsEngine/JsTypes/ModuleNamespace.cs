@@ -194,15 +194,9 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             // If value is specified and different from "Module", return false
             if (descriptor.HasValue)
             {
-                var valueObj = descriptor.Value;
-                string? valueString = valueObj switch
-                {
-                    JsValue jsVal when jsVal.TryGetString(out var str) => str,
-                    string str => str,
-                    _ => null
-                };
-
-                if (!string.Equals(valueString, "Module", StringComparison.Ordinal))
+                var jsVal = descriptor.JsValue;
+                if (!jsVal.TryGetString(out var valueString) ||
+                    !string.Equals(valueString, "Module", StringComparison.Ordinal))
                 {
                     return false;
                 }

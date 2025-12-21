@@ -306,9 +306,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!descriptor.IsAccessorDescriptor)
         {
-            var val = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
-            // Handle case where value is already a boxed JsValue
-            var jsVal = val is JsValue jv ? jv : JsValue.FromObjectUnsafe(val);
+            var jsVal = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
             SetElement(index, jsVal);
         }
         else

@@ -38,7 +38,7 @@ public static class ObjectHelper
 
         if (descriptorObject.TryGetProperty("value", out var valueValue))
         {
-            descriptor.Value = valueValue;
+            descriptor.JsValue = valueValue;
         }
 
         if (descriptorObject.TryGetProperty("writable", out var writableValue))
@@ -98,16 +98,7 @@ public static class ObjectHelper
         }
         else
         {
-            JsValue valJs;
-            if (descriptor.HasValue)
-            {
-                // Handle case where Value is already a boxed JsValue
-                valJs = descriptor.Value is JsValue v ? v : JsValue.FromObjectUnsafe(descriptor.Value);
-            }
-            else
-            {
-                valJs = JsValue.Undefined;
-            }
+            var valJs = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
             result.SetProperty("value", valJs);
             result.SetProperty("writable", new JsValue(descriptor.HasWritable ? descriptor.Writable : false));
         }
@@ -163,7 +154,7 @@ public static class ObjectHelper
                 (!descriptor.HasEnumerable || descriptor.Enumerable == current.Enumerable) &&
                 (!descriptor.HasWritable || descriptor.Writable == current.Writable))
             {
-                jsObject.SetProperty(propertyKey, JsValue.FromObjectUnsafe(descriptor.Value));
+                jsObject.SetProperty(propertyKey, descriptor.JsValue);
                 return true;
             }
 

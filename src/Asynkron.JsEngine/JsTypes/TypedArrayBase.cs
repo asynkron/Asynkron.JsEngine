@@ -375,8 +375,8 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 throw CreateOutOfBoundsTypeError();
             }
 
-            var value = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
-            SetValue(index, JsValue.FromObjectUnsafe(value));
+            var value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
+            SetValue(index, value);
             return true;
         }
 

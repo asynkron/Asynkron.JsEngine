@@ -71,12 +71,12 @@ public static partial class TypedAstEvaluator
 
             if (!overwriteExisting && descriptor is not null)
             {
-                if (descriptor.IsAccessorDescriptor || descriptor.Value is IJsCallable)
+                if (descriptor.IsAccessorDescriptor || descriptor.JsValue.TryGetObject<IJsCallable>(out _))
                 {
                     return;
                 }
 
-                if (descriptor.Value is string { Length: > 0 })
+                if (descriptor.JsValue.TryGetString(out var existingName) && existingName.Length > 0)
                 {
                     return;
                 }
@@ -85,7 +85,7 @@ public static partial class TypedAstEvaluator
             _properties.DefineProperty("name",
                 new PropertyDescriptor
                 {
-                    Value = name,
+                    JsValue = new JsValue(name),
                     Writable = false,
                     Enumerable = false,
                     Configurable = true,

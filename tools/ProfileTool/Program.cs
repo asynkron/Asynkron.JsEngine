@@ -954,7 +954,11 @@ IRenderable BuildAllocationCallTree(
     int siblingCutoffPercent)
 {
     var rootLabel = FormatAllocationCallTreeLine(root, root.TotalBytes, isRoot: true, isLeaf: false);
-    var tree = new Tree(rootLabel).Guide(new CompactTreeGuide());
+    var tree = new Tree(rootLabel)
+    {
+        Style = new Style(Color.Grey),
+        Guide = new CompactTreeGuide()
+    };
     var children = GetVisibleAllocationChildren(root, includeRuntime, maxWidth, siblingCutoffPercent);
     foreach (var child in children)
     {
@@ -1136,7 +1140,11 @@ IRenderable BuildCallTree(
     }
 
     var rootLabel = FormatCallTreeLine(rootNode, rootTotal, useSelfTime, isRoot: true);
-    var tree = new Tree(rootLabel).Guide(new CompactTreeGuide());
+    var tree = new Tree(rootLabel)
+    {
+        Style = new Style(Color.Grey),
+        Guide = new CompactTreeGuide()
+    };
     var children = GetVisibleChildren(rootNode, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent);
     foreach (var child in children)
     {
@@ -1447,6 +1455,12 @@ string FormatMethodDisplayName(string rawName)
     {
         var typePart = name[..lastDot].TrimEnd('.');
         var methodPart = name[(lastDot + 1)..];
+        var compilerGenerated = FormatCompilerGeneratedMethod(typePart, methodPart);
+        if (!string.IsNullOrWhiteSpace(compilerGenerated))
+        {
+            return compilerGenerated;
+        }
+
         return $"{CleanTypeName(typePart)}.{methodPart}";
     }
 
@@ -1509,8 +1523,155 @@ string CleanTypeName(string name)
     normalized = normalized.Replace("[]", arrayToken, StringComparison.Ordinal);
     normalized = normalized.Replace('[', '<').Replace(']', '>');
     normalized = normalized.Replace(arrayToken, "[]", StringComparison.Ordinal);
+    normalized = normalized.Replace('+', '.');
 
     return normalized;
+}
+
+string? FormatCompilerGeneratedMethod(string typePart, string methodPart)
+{
+    if (string.IsNullOrWhiteSpace(typePart) || string.IsNullOrWhiteSpace(methodPart))
+    {
+        return null;
+    }
+
+    if (string.Equals(methodPart, "MoveNext", StringComparison.Ordinal))
+    {
+        var stateMethod = ExtractStateMachineMethodName(typePart);
+        if (!string.IsNullOrWhiteSpace(stateMethod))
+        {
+            return $"StateMachine.{stateMethod}.MoveNext";
+        }
+    }
+
+    var lambdaOwner = ExtractLambdaOwner(methodPart);
+    if (!string.IsNullOrWhiteSpace(lambdaOwner) && IsDisplayClassType(typePart))
+    {
+        var outerType = ExtractOuterType(typePart);
+        var prefix = string.IsNullOrWhiteSpace(outerType)
+            ? string.Empty
+            : CleanTypeName(outerType) + ".";
+        return $"{prefix}{lambdaOwner} lambda";
+    }
+
+    if (!string.IsNullOrWhiteSpace(lambdaOwner))
+    {
+        var prefix = string.IsNullOrWhiteSpace(typePart)
+            ? string.Empty
+            : CleanTypeName(typePart) + ".";
+        return $"{prefix}{lambdaOwner} lambda";
+    }
+
+    return null;
+}
+
+bool IsDisplayClassType(string typePart)
+{
+    return typePart.Contains("<>c__DisplayClass", StringComparison.Ordinal) ||
+           typePart.Contains("+<>c", StringComparison.Ordinal);
+}
+
+string? ExtractStateMachineMethodName(string typePart)
+{
+    var localFunctionIndex = typePart.LastIndexOf("g__", StringComparison.Ordinal);
+    if (localFunctionIndex >= 0)
+    {
+        var localStart = localFunctionIndex + 3;
+        var localEnd = typePart.IndexOfAny(new[] { '|', '>' }, localStart);
+        if (localEnd < 0)
+        {
+            localEnd = typePart.Length;
+        }
+
+        var name = typePart[localStart..localEnd];
+        return TrimCompilerGeneratedName(name);
+    }
+
+    var methodEnd = typePart.LastIndexOf(">d__", StringComparison.Ordinal);
+    if (methodEnd < 0)
+    {
+        methodEnd = typePart.LastIndexOf(">d", StringComparison.Ordinal);
+    }
+
+    if (methodEnd < 0)
+    {
+        methodEnd = typePart.LastIndexOf('>');
+    }
+
+    if (methodEnd < 0)
+    {
+        return null;
+    }
+
+    var methodStart = typePart.LastIndexOf('<', methodEnd);
+    if (methodStart < 0 || methodStart + 1 >= methodEnd)
+    {
+        return null;
+    }
+
+    var methodName = typePart[(methodStart + 1)..methodEnd];
+    return TrimCompilerGeneratedName(methodName);
+}
+
+string? ExtractLambdaOwner(string methodPart)
+{
+    if (string.IsNullOrWhiteSpace(methodPart))
+    {
+        return null;
+    }
+
+    var ownerStart = methodPart.IndexOf('<');
+    var ownerEnd = methodPart.IndexOf('>');
+    if (ownerStart < 0 || ownerEnd <= ownerStart)
+    {
+        return null;
+    }
+
+    var owner = methodPart[(ownerStart + 1)..ownerEnd];
+    return string.IsNullOrWhiteSpace(owner) ? null : owner;
+}
+
+string ExtractOuterType(string typePart)
+{
+    var markerIndex = typePart.IndexOf("+<", StringComparison.Ordinal);
+    if (markerIndex > 0)
+    {
+        return typePart[..markerIndex];
+    }
+
+    markerIndex = typePart.IndexOf("+<>c", StringComparison.Ordinal);
+    if (markerIndex > 0)
+    {
+        return typePart[..markerIndex];
+    }
+
+    return typePart;
+}
+
+string? TrimCompilerGeneratedName(string name)
+{
+    if (string.IsNullOrWhiteSpace(name))
+    {
+        return null;
+    }
+
+    var trimmed = name.Trim();
+    while (trimmed.StartsWith("<", StringComparison.Ordinal) ||
+           trimmed.EndsWith(">", StringComparison.Ordinal))
+    {
+        trimmed = trimmed.Trim('<', '>');
+    }
+
+    while (trimmed.EndsWith("$", StringComparison.Ordinal))
+    {
+        trimmed = trimmed[..^1];
+        while (trimmed.EndsWith(">", StringComparison.Ordinal))
+        {
+            trimmed = trimmed.TrimEnd('>');
+        }
+    }
+
+    return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
 }
 
 IReadOnlyList<CallTreeNode> GetVisibleChildren(

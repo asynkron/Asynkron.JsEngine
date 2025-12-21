@@ -37,7 +37,7 @@ public sealed class SuperBinding(
 
                 if (descriptor.IsDataDescriptor)
                 {
-                    value = JsValue.FromObjectUnsafe(descriptor.Value);
+                    value = descriptor.JsValue;
                     return true;
                 }
             }
@@ -68,7 +68,7 @@ public sealed class SuperBinding(
 
                 if (descriptor.IsDataDescriptor)
                 {
-                    value = JsValue.FromObjectUnsafe(descriptor.Value);
+                    value = descriptor.JsValue;
                     return true;
                 }
             }

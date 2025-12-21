@@ -452,7 +452,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (descriptorObject.TryGetProperty("value", out var valueValue))
         {
-            descriptor.Value = valueValue;
+            descriptor.JsValue = valueValue;
         }
 
         if (descriptorObject.TryGetProperty("writable", out var writableValue))
@@ -503,7 +503,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
         else
         {
-            result.SetProperty("value", JsValue.FromObjectUnsafe(descriptor.Value));
+            result.SetProperty("value", descriptor.JsValue);
             result.SetProperty("writable", descriptor is { HasWritable: true, Writable: true });
         }
 

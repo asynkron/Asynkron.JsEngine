@@ -1042,7 +1042,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (!descriptor.HasValue)
             {
-                descriptor.Value = Symbol.Undefined;
+                descriptor.JsValue = JsValue.Undefined;
             }
 
             if (!descriptor.HasWritable)
@@ -1200,7 +1200,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var state = State;
         if (state.Descriptors.TryGetValue("length", out var descriptor))
         {
-            descriptor.Value = _trackedArrayLength;
+            descriptor.JsValue = _trackedArrayLength;
         }
         else
         {
@@ -1250,11 +1250,11 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (source.HasValue)
             {
-                target.Value = source.Value;
+                target.JsValue = source.JsValue;
             }
             else if (target is { IsAccessorDescriptor: false, HasValue: false })
             {
-                target.Value = Symbol.Undefined;
+                target.JsValue = JsValue.Undefined;
             }
 
             if (source.HasWritable)

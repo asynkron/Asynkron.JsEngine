@@ -178,7 +178,7 @@ public static partial class TypedAstEvaluator
 
         private static JsValue HandleReferenceError(InvalidOperationException ex, JsEnvironment environment, EvaluationContext context)
         {
-            object? errorObject = ex.Message;
+            JsValue errorValue = (JsValue)ex.Message;
 
             // If a ReferenceError constructor is available, use it to
             // create a proper JS error instance so user code can catch
@@ -186,11 +186,11 @@ public static partial class TypedAstEvaluator
             if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                 ctor is IJsCallable callable)
             {
-                errorObject = callable.Invoke([(JsValue)ex.Message], JsValue.Undefined).ToObject();
+                errorValue = callable.Invoke([(JsValue)ex.Message], JsValue.Undefined);
             }
 
-            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return JsValue.FromObjectUnsafe(errorObject);
+            context.SetThrow(errorValue);
+            return errorValue;
         }
     }
 
@@ -310,8 +310,8 @@ public static partial class TypedAstEvaluator
             BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
             BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
             BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
-            BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
-            BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.In => InOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
                 $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
@@ -425,8 +425,8 @@ public static partial class TypedAstEvaluator
             BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
             BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
             BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
-            BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
-            BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.In => InOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
                 $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };
@@ -531,8 +531,8 @@ public static partial class TypedAstEvaluator
             BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
             BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
             BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
-            BinaryOperator.In => InOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
-            BinaryOperator.InstanceOf => InstanceofOperator(leftJs.ToObject(), rightJs.ToObject(), context) ? JsValue.True : JsValue.False,
+            BinaryOperator.In => InOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
             _ => throw new NotSupportedException(
                 $"Compound assignment operator '{binary.Operator}' is not supported yet.")
         };

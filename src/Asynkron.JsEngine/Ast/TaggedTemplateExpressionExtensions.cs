@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                if (stringsArrayValueJs.ToObject() is not JsArray stringsArray)
+                if (!stringsArrayValueJs.TryGetObject<JsArray>(out var stringsArray))
                 {
                     throw new InvalidOperationException("Tagged template strings array is invalid.");
                 }
@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                if (rawStringsArrayValueJs.ToObject() is not JsArray rawStringsArray)
+                if (!rawStringsArrayValueJs.TryGetObject<JsArray>(out var rawStringsArray))
                 {
                     throw new InvalidOperationException("Tagged template raw strings array is invalid.");
                 }

@@ -29,7 +29,8 @@ public static partial class TypedAstEvaluator
                 return (null, null);
             }
 
-            var baseValue = baseJsValue.ToObject();
+            // Only objects can be constructors - extract ObjectValue directly
+            var baseValue = baseJsValue.Kind == JsValueKind.Object ? baseJsValue.ObjectValue : null;
 
             if (!JsOps.IsConstructor(baseValue))
             {
@@ -374,7 +375,17 @@ public static partial class TypedAstEvaluator
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                var target = targetJs.ToObject();
+                // Extract target for property access - primitives need boxing for prototype chain lookup
+                var target = targetJs.Kind switch
+                {
+                    JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
+                    JsValueKind.Number => targetJs.NumberValue,
+                    JsValueKind.String => targetJs.ObjectValue,
+                    JsValueKind.Symbol => targetJs.ObjectValue,
+                    JsValueKind.BigInt => targetJs.ObjectValue,
+                    JsValueKind.Object => targetJs.ObjectValue,
+                    _ => targetJs.ObjectValue
+                };
                 string propertyName;
                 if (member.IsComputed)
                 {
@@ -396,8 +407,7 @@ public static partial class TypedAstEvaluator
                     {
                         IdentifierExpression id => id.Name.Name,
                         LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
-                        _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context).ToObject(),
-                            context)
+                        _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context), context)
                     };
                 }
 
@@ -527,8 +537,19 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
+                    // Extract target for property access - primitives need boxing for prototype chain lookup
+                    var target = targetJs.Kind switch
+                    {
+                        JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
+                        JsValueKind.Number => targetJs.NumberValue,
+                        JsValueKind.String => targetJs.ObjectValue,
+                        JsValueKind.Symbol => targetJs.ObjectValue,
+                        JsValueKind.BigInt => targetJs.ObjectValue,
+                        JsValueKind.Object => targetJs.ObjectValue,
+                        _ => targetJs.ObjectValue
+                    };
                     var handle = PropertyHandle.Resolve(
-                        targetJs.ToObject(),
+                        target,
                         propertyValueJs,
                         context,
                         context.CurrentScope.IsStrict,

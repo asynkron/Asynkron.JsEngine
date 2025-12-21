@@ -209,23 +209,23 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static JsValue HandleReferenceErrorUnary(InvalidOperationException ex, JsEnvironment environment, EvaluationContext context)
         {
-            object? errorObject = ex.Message;
+            JsValue errorValue = new JsValue(ex.Message);
 
             if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                 ctor is IJsCallable callable)
             {
                 try
                 {
-                    errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
+                    errorValue = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
                 }
                 catch (ThrowSignal signal)
                 {
-                    errorObject = signal.ThrownValue;
+                    errorValue = signal.ThrownValue;
                 }
             }
 
-            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return JsValue.FromObjectUnsafe(errorObject);
+            context.SetThrow(errorValue);
+            return errorValue;
         }
     }
 

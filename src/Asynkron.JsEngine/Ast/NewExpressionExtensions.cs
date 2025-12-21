@@ -18,7 +18,8 @@ public static partial class TypedAstEvaluator
             {
                 return JsValue.Undefined;
             }
-            var constructor = constructorJsValue.ToObject();
+            // Constructors must be objects - extract ObjectValue directly
+            var constructor = constructorJsValue.Kind == JsValueKind.Object ? constructorJsValue.ObjectValue : null;
 
             // ArgumentListEvaluation must run before the IsConstructor check (ES2024 12.3.3.1.1 step 6-7).
             var hasSpread = false;
@@ -98,35 +99,35 @@ public static partial class TypedAstEvaluator
             if (constructor is HostFunction hostFunction &&
                 (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
             {
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null).ToObject()
-                    : new InvalidOperationException(
-                        hostFunction.ConstructErrorMessage ?? "Target is not a constructor.");
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null)
+                    : JsValue.FromObjectUnsafe(new InvalidOperationException(
+                        hostFunction.ConstructErrorMessage ?? "Target is not a constructor."));
+                throw new ThrowSignal(errorJs);
             }
 
             if (constructor is TypedFunction { IsArrowFunction: true })
             {
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null).ToObject()
-                    : new InvalidOperationException("Target is not a constructor.");
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null)
+                    : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
+                throw new ThrowSignal(errorJs);
             }
 
             if (constructor is TypedFunction { DisallowConstruct: true })
             {
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null).ToObject()
-                    : new InvalidOperationException("Target is not a constructor.");
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null)
+                    : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
+                throw new ThrowSignal(errorJs);
             }
 
             if (constructor is TypedGeneratorFactory)
             {
-                var error = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"], JsValue.Null).ToObject()
-                    : new InvalidOperationException("Generator functions cannot be constructed with 'new'.");
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                    ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"], JsValue.Null)
+                    : JsValue.FromObjectUnsafe(new InvalidOperationException("Generator functions cannot be constructed with 'new'."));
+                throw new ThrowSignal(errorJs);
             }
 
             var typedConstructor = constructor as TypedFunction;

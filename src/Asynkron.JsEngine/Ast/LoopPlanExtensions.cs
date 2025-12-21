@@ -306,23 +306,23 @@ public static partial class TypedAstEvaluator
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                StringComparison.Ordinal))
                     {
-                        object? errorObject = ex.Message;
+                        JsValue errorValue = new JsValue(ex.Message);
 
                         if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                             ctor is IJsCallable callable)
                         {
                             try
                             {
-                                errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
+                                errorValue = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
                             }
                             catch (ThrowSignal signal)
                             {
-                                errorObject = signal.ThrownValue;
+                                errorValue = signal.ThrownValue;
                             }
                         }
 
-                        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-                        currentValue = JsValue.FromObjectUnsafe(errorObject);
+                        context.SetThrow(errorValue);
+                        currentValue = errorValue;
                     }
                 }
 
@@ -407,23 +407,23 @@ public static partial class TypedAstEvaluator
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                    StringComparison.Ordinal))
                         {
-                            object? errorObject = ex.Message;
+                            JsValue errorValue = new JsValue(ex.Message);
 
                             if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
                                 ctor is IJsCallable callable)
                             {
                                 try
                                 {
-                                    errorObject = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined).ToObject();
+                                    errorValue = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
                                 }
                                 catch (ThrowSignal signal)
                                 {
-                                    errorObject = signal.ThrownValue;
+                                    errorValue = signal.ThrownValue;
                                 }
                             }
 
-                            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-                            currentValue = JsValue.FromObjectUnsafe(errorObject);
+                            context.SetThrow(errorValue);
+                            currentValue = errorValue;
                         }
                     }
 

@@ -33,8 +33,9 @@ public static partial class TypedAstEvaluator
                     return superAssignedValueJs;
                 }
 
-                var superAssignedValue = superAssignedValueJs.ToObject();
-                if (superAssignedValue is IFunctionNameTarget superNameTarget &&
+                // Only extract for IFunctionNameTarget check - keep as JsValue otherwise
+                if (superAssignedValueJs.Kind == JsValueKind.Object &&
+                    superAssignedValueJs.ObjectValue is IFunctionNameTarget superNameTarget &&
                     expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                 {
                     superNameTarget.EnsureHasName(string.Empty);
@@ -65,7 +66,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Per ES spec 6.2.3.2 PutValue, if set fails in strict mode, throw TypeError
-                if (!binding.TrySetProperty(propertyName, JsValue.FromObjectUnsafe(superAssignedValue), out _) &&
+                if (!binding.TrySetProperty(propertyName, superAssignedValueJs, out _) &&
                     context.CurrentScope.IsStrict)
                 {
                     throw StandardLibrary.ThrowTypeError(
@@ -74,7 +75,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                return JsValue.FromObjectUnsafe(superAssignedValue);
+                return superAssignedValueJs;
             }
 
             var targetJs = expression.Target.EvaluateExpression(environment, context);
@@ -89,18 +90,29 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var target = targetJs.ToObject();
-            var index = indexJs.ToObject();
+            // For property access, primitives need proper boxing
+            var target = targetJs.Kind switch
+            {
+                JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
+                JsValueKind.Number => targetJs.NumberValue,
+                JsValueKind.String => targetJs.ObjectValue,
+                JsValueKind.Symbol => targetJs.ObjectValue,
+                JsValueKind.BigInt => targetJs.ObjectValue,
+                JsValueKind.Object => targetJs.ObjectValue,
+                JsValueKind.Null => null,
+                JsValueKind.Undefined => null,
+                _ => targetJs.ObjectValue
+            };
 
             if (expression.IsCompoundAssignment)
             {
-                if (IsNullish(target))
+                if (targetJs.IsNullOrUndefined)
                 {
                     throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
                         context.RealmState);
                 }
 
-                var propertyName = JsOps.GetRequiredPropertyName(index, context);
+                var propertyName = JsOps.GetRequiredPropertyName(indexJs, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -131,28 +143,29 @@ public static partial class TypedAstEvaluator
                 return assignedValueJs;
             }
 
-            var assignedValue = assignedValueJs.ToObject();
-            if (assignedValue is IFunctionNameTarget nameTarget &&
+            // Only extract for IFunctionNameTarget check - keep as JsValue otherwise
+            if (assignedValueJs.Kind == JsValueKind.Object &&
+                assignedValueJs.ObjectValue is IFunctionNameTarget nameTarget &&
                 expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
             {
                 nameTarget.EnsureHasName(string.Empty);
             }
 
-            if (IsNullish(target))
+            if (targetJs.IsNullOrUndefined)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot read properties of null or undefined", context,
                     context.RealmState);
             }
 
-            var finalPropertyName = JsOps.GetRequiredPropertyName(index, context);
+            var finalPropertyName = JsOps.GetRequiredPropertyName(indexJs, context);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
             }
 
             var finalReference = CreatePropertyReference(target, finalPropertyName, context, allowPrivate: false);
-            finalReference.SetValue(JsValue.FromObjectUnsafe(assignedValue));
-            return JsValue.FromObjectUnsafe(assignedValue);
+            finalReference.SetValue(assignedValueJs);
+            return assignedValueJs;
         }
     }
 }

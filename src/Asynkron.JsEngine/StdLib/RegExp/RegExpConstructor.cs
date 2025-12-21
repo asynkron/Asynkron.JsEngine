@@ -96,8 +96,8 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             return CreateRegExpLiteral(existing.Pattern, existing.Flags, Realm, target);
         }
 
-        var pattern = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
-        var flags = args.Count > 1 ? JsOps.ToJsString(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var pattern = JsOps.ToJsString(args[0]) ?? string.Empty;
+        var flags = args.Count > 1 ? JsOps.ToJsString(args[1]) ?? string.Empty : string.Empty;
         return CreateRegExpLiteral(pattern, flags, Realm, target);
     }
 

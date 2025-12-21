@@ -32,7 +32,7 @@ public static partial class NumberHelper
         numberObj.SetHostedProperty("toString", args =>
         {
             var radixArg = args.GetArgument(0);
-            var radixNumber = radixArg.IsUndefined ? 10d : JsOps.ToNumber(radixArg.ToObject());
+            var radixNumber = radixArg.IsUndefined ? 10d : JsOps.ToNumber(radixArg);
             if (double.IsNaN(radixNumber) || Math.Abs(radixNumber % 1) > double.Epsilon)
             {
                 throw ThrowRangeError("radix must be an integer at least 2 and no greater than 36", realm: realm);
@@ -282,6 +282,48 @@ public static partial class NumberHelper
         }
 
         return (int)index;
+    }
+
+    /// <summary>
+    /// JsValue overload for ToIndex. Converts a JsValue to an index.
+    /// </summary>
+    internal static int ToIndex(JsValue value, RealmState? realm = null)
+    {
+        const double MaxLength = 9007199254740991d; // 2^53 - 1
+        var context = realm?.CreateContext();
+
+        // Fast path for numbers
+        if (value.Kind == JsValueKind.Number)
+        {
+            var numberValue = value.NumberValue;
+            var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
+                ? 0d
+                : double.IsInfinity(numberValue)
+                    ? numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity
+                    : Math.Truncate(numberValue);
+
+            if (double.IsPositiveInfinity(integerIndex) || integerIndex < 0)
+            {
+                throw ThrowRangeError("Index must be a non-negative integer", context, realm);
+            }
+
+            var index = integerIndex > MaxLength ? MaxLength : integerIndex;
+            var sameValueZero = integerIndex == index || (integerIndex == 0 && index == 0);
+            if (!sameValueZero)
+            {
+                throw ThrowRangeError("Index must be a non-negative integer", context, realm);
+            }
+
+            if (index > int.MaxValue)
+            {
+                throw ThrowRangeError("Index is too large", context, realm);
+            }
+
+            return (int)index;
+        }
+
+        // Fall back to object? version for non-numbers
+        return ToIndex(value.ToObject(), realm);
     }
 
     internal static long ToIndexAsLong(object? value, RealmState? realm = null)

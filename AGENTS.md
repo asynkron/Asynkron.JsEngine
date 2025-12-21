@@ -58,7 +58,7 @@ JavaScript expects consistent number formatting (US/Invariant style with periods
 
 ### Profiler Script (Recommended)
 
-The easiest way to profile JsEngine is using the unified C# profiler app:
+The easiest way to profile JsEngine is using the `asynkron-profiler` CLI via `./tools/profile`:
 
 ```bash
 # Profile fibonacci (CPU + memory)
@@ -84,12 +84,11 @@ The easiest way to profile JsEngine is using the unified C# profiler app:
 ```
 
 The script automatically:
-1. Builds the profile projects
-2. Runs `dotnet-trace` for CPU profiling
-3. Converts traces to speedscope format
+1. Builds the ProfileRunner app
+2. Runs `asynkron-profiler` for CPU/memory/heap capture
+3. Converts traces to speedscope format when needed
 4. Parses the JSON and outputs hot functions
-5. Runs allocation profiling with GC stats
-6. Shows allocation call graphs (who triggered each allocation)
+5. Shows allocation call graphs (who triggered each allocation)
 
 #### Output Example
 

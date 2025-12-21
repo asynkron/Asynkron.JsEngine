@@ -384,7 +384,7 @@ public static partial class TypedAstEvaluator
                         return (JsValue.Undefined, JsValue.Undefined, true);
                     }
 
-                    propertyName = JsOps.GetRequiredPropertyName(propertyJs.ToObject(), context);
+                    propertyName = JsOps.GetRequiredPropertyName(propertyJs, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return (JsValue.Undefined, JsValue.Undefined, true);

@@ -196,7 +196,7 @@ public static class ObjectHelper
             throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realmState);
         }
 
-        if (!TryGetObject(args[0].ToObject(), realmState, out var target))
+        if (!TryGetObject(args[0], realmState, out var target))
         {
             throw ThrowTypeError("Object.defineProperties called on non-object", realm: realmState);
         }
@@ -225,13 +225,13 @@ public static class ObjectHelper
         var realmState = RequireRealm(realm);
         if (args.Count < 2)
         {
-            return args.GetArgument(0).ToObject();
+            return args.GetArgument(0);
         }
 
         var targetValue = args[0];
-        var protoValue = args[1].ToObject();
+        var protoValue = args[1].IsNull ? null : args[1].ObjectValue;
 
-        var target = targetValue.ToObject();
+        var target = targetValue.ObjectValue;
         switch (target)
         {
             case ModuleNamespace when protoValue is null:
@@ -255,7 +255,7 @@ public static class ObjectHelper
     internal static object? ObjectPreventExtensions(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0].ToObject(), realmState, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
         {
             throw ThrowTypeError("Object.preventExtensions requires an object", realm: realmState);
         }
@@ -267,7 +267,7 @@ public static class ObjectHelper
     internal static object? ObjectIsExtensible(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0].ToObject(), realmState, out var target))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
         {
             return false;
         }
@@ -283,7 +283,7 @@ public static class ObjectHelper
             return new JsArray(realmState);
         }
 
-        if (!TryGetObject(args[0].ToObject(), realmState, out var obj))
+        if (!TryGetObject(args[0], realmState, out var obj))
         {
             return new JsArray(realmState);
         }
@@ -321,10 +321,17 @@ public static class ObjectHelper
             return new JsArray(realmState);
         }
 
-        var obj = args[0].ToObject() as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0].ToObject(), realmState, out var coerced))
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            obj = coerced;
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
         }
 
         if (obj is null)
@@ -353,10 +360,17 @@ public static class ObjectHelper
             return new JsArray(realmState);
         }
 
-        var obj = args[0].ToObject() as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0].ToObject(), realmState, out var coerced))
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            obj = coerced;
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
         }
 
         if (obj is null)
@@ -384,10 +398,17 @@ public static class ObjectHelper
             return new JsArray(realmState);
         }
 
-        var obj = args[0].ToObject() as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0].ToObject(), realmState, out var coerced))
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            obj = coerced;
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
         }
 
         if (obj is null)
@@ -415,7 +436,7 @@ public static class ObjectHelper
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !args[0].TryGetObject<IJsPropertyAccessor>(out var targetAccessor))
         {
-            return args.GetArgument(0).ToObject();
+            return args.GetArgument(0);
         }
 
         for (var i = 1; i < args.Count; i++)
@@ -434,7 +455,7 @@ public static class ObjectHelper
             }
         }
 
-        return args[0].ToObject();
+        return args[0];
     }
 
     internal static object? ObjectFromEntries(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -454,7 +475,7 @@ public static class ObjectHelper
             }
 
             var keyValue = entryArray.GetElement(0);
-            var key = keyValue.ToObject()?.ToString() ?? "";
+            var key = JsOps.ToJsString(keyValue);
             var value = entryArray.GetElement(1);
             result[key] = value;
         }
@@ -470,14 +491,13 @@ public static class ObjectHelper
             return false;
         }
 
-        var propName = JsOps.ToPropertyName(args[1].ToObject());
+        var propName = JsOps.ToPropertyName(args[1]);
         if (propName is null)
         {
             return false;
         }
 
-        var target = args[0].ToObject();
-        return target switch
+        return args[0].ObjectValue switch
         {
             JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
             JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
@@ -494,7 +514,7 @@ public static class ObjectHelper
             return null;
         }
 
-        var target = args[0].ToObject();
+        var target = args[0].ObjectValue;
         if (target is ModuleNamespace)
         {
             throw ThrowTypeError("Cannot freeze module namespace", realm: realmState);
@@ -507,7 +527,7 @@ public static class ObjectHelper
 
         if (target is not JsObject obj)
         {
-            return target;
+            return args[0];
         }
 
         obj.Freeze();
@@ -522,10 +542,9 @@ public static class ObjectHelper
             return null;
         }
 
-        var target = args[0].ToObject();
-        if (target is not JsObject obj)
+        if (args[0].ObjectValue is not JsObject obj)
         {
-            return target;
+            return args[0];
         }
 
         obj.Seal();
@@ -540,7 +559,7 @@ public static class ObjectHelper
             return true;
         }
 
-        var target = args[0].ToObject();
+        var target = args[0].ObjectValue;
         if (target is ModuleNamespace)
         {
             return false;
@@ -562,8 +581,7 @@ public static class ObjectHelper
             return true;
         }
 
-        var target = args[0].ToObject();
-        if (target is not JsObject obj)
+        if (args[0].ObjectValue is not JsObject obj)
         {
             return true;
         }
@@ -574,45 +592,7 @@ public static class ObjectHelper
     internal static object? ObjectIs(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         _ = realm;
-        var left = args.GetArgument(0).ToObject();
-        var right = args.GetArgument(1).ToObject();
-
-        if (left is double ld && right is double rd)
-        {
-            if (double.IsNaN(ld) && double.IsNaN(rd))
-            {
-                return true;
-            }
-
-            if (ld == 0.0 && rd == 0.0)
-            {
-                return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
-            }
-
-            return ld.Equals(rd);
-        }
-
-        if (left is float lf && right is float rf)
-        {
-            if (float.IsNaN(lf) && float.IsNaN(rf))
-            {
-                return true;
-            }
-
-            if (lf == 0f && rf == 0f)
-            {
-                return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
-            }
-
-            return lf.Equals(rf);
-        }
-
-        if (left is JsBigInt lbi && right is JsBigInt rbi)
-        {
-            return lbi == rbi;
-        }
-
-        return JsOps.StrictEquals(left, right);
+        return JsOps.SameValue(args.GetArgument(0), args.GetArgument(1));
     }
 
     internal static object? ObjectCreate(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
@@ -621,7 +601,7 @@ public static class ObjectHelper
         var obj = new JsObject { RealmState = realmState };
         if (args.Count > 0 && !args[0].IsNull)
         {
-            obj.SetPrototype(args[0].ToObject());
+            obj.SetPrototype(args[0].ObjectValue);
         }
 
         if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
@@ -652,10 +632,17 @@ public static class ObjectHelper
             return new JsArray(realmState);
         }
 
-        var obj = args[0].ToObject() as IJsPropertyAccessor;
-        if (obj is null && TryGetObject(args[0].ToObject(), realmState, out var coerced))
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            obj = coerced;
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
         }
 
         if (obj is null)
@@ -670,7 +657,7 @@ public static class ObjectHelper
     internal static object? ObjectGetOwnPropertyDescriptors(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0].ToObject(), realmState, out var obj))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
         {
             throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realmState);
         }
@@ -694,35 +681,34 @@ public static class ObjectHelper
     internal static object? ObjectGetOwnPropertyDescriptor(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count < 2 || !TryGetObject(args[0].ToObject(), realmState, out var obj))
+        if (args.Count < 2 || !TryGetObject(args[0], realmState, out var obj))
         {
-            return JsValue.Undefined.ToObject();
+            return JsValue.Undefined;
         }
 
-        var propName = JsOps.GetRequiredPropertyName(args[1].ToObject());
+        var propName = JsOps.GetRequiredPropertyName(args[1]);
 
         var desc = obj.GetOwnPropertyDescriptor(propName);
         if (desc is null)
         {
-            return JsValue.Undefined.ToObject();
+            return JsValue.Undefined;
         }
 
         var descriptorForResult = desc;
-        var target = args[0].ToObject();
-        if (string.Equals(propName, "name", StringComparison.Ordinal) && target is IJsCallable)
+        if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0].ObjectValue is IJsCallable)
         {
             descriptorForResult = desc.Clone();
             descriptorForResult.Configurable = true;
         }
 
         var result = FromPropertyDescriptor(descriptorForResult, realmState);
-        return result ?? JsValue.Undefined.ToObject();
+        return result ?? JsValue.Undefined;
     }
 
     internal static object? ObjectGetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !TryGetObject(args[0].ToObject(), realmState, out var obj))
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
         {
             throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realmState);
         }
@@ -764,12 +750,12 @@ public static class ObjectHelper
             throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realmState);
         }
 
-        if (!TryGetObject(args[0].ToObject(), realmState, out var obj))
+        if (!TryGetObject(args[0], realmState, out var obj))
         {
             throw ThrowTypeError("Object.defineProperty called on non-object", realm: realmState);
         }
 
-        var propName = JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty;
+        var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
         var descriptor = ToPropertyDescriptor(args[2], realmState);
 
         TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);

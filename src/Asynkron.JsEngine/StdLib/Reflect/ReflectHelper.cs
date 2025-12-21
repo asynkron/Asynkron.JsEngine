@@ -170,7 +170,7 @@ public static class ReflectHelper
             throw new Exception("Reflect.defineProperty: target must be an object.");
         }
 
-        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var descriptor = ToPropertyDescriptor(args[2], realm);
 
         return TryDefinePropertyOnTarget(target, propertyKey, descriptor, realm, false);
@@ -188,7 +188,7 @@ public static class ReflectHelper
             throw new Exception("Reflect.deleteProperty: target must be an object.");
         }
 
-        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var result = target switch
         {
             ModuleNamespace moduleNamespace => moduleNamespace.Delete(propertyKey),
@@ -212,7 +212,7 @@ public static class ReflectHelper
         }
 
         var receiver = args.Count > 2 ? args[2] : JsValue.FromObjectUnsafe(target);
-        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         return target.TryGetProperty(propertyKey, receiver, out var value) ? value : JsValue.Undefined;
     }
 
@@ -228,7 +228,7 @@ public static class ReflectHelper
             throw new Exception("Reflect.getOwnPropertyDescriptor: target must be an object.");
         }
 
-        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var descriptor = target.GetOwnPropertyDescriptor(propertyKey);
         var result = FromPropertyDescriptor(descriptor, realm);
         return result is not null ? (JsValue)result : JsValue.Undefined;
@@ -266,7 +266,7 @@ public static class ReflectHelper
             throw new Exception("Reflect.has: target must be an object.");
         }
 
-        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         if (target is ModuleNamespace moduleNamespace)
         {
             // Use HasProperty which triggers evaluation for deferred namespaces per ES spec
@@ -362,7 +362,7 @@ public static class ReflectHelper
             throw new Exception("Reflect.set: target must be an object.");
         }
 
-        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1].ToObject()) ?? string.Empty : string.Empty;
+        var propertyKey = args.Count > 1 ? JsOps.ToPropertyName(args[1]) ?? string.Empty : string.Empty;
         var value = args.Count > 2 ? args[2] : JsValue.Undefined;
         var receiver = args.Count > 3 ? args[3] : JsValue.FromObjectUnsafe(target);
         switch (target)

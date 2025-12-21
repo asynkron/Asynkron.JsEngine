@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 var superAssignedValue = superAssignedValueJs.ToObject();
-                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKeyJs.ToObject(), context);
+                var superPropertyName = JsOps.GetRequiredPropertyName(propertyKeyJs, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;

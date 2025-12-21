@@ -271,6 +271,39 @@ public static partial class StandardLibrary
         }
     }
 
+    /// <summary>
+    /// JsValue overload for ToBigInt. Converts a JsValue to a BigInt.
+    /// </summary>
+    internal static JsBigInt ToBigInt(JsValue value, EvaluationContext? context = null, RealmState? realmState = null)
+    {
+        realmState ??= context?.RealmState;
+        var localContext = context ?? realmState?.CreateContext();
+
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState),
+            JsValueKind.Null => throw ThrowTypeError("Cannot convert null to a BigInt", localContext, realmState),
+            JsValueKind.Boolean => value.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero,
+            JsValueKind.BigInt => value.ObjectValue as JsBigInt ?? throw ThrowTypeError("Invalid BigInt value", localContext, realmState),
+            JsValueKind.Number => ConvertNumberToBigInt(value.NumberValue, localContext, realmState),
+            JsValueKind.String => new JsBigInt(ParseBigIntString(value.ObjectValue as string ?? string.Empty, localContext, realmState)),
+            JsValueKind.Symbol => throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState),
+            JsValueKind.Object => ToBigInt(value.ToObject(), localContext, realmState),
+            _ => throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState)
+        };
+    }
+
+    private static JsBigInt ConvertNumberToBigInt(double numberValue, EvaluationContext? context, RealmState? realmState)
+    {
+        if (double.IsNaN(numberValue) || double.IsInfinity(numberValue) ||
+            Math.Floor(numberValue) != numberValue)
+        {
+            throw ThrowRangeError("Cannot convert a non-integer number to a BigInt", context, realmState);
+        }
+
+        return new JsBigInt(new BigInteger(numberValue));
+    }
+
     internal static long ToBigInt64(BigInteger value)
     {
         var wrapped = value % BigInt64Modulus;

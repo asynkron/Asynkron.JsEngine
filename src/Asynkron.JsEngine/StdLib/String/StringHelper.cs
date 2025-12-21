@@ -44,6 +44,29 @@ public static class StringHelper
     }
 
     /// <summary>
+    /// JsValue overload for RequireStringReceiver.
+    /// </summary>
+    internal static string RequireStringReceiver(JsValue receiver, RealmState? realm = null)
+    {
+        // Fast path for string kind
+        if (receiver.Kind == JsValueKind.String)
+        {
+            return receiver.ObjectValue as string ?? string.Empty;
+        }
+
+        // For objects, check for __value__ property
+        if (receiver.Kind == JsValueKind.Object && receiver.ObjectValue is IJsPropertyAccessor accessor)
+        {
+            if (accessor.TryGetProperty("__value__", out var inner) && inner.TryGetString(out var s))
+            {
+                return s;
+            }
+        }
+
+        throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm);
+    }
+
+    /// <summary>
     ///     Creates a string wrapper object with string methods attached.
     ///     This allows string primitives to have methods like toLowerCase(), substring(), etc.
     /// </summary>
@@ -208,7 +231,7 @@ public static class StringHelper
                 return new JsValue(-1d);
             }
 
-            var searchStr = args[0].TryGetString(out var s) ? s : args[0].ToObject()?.ToString() ?? "";
+            var searchStr = args[0].TryGetString(out var s) ? s : JsOps.ToJsString(args[0]);
             var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? Math.Max(0, (int)d) : 0;
             var result = value.IndexOf(searchStr, position, StringComparison.Ordinal);
             return new JsValue((double)result);
@@ -222,7 +245,7 @@ public static class StringHelper
                 return new JsValue(-1d);
             }
 
-            var searchStr = args[0].TryGetString(out var s) ? s : args[0].ToObject()?.ToString() ?? "";
+            var searchStr = args[0].TryGetString(out var s) ? s : JsOps.ToJsString(args[0]);
             var position = args.Count > 1 && args[1].TryGetDouble(out var d)
                 ? Math.Min((int)d, value.Length - 1)
                 : value.Length - 1;
@@ -368,7 +391,7 @@ public static class StringHelper
                 }
 
                 var numericContext = realm?.CreateContext();
-                var primitive = JsOps.ToPrimitive(input.ToObject(), ToPrimitiveHint.Number, numericContext);
+                var primitive = JsOps.ToPrimitive(input, ToPrimitiveHint.Number, numericContext);
                 if (numericContext?.IsThrow == true)
                 {
                     throw new ThrowSignal(numericContext.FlowValue);
@@ -573,7 +596,7 @@ public static class StringHelper
 
             if (TryResolveRegExp(search, out var regex2))
             {
-                var replaceValue = replacement.ToObject()?.ToString() ?? "";
+                var replaceValue = JsOps.ToJsString(replacement);
                 if (regex2.Global)
                 {
                     return new JsValue(Regex.Replace(value, regex2.Pattern, replaceValue));
@@ -653,7 +676,7 @@ public static class StringHelper
                 return JsValue.True;
             }
 
-            var searchStr = args[0].ToObject()?.ToString() ?? "";
+            var searchStr = JsOps.ToJsString(args[0]);
             var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : 0;
             if (position < 0 || position >= value.Length)
             {
@@ -671,7 +694,7 @@ public static class StringHelper
                 return JsValue.True;
             }
 
-            var searchStr = args[0].ToObject()?.ToString() ?? "";
+            var searchStr = JsOps.ToJsString(args[0]);
             var length = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : value.Length;
             if (length < 0)
             {
@@ -690,7 +713,7 @@ public static class StringHelper
                 return JsValue.True;
             }
 
-            var searchStr = args[0].ToObject()?.ToString() ?? "";
+            var searchStr = JsOps.ToJsString(args[0]);
             var position = args.Count > 1 && args[1].TryGetDouble(out var d)? Math.Max(0, (int)d) : 0;
             if (position >= value.Length)
             {
@@ -736,7 +759,7 @@ public static class StringHelper
                 return new JsValue(value);
             }
 
-            var padString = args.Count > 1 ? args[1].ToObject()?.ToString() ?? " " : " ";
+            var padString = args.Count > 1 && !args[1].IsUndefined ? JsOps.ToJsString(args[1]) : " ";
             if (padString.Length == 0)
             {
                 return new JsValue(value);
@@ -762,7 +785,7 @@ public static class StringHelper
                 return new JsValue(value);
             }
 
-            var padString = args.Count > 1 ? args[1].ToObject()?.ToString() ?? " " : " ";
+            var padString = args.Count > 1 && !args[1].IsUndefined ? JsOps.ToJsString(args[1]) : " ";
             if (padString.Length == 0)
             {
                 return new JsValue(value);
@@ -902,7 +925,7 @@ public static class StringHelper
                 return new JsValue(0d);
             }
 
-            var compareString = args[0].ToObject()?.ToString() ?? "";
+            var compareString = JsOps.ToJsString(args[0]);
             var result = string.Compare(value, compareString, StringComparison.CurrentCulture);
             return new JsValue((double)result);
         }
@@ -910,7 +933,7 @@ public static class StringHelper
         JsValue Normalize(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             var value = ResolveString(thisValue);
-            var form = args.Count > 0 && !args[0].IsUndefined ? args[0].ToObject()?.ToString() : "NFC";
+            var form = args.Count > 0 && !args[0].IsUndefined ? JsOps.ToJsString(args[0]) : "NFC";
 
             try
             {
@@ -1052,17 +1075,17 @@ public static class StringHelper
 
         IJsCallable? GetMethod(JsValue value, string methodKey, string opName)
         {
-            if (!JsOps.TryGetPropertyValue(value.ToObject(), methodKey, out var method))
+            if (!JsOps.TryGetPropertyValue(value, methodKey, out var method))
             {
                 return null;
             }
 
-            if (method is null || ReferenceEquals(method, Symbol.Undefined))
+            if (method.IsNullOrUndefined)
             {
                 return null;
             }
 
-            if (method is not IJsCallable callable)
+            if (!method.TryGetObject<IJsCallable>(out var callable))
             {
                 throw ThrowTypeError($"{opName} is not callable", realm: realm);
             }
@@ -1176,7 +1199,7 @@ public static class StringHelper
         var result = new StringBuilder();
         foreach (var arg in args)
         {
-            var num = JsOps.ToNumber(arg.ToObject());
+            var num = JsOps.ToNumber(arg);
             if (double.IsNaN(num) || double.IsInfinity(num))
             {
                 continue;
@@ -1213,7 +1236,7 @@ public static class StringHelper
         var result = new StringBuilder();
         foreach (var arg in args)
         {
-            var num = JsOps.ToNumber(arg.ToObject());
+            var num = JsOps.ToNumber(arg);
             if (double.IsNaN(num) || double.IsInfinity(num))
             {
                 continue;
@@ -1251,7 +1274,7 @@ public static class StringHelper
         }
         else if (rawAccessor is JsObject rawObj && rawObj.TryGetProperty("length", out var lengthVal))
         {
-            var length = (int)JsOps.ToNumber(lengthVal.ToObject());
+            var length = (int)JsOps.ToNumber(lengthVal);
             var items = new List<JsValue>(length);
             for (var i = 0; i < length; i++)
             {
@@ -1277,7 +1300,7 @@ public static class StringHelper
 
         for (var i = 0; i < rawCount; i++)
         {
-            var rawPart = rawItems[i].ToObject()?.ToString() ?? "";
+            var rawPart = JsOps.ToJsString(rawItems[i]);
             result.Append(rawPart);
 
             if (i >= args.Count - 1)
@@ -1285,7 +1308,7 @@ public static class StringHelper
                 break;
             }
 
-            var substitution = args[i + 1].ToObject()?.ToString() ?? "";
+            var substitution = JsOps.ToJsString(args[i + 1]);
             result.Append(substitution);
         }
 
@@ -1299,7 +1322,7 @@ public static class StringHelper
             return "";
         }
 
-        var value = args[0].ToObject()?.ToString() ?? "";
+        var value = JsOps.ToJsString(args[0]);
         var result = new StringBuilder();
 
         foreach (var ch in value)

@@ -15,7 +15,7 @@ public static class GlobalHelper
                 return JsValue.NaN;
             }
 
-            var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
+            var str = JsOps.ToJsString(args[0]) ?? "";
             str = str.Trim();
             if (str.Length == 0)
             {
@@ -87,7 +87,7 @@ public static class GlobalHelper
                 return JsValue.NaN;
             }
 
-            var str = JsOps.ToJsString(args[0].ToObject()) ?? "";
+            var str = JsOps.ToJsString(args[0]) ?? "";
             str = str.Trim();
             if (str.Length == 0)
             {

@@ -49,6 +49,56 @@ public static partial class StandardLibrary
         }
     }
 
+    /// <summary>
+    /// JsValue overload for TryGetObject. Handles JsValue kinds directly without boxing.
+    /// </summary>
+    internal static bool TryGetObject(JsValue candidate, RealmState? realm, out IJsObjectLike accessor)
+    {
+        switch (candidate.Kind)
+        {
+            case JsValueKind.Undefined:
+            case JsValueKind.Null:
+                accessor = null!;
+                return false;
+            case JsValueKind.Boolean:
+                accessor = CreateBooleanWrapper(candidate.NumberValue != 0, realm: realm);
+                return true;
+            case JsValueKind.Number:
+                accessor = CreateNumberWrapper(candidate.NumberValue, realm: realm);
+                return true;
+            case JsValueKind.String:
+                accessor = CreateStringWrapper(candidate.ObjectValue as string ?? string.Empty, realm: realm);
+                return true;
+            case JsValueKind.Symbol:
+                if (candidate.ObjectValue is TypedAstSymbol symbol)
+                {
+                    accessor = CreateSymbolWrapper(symbol, realm: realm);
+                    return true;
+                }
+                accessor = null!;
+                return false;
+            case JsValueKind.BigInt:
+                if (candidate.ObjectValue is JsBigInt bigInt)
+                {
+                    accessor = CreateBigIntWrapper(bigInt, realm: realm);
+                    return true;
+                }
+                accessor = null!;
+                return false;
+            case JsValueKind.Object:
+                if (candidate.ObjectValue is IJsObjectLike objectLike)
+                {
+                    accessor = objectLike;
+                    return true;
+                }
+                accessor = null!;
+                return false;
+            default:
+                accessor = null!;
+                return false;
+        }
+    }
+
     internal static bool HasProperty(IJsPropertyAccessor accessor, string propertyKey)
     {
         switch (accessor)

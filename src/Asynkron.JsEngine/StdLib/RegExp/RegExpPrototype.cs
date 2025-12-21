@@ -25,7 +25,7 @@ public sealed partial class RegExpPrototype : JsPrototype
             return new JsValue(false);
         }
 
-        var input = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
+        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
         return new JsValue(resolved.Test(input));
     }
 
@@ -43,7 +43,7 @@ public sealed partial class RegExpPrototype : JsPrototype
             return JsValue.Null;
         }
 
-        var input = JsOps.ToJsString(args[0].ToObject()) ?? string.Empty;
+        var input = JsOps.ToJsString(args[0]) ?? string.Empty;
         var result = resolved.Exec(input);
         return result is null ? JsValue.Null : JsValue.FromObjectUnsafe(result);
     }
@@ -109,8 +109,8 @@ public sealed partial class RegExpPrototype : JsPrototype
         {
             pattern = patternArg == JsValue.Undefined
                 ? string.Empty
-                : JsOps.ToJsString(patternArg.ToObject());
-            flags = flagsArg == JsValue.Undefined ? string.Empty : JsOps.ToJsString(flagsArg.ToObject());
+                : JsOps.ToJsString(patternArg);
+            flags = flagsArg == JsValue.Undefined ? string.Empty : JsOps.ToJsString(flagsArg);
         }
 
         try
@@ -264,11 +264,11 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var matchKey = SymbolKeys.Match;
         var receiver = thisValue != JsValue.Null ? thisValue : new JsValue(resolved.JsObject);
-        JsOps.TryGetPropertyValue(receiver.ToObject(), matchKey, out _);
+        JsOps.TryGetPropertyValue(receiver, matchKey, out _);
 
         resolved = ResolveRegExpInstance(receiver) ?? resolved;
 
-        var input = JsOps.ToJsString(args.Count > 0 ? args[0].ToObject() : string.Empty);
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) : string.Empty;
         var limitValue = args.GetArgument(1);
         var forcedFlags = resolved.Flags.Contains('g', StringComparison.Ordinal) ? resolved.Flags : resolved.Flags + "g";
         var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);

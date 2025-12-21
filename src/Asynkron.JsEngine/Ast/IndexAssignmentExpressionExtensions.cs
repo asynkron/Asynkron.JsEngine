@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
                     superNameTarget.EnsureHasName(string.Empty);
                 }
 
-                var propertyName = JsOps.GetRequiredPropertyName(superIndexJs.ToObject(), context);
+                var propertyName = JsOps.GetRequiredPropertyName(superIndexJs, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;

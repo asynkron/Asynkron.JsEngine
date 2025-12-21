@@ -2,5 +2,98 @@
 set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(cd "$script_dir/.." && pwd)
+runner_project="$script_dir/ProfileRunner/ProfileRunner.csproj"
+runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
+runner_exe="$runner_bin/ProfileRunner"
+runner_dll="$runner_bin/ProfileRunner.dll"
+runner_cmd=()
 
-dotnet run --project "$script_dir/ProfileTool" -- "$@"
+run_benchmarks() {
+  (cd "$repo_root/benchmarks/Asynkron.JsEngine.Benchmarks" && dotnet run -c Release -- jint --job short)
+}
+
+build_runner() {
+  if ! dotnet build "$runner_project" -c Release -v q --nologo; then
+    echo "Build failed. Fix compilation errors before profiling." >&2
+    exit 1
+  fi
+  if [[ -x "$runner_exe" ]]; then
+    runner_cmd=("$runner_exe")
+  else
+    runner_cmd=(dotnet "$runner_dll")
+  fi
+}
+
+run_profile() {
+  local profile_key=$1
+  shift
+  (cd "$script_dir" && asynkron-profiler "$@" -- "${runner_cmd[@]}" "$profile_key")
+}
+
+if ! command -v asynkron-profiler &> /dev/null; then
+  echo "asynkron-profiler not found. Install with: dotnet tool install -g asynkron-profiler --prerelease" >&2
+  exit 1
+fi
+
+args=("$@")
+for arg in "${args[@]}"; do
+  if [[ "$arg" == "--compare" ]]; then
+    run_benchmarks
+    exit 0
+  fi
+done
+
+for arg in "${args[@]}"; do
+  if [[ "$arg" == "--input" || "$arg" == --input=* ]]; then
+    (cd "$script_dir" && asynkron-profiler "$@")
+    exit 0
+  fi
+done
+
+profile_key="fib"
+pass_args=()
+
+if [[ ${#args[@]} -gt 0 && "${args[0]}" != -* ]]; then
+  profile_key="${args[0]}"
+  pass_args=("${args[@]:1}")
+else
+  pass_args=("${args[@]}")
+fi
+
+if [[ "$profile_key" == "list" ]]; then
+  build_runner
+  "${runner_cmd[@]}" list
+  exit 0
+fi
+
+if [[ "$profile_key" == "all" ]]; then
+  build_runner
+  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" "${pass_args[@]}"
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+manifest_path = sys.argv[1]
+runner_exe = Path(sys.argv[2])
+runner_dll = Path(sys.argv[3])
+args = sys.argv[4:]
+
+with open(manifest_path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+
+tools_dir = Path(manifest_path).parent
+runner_path = runner_exe if runner_exe.exists() else runner_dll
+runner_cmd = [str(runner_path)] if runner_path == runner_exe else ["dotnet", str(runner_dll)]
+
+profiles = sorted(data.get("profiles", {}).keys())
+for key in profiles:
+    cmd = ["asynkron-profiler", *args, "--", *runner_cmd, key]
+    subprocess.run(cmd, check=True, cwd=str(tools_dir))
+PY
+  exit 0
+fi
+
+build_runner
+run_profile "$profile_key" "${pass_args[@]}"

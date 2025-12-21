@@ -126,7 +126,7 @@ public static partial class StandardLibrary
         else
         {
             // Fall back to object-based conversion for non-numbers
-            number = JsOps.ToNumber(value.ToObject());
+            number = JsOps.ToNumber(value);
         }
 
         if (double.IsNaN(number) || number <= 0)
@@ -291,8 +291,13 @@ public static partial class StandardLibrary
             return accessor;
         }
 
-        // Fall back to object-based path for primitives that need boxing
-        return EnsureArrayLikeReceiverObject(thisValue.ToObject(), methodName, realm);
+        // Handle primitives that need boxing by using the JsValue-aware TryGetObject
+        if (TryGetObject(thisValue, realm, out var boxed))
+        {
+            return boxed;
+        }
+
+        throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
     }
 
     internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)

@@ -193,13 +193,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
 
     private TypedArrayBase ValidateReceiver(JsValue thisValue, string methodName)
     {
-        var obj = thisValue.ToObject();
-        if (obj is JsValue jsVal)
-        {
-            obj = jsVal.ToObject();
-        }
-
-        if (obj is not TypedArrayBase typedArray)
+        if (thisValue.Kind != JsValueKind.Object || thisValue.ObjectValue is not TypedArrayBase typedArray)
         {
             throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: Realm);
         }

@@ -168,7 +168,7 @@ public static class RegExpHelper
 
     internal static uint ToUint32(JsValue value)
     {
-        var number = JsOps.ToNumber(value.ToObject());
+        var number = JsOps.ToNumber(value);
         if (double.IsNaN(number) || double.IsInfinity(number))
         {
             return 0;
@@ -242,7 +242,7 @@ public static class RegExpHelper
             {
                 var statics = EnsureRegExpReceiver(thisValue);
                 var value = args.GetArgument(0);
-                statics.Input = JsOps.ToPropertyName(value.ToObject()) ?? string.Empty;
+                statics.Input = JsOps.ToPropertyName(value) ?? string.Empty;
                 return JsValue.Undefined;
             }, isConstructor: false),
             Enumerable = false,

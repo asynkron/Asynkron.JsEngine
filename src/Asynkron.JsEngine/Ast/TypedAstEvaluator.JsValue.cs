@@ -77,13 +77,13 @@ public static partial class TypedAstEvaluator
     private static JsValue AddWithToPrimitive(JsValue left, JsValue right, EvaluationContext context)
     {
         // Fall back to object? path for ToPrimitive
-        var leftPrim = JsOps.ToPrimitive(left.ToObject(), ToPrimitiveHint.Default, context);
+        var leftPrim = JsOps.ToPrimitive(left, ToPrimitiveHint.Default, context);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
         }
 
-        var rightPrim = JsOps.ToPrimitive(right.ToObject(), ToPrimitiveHint.Default, context);
+        var rightPrim = JsOps.ToPrimitive(right, ToPrimitiveHint.Default, context);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -452,7 +452,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Use existing comparison logic
-        return JsOps.LessThan(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False;
+        return JsOps.LessThan(left, right, context) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>
@@ -468,7 +468,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Use existing comparison logic
-        return JsOps.LessThanOrEqual(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False;
+        return JsOps.LessThanOrEqual(left, right, context) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>
@@ -484,7 +484,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Use direct comparison (not inversion) to handle NaN correctly
-        return JsOps.GreaterThan(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False;
+        return JsOps.GreaterThan(left, right, context) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>
@@ -500,7 +500,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Use direct comparison (not inversion) to handle NaN correctly
-        return JsOps.GreaterThanOrEqual(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False;
+        return JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>

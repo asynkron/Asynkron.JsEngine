@@ -529,7 +529,7 @@ public static partial class TypedAstEvaluator
                                 "Super call pre-check thisInit env={Env} value={Value}",
                                 thisInitializationEnvironment.GetHashCode(),
                                 alreadyInitialized.ToObject());
-                            if (JsOps.ToBoolean(alreadyInitialized.ToObject()))
+                            if (JsOps.ToBoolean(alreadyInitialized))
                             {
                                 throw StandardLibrary.ThrowReferenceError(
                                     "Super constructor may only be called once.", context, context.RealmState);

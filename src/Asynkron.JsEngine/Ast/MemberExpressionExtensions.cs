@@ -90,7 +90,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
+                propertyName = JsOps.GetRequiredPropertyName(propertyValueJs, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
 
             // Use JsOps.GetRequiredPropertyName which properly handles errors from ToPropertyName
             // (e.g., when toString() throws during property key coercion)
-            var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs.ToObject(), context);
+            var propertyName = JsOps.GetRequiredPropertyName(propertyValueJs, context);
             if (context.ShouldStopEvaluation)
             {
                 return (JsValue.Undefined, binding);

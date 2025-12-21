@@ -2987,7 +2987,7 @@ public sealed class JsEngine : IAsyncDisposable
     private ModuleEntry CreateJsonModule(string source, string resolvedPath)
     {
         // Parse JSON using JSON.parse
-        var jsonValue = JsonHelper.ParseJsonWithReviver(source, RealmState, null, null);
+        var jsonValue = JsonHelper.ParseJsonWithReviver(source, RealmState, null, JsValue.Undefined);
 
         // Create a synthetic module with the JSON value as default export
         var exports = new JsObject();

@@ -659,6 +659,27 @@ internal static class JsOps
         return value;
     }
 
+    /// <summary>
+    /// JsValue overload for ToPrimitive. Returns object? since primitives can be various types.
+    /// </summary>
+    public static object? ToPrimitive(JsValue value, ToPrimitiveHint hint, EvaluationContext? context = null)
+    {
+        // Fast path: already a primitive
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => value.NumberValue != 0,
+            JsValueKind.Number => value.NumberValue,
+            JsValueKind.String => value.ObjectValue,
+            JsValueKind.Symbol => value.ObjectValue,
+            JsValueKind.BigInt => value.ObjectValue,
+            // For objects, delegate to the object? version
+            JsValueKind.Object => ToPrimitive(value.ObjectValue, hint, context),
+            _ => value.ObjectValue
+        };
+    }
+
     public static string ToJsString(object? value, EvaluationContext? context = null)
     {
         return value.ToJsString(context, context?.RealmState);
@@ -679,6 +700,52 @@ internal static class JsOps
             JsValueKind.Object => value.ObjectValue.ToJsString(context, realm),
             _ => value.ObjectValue?.ToString() ?? string.Empty
         };
+    }
+
+    /// <summary>
+    /// ECMAScript SameValue comparison for JsValue types.
+    /// Unlike StrictEquals: NaN === NaN is true, -0 !== +0 is true.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool SameValue(JsValue left, JsValue right)
+    {
+        // Different types are never equal
+        if (left.Kind != right.Kind)
+        {
+            return false;
+        }
+
+        return left.Kind switch
+        {
+            JsValueKind.Undefined => true,
+            JsValueKind.Null => true,
+            JsValueKind.Boolean => left.NumberValue == right.NumberValue,
+            JsValueKind.Number => SameValueNumber(left.NumberValue, right.NumberValue),
+            JsValueKind.String => ReferenceEquals(left.ObjectValue, right.ObjectValue) ||
+                                  string.Equals(left.ObjectValue as string, right.ObjectValue as string, StringComparison.Ordinal),
+            JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
+            JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi && lbi == rbi,
+            JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),
+            _ => false
+        };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool SameValueNumber(double left, double right)
+    {
+        // NaN equals NaN in SameValue
+        if (double.IsNaN(left) && double.IsNaN(right))
+        {
+            return true;
+        }
+
+        // -0 and +0 are different in SameValue
+        if (left == 0.0 && right == 0.0)
+        {
+            return BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right);
+        }
+
+        return left == right;
     }
 
     /// <summary>
@@ -1412,6 +1479,20 @@ internal static class JsOps
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// JsValue overload for GetPrototypePointer.
+    /// </summary>
+    public static IJsPropertyAccessor? GetPrototypePointer(JsValue value)
+    {
+        // Only objects have prototypes
+        if (value.Kind != JsValueKind.Object)
+        {
+            return null;
+        }
+
+        return GetPrototypePointer(value.ObjectValue);
     }
 
     public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)

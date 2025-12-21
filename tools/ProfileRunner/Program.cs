@@ -4,20 +4,12 @@ using System.Text.Json;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Microsoft.Extensions.Logging;
-using ProfileRunner;
 
 #pragma warning disable MA0047 // Top-level statements live in script-style Program.
 #pragma warning disable MA0048 // File name matches project entry point, not nested types.
 
 const string listCommand = "list";
-const string memoryFlag = "--memory";
-const string jsonOutputFlag = "--json-output";
-
-var argList = new List<string>(args);
-var runMemory = argList.Remove(memoryFlag);
-var jsonOutputPath = ExtractJsonOutput(argList);
-
-var profileKey = argList.Count > 0 ? argList[0] : "fib";
+var profileKey = args.Length > 0 ? args[0] : "fib";
 var repoRoot = FindRepoRoot();
 var manifestPath = Path.Combine(repoRoot, "tools", "profile-manifest.json");
 var manifest = LoadManifest(manifestPath);
@@ -64,12 +56,6 @@ if (!string.IsNullOrWhiteSpace(profile.Header))
         .Replace("{runs}", runsForAverage.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
         .Replace("{traceRealm}", traceRealm.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     Console.WriteLine(header);
-}
-
-if (runMemory)
-{
-    await RunMemoryProfileAsync(script, isAsync, profile, traceRealm, profileKey, jsonOutputPath);
-    return;
 }
 
 if (profile.FreshEnginePerIteration)
@@ -179,129 +165,6 @@ void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAvera
     var elapsedText = elapsedMs.ToString(CultureInfo.InvariantCulture);
     var avgText = avgMs.ToString("F2", CultureInfo.InvariantCulture);
     Console.WriteLine($"Done in {elapsedText}ms (avg {avgText}ms per iteration)");
-}
-
-async Task RunMemoryProfileAsync(
-    string source,
-    bool isAsyncRun,
-    ProfileDefinition profile,
-    bool traceRealm,
-    string profileKey,
-    string? jsonOutputPath)
-{
-    var iterations = profile.Iterations > 0 ? profile.Iterations : 100;
-    var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
-
-    using var allocationListener = new AllocationEventListener();
-
-    for (var i = 0; i < warmup; i++)
-    {
-        await using var warmEngine = CreateEngine(traceRealm);
-        var warmParsed = warmEngine.ParseProgram(source);
-        await EvaluateAsync(warmEngine, warmParsed, isAsyncRun);
-    }
-
-    GC.Collect(2, GCCollectionMode.Forced, true, true);
-    GC.WaitForPendingFinalizers();
-    GC.Collect(2, GCCollectionMode.Forced, true, true);
-
-    var baselineAllocated = GC.GetAllocatedBytesForCurrentThread();
-    var baselineGen0 = GC.CollectionCount(0);
-    var baselineGen1 = GC.CollectionCount(1);
-    var baselineGen2 = GC.CollectionCount(2);
-    var baselineTotal = GC.GetTotalMemory(false);
-
-    allocationListener.Reset();
-    allocationListener.Start();
-
-    var sw = Stopwatch.StartNew();
-    for (var i = 0; i < iterations; i++)
-    {
-        await using var iterEngine = CreateEngine(traceRealm);
-        var iterParsed = iterEngine.ParseProgram(source);
-        await EvaluateAsync(iterEngine, iterParsed, isAsyncRun);
-    }
-    sw.Stop();
-
-    allocationListener.Stop();
-
-    var finalAllocated = GC.GetAllocatedBytesForCurrentThread();
-    var finalGen0 = GC.CollectionCount(0);
-    var finalGen1 = GC.CollectionCount(1);
-    var finalGen2 = GC.CollectionCount(2);
-    var finalTotal = GC.GetTotalMemory(false);
-
-    var totalAllocated = finalAllocated - baselineAllocated;
-    var perIterationBytes = iterations > 0 ? totalAllocated / iterations : 0;
-    var gen0Collections = finalGen0 - baselineGen0;
-    var gen1Collections = finalGen1 - baselineGen1;
-    var gen2Collections = finalGen2 - baselineGen2;
-
-    var perIterationTimeMs = iterations > 0 ? sw.ElapsedMilliseconds / (double)iterations : 0d;
-
-    Console.WriteLine("=== ALLOCATION REPORT ===");
-    Console.WriteLine();
-    Console.WriteLine($"Iterations:           {iterations.ToString(CultureInfo.InvariantCulture)}");
-    Console.WriteLine($"Total time:           {sw.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)} ms");
-    Console.WriteLine(
-        $"Per iteration:        {perIterationTimeMs.ToString("F2", CultureInfo.InvariantCulture)} ms");
-    Console.WriteLine();
-    Console.WriteLine($"Total allocated:      {FormatBytes(totalAllocated)}");
-    Console.WriteLine($"Per iteration:        {FormatBytes(perIterationBytes)}");
-    Console.WriteLine();
-    Console.WriteLine($"GC Gen0 collections:  {gen0Collections.ToString(CultureInfo.InvariantCulture)}");
-    Console.WriteLine($"GC Gen1 collections:  {gen1Collections.ToString(CultureInfo.InvariantCulture)}");
-    Console.WriteLine($"GC Gen2 collections:  {gen2Collections.ToString(CultureInfo.InvariantCulture)}");
-    Console.WriteLine();
-    Console.WriteLine($"Heap before:          {FormatBytes(baselineTotal)}");
-    Console.WriteLine($"Heap after:           {FormatBytes(finalTotal)}");
-    Console.WriteLine();
-
-    Console.WriteLine("=== PER-PHASE BREAKDOWN (single iteration) ===");
-    Console.WriteLine();
-
-    GC.Collect(2, GCCollectionMode.Forced, true, true);
-
-    await using var phaseEngine = CreateEngine(traceRealm);
-    var parseStart = GC.GetAllocatedBytesForCurrentThread();
-    var parsed = phaseEngine.ParseProgram(source);
-    var parseEnd = GC.GetAllocatedBytesForCurrentThread();
-    var parseAllocatedBytes = parseEnd - parseStart;
-    Console.WriteLine($"Parse:                {FormatBytes(parseAllocatedBytes)}");
-
-    var evalStart = GC.GetAllocatedBytesForCurrentThread();
-    await EvaluateAsync(phaseEngine, parsed, isAsyncRun);
-    var evalEnd = GC.GetAllocatedBytesForCurrentThread();
-    var evalAllocatedBytes = evalEnd - evalStart;
-    Console.WriteLine($"Evaluate:             {FormatBytes(evalAllocatedBytes)}");
-    Console.WriteLine();
-
-    var topAllocations = allocationListener.GetTopAllocations(50);
-    allocationListener.PrintReport(topAllocations);
-
-    if (!string.IsNullOrWhiteSpace(jsonOutputPath))
-    {
-        WriteMemoryProfileJson(
-            jsonOutputPath,
-            profileKey,
-            profile.Name,
-            profile.Description,
-            iterations,
-            sw.ElapsedMilliseconds,
-            perIterationTimeMs,
-            totalAllocated,
-            perIterationBytes,
-            gen0Collections,
-            gen1Collections,
-            gen2Collections,
-            parseAllocatedBytes,
-            evalAllocatedBytes,
-            baselineTotal,
-            finalTotal,
-            topAllocations);
-    }
-
-    Console.WriteLine("=== END REPORT ===");
 }
 
 JsEngine CreateEngine(bool traceRealm)
@@ -415,129 +278,6 @@ static string FindRepoRoot()
     }
 
     throw new InvalidOperationException("Unable to locate profile-manifest.json.");
-}
-
-static string? ExtractJsonOutput(List<string> argList)
-{
-    for (var i = 0; i < argList.Count; i++)
-    {
-        var arg = argList[i];
-        if (string.Equals(arg, jsonOutputFlag, StringComparison.Ordinal))
-        {
-            if (i + 1 < argList.Count)
-            {
-                var value = argList[i + 1];
-                argList.RemoveAt(i + 1);
-                argList.RemoveAt(i);
-                return value;
-            }
-        }
-
-        if (arg.StartsWith(jsonOutputFlag + "=", StringComparison.Ordinal))
-        {
-            var value = arg[(jsonOutputFlag.Length + 1)..];
-            argList.RemoveAt(i);
-            return value;
-        }
-    }
-
-    return null;
-}
-
-static void WriteMemoryProfileJson(
-    string outputPath,
-    string profileKey,
-    string profileName,
-    string description,
-    int iterations,
-    long totalTimeMs,
-    double perIterationTimeMs,
-    long totalAllocatedBytes,
-    long perIterationAllocatedBytes,
-    int gen0Collections,
-    int gen1Collections,
-    int gen2Collections,
-    long parseAllocatedBytes,
-    long evalAllocatedBytes,
-    long heapBeforeBytes,
-    long heapAfterBytes,
-    IReadOnlyList<AllocationEventListener.AllocationInfo> allocations)
-{
-    var allocationEntries = new List<Dictionary<string, object?>>(allocations.Count);
-    long allocationTotalBytes = 0;
-    long allocationTotalCount = 0;
-
-    foreach (var allocation in allocations)
-    {
-        allocationTotalBytes += allocation.TotalBytes;
-        allocationTotalCount += allocation.Count;
-
-        allocationEntries.Add(new Dictionary<string, object?>(StringComparer.Ordinal)
-        {
-            ["type"] = allocation.TypeName,
-            ["count"] = allocation.Count,
-            ["total_bytes"] = allocation.TotalBytes,
-            ["total"] = FormatBytes(allocation.TotalBytes)
-        });
-    }
-
-    var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
-    {
-        ["profile_key"] = profileKey,
-        ["profile_name"] = profileName,
-        ["description"] = description,
-        ["iterations"] = iterations,
-        ["total_time"] = totalTimeMs.ToString(CultureInfo.InvariantCulture) + " ms",
-        ["per_iteration_time"] = perIterationTimeMs.ToString("F2", CultureInfo.InvariantCulture) + " ms",
-        ["total_allocated"] = FormatBytes(totalAllocatedBytes),
-        ["per_iteration_allocated"] = FormatBytes(perIterationAllocatedBytes),
-        ["gen0_collections"] = gen0Collections,
-        ["gen1_collections"] = gen1Collections,
-        ["gen2_collections"] = gen2Collections,
-        ["parse_allocated"] = FormatBytes(parseAllocatedBytes),
-        ["evaluate_allocated"] = FormatBytes(evalAllocatedBytes),
-        ["heap_before"] = FormatBytes(heapBeforeBytes),
-        ["heap_after"] = FormatBytes(heapAfterBytes),
-        ["total_allocated_bytes"] = totalAllocatedBytes,
-        ["per_iteration_allocated_bytes"] = perIterationAllocatedBytes,
-        ["parse_allocated_bytes"] = parseAllocatedBytes,
-        ["evaluate_allocated_bytes"] = evalAllocatedBytes,
-        ["heap_before_bytes"] = heapBeforeBytes,
-        ["heap_after_bytes"] = heapAfterBytes,
-        ["allocation_total_count"] = allocationTotalCount,
-        ["allocation_total_bytes"] = allocationTotalBytes,
-        ["allocation_total"] = FormatBytes(allocationTotalBytes),
-        ["allocation_by_type"] = allocationEntries
-    };
-
-    var directory = Path.GetDirectoryName(outputPath);
-    if (!string.IsNullOrWhiteSpace(directory))
-    {
-        Directory.CreateDirectory(directory);
-    }
-
-    var options = new JsonSerializerOptions
-    {
-        WriteIndented = true
-    };
-
-    var json = JsonSerializer.Serialize(payload, options);
-    File.WriteAllText(outputPath, json);
-}
-
-static string FormatBytes(long bytes)
-{
-    if (bytes < 1024)
-    {
-        return bytes.ToString(CultureInfo.InvariantCulture) + " B";
-    }
-
-    if (bytes < 1024 * 1024)
-    {
-        return (bytes / 1024.0).ToString("F2", CultureInfo.InvariantCulture) + " KB";
-    }
-
-    return (bytes / (1024.0 * 1024.0)).ToString("F2", CultureInfo.InvariantCulture) + " MB";
 }
 
 sealed class ProfileManifest

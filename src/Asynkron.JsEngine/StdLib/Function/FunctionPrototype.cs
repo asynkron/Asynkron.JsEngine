@@ -90,7 +90,7 @@ public sealed partial class FunctionPrototype : JsPrototype
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", realm: Realm);
             }
 
-            var cursor = JsOps.GetPrototypePointer(candidate.ToObject());
+            var cursor = JsOps.GetPrototypePointer(candidate);
             while (cursor is not null)
             {
                 if (ReferenceEquals(cursor, prototypeObject))

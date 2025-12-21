@@ -46,7 +46,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        return new JsValue(ToBigInt(args[0].ToObject(), realmState: Realm));
+        return new JsValue(ToBigInt(args[0], realmState: Realm));
     }
 
     private void AttachStatics(HostFunction constructor)
@@ -62,14 +62,14 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("BigInt.asIntN requires bits and value", realm: Realm);
         }
 
-        var bits = ToIndex(args[0].ToObject(), Realm);
+        var bits = ToIndex(args[0], Realm);
         var value = args[1];
         if (value.IsUndefined)
         {
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        var bigIntValue = ToBigInt(value.ToObject(), realmState: Realm);
+        var bigIntValue = ToBigInt(value, realmState: Realm);
         return new JsValue(new JsBigInt(AsIntN(bits, bigIntValue.Value)));
     }
 
@@ -80,14 +80,14 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("BigInt.asUintN requires bits and value", realm: Realm);
         }
 
-        var bits = ToIndex(args[0].ToObject(), Realm);
+        var bits = ToIndex(args[0], Realm);
         var value = args[1];
         if (value.IsUndefined)
         {
             throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
         }
 
-        var bigIntValue = ToBigInt(value.ToObject(), realmState: Realm);
+        var bigIntValue = ToBigInt(value, realmState: Realm);
         return new JsValue(new JsBigInt(AsUintN(bits, bigIntValue.Value)));
     }
 }

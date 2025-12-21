@@ -1081,7 +1081,7 @@ public static partial class TypedAstEvaluator
                 try
                 {
                     var result = callable.Invoke([JsValue.FromObjectUnsafe(left)], JsValue.FromObjectUnsafe(right));
-                    return JsOps.ToBoolean(result.ToObject());
+                    return JsOps.ToBoolean(result);
                 }
                 catch (ThrowSignal signal)
                 {

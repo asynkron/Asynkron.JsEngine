@@ -68,7 +68,7 @@ public sealed partial class ArrayBufferPrototype
             throw ThrowTypeError("ArrayBuffer species constructor returned a SharedArrayBuffer", realm: Realm);
         }
 
-        var original = thisValue.ToObject();
+        var original = thisValue.ObjectValue;
         if (ReferenceEquals(newBuffer, original))
         {
             throw ThrowTypeError("ArrayBuffer species constructor returned this value", realm: Realm);

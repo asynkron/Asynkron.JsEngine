@@ -9,6 +9,33 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class JsonHelper
 {
+    /// <summary>
+    /// JsValue overload for ParseJsonWithReviver that avoids boxing.
+    /// </summary>
+    internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
+        JsValue reviverValue)
+    {
+        object? parsed;
+        try
+        {
+            parsed = ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
+        }
+        catch
+        {
+            throw ThrowSyntaxError("Unexpected token in JSON", context, realm);
+        }
+
+        if (!reviverValue.TryGetObject<IJsCallable>(out var reviver))
+        {
+            return parsed;
+        }
+
+        var holder = new JsObject();
+        holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
+
+        return ApplyJsonReviver(reviver, holder, "", context, realm);
+    }
+
     internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
         object? reviverCandidate)
     {

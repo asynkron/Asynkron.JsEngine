@@ -13,26 +13,26 @@ public sealed partial class StringPrototype
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(RequireStringReceiver(thisValue.ToObject(), Realm));
+        return new JsValue(RequireStringReceiver(thisValue, Realm));
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(RequireStringReceiver(thisValue.ToObject(), Realm));
+        return new JsValue(RequireStringReceiver(thisValue, Realm));
     }
 
     [JsHostMethod("parseJSON", Length = 1d)]
     public JsValue ParseJson(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var context = Realm.CreateContext();
-        var source = JsOps.ToJsString(thisValue.ToObject(), context);
+        var source = JsOps.ToJsString(thisValue, context);
         if (context.IsThrow)
         {
             throw new ThrowSignal(context.FlowValue);
         }
 
-        var reviver = args.Count > 0 ? args[0].ToObject() : JsValue.Undefined.ToObject();
+        var reviver = args.Count > 0 ? args[0] : JsValue.Undefined;
         return JsValue.FromObjectUnsafe(ParseJsonWithReviver(source, Realm, context, reviver));
     }
 

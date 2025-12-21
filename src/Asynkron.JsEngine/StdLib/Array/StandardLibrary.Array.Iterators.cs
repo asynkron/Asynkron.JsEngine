@@ -15,7 +15,7 @@ public static partial class StandardLibrary
         return CreateArrayIteratorObject(accessor, projector, realm);
     }
 
-    private static object CreateArrayIteratorObject(IJsPropertyAccessor accessor, Func<uint, JsValue> projector,
+    internal static object CreateArrayIteratorObject(IJsPropertyAccessor accessor, Func<uint, JsValue> projector,
         RealmState? realm)
     {
         var iterator = new JsObject(realm?.ObjectPrototype);

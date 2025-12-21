@@ -420,23 +420,27 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             var methodVar = $"method_{Sanitize(method.PropertyName)}";
             source.Append("        var ").Append(methodVar).Append(" = new HostFunction(");
 
+            // If method returns JsValue directly, no wrapping needed
+            var wrapOpen = method.ReturnsJsValue ? "" : "JsValue.FromObjectUnsafe(";
+            var wrapClose = method.ReturnsJsValue ? "" : ")";
+
             switch (method.Signature)
             {
                 case ConstructorMethodSignature.NoArgs:
-                    source.Append("(_, _) => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
-                        .Append(method.MethodSymbol.Name).AppendLine("()), realm, isConstructor: false);");
+                    source.Append("(_, _) => ").Append(wrapOpen).Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).Append("()").Append(wrapClose).AppendLine(", realm, isConstructor: false);");
                     break;
                 case ConstructorMethodSignature.ArgsOnly:
-                    source.Append("args => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
-                        .Append(method.MethodSymbol.Name).AppendLine("(args)), realm, isConstructor: false);");
+                    source.Append("args => ").Append(wrapOpen).Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).Append("(args)").Append(wrapClose).AppendLine(", realm, isConstructor: false);");
                     break;
                 case ConstructorMethodSignature.ArgsRealm:
-                    source.Append("args => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
-                        .Append(method.MethodSymbol.Name).AppendLine("(args, realm)), realm, isConstructor: false);");
+                    source.Append("args => ").Append(wrapOpen).Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).Append("(args, realm)").Append(wrapClose).AppendLine(", realm, isConstructor: false);");
                     break;
                 default: // ThisArgsRealm
-                    source.Append("(thisValue, args) => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
-                        .Append(method.MethodSymbol.Name).AppendLine("(thisValue, args, realm)), realm, isConstructor: false);");
+                    source.Append("(thisValue, args) => ").Append(wrapOpen).Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).Append("(thisValue, args, realm)").Append(wrapClose).AppendLine(", realm, isConstructor: false);");
                     break;
             }
 

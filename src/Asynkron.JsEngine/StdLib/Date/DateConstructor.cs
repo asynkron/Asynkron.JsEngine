@@ -14,13 +14,13 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     // Static methods registered via code generation
 
     [JsConstructorMethod("now", Length = 0d)]
-    public static object Now()
+    public static JsValue Now()
     {
-        return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return new JsValue((double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
     }
 
     [JsConstructorMethod("UTC", Length = 7d)]
-    public static object UTC(IReadOnlyList<JsValue> args)
+    public static JsValue UTC(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -69,7 +69,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
     }
 
     [JsConstructorMethod("parse", Length = 1d)]
-    public static object Parse(IReadOnlyList<JsValue> args)
+    public static JsValue Parse(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetString(out var dateStr))
         {

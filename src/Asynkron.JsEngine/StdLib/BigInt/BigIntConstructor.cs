@@ -13,7 +13,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("asIntN", Length = 2d)]
-    public static object AsIntN(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue AsIntN(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count < 2)
         {
@@ -48,7 +48,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("asUintN", Length = 2d)]
-    public static object AsUintN(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue AsUintN(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count < 2)
         {

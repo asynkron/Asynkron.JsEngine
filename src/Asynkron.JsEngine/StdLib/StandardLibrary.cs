@@ -468,40 +468,26 @@ public static partial class StandardLibrary
         return value.ToJsString(null, realm);
     }
 
-    internal static bool TryFormatWithIntlNumberFormat(
-        object numericValue,
-        object? localesArg,
-        object? optionsArg,
-        RealmState? realm,
-        out object? formatted)
-    {
-        formatted = null;
-        var constructor = ResolveIntlNumberFormatConstructor(realm);
-        if (constructor is null)
-        {
-            return false;
-        }
-
-        var formatter = constructor.Invoke([JsValue.FromObjectUnsafe(localesArg), JsValue.FromObjectUnsafe(optionsArg)],
-            JsValue.Null);
-        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
-            !accessor.TryGetProperty("format", out var formatValue) ||
-            !formatValue.TryGetObject<IJsCallable>(out var formatFn))
-        {
-            return false;
-        }
-
-        var result = formatFn.Invoke([JsValue.FromObjectUnsafe(numericValue)], formatter);
-        formatted = result.ToObject();
-        return true;
-    }
-
     /// <summary>
     /// JsValue overload for TryFormatWithIntlNumberFormat. Avoids boxing/unboxing of JsValue arguments.
     /// Returns JsValue directly to avoid unnecessary boxing.
     /// </summary>
     internal static bool TryFormatWithIntlNumberFormatJsValue(
         double numericValue,
+        JsValue localesArg,
+        JsValue optionsArg,
+        RealmState? realm,
+        out JsValue formatted)
+    {
+        return TryFormatWithIntlNumberFormatJsValue(new JsValue(numericValue), localesArg, optionsArg, realm, out formatted);
+    }
+
+    /// <summary>
+    /// JsValue overload for TryFormatWithIntlNumberFormat that accepts any JsValue as the numeric value.
+    /// Supports BigInt, number, and other numeric types. Returns JsValue directly to avoid boxing.
+    /// </summary>
+    internal static bool TryFormatWithIntlNumberFormatJsValue(
+        JsValue numericValue,
         JsValue localesArg,
         JsValue optionsArg,
         RealmState? realm,
@@ -522,27 +508,8 @@ public static partial class StandardLibrary
             return false;
         }
 
-        formatted = formatFn.Invoke([new JsValue(numericValue)], formatter);
+        formatted = formatFn.Invoke([numericValue], formatter);
         return true;
-    }
-
-    /// <summary>
-    /// JsValue overload for TryFormatWithIntlNumberFormat. Avoids boxing/unboxing of JsValue arguments.
-    /// </summary>
-    internal static bool TryFormatWithIntlNumberFormat(
-        double numericValue,
-        JsValue localesArg,
-        JsValue optionsArg,
-        RealmState? realm,
-        out object? formatted)
-    {
-        if (TryFormatWithIntlNumberFormatJsValue(numericValue, localesArg, optionsArg, realm, out var jsFormatted))
-        {
-            formatted = jsFormatted.ToObject();
-            return true;
-        }
-        formatted = null;
-        return false;
     }
 
     private static IJsCallable? ResolveIntlNumberFormatConstructor(RealmState? realm)

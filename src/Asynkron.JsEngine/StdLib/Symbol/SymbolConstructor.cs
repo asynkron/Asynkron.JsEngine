@@ -13,7 +13,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("for", Length = 1d)]
-    public static object? For(IReadOnlyList<JsValue> args)
+    public static JsValue For(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -25,7 +25,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("keyFor", Length = 1d)]
-    public static object? KeyFor(IReadOnlyList<JsValue> args)
+    public static JsValue KeyFor(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not TypedAstSymbol sym)
         {

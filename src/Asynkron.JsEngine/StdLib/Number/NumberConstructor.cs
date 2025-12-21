@@ -14,82 +14,82 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("isInteger", Length = 1d)]
-    private static object? IsInteger(IReadOnlyList<JsValue> args)
+    private static JsValue IsInteger(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
-            return false;
+            return JsValue.False;
         }
 
         if (double.IsNaN(d) || double.IsInfinity(d))
         {
-            return false;
+            return JsValue.False;
         }
 
-        return Math.Abs(d % 1) < double.Epsilon;
+        return new JsValue(Math.Abs(d % 1) < double.Epsilon);
     }
 
     [JsConstructorMethod("isFinite", Length = 1d)]
-    public static object? IsFinite(IReadOnlyList<JsValue> args)
+    public static JsValue IsFinite(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
-            return false;
+            return JsValue.False;
         }
 
-        return !double.IsNaN(d) && !double.IsInfinity(d);
+        return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
     }
 
     [JsConstructorMethod("isNaN", Length = 1d)]
-    private static bool IsNaN(IReadOnlyList<JsValue> args)
+    private static JsValue IsNaN(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return false;
+            return JsValue.False;
         }
 
         if (!args[0].TryGetDouble(out var d))
         {
-            return false;
+            return JsValue.False;
         }
 
-        return double.IsNaN(d);
+        return new JsValue(double.IsNaN(d));
     }
 
     [JsConstructorMethod("isSafeInteger", Length = 1d)]
-    private static bool IsSafeInteger(IReadOnlyList<JsValue> args)
+    private static JsValue IsSafeInteger(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
-            return false;
+            return JsValue.False;
         }
 
         if (double.IsNaN(d) || double.IsInfinity(d))
         {
-            return false;
+            return JsValue.False;
         }
 
         if (Math.Abs(d % 1) >= double.Epsilon)
         {
-            return false;
+            return JsValue.False;
         }
 
-        return Math.Abs(d) <= 9007199254740991;
+        return new JsValue(Math.Abs(d) <= 9007199254740991);
     }
 
     [JsConstructorMethod("parseFloat", Length = 1d)]
-    private static double? ParseFloat(IReadOnlyList<JsValue> args)
+    private static JsValue ParseFloat(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         var str = args[0].ToJsString();
         str = str.Trim();
         if (str.Length == 0)
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         var match = FloatRegex().Match(str);
@@ -98,47 +98,47 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             if (double.TryParse(match.Value, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out var result))
             {
-                return result;
+                return new JsValue(result);
             }
         }
 
         if (str.StartsWith("Infinity", StringComparison.Ordinal))
         {
-            return double.PositiveInfinity;
+            return new JsValue(double.PositiveInfinity);
         }
 
         if (str.StartsWith("+Infinity", StringComparison.Ordinal))
         {
-            return double.PositiveInfinity;
+            return new JsValue(double.PositiveInfinity);
         }
 
         if (str.StartsWith("-Infinity", StringComparison.Ordinal))
         {
-            return double.NegativeInfinity;
+            return new JsValue(double.NegativeInfinity);
         }
 
-        return double.NaN;
+        return JsValue.NaN;
     }
 
     [JsConstructorMethod("parseInt", Length = 2d)]
-    private static double? ParseInt(IReadOnlyList<JsValue> args)
+    private static JsValue ParseInt(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         var str = args[0].ToJsString();
         str = str.Trim();
         if (str.Length == 0)
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         var radix = args.Count > 1 && args[1].TryGetDouble(out var r) ? (int)r : 10;
         if (radix is < 2 or > 36)
         {
-            return double.NaN;
+            return JsValue.NaN;
         }
 
         var sign = 1;
@@ -182,7 +182,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             parsed = parsed * radix + digit;
         }
 
-        return parsed * sign;
+        return new JsValue(parsed * sign);
     }
 
     private HostFunction? _constructor;

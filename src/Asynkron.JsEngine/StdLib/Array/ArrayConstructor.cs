@@ -15,15 +15,15 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     // Static methods registered via code generation
 
     [JsConstructorMethod("isArray", Length = 1d)]
-    public static object? IsArray(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue IsArray(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        return ArrayIsArray(args.GetArgument(0), realm ?? throw new InvalidOperationException("Realm required"));
+        return new JsValue(ArrayIsArray(args.GetArgument(0), realm ?? throw new InvalidOperationException("Realm required")));
     }
 
     [JsConstructorMethod("of", Length = 0d)]
-    public static object? Of(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Of(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        return ArrayOf(thisValue, args, realm);
+        return JsValue.FromObjectUnsafe(ArrayOf(thisValue, args, realm));
     }
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)

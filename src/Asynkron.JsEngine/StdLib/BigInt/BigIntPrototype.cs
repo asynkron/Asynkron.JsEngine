@@ -55,9 +55,9 @@ public sealed partial class BigIntPrototype : JsPrototype
         var value = RequireBigIntValue(thisValue, Realm);
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
-        if (TryFormatWithIntlNumberFormat(value, localesArg, optionsArg, Realm, out var formatted))
+        if (TryFormatWithIntlNumberFormatJsValue(new JsValue(value), localesArg, optionsArg, Realm, out var formatted))
         {
-            return JsValue.FromObjectUnsafe(formatted);
+            return formatted;
         }
 
         return new JsValue(BigIntToString(value.Value, 10));

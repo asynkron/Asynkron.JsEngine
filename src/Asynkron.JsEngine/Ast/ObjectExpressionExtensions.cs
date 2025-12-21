@@ -30,21 +30,22 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var value = member.Value is null
-                            ? Symbol.Undefined
-                            : member.Value.EvaluateExpression(environment, context).ToObject();
+                        var valueJs = member.Value is null
+                            ? JsValue.Undefined
+                            : member.Value.EvaluateExpression(environment, context);
 
                         if (!member.IsComputed &&
                             string.Equals(name, "__proto__", StringComparison.Ordinal) &&
                             member.Parameter is null)
                         {
-                            if (value is null)
+                            if (valueJs.IsNull)
                             {
-                                obj.SetPrototype(value);
+                                obj.SetPrototype(null);
                             }
-                            else if (value is IJsObjectLike || value is IPrototypeAccessorProvider)
+                            else if (valueJs.TryGetObject<IJsObjectLike>(out _) ||
+                                     valueJs.TryGetObject<IPrototypeAccessorProvider>(out _))
                             {
-                                obj.SetPrototype(value);
+                                obj.SetPrototype(valueJs.ObjectValue);
                             }
 
                             // Per ES spec, __proto__: value with colon syntax sets the prototype,
@@ -53,7 +54,7 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        if (value is IFunctionNameTarget nameTarget &&
+                        if (valueJs.ObjectValue is IFunctionNameTarget nameTarget &&
                             member.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                         {
                             var displayName = ObjectExpression.BuildFunctionNameDisplay(name);
@@ -62,7 +63,7 @@ public static partial class TypedAstEvaluator
 
                         obj.DefineProperty(name, new PropertyDescriptor
                         {
-                            Value = value,
+                            JsValue = valueJs,
                             Writable = true,
                             Enumerable = true,
                             Configurable = true
@@ -158,12 +159,12 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        var value = member.Value is null
-                            ? Symbol.Undefined
-                            : member.Value.EvaluateExpression(environment, context).ToObject();
+                        var valueJs = member.Value is null
+                            ? JsValue.Undefined
+                            : member.Value.EvaluateExpression(environment, context);
                         obj.DefineProperty(name, new PropertyDescriptor
                         {
-                            Value = value,
+                            JsValue = valueJs,
                             Writable = true,
                             Enumerable = true,
                             Configurable = true
@@ -172,20 +173,27 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Spread:
                     {
-                        var spreadValue = member.Value!.EvaluateExpression(environment, context).ToObject();
+                        var spreadValueJs = member.Value!.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             return JsValue.Undefined;
                         }
 
-                        if (IsNullish(spreadValue) || spreadValue is IIsHtmlDda)
+                        // Skip null/undefined per ES spec
+                        if (spreadValueJs.IsNullOrUndefined)
+                        {
+                            break;
+                        }
+
+                        // Check for document.all-like objects
+                        if (spreadValueJs.ObjectValue is IIsHtmlDda)
                         {
                             break;
                         }
 
                         // Object spread uses CopyDataProperties (ECMA-262 PropertyDefinitionEvaluation),
                         // which skips null/undefined and copies enumerable own keys in [[OwnPropertyKeys]] order.
-                        if (spreadValue is IDictionary<string, object?> dictionary and not JsObject)
+                        if (spreadValueJs.ObjectValue is IDictionary<string, object?> dictionary and not JsObject)
                         {
                             foreach (var kvp in dictionary)
                             {
@@ -201,18 +209,18 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        var accessor = spreadValue is IJsPropertyAccessor propertyAccessor
+                        var accessor = spreadValueJs.ObjectValue is IJsPropertyAccessor propertyAccessor
                             ? propertyAccessor
-                            : ToObjectForDestructuring(spreadValue, context);
+                            : ToObjectForDestructuringJsValue(spreadValueJs, context);
 
                         foreach (var key in accessor.GetEnumerableOwnPropertyKeysInOrder())
                         {
                             var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
-                                ? val.ToObject()
-                                : Symbol.Undefined;
+                                ? val
+                                : JsValue.Undefined;
                             obj.DefineProperty(key, new PropertyDescriptor
                             {
-                                Value = spreadPropertyValue,
+                                JsValue = spreadPropertyValue,
                                 Writable = true,
                                 Enumerable = true,
                                 Configurable = true

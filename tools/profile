@@ -8,6 +8,8 @@ runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
 runner_exe="$runner_bin/ProfileRunner"
 runner_dll="$runner_bin/ProfileRunner.dll"
 runner_cmd=()
+engine_args=()
+profiler_args=()
 
 run_benchmarks() {
   (cd "$repo_root/benchmarks/Asynkron.JsEngine.Benchmarks" && dotnet run -c Release -- jint --job short)
@@ -28,7 +30,8 @@ build_runner() {
 run_profile() {
   local profile_key=$1
   shift
-  (cd "$script_dir" && asynkron-profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "$profile_key")
+  local engine_args_expanded=("${engine_args[@]-}")
+  (cd "$script_dir" && asynkron-profiler "$@" -- "${runner_cmd[@]}" "${engine_args_expanded[@]}" "$profile_key")
 }
 
 if ! command -v asynkron-profiler &> /dev/null; then
@@ -53,8 +56,6 @@ done
 
 profile_key="fib"
 pass_args=()
-engine_args=()
-profiler_args=()
 
 if [[ ${#args[@]} -gt 0 && "${args[0]}" != -* ]]; then
   profile_key="${args[0]}"

@@ -10,9 +10,9 @@ namespace Asynkron.JsEngine.StdLib;
 public static class JsonHelper
 {
     /// <summary>
-    /// JsValue overload for ParseJsonWithReviver that avoids boxing.
+    /// JsValue-returning overload for ParseJsonWithReviver that avoids boxing.
     /// </summary>
-    internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
+    internal static JsValue ParseJsonWithReviverJsValue(string jsonStr, RealmState realm, EvaluationContext? context,
         JsValue reviverValue)
     {
         object? parsed;
@@ -27,13 +27,22 @@ public static class JsonHelper
 
         if (!reviverValue.TryGetObject<IJsCallable>(out var reviver))
         {
-            return parsed;
+            return JsValue.FromObjectUnsafe(parsed);
         }
 
         var holder = new JsObject();
         holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
 
-        return ApplyJsonReviver(reviver, holder, "", context, realm);
+        return ApplyJsonReviverJsValue(reviver, holder, "", context, realm);
+    }
+
+    /// <summary>
+    /// JsValue overload for ParseJsonWithReviver that avoids boxing.
+    /// </summary>
+    internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
+        JsValue reviverValue)
+    {
+        return ParseJsonWithReviverJsValue(jsonStr, realm, context, reviverValue).ToObject();
     }
 
     internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
@@ -57,7 +66,7 @@ public static class JsonHelper
         var holder = new JsObject();
         holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
 
-        return ApplyJsonReviver(reviver, holder, "", context, realm);
+        return ApplyJsonReviverJsValue(reviver, holder, "", context, realm).ToObject();
     }
 
     private static object? ParseJsonValue(JsonElement element, RealmState realm)
@@ -100,7 +109,7 @@ public static class JsonHelper
         }
     }
 
-    private static object? ApplyJsonReviver(IJsCallable reviver, IJsObjectLike holder, string name,
+    private static JsValue ApplyJsonReviverJsValue(IJsCallable reviver, IJsObjectLike holder, string name,
         EvaluationContext? context, RealmState realm)
     {
         if (!holder.TryGetProperty(name, out var value))
@@ -112,14 +121,14 @@ public static class JsonHelper
         {
             foreach (var key in jsObj.Keys.ToArray())
             {
-                var revived = ApplyJsonReviver(reviver, jsObj, key, context, realm);
-                if (ReferenceEquals(revived, Symbol.Undefined))
+                var revived = ApplyJsonReviverJsValue(reviver, jsObj, key, context, realm);
+                if (revived.IsUndefined)
                 {
                     jsObj.Delete(key);
                 }
                 else
                 {
-                    jsObj.SetProperty(key, JsValue.FromObjectUnsafe(revived));
+                    jsObj.SetProperty(key, revived);
                 }
             }
         }
@@ -128,9 +137,9 @@ public static class JsonHelper
             var length = (int)arr.Length;
             for (var i = 0; i < length; i++)
             {
-                var revived = ApplyJsonReviver(reviver, arr,
+                var revived = ApplyJsonReviverJsValue(reviver, arr,
                     i.ToString(CultureInfo.InvariantCulture), context, realm);
-                if (ReferenceEquals(revived, Symbol.Undefined))
+                if (revived.IsUndefined)
                 {
                     arr.DeleteElement(i);
                 }
@@ -141,8 +150,7 @@ public static class JsonHelper
             }
         }
 
-        var replacement = reviver.Invoke([new JsValue(name), value], JsValue.FromObjectUnsafe(holder));
-        return replacement.ToObject();
+        return reviver.Invoke([new JsValue(name), value], JsValue.FromObjectUnsafe(holder));
     }
 
     internal static string StringifyValue(object? value, int depth = 0)

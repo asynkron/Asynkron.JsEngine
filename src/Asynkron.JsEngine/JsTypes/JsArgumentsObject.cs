@@ -212,7 +212,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                 _backing.TryGetProperty("callee", JsValue.FromObjectUnsafe(this), out var calleeValue);
                 return new PropertyDescriptor
                 {
-                    Value = calleeValue.ToObject() ?? _calleeDescriptor.Value,
+                    JsValue = calleeValue.IsNullOrUndefined ? _calleeDescriptor.JsValue : calleeValue,
                     Writable = true,
                     Enumerable = false,
                     Configurable = true

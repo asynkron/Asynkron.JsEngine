@@ -361,6 +361,19 @@ public static partial class TypedAstEvaluator
             }
         }
 
+        private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
+        {
+            if (environment.TryGet(symbol, out _))
+            {
+                // JsEnvironment.Assign takes object?, but can detect boxed JsValue
+                environment.Assign(symbol, value);
+            }
+            else
+            {
+                environment.DefineJsValue(symbol, value);
+            }
+        }
+
         private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? value)
         {
             if (environment.TryGet(symbol, out var existing))
@@ -825,14 +838,7 @@ public static partial class TypedAstEvaluator
                                 }
                                 else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
                                 {
-                                    if (environment.TryGet(resumeSymbol, out _))
-                                    {
-                                        environment.Assign(resumeSymbol, resumePayload.ToObject());
-                                    }
-                                    else
-                                    {
-                                        environment.DefineJsValue(resumeSymbol, resumePayload);
-                                    }
+                                    StoreSymbolValueJsValue(environment, resumeSymbol, resumePayload);
                                 }
 
                                 if (context.IsThrow)
@@ -1020,7 +1026,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue.ToObject());
+                                    StoreSymbolValueJsValue(environment, iteratorMoveNextInstruction.ValueSlot, currentValue);
                                     _programCounter = iteratorMoveNextInstruction.Next;
                                     continue;
                                 }
@@ -1218,7 +1224,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 StoreIteratorValue:
-                                StoreSymbolValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue.ToObject());
+                                StoreSymbolValueJsValue(environment, iteratorMoveNextInstruction.ValueSlot, awaitedValue);
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
 
@@ -1301,7 +1307,7 @@ public static partial class TypedAstEvaluator
                                     returnValue = pendingReturn;
                                 }
 
-                                if (HandleAbruptCompletion(AbruptKind.Return, returnValue.ToObject(), environment))
+                                if (HandleAbruptCompletionJsValue(AbruptKind.Return, returnValue, environment))
                                 {
                                     if (_programCounter == _currentInstructionIndex)
                                     {
@@ -1817,6 +1823,17 @@ public static partial class TypedAstEvaluator
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// JsValue overload - boxes the JsValue which is better than ToObject() as it preserves type info.
+        /// </summary>
+        private bool HandleAbruptCompletionJsValue(AbruptKind kind, JsValue value, JsEnvironment environment)
+        {
+            // Boxing JsValue is preferred over ToObject() because:
+            // 1. It preserves the JsValue type information
+            // 2. Downstream code can detect "is JsValue" and unbox efficiently
+            return HandleAbruptCompletion(kind, value, environment);
         }
 
         private JsValue CompleteReturn(JsValue value)

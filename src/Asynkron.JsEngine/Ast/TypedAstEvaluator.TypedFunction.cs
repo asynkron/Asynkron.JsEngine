@@ -1489,7 +1489,6 @@ public static partial class TypedAstEvaluator
                     field.IsPrivate);
 
                 var valueJs = JsValue.Undefined;
-                object? valueObj = Symbol.Undefined;
                 if (field.Initializer is not null)
                 {
                     valueJs = field.Initializer.EvaluateExpression(initEnv, context);
@@ -1497,8 +1496,6 @@ public static partial class TypedAstEvaluator
                     {
                         return;
                     }
-
-                    valueObj = valueJs.ToObject();
 
                     if (valueJs.ObjectValue is TypedFunction typedFunction &&
                         typedFunction.IsArrowFunction &&
@@ -1529,7 +1526,7 @@ public static partial class TypedAstEvaluator
 
                 var descriptor = new PropertyDescriptor
                 {
-                    Value = valueObj,
+                    JsValue = valueJs,
                     Writable = true,
                     Enumerable = true,
                     Configurable = true

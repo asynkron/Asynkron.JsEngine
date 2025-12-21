@@ -190,7 +190,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            SetLength(value.ToObject(), null);
+            // Pass JsValue directly - ToNumericAsJsValue handles boxed JsValue efficiently
+            SetLength(value, null);
             return;
         }
 

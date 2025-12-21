@@ -496,6 +496,36 @@ public static partial class StandardLibrary
         return true;
     }
 
+    /// <summary>
+    /// JsValue overload for TryFormatWithIntlNumberFormat. Avoids boxing/unboxing of JsValue arguments.
+    /// </summary>
+    internal static bool TryFormatWithIntlNumberFormat(
+        double numericValue,
+        JsValue localesArg,
+        JsValue optionsArg,
+        RealmState? realm,
+        out object? formatted)
+    {
+        formatted = null;
+        var constructor = ResolveIntlNumberFormatConstructor(realm);
+        if (constructor is null)
+        {
+            return false;
+        }
+
+        var formatter = constructor.Invoke([localesArg, optionsArg], JsValue.Null);
+        if (!formatter.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
+            !accessor.TryGetProperty("format", out var formatValue) ||
+            !formatValue.TryGetObject<IJsCallable>(out var formatFn))
+        {
+            return false;
+        }
+
+        var result = formatFn.Invoke([new JsValue(numericValue)], formatter);
+        formatted = result.ToObject();
+        return true;
+    }
+
     private static IJsCallable? ResolveIntlNumberFormatConstructor(RealmState? realm)
     {
         var intl = realm?.Engine?.GlobalObject;

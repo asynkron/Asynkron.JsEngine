@@ -33,27 +33,40 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var iterable = iterableJsValue.ToObject();
-
             if (statement.Kind == ForEachKind.Of)
             {
-                EnsureObjectCoercibleForIteration(iterable, context);
+                // Check for null/undefined using JsValue.Kind
+                if (iterableJsValue.IsNull || iterableJsValue.IsUndefined)
+                {
+                    throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, context.RealmState);
+                }
             }
 
             // In JavaScript, `for...in` requires an object value; iterating
             // over `null` or `undefined` throws a TypeError. Treat other
             // non-object values as errors as well so engine bugs surface
             // as JavaScript throws rather than host exceptions.
-            if (statement.Kind == ForEachKind.In &&
-                iterable is not IJsObjectLike &&
-                iterable is not JsObject &&
-                iterable is not JsArray &&
-                iterable is not string &&
-                iterable is not null &&
-                !ReferenceEquals(iterable, Symbol.Undefined))
+            if (statement.Kind == ForEachKind.In)
             {
-                throw new ThrowSignal("Cannot iterate properties of non-object value.");
+                // Check based on Kind - Object kind covers IJsObjectLike, JsObject, JsArray
+                // String kind is also iterable
+                var kind = iterableJsValue.Kind;
+                if (kind != JsValueKind.Object &&
+                    kind != JsValueKind.String &&
+                    kind != JsValueKind.Null &&
+                    kind != JsValueKind.Undefined)
+                {
+                    throw new ThrowSignal("Cannot iterate properties of non-object value.");
+                }
             }
+
+            // Get the underlying object for iteration protocols
+            var iterable = iterableJsValue.Kind switch
+            {
+                JsValueKind.Null => null,
+                JsValueKind.Undefined => Symbol.Undefined,
+                _ => iterableJsValue.ObjectValue
+            };
 
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
@@ -201,8 +214,14 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var iterable = iterableJs.ToObject();
-            EnsureObjectCoercibleForIteration(iterable, context);
+            // Check for null/undefined using JsValue.Kind instead of ToObject()
+            if (iterableJs.IsNull || iterableJs.IsUndefined)
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, context.RealmState);
+            }
+
+            // Get the underlying object for iteration protocols
+            var iterable = iterableJs.ObjectValue;
 
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");

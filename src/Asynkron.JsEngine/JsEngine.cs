@@ -2987,18 +2987,18 @@ public sealed class JsEngine : IAsyncDisposable
     private ModuleEntry CreateJsonModule(string source, string resolvedPath)
     {
         // Parse JSON using JSON.parse
-        var jsonValue = JsonHelper.ParseJsonWithReviver(source, RealmState, null, JsValue.Undefined);
+        var jsonValue = JsonHelper.ParseJsonWithReviverJsValue(source, RealmState, null, JsValue.Undefined);
 
         // Create a synthetic module with the JSON value as default export
         var exports = new JsObject();
-        exports["default"] = jsonValue;
+        exports.SetProperty("default", jsonValue);
 
         var moduleEnv = CreateModuleEnvironment(resolvedPath);
 
         // IMPORTANT: Define the "default" binding in the module environment
         // This is needed for import binding resolution to work correctly
         var defaultSymbol = Symbol.Intern("default");
-        moduleEnv.DefineJsValue(defaultSymbol, JsValue.FromObjectUnsafe(jsonValue), isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
+        moduleEnv.DefineJsValue(defaultSymbol, jsonValue, isConst: true, isLexical: true, blocksFunctionScopeOverride: false);
 
         // Create a minimal parsed program (empty) - JSON modules don't have executable code
         var emptyStatements = ImmutableArray<StatementNode>.Empty;

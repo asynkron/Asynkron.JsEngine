@@ -379,7 +379,8 @@ public static class ReflectHelper
 
                 return new JsValue(false);
             case JsArray jsArray when string.Equals(propertyKey, "length", StringComparison.Ordinal):
-                return jsArray.SetLength(value.ToObject(), null, false);
+                // Pass JsValue directly - ToNumericAsJsValue handles boxed JsValue efficiently
+                return jsArray.SetLength(value, null, false);
             default:
                 target.SetProperty(propertyKey, value, receiver);
                 return new JsValue(true);

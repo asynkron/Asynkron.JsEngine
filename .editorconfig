@@ -27,6 +27,12 @@ dotnet_sort_system_directives_first = true
 dotnet_diagnostic.RCS1261.severity = warning
 
 # Meziantou.Analyzer - disable ConfigureAwait requirement (not needed for apps)
+
+
+dotnet_diagnostic.MA0038.severity = none
+dotnet_diagnostic.CA1822.severity = warning
+dotnet_diagnostic.MA0003.severity = none
+dotnet_diagnostic.MA0007.severity = none
 dotnet_diagnostic.MA0004.severity = none
 dotnet_diagnostic.MA0049.severity = none
 # Don't use this. qualifier

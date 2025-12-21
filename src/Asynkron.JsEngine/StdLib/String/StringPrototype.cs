@@ -6,7 +6,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("String", ToStringTag = "String")]
-public sealed partial class StringPrototype : JsPrototype
+public sealed partial class StringPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
@@ -36,23 +36,25 @@ public sealed partial class StringPrototype : JsPrototype
 
     protected override void ConfigurePrototype()
     {
-        if (Prototype is JsObject stringProto)
+        if (Prototype is not JsObject stringProto)
         {
-            Realm.StringPrototype ??= stringProto;
-            stringProto.DefineProperty("length",
-                new PropertyDescriptor
-                {
-                    Value = 0d,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
-                });
-
-            AddStringMethods(stringProto, Realm);
+            return;
         }
+
+        Realm.StringPrototype ??= stringProto;
+        stringProto.DefineProperty("length",
+            new PropertyDescriptor
+            {
+                Value = 0d,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
+            });
+
+        AddStringMethods(stringProto, Realm);
     }
 }

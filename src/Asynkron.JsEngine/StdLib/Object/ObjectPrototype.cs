@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ObjectPrototype : JsPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
+    private static JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var tagKey = SymbolKeys.ToStringTag;
         if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
@@ -69,13 +69,13 @@ public sealed partial class ObjectPrototype : JsPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
+    public static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
 
     [JsHostMethod("hasOwnProperty", Length = 1d)]
-    public JsValue HasOwnProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public static JsValue HasOwnProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -89,15 +89,15 @@ public sealed partial class ObjectPrototype : JsPrototype
         }
 
         var result = false;
-        if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
+        if (thisValue.TryGetObject<JsObject>(out var obj))
         {
             result = obj.GetOwnPropertyDescriptor(propertyName) is not null;
         }
-        else if (thisValue.TryGetObject<JsArray>(out var array) && array is not null)
+        else if (thisValue.TryGetObject<JsArray>(out var array))
         {
             result = array.GetOwnPropertyDescriptor(propertyName) is not null;
         }
-        else if (thisValue.TryGetObject<IJsObjectLike>(out var accessor) && accessor is not null)
+        else if (thisValue.TryGetObject<IJsObjectLike>(out var accessor))
         {
             result = accessor.GetOwnPropertyDescriptor(propertyName) is not null;
         }
@@ -106,7 +106,7 @@ public sealed partial class ObjectPrototype : JsPrototype
     }
 
     [JsHostMethod("propertyIsEnumerable", Length = 1d)]
-    public JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private static JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -129,7 +129,7 @@ public sealed partial class ObjectPrototype : JsPrototype
     }
 
     [JsHostMethod("__lookupGetter__", Length = 1d)]
-    public JsValue LookupGetter(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue LookupGetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
@@ -163,7 +163,7 @@ public sealed partial class ObjectPrototype : JsPrototype
     }
 
     [JsHostMethod("__lookupSetter__", Length = 1d)]
-    public JsValue LookupSetter(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue LookupSetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
@@ -197,7 +197,7 @@ public sealed partial class ObjectPrototype : JsPrototype
     }
 
     [JsHostMethod("isPrototypeOf", Length = 1d)]
-    public JsValue IsPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue IsPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (thisValue.IsNull || thisValue.IsUndefined)
         {

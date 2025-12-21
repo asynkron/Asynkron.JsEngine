@@ -174,7 +174,7 @@ public static class GlobalHelper
     /// </summary>
     public static HostFunction CreateIsNaNFunction()
     {
-        return new HostFunction(args =>
+        return new HostFunction(static args =>
         {
             if (args.Count == 0)
             {
@@ -194,7 +194,7 @@ public static class GlobalHelper
     /// </summary>
     public static HostFunction CreateIsFiniteFunction()
     {
-        return new HostFunction(args =>
+        return new HostFunction(static args =>
         {
             if (args.Count == 0)
             {
@@ -211,7 +211,7 @@ public static class GlobalHelper
 
             if (value.TryGetString(out var s))
             {
-                if (double.TryParse(s, out var parsed))
+                if (double.TryParse(s, CultureInfo.InvariantCulture, out var parsed))
                 {
                     return new JsValue(!double.IsNaN(parsed) && !double.IsInfinity(parsed));
                 }

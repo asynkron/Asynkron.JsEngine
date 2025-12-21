@@ -12,6 +12,20 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
+    // Static methods registered via code generation
+
+    [JsConstructorMethod("isArray", Length = 1d)]
+    public static object? IsArray(IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        return ArrayIsArray(args.GetArgument(0), realm ?? throw new InvalidOperationException("Realm required"));
+    }
+
+    [JsConstructorMethod("of", Length = 0d)]
+    public static object? Of(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        return ArrayOf(thisValue, args, realm);
+    }
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var array = AllocateArrayInstance(thisValue);
@@ -49,10 +63,10 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             return JsValue.FromObjectUnsafe(array);
         });
 
-        AttachIsArray(constructor);
+        // isArray and of are registered via code generation from [JsConstructorMethod] attributes
+        // from and fromAsync need special handling (capture self for mapper environment propagation)
         AttachFrom(constructor);
         AttachFromAsync(constructor);
-        AttachOf(constructor);
         AttachSpeciesGetter(constructor);
     }
 
@@ -133,22 +147,6 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         return value.IsNumber;
     }
 
-    private void AttachIsArray(HostFunction constructor)
-    {
-        var isArray = new HostFunction(args =>
-        {
-var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
-            return result;
-        }, Realm, isConstructor: false);
-        StandardLibrary.AttachBuiltinMetadata(isArray, "isArray", 1d);
-        isArray.Delete("prototype");
-        constructor.DefineProperty("isArray",
-            new PropertyDescriptor
-            {
-                Value = isArray, Writable = true, Enumerable = false, Configurable = true
-            });
-    }
-
     private void AttachFrom(HostFunction constructor)
     {
         HostFunction arrayFrom = null!;
@@ -180,23 +178,6 @@ var result = StandardLibrary.ArrayIsArray(args.GetArgument(0), Realm);
             new PropertyDescriptor
             {
                 Value = arrayFromAsync, Writable = true, Enumerable = false, Configurable = true
-            });
-    }
-
-    private void AttachOf(HostFunction constructor)
-    {
-        HostFunction arrayOf = null!;
-        arrayOf = new HostFunction((thisValue, args) =>
-        {
-            var result = StandardLibrary.ArrayOf(thisValue, args, Realm);
-            return JsValue.FromObjectUnsafe(result);
-        }, Realm, isConstructor: false);
-        StandardLibrary.AttachBuiltinMetadata(arrayOf, "of", 0d);
-        arrayOf.Delete("prototype");
-        constructor.DefineProperty("of",
-            new PropertyDescriptor
-            {
-                Value = arrayOf, Writable = true, Enumerable = false, Configurable = true
             });
     }
 

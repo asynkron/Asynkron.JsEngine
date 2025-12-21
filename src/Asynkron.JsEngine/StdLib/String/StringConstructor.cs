@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -11,6 +13,185 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("String", PrototypeType = typeof(StringPrototype), Length = 1d, DisplayName = "String")]
 public sealed partial class StringConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
+    // Static methods registered via code generation
+
+    [JsConstructorMethod("fromCodePoint", Length = 1d)]
+    public static object? FromCodePoint(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder();
+        foreach (var arg in args)
+        {
+            var num = JsOps.ToNumber(arg);
+            if (double.IsNaN(num) || double.IsInfinity(num))
+            {
+                continue;
+            }
+
+            var codePoint = (int)num;
+            if (codePoint is < 0 or > 0x10FFFF)
+            {
+                throw new Exception("RangeError: Invalid code point " + codePoint);
+            }
+
+            if (codePoint <= 0xFFFF)
+            {
+                result.Append((char)codePoint);
+            }
+            else
+            {
+                codePoint -= 0x10000;
+                result.Append((char)(0xD800 + (codePoint >> 10)));
+                result.Append((char)(0xDC00 + (codePoint & 0x3FF)));
+            }
+        }
+
+        return result.ToString();
+    }
+
+    [JsConstructorMethod("fromCharCode", Length = 1d)]
+    public static object? FromCharCode(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder();
+        foreach (var arg in args)
+        {
+            var num = JsOps.ToNumber(arg);
+            if (double.IsNaN(num) || double.IsInfinity(num))
+            {
+                continue;
+            }
+
+            var charCode = (int)num & 0xFFFF;
+            result.Append((char)charCode);
+        }
+
+        return result.ToString();
+    }
+
+    [JsConstructorMethod("raw", Length = 1d)]
+    public static object? Raw(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var template))
+        {
+            return "";
+        }
+
+        if (!template.TryGetProperty("raw", out var rawValue) || !rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
+        {
+            return "";
+        }
+
+        IReadOnlyList<JsValue>? rawItems = null;
+        if (rawAccessor is JsArray rawArray)
+        {
+            rawItems = rawArray.Items;
+        }
+        else if (rawAccessor is JsObject rawObj && rawObj.TryGetProperty("length", out var lengthVal))
+        {
+            var length = (int)JsOps.ToNumber(lengthVal);
+            var items = new List<JsValue>(length);
+            for (var i = 0; i < length; i++)
+            {
+                if (rawObj.TryGetProperty(i.ToString(CultureInfo.InvariantCulture), out var item))
+                {
+                    items.Add(item);
+                }
+            }
+            rawItems = items;
+        }
+
+        if (rawItems == null || rawItems.Count == 0)
+        {
+            return "";
+        }
+
+        var result = new StringBuilder();
+        for (var i = 0; i < rawItems.Count; i++)
+        {
+            result.Append(JsOps.ToJsString(rawItems[i]));
+            if (i + 1 < args.Count)
+            {
+                result.Append(JsOps.ToJsString(args[i + 1]));
+            }
+        }
+
+        return result.ToString();
+    }
+
+    [JsConstructorMethod("escape", Length = 1d)]
+    public static object? Escape(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0)
+        {
+            return "";
+        }
+
+        var value = JsOps.ToJsString(args[0]);
+        var result = new StringBuilder();
+
+        foreach (var ch in value)
+        {
+            switch (ch)
+            {
+                case ' ': result.Append("%20"); break;
+                case '!': result.Append("%21"); break;
+                case '"': result.Append("%22"); break;
+                case '#': result.Append("%23"); break;
+                case '$': result.Append("%24"); break;
+                case '%': result.Append("%25"); break;
+                case '&': result.Append("%26"); break;
+                case '\'': result.Append("%27"); break;
+                case '(': result.Append("%28"); break;
+                case ')': result.Append("%29"); break;
+                case '+': result.Append("%2B"); break;
+                case ',': result.Append("%2C"); break;
+                case '/': result.Append("%2F"); break;
+                case ':': result.Append("%3A"); break;
+                case ';': result.Append("%3B"); break;
+                case '<': result.Append("%3C"); break;
+                case '=': result.Append("%3D"); break;
+                case '>': result.Append("%3E"); break;
+                case '?': result.Append("%3F"); break;
+                case '@': result.Append("%40"); break;
+                case '[': result.Append("%5B"); break;
+                case '\\': result.Append("%5C"); break;
+                case ']': result.Append("%5D"); break;
+                case '^': result.Append("%5E"); break;
+                case '`': result.Append("%60"); break;
+                case '{': result.Append("%7B"); break;
+                case '|': result.Append("%7C"); break;
+                case '}': result.Append("%7D"); break;
+                case '~': result.Append("%7E"); break;
+                default:
+                    if (ch > 127)
+                    {
+                        result.Append("%u").Append(((int)ch).ToString("X4", CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        result.Append(ch);
+                    }
+                    break;
+            }
+        }
+
+        return result.ToString();
+    }
+
     private HostFunction? _constructor;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -42,7 +223,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
         });
 
-        AttachStatics(constructor);
+        // Static methods are now registered via code generation from [JsConstructorMethod] attributes
     }
 
     private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
@@ -85,16 +266,6 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         }
 
         return str;
-    }
-
-    private void AttachStatics(HostFunction constructor)
-    {
-        constructor.SetHostedProperty("fromCodePoint", new HostFunction(args => JsValue.FromObjectUnsafe(StringFromCodePoint(args)), Realm, isConstructor: false),
-            Realm);
-        constructor.SetHostedProperty("fromCharCode", new HostFunction(args => JsValue.FromObjectUnsafe(StringFromCharCode(args)), Realm, isConstructor: false),
-            Realm);
-        constructor.SetHostedProperty("raw", new HostFunction(args => JsValue.FromObjectUnsafe(StringRaw(args)), Realm, isConstructor: false), Realm);
-        constructor.SetHostedProperty("escape", new HostFunction(args => JsValue.FromObjectUnsafe(StringEscape(args)), Realm, isConstructor: false), Realm);
     }
 
     private HostFunction ConstructFallback =>

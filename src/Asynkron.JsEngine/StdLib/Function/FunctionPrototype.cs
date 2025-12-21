@@ -57,7 +57,7 @@ public sealed partial class FunctionPrototype
         // ES spec requires "caller" and "arguments" to be "poison pill" accessors
         // on Function.prototype that throw TypeError when accessed.
         // See ECMA-262 AddRestrictedFunctionProperties
-        var thrower = new HostFunction((JsValue _, IReadOnlyList<JsValue> _) =>
+        var thrower = new HostFunction((_, _) =>
             throw ThrowTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.", realm: Realm), Realm,
             isConstructor: false);
         var poisonDescriptor = new PropertyDescriptor
@@ -71,7 +71,7 @@ public sealed partial class FunctionPrototype
     private void AttachHasInstance()
     {
         var hasInstanceKey = SymbolKeys.HasInstance;
-        var hasInstance = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> args) =>
+        var hasInstance = new HostFunction((thisValue, args) =>
         {
             if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
             {

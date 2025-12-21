@@ -32,6 +32,32 @@ public static partial class TypedAstEvaluator
             }
         }
 
+        private void AssignLoopBindingJsValue(JsValue value, JsEnvironment loopEnvironment,
+            JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
+        {
+            if (declarationKind is null)
+            {
+                target.AssignBindingTargetJsValue(value, outerEnvironment, context);
+                return;
+            }
+
+            switch (declarationKind)
+            {
+                case VariableKind.Var:
+                    target.DefineOrAssignVarJsValue(value, loopEnvironment, context);
+                    break;
+                case VariableKind.Let:
+                case VariableKind.Const:
+                case VariableKind.Using:
+                case VariableKind.AwaitUsing:
+                    target.DefineBindingTargetJsValue(value, loopEnvironment, context,
+                        declarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
             target.WalkBindingTargets(id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,

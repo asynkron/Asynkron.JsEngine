@@ -14,93 +14,596 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
     // Static methods registered via code generation
+
     [JsConstructorMethod("keys", Length = 1d)]
-    public static object? Keys(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectKeys(thisArg, args, realm);
+    public static object? Keys(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
+        }
+
+        if (obj is null)
+        {
+            return new JsArray(realmState);
+        }
+
+        var keys = new JsArray(realmState);
+        foreach (var key in obj.GetEnumerablePropertyNames())
+        {
+            var desc = obj.GetOwnPropertyDescriptor(key);
+            if (desc is { Enumerable: true })
+            {
+                keys.Push(key);
+            }
+        }
+
+        return keys;
+    }
 
     [JsConstructorMethod("values", Length = 1d)]
-    public static object? Values(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectValues(thisArg, args, realm);
+    public static object? Values(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
+        }
+
+        if (obj is null)
+        {
+            return new JsArray(realmState);
+        }
+
+        var values = new JsArray(realmState);
+        foreach (var key in obj.GetEnumerablePropertyNames())
+        {
+            if (obj.TryGetProperty(key, out var value))
+            {
+                values.Push(value);
+            }
+        }
+
+        return values;
+    }
 
     [JsConstructorMethod("entries", Length = 1d)]
-    public static object? Entries(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectEntries(thisArg, args, realm);
+    public static object? Entries(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
+        }
+
+        if (obj is null)
+        {
+            return new JsArray(realmState);
+        }
+
+        var entries = new JsArray(realmState);
+        foreach (var key in obj.GetEnumerablePropertyNames())
+        {
+            if (!obj.TryGetProperty(key, out var value))
+            {
+                continue;
+            }
+
+            var entry = new JsArray([key, value], realmState);
+            entries.Push(entry);
+        }
+
+        return entries;
+    }
 
     [JsConstructorMethod("assign", Length = 2d)]
-    public static object? Assign(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectAssign(thisArg, args, realm);
+    public static object? Assign(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !args[0].TryGetObject<IJsPropertyAccessor>(out var targetAccessor))
+        {
+            return args.GetArgument(0);
+        }
+
+        for (var i = 1; i < args.Count; i++)
+        {
+            if (!args[i].TryGetObject(out var source))
+            {
+                continue;
+            }
+
+            foreach (var key in source.GetOwnPropertyNames())
+            {
+                if (source.TryGetProperty(key, out var value))
+                {
+                    targetAccessor.SetProperty(key, value);
+                }
+            }
+        }
+
+        return args[0];
+    }
 
     [JsConstructorMethod("fromEntries", Length = 1d)]
-    public static object? FromEntries(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectFromEntries(thisArg, args, realm);
+    public static object? FromEntries(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !args[0].TryGetObject(out JsArray? entries))
+        {
+            return new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+        }
+
+        var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+        foreach (var entry in entries.Items)
+        {
+            if (!entry.TryGetObject<JsArray>(out var entryArray) || entryArray.Items.Count < 2)
+            {
+                continue;
+            }
+
+            var keyValue = entryArray.GetElement(0);
+            var key = JsOps.ToJsString(keyValue);
+            var value = entryArray.GetElement(1);
+            result[key] = value;
+        }
+
+        return result;
+    }
 
     [JsConstructorMethod("hasOwn", Length = 2d)]
-    public static object? HasOwn(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectHasOwn(thisArg, args, realm);
+    public static object? HasOwn(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count < 2)
+        {
+            return false;
+        }
+
+        var propName = JsOps.ToPropertyName(args[1]);
+        if (propName is null)
+        {
+            return false;
+        }
+
+        return args[0].ObjectValue switch
+        {
+            JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
+            JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
+            IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
+            _ => false
+        };
+    }
 
     [JsConstructorMethod("freeze", Length = 1d)]
-    public static object? Freeze(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectFreeze(thisArg, args, realm);
+    public static object? Freeze(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return null;
+        }
+
+        var target = args[0].ObjectValue;
+        if (target is ModuleNamespace)
+        {
+            throw ThrowTypeError("Cannot freeze module namespace", realm: realmState);
+        }
+
+        if (target is TypedArrayBase typedArray && typedArray.Buffer.Resizable)
+        {
+            throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realmState);
+        }
+
+        if (target is not JsObject obj)
+        {
+            return args[0];
+        }
+
+        obj.Freeze();
+        return obj;
+    }
 
     [JsConstructorMethod("seal", Length = 1d)]
-    public static object? Seal(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectSeal(thisArg, args, realm);
+    public static object? Seal(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count == 0)
+        {
+            return null;
+        }
+
+        if (args[0].ObjectValue is not JsObject obj)
+        {
+            return args[0];
+        }
+
+        obj.Seal();
+        return obj;
+    }
 
     [JsConstructorMethod("isFrozen", Length = 1d)]
-    public static object? IsFrozen(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectIsFrozen(thisArg, args, realm);
+    public static object? IsFrozen(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count == 0)
+        {
+            return true;
+        }
+
+        var target = args[0].ObjectValue;
+        if (target is ModuleNamespace)
+        {
+            return false;
+        }
+
+        if (target is not JsObject obj)
+        {
+            return true;
+        }
+
+        return obj.IsFrozen;
+    }
 
     [JsConstructorMethod("isSealed", Length = 1d)]
-    public static object? IsSealed(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectIsSealed(thisArg, args, realm);
+    public static object? IsSealed(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count == 0)
+        {
+            return true;
+        }
+
+        if (args[0].ObjectValue is not JsObject obj)
+        {
+            return true;
+        }
+
+        return obj.IsSealed;
+    }
 
     [JsConstructorMethod("is", Length = 2d)]
-    public static object? Is(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectIs(thisArg, args, realm);
+    public static object? Is(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        return JsOps.SameValue(args.GetArgument(0), args.GetArgument(1));
+    }
 
     [JsConstructorMethod("create", Length = 2d)]
-    public static object? Create(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectCreate(thisArg, args, realm);
+    public static object? Create(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        var obj = new JsObject { RealmState = realmState };
+        if (args.Count > 0 && !args[0].IsNull)
+        {
+            obj.SetPrototype(args[0].ObjectValue);
+        }
+
+        if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
+        {
+            return obj;
+        }
+
+        foreach (var propName in propsObj.GetOwnPropertyNames())
+        {
+            if (!propsObj.TryGetProperty(propName, out var descriptorValue))
+            {
+                continue;
+            }
+
+            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
+            TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
+        }
+
+        return obj;
+    }
 
     [JsConstructorMethod("getOwnPropertyNames", Length = 1d)]
-    public static object? GetOwnPropertyNames(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectGetOwnPropertyNames(thisArg, args, realm);
+    public static object? GetOwnPropertyNames(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        IJsPropertyAccessor? obj = null;
+        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            if (TryGetObject(args[0], realmState, out var coerced))
+            {
+                obj = coerced;
+            }
+        }
+        else
+        {
+            obj = accessor;
+        }
+
+        if (obj is null)
+        {
+            return new JsArray(realmState);
+        }
+
+        var names = new JsArray(obj.GetOwnPropertyNames(), realmState);
+        return names;
+    }
 
     [JsConstructorMethod("getOwnPropertyDescriptor", Length = 2d)]
-    public static object? GetOwnPropertyDescriptor(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectGetOwnPropertyDescriptor(thisArg, args, realm);
+    public static object? GetOwnPropertyDescriptor(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2 || !TryGetObject(args[0], realmState, out var obj))
+        {
+            return JsValue.Undefined;
+        }
+
+        var propName = JsOps.GetRequiredPropertyName(args[1]);
+
+        var desc = obj.GetOwnPropertyDescriptor(propName);
+        if (desc is null)
+        {
+            return JsValue.Undefined;
+        }
+
+        var descriptorForResult = desc;
+        if (string.Equals(propName, "name", StringComparison.Ordinal) && args[0].ObjectValue is IJsCallable)
+        {
+            descriptorForResult = desc.Clone();
+            descriptorForResult.Configurable = true;
+        }
+
+        var result = FromPropertyDescriptor(descriptorForResult, realmState);
+        return result ?? JsValue.Undefined;
+    }
 
     [JsConstructorMethod("getOwnPropertyDescriptors", Length = 1d)]
-    public static object? GetOwnPropertyDescriptors(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectGetOwnPropertyDescriptors(thisArg, args, realm);
+    public static object? GetOwnPropertyDescriptors(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
+        {
+            throw ThrowTypeError("Object.getOwnPropertyDescriptors requires an object", realm: realmState);
+        }
+
+        var descriptors = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+
+        foreach (var key in obj.GetOwnPropertyNames())
+        {
+            var descriptor = obj.GetOwnPropertyDescriptor(key);
+            if (descriptor is null)
+            {
+                continue;
+            }
+
+            descriptors.SetProperty(key, (JsValue)(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
+        }
+
+        return descriptors;
+    }
 
     [JsConstructorMethod("getPrototypeOf", Length = 1d)]
-    public static object? GetPrototypeOf(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectGetPrototypeOf(thisArg, args, realm);
+    public static object? GetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
+        {
+            throw ThrowTypeError("Object.getPrototypeOf called on null or undefined", realm: realmState);
+        }
+
+        if (obj is ModuleNamespace)
+        {
+            return null;
+        }
+
+        if (obj is JsProxy proxy)
+        {
+            return proxy.GetPrototypeWithTrap();
+        }
+
+        object? proto = obj.Prototype;
+        if (proto is null && obj is IPrototypeAccessorProvider provider)
+        {
+            proto = provider.PrototypeAccessor;
+        }
+
+        if (proto is not IJsPropertyAccessor &&
+            obj is HostFunction { Realm: { } fnRealm } &&
+            fnRealm.TryGetProperty("Function", out var fnVal) &&
+            fnVal.TryGetObject<IJsPropertyAccessor>(out var fnAccessor) &&
+            fnAccessor.TryGetProperty("prototype", out var fnProtoObj) &&
+            fnProtoObj.TryGetObject<JsObject>(out var fnProto))
+        {
+            proto = fnProto;
+        }
+
+        return proto;
+    }
 
     [JsConstructorMethod("defineProperty", Length = 3d)]
-    public static object? DefineProperty(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectDefineProperty(thisArg, args, realm);
+    public static object? DefineProperty(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 3)
+        {
+            throw ThrowTypeError("Object.defineProperty requires a property descriptor", realm: realmState);
+        }
+
+        if (!TryGetObject(args[0], realmState, out var obj))
+        {
+            throw ThrowTypeError("Object.defineProperty called on non-object", realm: realmState);
+        }
+
+        var propName = JsOps.ToPropertyName(args[1]) ?? string.Empty;
+        var descriptor = ToPropertyDescriptor(args[2], realmState);
+
+        TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
+        return obj;
+    }
 
     [JsConstructorMethod("defineProperties", Length = 2d)]
-    public static object? DefineProperties(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectDefineProperties(thisArg, args, realm);
+    public static object? DefineProperties(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2)
+        {
+            throw ThrowTypeError("Object.defineProperties requires both target and descriptors", realm: realmState);
+        }
+
+        if (!TryGetObject(args[0], realmState, out var target))
+        {
+            throw ThrowTypeError("Object.defineProperties called on non-object", realm: realmState);
+        }
+
+        if (!args[1].TryGetObject(out var props))
+        {
+            throw ThrowTypeError("Property description must be an object", realm: realmState);
+        }
+
+        foreach (var key in props.GetOwnPropertyNames())
+        {
+            if (!props.TryGetProperty(key, out var descriptorValue))
+            {
+                continue;
+            }
+
+            var descriptor = ToPropertyDescriptor(descriptorValue, realmState);
+            TryDefinePropertyOnTarget(target, key, descriptor, realmState, true);
+        }
+
+        return target;
+    }
 
     [JsConstructorMethod("setPrototypeOf", Length = 2d)]
-    public static object? SetPrototypeOf(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectSetPrototypeOf(thisArg, args, realm);
+    public static object? SetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count < 2)
+        {
+            return args.GetArgument(0);
+        }
+
+        var targetValue = args[0];
+        var protoValue = args[1].IsNull ? null : args[1].ObjectValue;
+
+        var target = targetValue.ObjectValue;
+        switch (target)
+        {
+            case ModuleNamespace when protoValue is null:
+                return target;
+            case ModuleNamespace:
+                throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
+            case JsArray array:
+                array.SetPrototype(protoValue);
+                break;
+            case JsObject obj:
+                obj.SetPrototype(protoValue);
+                break;
+            case IJsObjectLike objectLike:
+                objectLike.SetPrototype(protoValue);
+                break;
+        }
+
+        return target;
+    }
 
     [JsConstructorMethod("preventExtensions", Length = 1d)]
-    public static object? PreventExtensions(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectPreventExtensions(thisArg, args, realm);
+    public static object? PreventExtensions(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
+        {
+            throw ThrowTypeError("Object.preventExtensions requires an object", realm: realmState);
+        }
+
+        PreventExtensionsOnTarget(target);
+        return target;
+    }
 
     [JsConstructorMethod("isExtensible", Length = 1d)]
-    public static object? IsExtensible(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectIsExtensible(thisArg, args, realm);
+    public static object? IsExtensible(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
+        {
+            return false;
+        }
+
+        return IsTargetExtensible(target);
+    }
 
     [JsConstructorMethod("getOwnPropertySymbols", Length = 1d)]
-    public static object? GetOwnPropertySymbols(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
-        ObjectGetOwnPropertySymbols(thisArg, args, realm);
+    public static object? GetOwnPropertySymbols(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var realmState = RequireRealm(realm);
+        if (args.Count == 0)
+        {
+            return new JsArray(realmState);
+        }
+
+        if (!TryGetObject(args[0], realmState, out var obj))
+        {
+            return new JsArray(realmState);
+        }
+
+        var symbols = new JsArray(realmState);
+        if (obj is ModuleNamespace moduleNamespace)
+        {
+            foreach (var key in moduleNamespace.OwnKeys())
+            {
+                if (key is TypedAstSymbol symbol)
+                {
+                    symbols.Push(symbol);
+                }
+            }
+
+            return symbols;
+        }
+
+        foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+        {
+            if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
+            {
+                symbols.Push(symbol);
+            }
+        }
+
+        return symbols;
+    }
 
     private HostFunction? _constructor;
 

@@ -10,6 +10,26 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("Date", PrototypeType = typeof(DatePrototype), Length = 7d, DisplayName = "Date")]
 public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
+    // Static methods registered via code generation
+
+    [JsConstructorMethod("now", Length = 0d)]
+    public static object? Now()
+    {
+        return (double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
+    [JsConstructorMethod("UTC", Length = 7d)]
+    public static object? UTC(IReadOnlyList<JsValue> args)
+    {
+        return DateUtc(args);
+    }
+
+    [JsConstructorMethod("parse", Length = 1d)]
+    public static object? Parse(IReadOnlyList<JsValue> args)
+    {
+        return DateParse(args);
+    }
+
     private HostFunction? _constructor;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -39,7 +59,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
             return JsValue.FromObjectUnsafe(ConstructDate(args, effectiveNewTarget, target, thisObj, context));
         });
 
-        AttachStatics(constructor);
+        // Static methods are now registered via code generation from [JsConstructorMethod] attributes
     }
 
     private object ConstructDate(
@@ -64,19 +84,6 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
         var timeValue = ComputeDateTimeValue(args, Realm, context);
         StoreInternalDateValue(instance, timeValue);
         return instance;
-    }
-
-    private void AttachStatics(HostFunction constructor)
-    {
-        constructor.SetHostedProperty("now",
-            new HostFunction(_ => new JsValue((double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), Realm, isConstructor: false),
-            Realm);
-
-        constructor.SetHostedProperty("UTC", new HostFunction(args => DateUtc(args), Realm, isConstructor: false),
-            Realm);
-
-        constructor.SetHostedProperty("parse",
-            new HostFunction(args => DateParse(args), Realm, isConstructor: false), Realm);
     }
 
     private HostFunction ConstructFallback =>

@@ -49,7 +49,7 @@ public static partial class TypedAstEvaluator
                             new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { identifierBinding.Name });
                     }
 
-                    statement.Catch.Binding.DefineBindingTarget(thrownValue, catchEnv, context, false);
+                    statement.Catch.Binding.DefineBindingTargetJsValue(thrownValue, catchEnv, context, false);
                 }
 
                 result = statement.Catch.Body.EvaluateBlockJsValue(catchEnv, context);

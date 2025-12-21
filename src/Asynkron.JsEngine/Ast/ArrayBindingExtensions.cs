@@ -301,7 +301,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        binding.RestElement.ApplyBindingTarget(restArray, environment, context, mode,
+                        binding.RestElement.ApplyBindingTargetJsValue(JsValue.FromObjectUnsafe(restArray), environment, context, mode,
                             allowNameInference: false);
                     }
                 }

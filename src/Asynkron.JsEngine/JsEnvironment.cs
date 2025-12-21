@@ -2111,6 +2111,17 @@ public sealed class JsEnvironment
         AssignInternal(name, value, isStrictContext);
     }
 
+    /// <summary>
+    /// JsValue overload that boxes to object? for downstream compatibility.
+    /// The internal AssignInternal handles boxed JsValue efficiently.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void AssignJsValue(Symbol name, JsValue value)
+    {
+        var isStrictContext = IsStrict;
+        AssignInternal(name, value, isStrictContext);
+    }
+
     private void AssignInternal(Symbol name, object? value, bool isStrictContext)
     {
         var current = this;

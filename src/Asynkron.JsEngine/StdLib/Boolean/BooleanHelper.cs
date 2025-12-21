@@ -1,6 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 

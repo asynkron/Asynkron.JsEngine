@@ -11,164 +11,85 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("Number", PrototypeType = typeof(NumberPrototype), Length = 1d, DisplayName = "Number")]
 public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
-    private HostFunction? _constructor;
+    // Static methods registered via code generation
 
-    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
-        {
-            ApplyPrototype(constructing, _constructor ?? ConstructFallback);
-            InitializeNumberWrapper(constructing, args);
-            return new JsValue(constructing);
-        }
-
-        if (args.Count == 0)
-        {
-            return new JsValue(0d);
-        }
-
-        return new JsValue(JsOps.ToNumber(args.GetArgument(0)));
-    }
-
-    protected override void ConfigureConstructor(HostFunction constructor)
-    {
-        _constructor = constructor;
-        Realm.NumberPrototype ??= Prototype as JsObject;
-
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-        {
-            if (newTarget.IsUndefined)
-            {
-                return new JsValue(args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0)));
-            }
-
-            var target = _constructor ?? constructor;
-            var newTargetCallable = newTarget.IsObject ? newTarget.AsObject<IJsCallable>() : null;
-            return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
-        });
-
-        AttachStatics(constructor);
-        EnsurePrototypeNumberData();
-    }
-
-    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
-    {
-        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
-        if (instance.Prototype is null)
-        {
-            instance.SetPrototype(proto);
-        }
-
-        InitializeNumberWrapper(instance, args);
-        return new JsValue(instance);
-    }
-
-    private static void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
-    {
-        var result = args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
-        wrapper.SetProperty("__value__", result);
-    }
-
-    private void EnsurePrototypeNumberData()
-    {
-        if (Prototype is IJsPropertyAccessor accessor && !accessor.TryGetProperty("__value__", out _))
-        {
-            accessor.SetProperty("__value__", 0d);
-        }
-    }
-
-    private void AttachStatics(HostFunction constructor)
-    {
-        DefineBuiltinFunction(constructor.PropertiesObject, "isInteger", new HostFunction(NumberIsInteger), 1);
-        DefineBuiltinFunction(constructor.PropertiesObject, "isFinite", new HostFunction(NumberIsFinite), 1);
-        DefineBuiltinFunction(constructor.PropertiesObject, "isNaN", new HostFunction(NumberIsNaN), 1);
-        DefineBuiltinFunction(constructor.PropertiesObject, "isSafeInteger", new HostFunction(NumberIsSafeInteger), 1);
-        DefineBuiltinFunction(constructor.PropertiesObject, "parseFloat", new HostFunction(NumberParseFloat), 1);
-        DefineBuiltinFunction(constructor.PropertiesObject, "parseInt", new HostFunction(NumberParseInt), 2);
-
-        DefineConstantProperty(constructor, "EPSILON", double.Epsilon);
-        DefineConstantProperty(constructor, "MAX_SAFE_INTEGER", 9007199254740991d);
-        DefineConstantProperty(constructor, "MIN_SAFE_INTEGER", -9007199254740991d);
-        DefineConstantProperty(constructor, "MAX_VALUE", double.MaxValue);
-        DefineConstantProperty(constructor, "MIN_VALUE", double.Epsilon);
-        DefineConstantProperty(constructor, "POSITIVE_INFINITY", double.PositiveInfinity);
-        DefineConstantProperty(constructor, "NEGATIVE_INFINITY", double.NegativeInfinity);
-        DefineConstantProperty(constructor, "NaN", double.NaN);
-    }
-
-    private JsValue NumberIsInteger(IReadOnlyList<JsValue> args)
+    [JsConstructorMethod("isInteger", Length = 1d)]
+    public static object? IsInteger(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
-            return JsValue.False;
+            return false;
         }
 
         if (double.IsNaN(d) || double.IsInfinity(d))
         {
-            return JsValue.False;
+            return false;
         }
 
-        return new JsValue(Math.Abs(d % 1) < double.Epsilon);
+        return Math.Abs(d % 1) < double.Epsilon;
     }
 
-    private JsValue NumberIsFinite(IReadOnlyList<JsValue> args)
+    [JsConstructorMethod("isFinite", Length = 1d)]
+    public static object? IsFinite(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
-            return JsValue.False;
+            return false;
         }
 
-        return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
+        return !double.IsNaN(d) && !double.IsInfinity(d);
     }
 
-    private JsValue NumberIsNaN(IReadOnlyList<JsValue> args)
+    [JsConstructorMethod("isNaN", Length = 1d)]
+    public static object? IsNaN(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return JsValue.False;
+            return false;
         }
 
         if (!args[0].TryGetDouble(out var d))
         {
-            return JsValue.False;
+            return false;
         }
 
-        return new JsValue(double.IsNaN(d));
+        return double.IsNaN(d);
     }
 
-    private JsValue NumberIsSafeInteger(IReadOnlyList<JsValue> args)
+    [JsConstructorMethod("isSafeInteger", Length = 1d)]
+    public static object? IsSafeInteger(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
-            return JsValue.False;
+            return false;
         }
 
         if (double.IsNaN(d) || double.IsInfinity(d))
         {
-            return JsValue.False;
+            return false;
         }
 
         if (Math.Abs(d % 1) >= double.Epsilon)
         {
-            return JsValue.False;
+            return false;
         }
 
-        return new JsValue(Math.Abs(d) <= 9007199254740991);
+        return Math.Abs(d) <= 9007199254740991;
     }
 
-    private JsValue NumberParseFloat(IReadOnlyList<JsValue> args)
+    [JsConstructorMethod("parseFloat", Length = 1d)]
+    public static object? ParseFloat(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return JsValue.NaN;
+            return double.NaN;
         }
 
         var str = args[0].ToJsString();
         str = str.Trim();
         if (str.Length == 0)
         {
-            return JsValue.NaN;
+            return double.NaN;
         }
 
         var match = FloatRegex().Match(str);
@@ -177,46 +98,47 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             if (double.TryParse(match.Value, NumberStyles.Float,
                     CultureInfo.InvariantCulture, out var result))
             {
-                return new JsValue(result);
+                return result;
             }
         }
 
         if (str.StartsWith("Infinity", StringComparison.Ordinal))
         {
-            return JsValue.PositiveInfinity;
+            return double.PositiveInfinity;
         }
 
         if (str.StartsWith("+Infinity", StringComparison.Ordinal))
         {
-            return JsValue.PositiveInfinity;
+            return double.PositiveInfinity;
         }
 
         if (str.StartsWith("-Infinity", StringComparison.Ordinal))
         {
-            return JsValue.NegativeInfinity;
+            return double.NegativeInfinity;
         }
 
-        return JsValue.NaN;
+        return double.NaN;
     }
 
-    private static JsValue NumberParseInt(IReadOnlyList<JsValue> args)
+    [JsConstructorMethod("parseInt", Length = 2d)]
+    public static object? ParseInt(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return JsValue.NaN;
+            return double.NaN;
         }
 
         var str = args[0].ToJsString();
         str = str.Trim();
         if (str.Length == 0)
         {
-            return JsValue.NaN;
+            return double.NaN;
         }
 
         var radix = args.Count > 1 && args[1].TryGetDouble(out var r) ? (int)r : 10;
         if (radix is < 2 or > 36)
         {
-            return JsValue.NaN;
+            return double.NaN;
         }
 
         var sign = 1;
@@ -260,7 +182,87 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             parsed = parsed * radix + digit;
         }
 
-        return new JsValue(parsed * sign);
+        return parsed * sign;
+    }
+
+    private HostFunction? _constructor;
+
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
+        {
+            ApplyPrototype(constructing, _constructor ?? ConstructFallback);
+            InitializeNumberWrapper(constructing, args);
+            return new JsValue(constructing);
+        }
+
+        if (args.Count == 0)
+        {
+            return new JsValue(0d);
+        }
+
+        return new JsValue(JsOps.ToNumber(args.GetArgument(0)));
+    }
+
+    protected override void ConfigureConstructor(HostFunction constructor)
+    {
+        _constructor = constructor;
+        Realm.NumberPrototype ??= Prototype as JsObject;
+
+        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+        {
+            if (newTarget.IsUndefined)
+            {
+                return new JsValue(args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0)));
+            }
+
+            var target = _constructor ?? constructor;
+            var newTargetCallable = newTarget.IsObject ? newTarget.AsObject<IJsCallable>() : null;
+            return ConstructWithNewTarget(args, newTargetCallable ?? target, target);
+        });
+
+        // Static methods are now registered via code generation from [JsConstructorMethod] attributes
+        AttachConstants(constructor);
+        EnsurePrototypeNumberData();
+    }
+
+    private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
+    {
+        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        if (instance.Prototype is null)
+        {
+            instance.SetPrototype(proto);
+        }
+
+        InitializeNumberWrapper(instance, args);
+        return new JsValue(instance);
+    }
+
+    private static void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
+    {
+        var result = args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
+        wrapper.SetProperty("__value__", result);
+    }
+
+    private void EnsurePrototypeNumberData()
+    {
+        if (Prototype is IJsPropertyAccessor accessor && !accessor.TryGetProperty("__value__", out _))
+        {
+            accessor.SetProperty("__value__", 0d);
+        }
+    }
+
+    private void AttachConstants(HostFunction constructor)
+    {
+        DefineConstantProperty(constructor, "EPSILON", double.Epsilon);
+        DefineConstantProperty(constructor, "MAX_SAFE_INTEGER", 9007199254740991d);
+        DefineConstantProperty(constructor, "MIN_SAFE_INTEGER", -9007199254740991d);
+        DefineConstantProperty(constructor, "MAX_VALUE", double.MaxValue);
+        DefineConstantProperty(constructor, "MIN_VALUE", double.Epsilon);
+        DefineConstantProperty(constructor, "POSITIVE_INFINITY", double.PositiveInfinity);
+        DefineConstantProperty(constructor, "NEGATIVE_INFINITY", double.NegativeInfinity);
+        DefineConstantProperty(constructor, "NaN", double.NaN);
     }
 
     private HostFunction ConstructFallback =>

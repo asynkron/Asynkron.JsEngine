@@ -94,7 +94,7 @@ public static class DateHelper
         if (args.Count == 1)
         {
             var arg = args[0];
-            if (arg.TryGetString(out var dateStr) && DateTimeOffset.TryParse(dateStr, out var parsed))
+            if (arg.TryGetString(out var dateStr) && DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture, out var parsed))
             {
                 return TimeClip(parsed.ToUnixTimeMilliseconds());
             }

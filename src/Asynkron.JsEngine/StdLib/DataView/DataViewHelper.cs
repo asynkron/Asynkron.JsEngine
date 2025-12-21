@@ -20,32 +20,34 @@ public static class DataViewHelper
             {
                 thisVal = objVal;
             }
-            else if (jsVal.IsNullOrUndefined)
-            {
-                throw ThrowTypeError("DataView method called on incompatible receiver", realm: realm);
-            }
             else
             {
+                if (jsVal.IsNullOrUndefined)
+                {
+                    throw ThrowTypeError("DataView method called on incompatible receiver", realm: realm);
+                }
+
                 thisVal = jsVal.ObjectValue;
             }
         }
 
-        if (thisVal is JsDataView directDv)
+        switch (thisVal)
         {
-            return directDv;
-        }
+            case JsDataView directDv:
+                return directDv;
+            case JsObject obj:
+            {
+                var descriptor = obj.GetOwnPropertyDescriptor("_internalDataView");
+                switch (descriptor?.Value)
+                {
+                    case JsDataView internalDv:
+                        return internalDv;
+                    // Handle case where the value is boxed JsValue struct
+                    case JsValue dvJsVal when dvJsVal.TryGetObject<JsDataView>(out var dvFromJsValue):
+                        return dvFromJsValue;
+                }
 
-        if (thisVal is JsObject obj)
-        {
-            var descriptor = obj.GetOwnPropertyDescriptor("_internalDataView");
-            if (descriptor?.Value is JsDataView internalDv)
-            {
-                return internalDv;
-            }
-            // Handle case where value is boxed JsValue struct
-            if (descriptor?.Value is JsValue dvJsVal && dvJsVal.TryGetObject<JsDataView>(out var dvFromJsValue))
-            {
-                return dvFromJsValue;
+                break;
             }
         }
 

@@ -336,10 +336,11 @@ internal readonly struct AssignmentReference
                 _context.RealmState));
         }
 
+        // TrySetWithBindingValue still takes object?, but Assign has a JsValue overload
         var objValue = ConvertJsValueToObject(value);
         if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, objValue, _context.RealmState))
         {
-            _withFallbackEnvironment!.Assign(_name, objValue);
+            _withFallbackEnvironment!.AssignJsValue(_name, value);
         }
     }
 

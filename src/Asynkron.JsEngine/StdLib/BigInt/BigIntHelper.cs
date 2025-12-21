@@ -51,7 +51,7 @@ public static class BigIntHelper
 
     internal static string BigIntToString(BigInteger value, int radix)
     {
-        if (radix < 2 || radix > 36)
+        if (radix is < 2 or > 36)
         {
             throw ThrowRangeError("radix must be between 2 and 36", realm: null);
         }

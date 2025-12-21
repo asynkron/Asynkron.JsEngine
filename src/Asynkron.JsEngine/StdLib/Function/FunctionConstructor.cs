@@ -156,11 +156,13 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             var hasLineTerminatorBefore = false;
             for (var i = current - 1; i >= 0; i--)
             {
-                if (text[i] is '\r' or '\n' or '\u2028' or '\u2029')
+                if (text[i] is not ('\r' or '\n' or '\u2028' or '\u2029'))
                 {
-                    hasLineTerminatorBefore = true;
-                    break;
+                    continue;
                 }
+
+                hasLineTerminatorBefore = true;
+                break;
             }
 
             if (!hasLineTerminatorBefore)

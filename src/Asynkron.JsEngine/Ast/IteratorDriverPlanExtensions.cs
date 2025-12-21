@@ -68,7 +68,7 @@ public static partial class TypedAstEvaluator
                             creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
-                    plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
+                    plan.Target.AssignLoopBindingJsValue(enumeratorValue, iterationEnvironment, outerEnvironment, context,
                         plan.DeclarationKind);
                     if (context.IsThrow)
                     {
@@ -163,7 +163,7 @@ public static partial class TypedAstEvaluator
 
                     try
                     {
-                        plan.Target.AssignLoopBinding(value, iterationEnvironment, outerEnvironment, context,
+                        plan.Target.AssignLoopBindingJsValue(value, iterationEnvironment, outerEnvironment, context,
                             plan.DeclarationKind);
                         if (context.IsThrow)
                         {

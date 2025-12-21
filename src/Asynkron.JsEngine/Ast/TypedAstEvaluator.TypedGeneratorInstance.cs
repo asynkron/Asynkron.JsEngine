@@ -365,8 +365,7 @@ public static partial class TypedAstEvaluator
         {
             if (environment.TryGet(symbol, out _))
             {
-                // JsEnvironment.Assign takes object?, but can detect boxed JsValue
-                environment.Assign(symbol, value);
+                environment.AssignJsValue(symbol, value);
             }
             else
             {

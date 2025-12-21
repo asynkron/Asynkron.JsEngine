@@ -10,6 +10,46 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("BigInt", PrototypeType = typeof(BigIntPrototype), Length = 1d, DisplayName = "BigInt")]
 public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
+    // Static methods registered via code generation
+
+    [JsConstructorMethod("asIntN", Length = 2d)]
+    public static object? AsIntN(IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count < 2)
+        {
+            throw ThrowTypeError("BigInt.asIntN requires bits and value", realm: realm);
+        }
+
+        var bits = ToIndex(args[0], realm);
+        var value = args[1];
+        if (value.IsUndefined)
+        {
+            throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
+        }
+
+        var bigIntValue = ToBigInt(value, realmState: realm);
+        return new JsValue(new JsBigInt(BigIntHelper.AsIntN(bits, bigIntValue.Value)));
+    }
+
+    [JsConstructorMethod("asUintN", Length = 2d)]
+    public static object? AsUintN(IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count < 2)
+        {
+            throw ThrowTypeError("BigInt.asUintN requires bits and value", realm: realm);
+        }
+
+        var bits = ToIndex(args[0], realm);
+        var value = args[1];
+        if (value.IsUndefined)
+        {
+            throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: realm);
+        }
+
+        var bigIntValue = ToBigInt(value, realmState: realm);
+        return new JsValue(new JsBigInt(BigIntHelper.AsUintN(bits, bigIntValue.Value)));
+    }
+
     private HostFunction? _constructor;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -36,7 +76,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
             return InvokeBigInt(args);
         });
 
-        AttachStatics(constructor);
+        // Static methods are now registered via code generation from [JsConstructorMethod] attributes
     }
 
     private JsValue InvokeBigInt(IReadOnlyList<JsValue> args)
@@ -47,47 +87,5 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         }
 
         return new JsValue(ToBigInt(args[0], realmState: Realm));
-    }
-
-    private void AttachStatics(HostFunction constructor)
-    {
-        DefineBuiltinFunction(constructor.PropertiesObject, "asIntN", new HostFunction(BigIntAsIntN, Realm), 2);
-        DefineBuiltinFunction(constructor.PropertiesObject, "asUintN", new HostFunction(BigIntAsUintN, Realm), 2);
-    }
-
-    private JsValue BigIntAsIntN(IReadOnlyList<JsValue> args)
-    {
-        if (args.Count < 2)
-        {
-            throw ThrowTypeError("BigInt.asIntN requires bits and value", realm: Realm);
-        }
-
-        var bits = ToIndex(args[0], Realm);
-        var value = args[1];
-        if (value.IsUndefined)
-        {
-            throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
-        }
-
-        var bigIntValue = ToBigInt(value, realmState: Realm);
-        return new JsValue(new JsBigInt(AsIntN(bits, bigIntValue.Value)));
-    }
-
-    private JsValue BigIntAsUintN(IReadOnlyList<JsValue> args)
-    {
-        if (args.Count < 2)
-        {
-            throw ThrowTypeError("BigInt.asUintN requires bits and value", realm: Realm);
-        }
-
-        var bits = ToIndex(args[0], Realm);
-        var value = args[1];
-        if (value.IsUndefined)
-        {
-            throw ThrowTypeError("Cannot convert undefined to a BigInt", realm: Realm);
-        }
-
-        var bigIntValue = ToBigInt(value, realmState: Realm);
-        return new JsValue(new JsBigInt(AsUintN(bits, bigIntValue.Value)));
     }
 }

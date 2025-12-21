@@ -32,7 +32,7 @@ public static partial class TypedAstEvaluator
             switch (mode)
             {
                 case BindingMode.Assign:
-                    environment.Assign(identifier.Name, value);
+                    environment.AssignJsValue(identifier.Name, jsValue);
                     break;
                 case BindingMode.DefineLet:
                     environment.DefineJsValue(identifier.Name, jsValue, isLexical: true, blocksFunctionScopeOverride: true);
@@ -64,20 +64,20 @@ public static partial class TypedAstEvaluator
                     {
                         environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
                         var functionScope = environment.GetFunctionScope();
-                        functionScope.Assign(identifier.Name, value);
+                        functionScope.AssignJsValue(identifier.Name, jsValue);
 
                         break;
                     }
 
                     var assignedBlockedBinding = skipBlockedBindingLookup
                         ? false
-                        : environment.TryAssignBlockedBinding(identifier.Name, value);
+                        : environment.TryAssignBlockedBindingJsValue(identifier.Name, jsValue);
 
                     environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
 
                     if (!assignedBlockedBinding)
                     {
-                        environment.Assign(identifier.Name, value);
+                        environment.AssignJsValue(identifier.Name, jsValue);
                     }
 
                     break;
@@ -90,7 +90,7 @@ public static partial class TypedAstEvaluator
                     // created (defensive).
                     if (environment.HasBinding(identifier.Name))
                     {
-                        environment.Assign(identifier.Name, value);
+                        environment.AssignJsValue(identifier.Name, jsValue);
                     }
                     else
                     {

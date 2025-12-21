@@ -77,7 +77,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void BindFunctionParameters(IReadOnlyList<object?> arguments,
+        private void BindFunctionParameters(IReadOnlyList<JsValue> arguments,
             JsEnvironment environment, EvaluationContext context)
         {
             var parameterNames = new List<Symbol>();
@@ -130,10 +130,10 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : Symbol.Undefined;
+                var value = argumentIndex < arguments.Count ? arguments[argumentIndex] : JsValue.Undefined;
                 argumentIndex++;
 
-                if (ReferenceEquals(value, Symbol.Undefined) && parameter.DefaultValue is not null)
+                if (value.IsUndefined && parameter.DefaultValue is not null)
                 {
                     if (parameter.Name is not null &&
                         DefaultReferencesParameter(parameter.DefaultValue, parameter.Name))
@@ -144,7 +144,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    value = parameter.DefaultValue.EvaluateExpression(environment, context).ToObject();
+                    value = parameter.DefaultValue.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -153,7 +153,7 @@ public static partial class TypedAstEvaluator
 
                 if (parameter.Pattern is not null)
                 {
-                    parameter.Pattern.ApplyBindingTarget(value, environment, context, BindingMode.DefineParameter);
+                    parameter.Pattern.ApplyBindingTarget(value.ToObject(), environment, context, BindingMode.DefineParameter);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
                         "Parameter must have an identifier when no pattern is provided.");
                 }
 
-                environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(value), isLexical: false);
+                environment.DefineJsValue(parameter.Name, value, isLexical: false);
                 environment.RealmState?.Logger?.LogInformation(
                     "Param bind name={Name} envScope={ScopeId} valueKind={Kind}",
                     parameter.Name.Name,

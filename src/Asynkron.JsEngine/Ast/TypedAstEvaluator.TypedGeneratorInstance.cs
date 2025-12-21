@@ -282,13 +282,6 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 
-            // Convert JsValue arguments to object? for BindFunctionParameters
-            var argumentValues = new object?[_arguments.Count];
-            for (var i = 0; i < _arguments.Count; i++)
-            {
-                argumentValues[i] = _arguments[i].ToObject();
-            }
-
             var argumentsObject = _function.CreateArgumentsObject(_arguments, parameterEnvironment, _realmState, _callable,
                     _isStrict);
             parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
@@ -307,7 +300,7 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            _function.BindFunctionParameters(argumentValues, parameterEnvironment, generatorContext);
+            _function.BindFunctionParameters(_arguments, parameterEnvironment, generatorContext);
             if (generatorContext.IsThrow)
             {
                 var thrown = generatorContext.FlowValue;

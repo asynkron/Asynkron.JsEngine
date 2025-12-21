@@ -950,13 +950,6 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                // Convert JsValue arguments to object? once - reused for both arguments object and parameter binding
-                var argumentValues = new object?[arguments.Count];
-                for (var i = 0; i < arguments.Count; i++)
-                {
-                    argumentValues[i] = arguments[i].ToObject();
-                }
-
                 // Create arguments object per ES2024 9.2.12 steps 17-20
                 // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
                 if (_argumentsObjectNeeded)
@@ -982,8 +975,8 @@ public static partial class TypedAstEvaluator
                 // are properly caught and converted to rejected promises.
                 try
                 {
-                    // Bind parameters using the same converted array
-                    _function.BindFunctionParameters(argumentValues, parameterEnvironment, context);
+                    // Bind parameters
+                    _function.BindFunctionParameters(arguments, parameterEnvironment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         if (!context.IsThrow)

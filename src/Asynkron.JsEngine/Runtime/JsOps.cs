@@ -156,6 +156,7 @@ internal static class JsOps
     ///     ECMAScript-like ToBoolean semantics for engine values (object? overload for backward compatibility).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     public static bool ToBoolean(object? value)
     {
         return value switch
@@ -180,6 +181,7 @@ internal static class JsOps
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     public static bool IsTruthy(object? value)
     {
         return ToBoolean(value);
@@ -190,6 +192,7 @@ internal static class JsOps
         return ToNumberWithContext(value, context);
     }
 
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     public static double ToNumber(object? value, EvaluationContext? context = null)
     {
         return ToNumberWithContext(value, context);
@@ -200,6 +203,7 @@ internal static class JsOps
         return ToNumericAsJsValue(value, context);
     }
 
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     public static object ToNumeric(object? value, EvaluationContext? context = null)
     {
         var result = ToNumericAsJsValue(value, context);

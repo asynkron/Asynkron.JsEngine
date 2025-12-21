@@ -19,7 +19,7 @@ public sealed partial class MapPrototype
     public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        map.Set(args.GetArgument(0).ToObject(), args.GetArgument(1));
+        map.Set(args.GetArgument(0), args.GetArgument(1));
         return thisValue;
     }
 
@@ -27,21 +27,21 @@ public sealed partial class MapPrototype
     public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return JsValue.FromObjectUnsafe(map.Get(args.GetArgument(0).ToObject()));
+        return map.Get(args.GetArgument(0));
     }
 
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return new JsValue(map.Has(args.GetArgument(0).ToObject()));
+        return new JsValue(map.Has(args.GetArgument(0)));
     }
 
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireMap(thisValue);
-        return new JsValue(map.Delete(args.GetArgument(0).ToObject()));
+        return new JsValue(map.Delete(args.GetArgument(0)));
     }
 
     [JsHostMethod("clear", Length = 0d)]
@@ -118,14 +118,12 @@ public sealed partial class MapPrototype
 
     private JsMap RequireMap(JsValue receiver)
     {
-        var candidate = receiver.ToObject();
-
-        if (candidate is JsMap map)
+        if (receiver.TryGetObject<JsMap>(out var map))
         {
             return map;
         }
 
-        if (candidate is JsObject obj &&
+        if (receiver.TryGetObject<JsObject>(out var obj) &&
             obj.GetOwnPropertyDescriptor("_internalMap")?.Value is JsMap inner)
         {
             return inner;

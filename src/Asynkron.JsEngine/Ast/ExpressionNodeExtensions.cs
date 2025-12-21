@@ -33,8 +33,8 @@ public static partial class TypedAstEvaluator
 
             if (!JsOps.IsConstructor(baseValue))
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
-                    "Class extends value is not a constructor or null", context, context.RealmState)));
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    "Class extends value is not a constructor or null", context, context.RealmState));
             }
 
             // Proxy cannot be subclassed because its prototype is undefined.
@@ -42,17 +42,17 @@ public static partial class TypedAstEvaluator
                 TryGetPropertyValue(accessorWithMarker, "__proxyHasNoPrototype__", out var marker, context) &&
                 JsOps.ToBoolean(marker))
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
                     "Class extends value does not have a valid prototype",
                     context,
-                    context.RealmState)));
+                    context.RealmState));
             }
 
             if (baseValue is not IJsEnvironmentAwareCallable callable ||
                 baseValue is not IJsPropertyAccessor accessor)
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
-                    "Class extends value is not a constructor or null", context, context.RealmState)));
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    "Class extends value is not a constructor or null", context, context.RealmState));
             }
 
             var hasPrototype = TryGetPropertyValue(baseValue, "prototype", out var prototypeValue, context);
@@ -63,10 +63,10 @@ public static partial class TypedAstEvaluator
 
             if (!hasPrototype)
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
                     "Class extends value does not have a valid prototype",
                     context,
-                    context.RealmState)));
+                    context.RealmState));
             }
 
             if (prototypeValue is null)
@@ -79,10 +79,10 @@ public static partial class TypedAstEvaluator
                 return (callable, prototype);
             }
 
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
                 "Class extends value does not have a valid prototype",
                 context,
-                context.RealmState)));
+                context.RealmState));
         }
     }
 

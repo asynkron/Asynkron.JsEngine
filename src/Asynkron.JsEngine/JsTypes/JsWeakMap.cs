@@ -11,6 +11,7 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
     // Use ConditionalWeakTable for weak reference semantics
+    // Keys must be objects, values stored as object? (boxing unavoidable due to ConditionalWeakTable constraint)
     private readonly ConditionalWeakTable<object, object?> _entries = new();
     private readonly JsObject _properties = new();
     public bool IsExtensible => _properties.IsExtensible;
@@ -80,15 +81,16 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public JsWeakMap Set(JsValue key, JsValue value)
     {
-        var keyObj = UnwrapJsValue(key.ToObject());
+        var keyObj = ExtractKeyObject(key);
 
         // WeakMap only accepts objects as keys
-        if (keyObj == null || !IsObject(keyObj))
+        if (keyObj == null)
         {
             throw new Exception("Invalid value used as weak map key");
         }
 
         // Use AddOrUpdate to set the value
+        // Store the underlying object (boxing unavoidable for ConditionalWeakTable)
         _entries.Remove(keyObj);
         _entries.Add(keyObj, value.ToObject());
         return this;
@@ -97,21 +99,21 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// <summary>
     ///     Gets the value associated with the key, or undefined if the key doesn't exist.
     /// </summary>
-    public object? Get(JsValue key)
+    public JsValue Get(JsValue key)
     {
-        var keyObj = UnwrapJsValue(key.ToObject());
+        var keyObj = ExtractKeyObject(key);
 
-        if (keyObj == null || !IsObject(keyObj))
+        if (keyObj == null)
         {
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
 
         if (_entries.TryGetValue(keyObj, out var value))
         {
-            return value;
+            return JsValue.FromObjectUnsafe(value);
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
     /// <summary>
@@ -119,14 +121,8 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Has(JsValue key)
     {
-        var keyObj = UnwrapJsValue(key.ToObject());
-
-        if (keyObj == null || !IsObject(keyObj))
-        {
-            return false;
-        }
-
-        return _entries.TryGetValue(keyObj, out _);
+        var keyObj = ExtractKeyObject(key);
+        return keyObj != null && _entries.TryGetValue(keyObj, out _);
     }
 
     /// <summary>
@@ -135,27 +131,31 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Delete(JsValue key)
     {
-        var keyObj = UnwrapJsValue(key.ToObject());
-
-        if (keyObj == null || !IsObject(keyObj))
-        {
-            return false;
-        }
-
-        return _entries.Remove(keyObj);
+        var keyObj = ExtractKeyObject(key);
+        return keyObj != null && _entries.Remove(keyObj);
     }
 
     /// <summary>
-    ///     Recursively unwraps boxed JsValue to get the underlying object.
+    ///     Extracts the object reference from a JsValue for use as a WeakMap key.
+    ///     Returns null if the value is not a valid weak key (primitives, null, undefined).
     /// </summary>
-    private static object? UnwrapJsValue(object? value)
+    private static object? ExtractKeyObject(JsValue key)
     {
-        while (value is JsValue jsVal)
+        // Fast path: primitives can't be weak keys
+        if (key.IsNull || key.IsUndefined || key.IsString || key.IsNumber || key.IsBoolean)
         {
-            value = jsVal.ToObject();
+            return null;
         }
 
-        return value;
+        var obj = key.ToObject();
+
+        // Handle potentially boxed JsValue (shouldn't happen normally)
+        while (obj is JsValue nested)
+        {
+            obj = nested.ToObject();
+        }
+
+        return IsObject(obj) ? obj : null;
     }
 
     /// <summary>

@@ -108,8 +108,26 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     internal KeyValuePair<object?, JsValue> GetEntry(int index)
     {
         var key = _insertionOrder[index];
-        var value = Get(key);
+        var value = GetByObjectKey(key);
         return new KeyValuePair<object?, JsValue>(key, value);
+    }
+
+    /// <summary>
+    ///     Internal method to get value by object key (used by iteration methods).
+    /// </summary>
+    private JsValue GetByObjectKey(object? key)
+    {
+        if (key is null)
+        {
+            return _hasNullKey ? _nullValue : JsValue.Undefined;
+        }
+
+        if (ReferenceEquals(key, Symbol.Undefined))
+        {
+            return _hasUndefinedKey ? _undefinedValue : JsValue.Undefined;
+        }
+
+        return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -121,10 +139,10 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Sets the value for the key in the Map. Returns the Map object to allow chaining.
     /// </summary>
-    public JsMap Set(object? key, JsValue value)
+    public JsMap Set(JsValue key, JsValue value)
     {
         // Handle null key
-        if (key is null)
+        if (key.IsNull)
         {
             if (!_hasNullKey)
             {
@@ -136,7 +154,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Handle undefined key
-        if (ReferenceEquals(key, Symbol.Undefined))
+        if (key.IsUndefined)
         {
             if (!_hasUndefinedKey)
             {
@@ -147,65 +165,68 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             return this;
         }
 
-        // Regular key - use dictionary
-        if (!_map.ContainsKey(key))
+        // Regular key - extract object for dictionary storage
+        var keyObj = key.ToObject()!;
+        if (!_map.ContainsKey(keyObj))
         {
-            _insertionOrder.Add(key);
+            _insertionOrder.Add(keyObj);
         }
-        _map[key] = value;
+        _map[keyObj] = value;
         return this;
     }
 
     /// <summary>
     ///     Gets the value associated with the key, or undefined if the key doesn't exist.
     /// </summary>
-    public JsValue Get(object? key)
+    public JsValue Get(JsValue key)
     {
         // Handle null key
-        if (key is null)
+        if (key.IsNull)
         {
             return _hasNullKey ? _nullValue : JsValue.Undefined;
         }
 
         // Handle undefined key
-        if (ReferenceEquals(key, Symbol.Undefined))
+        if (key.IsUndefined)
         {
             return _hasUndefinedKey ? _undefinedValue : JsValue.Undefined;
         }
 
         // Regular key - use dictionary
-        return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
+        var keyObj = key.ToObject();
+        return keyObj is not null && _map.TryGetValue(keyObj, out var value) ? value : JsValue.Undefined;
     }
 
     /// <summary>
     ///     Returns true if the key exists in the Map, false otherwise.
     /// </summary>
-    public bool Has(object? key)
+    public bool Has(JsValue key)
     {
         // Handle null key
-        if (key is null)
+        if (key.IsNull)
         {
             return _hasNullKey;
         }
 
         // Handle undefined key
-        if (ReferenceEquals(key, Symbol.Undefined))
+        if (key.IsUndefined)
         {
             return _hasUndefinedKey;
         }
 
         // Regular key - use dictionary
-        return _map.ContainsKey(key);
+        var keyObj = key.ToObject();
+        return keyObj is not null && _map.ContainsKey(keyObj);
     }
 
     /// <summary>
     ///     Removes the specified key and its value from the Map.
     ///     Returns true if the key was in the Map and has been removed, false otherwise.
     /// </summary>
-    public bool Delete(object? key)
+    public bool Delete(JsValue key)
     {
         // Handle null key
-        if (key is null)
+        if (key.IsNull)
         {
             if (!_hasNullKey) return false;
             _hasNullKey = false;
@@ -215,7 +236,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Handle undefined key
-        if (ReferenceEquals(key, Symbol.Undefined))
+        if (key.IsUndefined)
         {
             if (!_hasUndefinedKey) return false;
             _hasUndefinedKey = false;
@@ -225,8 +246,9 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        if (!_map.Remove(key)) return false;
-        _insertionOrder.Remove(key);
+        var keyObj = key.ToObject();
+        if (keyObj is null || !_map.Remove(keyObj)) return false;
+        _insertionOrder.Remove(keyObj);
         return true;
     }
 
@@ -250,7 +272,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         foreach (var key in _insertionOrder)
         {
-            var value = Get(key);
+            var value = GetByObjectKey(key);
             callback.Invoke([value, JsValue.FromObjectUnsafe(key), (JsValue)this], thisArg);
         }
     }
@@ -261,7 +283,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Entries()
     {
         var entries = _insertionOrder
-            .Select(key => JsValue.FromObjectUnsafe(new JsArray([JsValue.FromObjectUnsafe(key), Get(key)])))
+            .Select(key => JsValue.FromObjectUnsafe(new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)])))
             .ToList();
 
         return new JsArray(entries);
@@ -281,7 +303,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        var values = _insertionOrder.Select(Get).ToList();
+        var values = _insertionOrder.Select(GetByObjectKey).ToList();
         return new JsArray(values);
     }
 

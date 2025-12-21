@@ -606,6 +606,11 @@ internal static class JsOps
         return value.ToJsString(context, context?.RealmState);
     }
 
+    public static string ToJsString(JsValue value, EvaluationContext? context = null)
+    {
+        return value.ToObject().ToJsString(context, context?.RealmState);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool StrictEquals(object? left, object? right)
     {

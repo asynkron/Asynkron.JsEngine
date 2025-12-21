@@ -39,11 +39,11 @@ public static class RegExpHelper
         }
         catch (ParseException ex)
         {
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(ex.Message, realm: realm)));
+            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
         }
         catch (ArgumentException ex)
         {
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(ex.Message, realm: realm)));
+            throw new ThrowSignal(CreateSyntaxError(ex.Message, realm: realm));
         }
     }
 

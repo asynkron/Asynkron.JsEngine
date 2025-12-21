@@ -154,7 +154,7 @@ public static partial class StandardLibrary
 
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
-            promise.Reject(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm)));
+            promise.Reject(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm));
             return promise.JsObject;
         }
 
@@ -168,8 +168,8 @@ public static partial class StandardLibrary
         {
             if (!mapperCandidate.TryGetObject<IJsCallable>(out var callableMapper))
             {
-                promise.Reject(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
-                    realm: realm)));
+                promise.Reject(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
+                    realm: realm));
                 return promise.JsObject;
             }
 

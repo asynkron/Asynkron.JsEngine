@@ -43,9 +43,9 @@ public static partial class TypedAstEvaluator
                 if (member.IsStatic &&
                     string.Equals(propertyName, "prototype", StringComparison.Ordinal))
                 {
-                    context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+                    context.SetThrow(StandardLibrary.CreateTypeError(
                         "Cannot redefine constructor prototype via static member",
-                        context)));
+                        context));
                     return;
                 }
 

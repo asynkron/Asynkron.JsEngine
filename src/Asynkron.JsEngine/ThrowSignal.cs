@@ -14,9 +14,14 @@ public sealed class ThrowSignal(JsValue thrownValue) : Exception(FormatThrowMess
 
     private static string FormatThrowMessage(JsValue thrownValue)
     {
-        if (thrownValue.IsNull || thrownValue.IsUndefined)
+        if (thrownValue.IsNull)
         {
-            return $"Unhandled JavaScript throw: {thrownValue.Kind.ToString().ToLowerInvariant()}";
+            return "Unhandled JavaScript throw: null";
+        }
+
+        if (thrownValue.IsUndefined)
+        {
+            return "Unhandled JavaScript throw: undefined";
         }
 
         if (thrownValue.TryGetString(out var str))
@@ -29,10 +34,10 @@ public sealed class ThrowSignal(JsValue thrownValue) : Exception(FormatThrowMess
             // Try to get error message or name from the object
             if (jsObj.TryGetProperty("message", out var message) && !message.IsNull && !message.IsUndefined)
             {
-                var msgStr = JsOps.ToJsString(message.ToObject());
+                var msgStr = JsOps.ToJsString(message);
                 if (jsObj.TryGetProperty("name", out var name) && !name.IsNull && !name.IsUndefined)
                 {
-                    return $"Unhandled JavaScript throw: '{JsOps.ToJsString(name.ToObject())}': '{msgStr}'";
+                    return $"Unhandled JavaScript throw: '{JsOps.ToJsString(name)}': '{msgStr}'";
                 }
 
                 return $"Unhandled JavaScript throw: {msgStr}";
@@ -40,10 +45,10 @@ public sealed class ThrowSignal(JsValue thrownValue) : Exception(FormatThrowMess
 
             if (jsObj.TryGetProperty("name", out var errorName) && !errorName.IsNull && !errorName.IsUndefined)
             {
-                return $"Unhandled JavaScript throw: {JsOps.ToJsString(errorName.ToObject())}";
+                return $"Unhandled JavaScript throw: {JsOps.ToJsString(errorName)}";
             }
         }
 
-        return $"Unhandled JavaScript throw: {JsOps.ToJsString(thrownValue.ToObject())}";
+        return $"Unhandled JavaScript throw: {JsOps.ToJsString(thrownValue)}";
     }
 }

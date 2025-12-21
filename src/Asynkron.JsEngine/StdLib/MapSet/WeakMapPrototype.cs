@@ -27,7 +27,7 @@ public sealed partial class WeakMapPrototype
     public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var map = RequireWeakMap(thisValue);
-        return JsValue.FromObjectUnsafe(map.Get(args.GetArgument(0)));
+        return map.Get(args.GetArgument(0));
     }
 
     [JsHostMethod("has", Length = 1d)]
@@ -56,7 +56,7 @@ public sealed partial class WeakMapPrototype
 
     private JsWeakMap RequireWeakMap(JsValue receiver)
     {
-        if (receiver.ToObject() is JsWeakMap weakMap)
+        if (receiver.TryGetObject<JsWeakMap>(out var weakMap))
         {
             return weakMap;
         }

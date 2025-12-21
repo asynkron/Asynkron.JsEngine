@@ -22,8 +22,8 @@ public static partial class TypedAstEvaluator
 
             if (mode == BindingMode.Assign && environment.IsConstBinding(identifier.Name))
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
-                    $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState)));
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState));
             }
 
             // Handle case where value is already a boxed JsValue

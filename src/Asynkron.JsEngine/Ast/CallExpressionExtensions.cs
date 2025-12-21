@@ -714,10 +714,8 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            var target = targetJs.ToObject();
-
             // Fast-path for JsMap
-            if (target is JsMap { IsPlain: true } map)
+            if (targetJs.TryGetObject<JsMap>(out var map) && map.IsPlain)
             {
                 // Check for spread arguments - fall back to normal path if any
                 var hasSpread = false;
@@ -747,7 +745,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Fast-path for JsSet
-            if (target is JsSet { IsPlain: true } set)
+            if (targetJs.TryGetObject<JsSet>(out var set) && set.IsPlain)
             {
                 // Check for spread arguments - fall back to normal path if any
                 var hasSpread = false;
@@ -783,17 +781,18 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var key = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             var value = args[1].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
-            return (JsValue)map.Set(key, value);
+            map.Set(key, value);
+            return JsValue.FromObjectUnsafe(map);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var key = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             return map.Get(key);
         }
@@ -801,7 +800,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var key = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             return map.Has(key) ? JsValue.True : JsValue.False;
         }
@@ -809,7 +808,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
         {
-            var key = args[0].Expression.EvaluateExpression(env, ctx).ToObject();
+            var key = args[0].Expression.EvaluateExpression(env, ctx);
             if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
             return map.Delete(key) ? JsValue.True : JsValue.False;
         }

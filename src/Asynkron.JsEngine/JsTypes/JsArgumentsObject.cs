@@ -83,8 +83,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             else
             {
                 var thrower = new HostFunction((_, _) =>
-                    throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
-                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm))),
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)),
                     isConstructor: false);
 
                 _calleeDescriptor = new PropertyDescriptor
@@ -397,7 +397,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private ThrowSignal CreateDefineTypeError()
     {
-        return new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm)));
+        return new ThrowSignal(StandardLibrary.CreateTypeError("Cannot redefine property", null, _realm));
     }
 
     private static bool IsDescriptorCompatible(PropertyDescriptor current, PropertyDescriptor candidate)

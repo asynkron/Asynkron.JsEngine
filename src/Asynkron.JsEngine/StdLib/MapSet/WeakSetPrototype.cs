@@ -47,7 +47,7 @@ public sealed partial class WeakSetPrototype
 
     private JsWeakSet RequireWeakSet(JsValue receiver)
     {
-        if (receiver.ToObject() is JsWeakSet weakSet)
+        if (receiver.TryGetObject<JsWeakSet>(out var weakSet))
         {
             return weakSet;
         }

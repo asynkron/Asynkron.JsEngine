@@ -1304,9 +1304,9 @@ public sealed class JsEnvironment
         {
             if (isStrictContext && IsStrictRestrictedName(name))
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(
+                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
                     "Assignment to eval or arguments is not allowed in strict mode.", context,
-                    context.RealmState)));
+                    context.RealmState));
             }
 
             var objValue = value.ToObject();
@@ -1555,8 +1555,8 @@ public sealed class JsEnvironment
         if (binding.IsConst)
         {
             // Per ES spec, assignment to const always throws TypeError regardless of strict mode
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
-                $"Cannot reassign constant '{name.Name}'.", realm: realm)));
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                $"Cannot reassign constant '{name.Name}'.", realm: realm));
         }
 
         if (binding.IsImmutableBinding)
@@ -1566,8 +1566,8 @@ public sealed class JsEnvironment
             var bindingIsStrict = bindingEnvironment.IsStrict || bindingEnvironment.GetFunctionScope().IsStrict;
             if (bindingIsStrict || isStrictContext)
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
-                    $"Cannot reassign constant '{name.Name}'.", realm: realm)));
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{name.Name}'.", realm: realm));
             }
 
             return;
@@ -1577,8 +1577,8 @@ public sealed class JsEnvironment
         {
             if (isStrictContext)
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(
-                    StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm)));
+                throw new ThrowSignal(
+                    StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm));
             }
 
             return;
@@ -2093,8 +2093,8 @@ public sealed class JsEnvironment
 
                     if (binding.IsConst)
                     {
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
-                            realm: realm)));
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
+                            realm: realm));
                     }
 
                     if (binding.IsImmutableBinding)
@@ -2103,8 +2103,8 @@ public sealed class JsEnvironment
                         // but silently fail in non-strict mode
                         if (isStrictContext)
                         {
-                            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
-                                realm: realm)));
+                            throw new ThrowSignal(StandardLibrary.CreateTypeError($"Cannot reassign constant '{name.Name}'.",
+                                realm: realm));
                         }
 
                         return;
@@ -2127,9 +2127,9 @@ public sealed class JsEnvironment
                     // Handle case where the value is already a boxed JsValue
                     if (isStrictContext)
                     {
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(
+                        throw new ThrowSignal(
                             StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable",
-                                realm: realm)));
+                                realm: realm));
                     }
 
                     return;

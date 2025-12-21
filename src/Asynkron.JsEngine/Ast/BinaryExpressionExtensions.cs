@@ -132,10 +132,10 @@ public static partial class TypedAstEvaluator
         // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
         if (target is not JsObject jsObject)
         {
-            context.SetThrow(JsValue.FromObjectUnsafe(StandardLibrary.CreateTypeError(
+            context.SetThrow(StandardLibrary.CreateTypeError(
                 "Cannot use 'in' operator to search for a private field in a non-object",
                 context,
-                context.RealmState)));
+                context.RealmState));
             return false;
         }
 

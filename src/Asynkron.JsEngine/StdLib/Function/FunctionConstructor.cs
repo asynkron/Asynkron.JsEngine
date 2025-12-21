@@ -69,7 +69,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         catch (ParseException parseException)
         {
             var message = parseException.Message ?? "SyntaxError";
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(message, evalContext, Realm)));
+            throw new ThrowSignal(CreateSyntaxError(message, evalContext, Realm));
         }
 
         var created = engine.ExecuteProgram(

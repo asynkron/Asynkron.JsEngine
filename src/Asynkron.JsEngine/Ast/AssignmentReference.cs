@@ -331,9 +331,9 @@ internal readonly struct AssignmentReference
     {
         if (_isStrict && IsStrictRestrictedName(_name))
         {
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(
+            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", _context,
-                _context.RealmState)));
+                _context.RealmState));
         }
 
         var objValue = ConvertJsValueToObject(value);

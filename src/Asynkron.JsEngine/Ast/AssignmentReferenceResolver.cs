@@ -38,9 +38,9 @@ internal static class AssignmentReferenceResolver
         // Wrap in delegate for strict restricted names (eval/arguments)
         return AssignmentReference.ForDelegateJsValue(
             reference.GetJsValue,
-            _ => throw new ThrowSignal(JsValue.FromObjectUnsafe(StandardLibrary.CreateSyntaxError(
+            _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", context,
-                context.RealmState))));
+                context.RealmState)));
     }
 
     /// <summary>

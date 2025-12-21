@@ -363,8 +363,8 @@ public static class StringHelper
             {
                 if (input.TryGetSymbol(out _) || input.TryGetObject<TypedAstSymbol>(out _))
                 {
-                    throw new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError("Cannot convert a Symbol value to a number",
-                        null, realm)));
+                    throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number",
+                        null, realm));
                 }
 
                 var numericContext = realm?.CreateContext();
@@ -380,7 +380,7 @@ public static class StringHelper
                     var flowValue = numericContext.FlowValue;
                     throw new ThrowSignal(!flowValue.IsUndefined
                         ? flowValue
-                        : JsValue.FromObjectUnsafe(CreateTypeError("Cannot convert object to primitive value", numericContext, realm)));
+                        : CreateTypeError("Cannot convert object to primitive value", numericContext, realm));
                 }
 
                 return number;

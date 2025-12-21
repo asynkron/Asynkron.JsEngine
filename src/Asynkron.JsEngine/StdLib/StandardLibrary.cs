@@ -17,7 +17,7 @@ public static partial class StandardLibrary
     private static readonly BigInteger BigInt64Modulus = BigInteger.One << 64;
     private static readonly BigInteger BigInt64SignThreshold = BigInt64Modulus >> 1;
 
-    internal static object CreateTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
+    internal static JsValue CreateTypeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
         realm ??= context?.RealmState;
         if (realm?.TypeErrorConstructor is not IJsCallable callable)
@@ -31,11 +31,10 @@ public static partial class StandardLibrary
             return CreateErrorFallback("TypeError", message, realm);
         }
 
-        return result.ToObject()!;
-
+        return result;
     }
 
-    private static object CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
+    private static JsValue CreateRangeError(string message, EvaluationContext? context = null, RealmState? realm = null)
     {
         realm ??= context?.RealmState;
         if (realm?.RangeErrorConstructor is not IJsCallable callable)
@@ -44,11 +43,10 @@ public static partial class StandardLibrary
         }
 
         var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-        return result.IsUndefined ? CreateErrorFallback("RangeError", message, realm) : result.ToObject()!;
-
+        return result.IsUndefined ? CreateErrorFallback("RangeError", message, realm) : result;
     }
 
-    internal static object CreateReferenceError(string message, EvaluationContext? context = null,
+    internal static JsValue CreateReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
         realm ??= context?.RealmState;
@@ -63,29 +61,29 @@ public static partial class StandardLibrary
             return CreateErrorFallback("ReferenceError", message, realm);
         }
 
-        return result.ToObject()!;
+        return result;
     }
 
     internal static ThrowSignal ThrowTypeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateTypeError(message, context, realm)));
+        return new ThrowSignal(CreateTypeError(message, context, realm));
     }
 
     internal static ThrowSignal ThrowRangeError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateRangeError(message, context, realm)));
+        return new ThrowSignal(CreateRangeError(message, context, realm));
     }
 
     internal static ThrowSignal ThrowReferenceError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        var errorObj = CreateReferenceError(message, context, realm);
-        if (errorObj is IJsPropertyAccessor accessor)
+        var errorValue = CreateReferenceError(message, context, realm);
+        if (errorValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            var hasCtor = accessor.TryGetProperty("constructor", out var ctorVal);
-            if (!hasCtor && errorObj is JsObject jsObj)
+            var hasCtor = accessor.TryGetProperty("constructor", out _);
+            if (!hasCtor && errorValue.TryGetObject<JsObject>(out var jsObj))
             {
                 var realmState = realm ?? context?.RealmState;
                 IJsCallable? ctor = realmState?.ReferenceErrorConstructor ?? context?.RealmState?.ReferenceErrorConstructor;
@@ -108,17 +106,16 @@ public static partial class StandardLibrary
                         Enumerable = false,
                         Configurable = true,
                     });
-                    hasCtor = jsObj.TryGetProperty("constructor", out ctorVal);
                 }
             }
         }
-        return new ThrowSignal(JsValue.FromObjectUnsafe(errorObj));
+        return new ThrowSignal(errorValue);
     }
 
     internal static ThrowSignal ThrowSyntaxError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
-        return new ThrowSignal(JsValue.FromObjectUnsafe(CreateSyntaxError(message, context, realm)));
+        return new ThrowSignal(CreateSyntaxError(message, context, realm));
     }
 
     internal static void DefineConstantProperty(
@@ -185,7 +182,7 @@ public static partial class StandardLibrary
             });
     }
 
-    internal static object CreateSyntaxError(string message, EvaluationContext? context = null,
+    internal static JsValue CreateSyntaxError(string message, EvaluationContext? context = null,
         RealmState? realm = null)
     {
         realm ??= context?.RealmState;
@@ -195,11 +192,10 @@ public static partial class StandardLibrary
         }
 
         var result = callable.Invoke([new JsValue(message)], JsValue.Null);
-        return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result.ToObject()!;
-
+        return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result;
     }
 
-    private static JsObject CreateErrorFallback(string name, string message, RealmState? realm)
+    private static JsValue CreateErrorFallback(string name, string message, RealmState? realm)
     {
         var error = new JsObject { RealmState = realm };
         if (realm?.ErrorPrototype is not null)
@@ -209,7 +205,7 @@ public static partial class StandardLibrary
 
         error.SetProperty("name", (JsValue)name);
         error.SetProperty("message", (JsValue)message);
-        return error;
+        return (JsValue)error;
     }
 
     internal static JsBigInt ToBigInt(object? value, EvaluationContext? context = null, RealmState? realmState = null)

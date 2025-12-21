@@ -82,10 +82,10 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public JsWeakSet Add(JsValue value)
     {
-        var obj = value.ToObject();
+        var obj = ExtractKeyObject(value);
 
         // WeakSet only accepts objects as values
-        if (obj == null || !IsObject(obj))
+        if (obj == null)
         {
             throw new Exception("Invalid value used in weak set");
         }
@@ -104,14 +104,8 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Has(JsValue value)
     {
-        var obj = value.ToObject();
-
-        if (obj == null || !IsObject(obj))
-        {
-            return false;
-        }
-
-        return _values.TryGetValue(obj, out _);
+        var obj = ExtractKeyObject(value);
+        return obj != null && _values.TryGetValue(obj, out _);
     }
 
     /// <summary>
@@ -120,14 +114,31 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Delete(JsValue value)
     {
-        var obj = value.ToObject();
+        var obj = ExtractKeyObject(value);
+        return obj != null && _values.Remove(obj);
+    }
 
-        if (obj == null || !IsObject(obj))
+    /// <summary>
+    ///     Extracts the object reference from a JsValue for use as a WeakSet value.
+    ///     Returns null if the value is not a valid weak value (primitives, null, undefined).
+    /// </summary>
+    private static object? ExtractKeyObject(JsValue value)
+    {
+        // Fast path: primitives can't be weak values
+        if (value.IsNull || value.IsUndefined || value.IsString || value.IsNumber || value.IsBoolean)
         {
-            return false;
+            return null;
         }
 
-        return _values.Remove(obj);
+        var obj = value.ToObject();
+
+        // Handle potentially boxed JsValue (shouldn't happen normally)
+        while (obj is JsValue nested)
+        {
+            obj = nested.ToObject();
+        }
+
+        return IsObject(obj) ? obj : null;
     }
 
     /// <summary>

@@ -55,6 +55,32 @@ internal static class IntlUtilities
 
     private const long MaxArrayLikeLength = 9007199254740991L;
 
+    /// <summary>
+    /// JsValue overload that avoids boxing.
+    /// </summary>
+    public static IReadOnlyList<string> CanonicalizeLocaleList(JsValue locales, RealmState realm)
+    {
+        if (locales.Kind == JsValueKind.Undefined)
+        {
+            return [];
+        }
+
+        if (locales.Kind == JsValueKind.Null)
+        {
+            throw StandardLibrary.ThrowTypeError("Intl locale list cannot be null", realm: realm);
+        }
+
+        if (locales.Kind == JsValueKind.String && locales.ObjectValue is string single)
+        {
+            var seen = new List<string>();
+            AppendCanonicalLocale(seen, single, realm);
+            return seen;
+        }
+
+        // Fall back to object version for other types
+        return CanonicalizeLocaleList(locales.ObjectValue, realm);
+    }
+
     public static IReadOnlyList<string> CanonicalizeLocaleList(object? locales, RealmState realm)
     {
         if (locales is null)

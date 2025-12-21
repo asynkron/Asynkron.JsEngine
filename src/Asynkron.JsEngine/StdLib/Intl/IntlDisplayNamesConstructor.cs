@@ -71,7 +71,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
 
     private IJsPropertyAccessor? NormalizeOptions(JsValue optionsArg)
     {
-        return IntlOptionHelpers.GetOptionsObject(optionsArg.ToObject(), Realm, "DisplayNames");
+        return IntlOptionHelpers.GetOptionsObject(optionsArg, Realm, "DisplayNames");
     }
 
     private string ReadStringOption(IJsPropertyAccessor? options, string propertyName, IReadOnlyList<string>? allowed,

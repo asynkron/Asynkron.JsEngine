@@ -160,8 +160,30 @@ public static class JsonHelper
                     return "null";
 
                 case JsValue jsValue:
-                    // Unwrap JsValue and recursively stringify the inner value
-                    value = jsValue.ToObject();
+                    // Unwrap JsValue based on kind to avoid boxing
+                    if (jsValue.IsNullOrUndefined)
+                    {
+                        return "null";
+                    }
+                    if (jsValue.Kind == JsValueKind.Boolean)
+                    {
+                        return jsValue.NumberValue != 0 ? "true" : "false";
+                    }
+                    if (jsValue.Kind == JsValueKind.Number)
+                    {
+                        var d = jsValue.NumberValue;
+                        if (double.IsNaN(d) || double.IsInfinity(d))
+                        {
+                            return "null";
+                        }
+                        return d.ToString(CultureInfo.InvariantCulture);
+                    }
+                    if (jsValue.Kind == JsValueKind.String && jsValue.ObjectValue is string str)
+                    {
+                        return JsonSerializer.Serialize(str);
+                    }
+                    // For objects and other types, continue with the underlying object
+                    value = jsValue.ObjectValue;
                     continue;
 
                 case bool b:

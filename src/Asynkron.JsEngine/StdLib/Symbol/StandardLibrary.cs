@@ -69,8 +69,8 @@ public static class SymbolHelper
             {
                 return innerSym;
             }
-            // Also check if inner.ToObject() is directly a TypedAstSymbol (backward compatibility)
-            if (inner.ToObject() is TypedAstSymbol directSym)
+            // Also check if inner.ObjectValue is directly a TypedAstSymbol (backward compatibility)
+            if (inner.ObjectValue is TypedAstSymbol directSym)
             {
                 return directSym;
             }

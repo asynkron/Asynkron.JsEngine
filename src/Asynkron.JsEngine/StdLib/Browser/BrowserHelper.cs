@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -23,7 +24,7 @@ public static class BrowserHelper
                 return JsValue.Null;
             }
 
-            var key = args[0].ToObject()?.ToString() ?? string.Empty;
+            var key = JsOps.ToJsString(args[0]);
             var result = backing.GetValueOrDefault(key);
             return result is not null ? new JsValue(result) : JsValue.Null;
         }
@@ -35,8 +36,8 @@ public static class BrowserHelper
                 return JsValue.Undefined;
             }
 
-            var key = args[0].ToObject()?.ToString() ?? string.Empty;
-            var value = args[1].ToObject()?.ToString() ?? string.Empty;
+            var key = JsOps.ToJsString(args[0]);
+            var value = JsOps.ToJsString(args[1]);
             backing[key] = value;
             return JsValue.Undefined;
         }
@@ -48,7 +49,7 @@ public static class BrowserHelper
                 return JsValue.Undefined;
             }
 
-            var key = args[0].ToObject()?.ToString() ?? string.Empty;
+            var key = JsOps.ToJsString(args[0]);
             backing.Remove(key);
             return JsValue.Undefined;
         }

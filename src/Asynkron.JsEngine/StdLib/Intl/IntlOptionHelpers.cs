@@ -6,6 +6,29 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlOptionHelpers
 {
+    /// <summary>
+    /// JsValue overload that avoids boxing.
+    /// </summary>
+    public static IJsPropertyAccessor? GetOptionsObject(JsValue optionsArg, RealmState realm, string typeName)
+    {
+        if (optionsArg.Kind == JsValueKind.Undefined)
+        {
+            return null;
+        }
+
+        if (optionsArg.Kind == JsValueKind.Null)
+        {
+            throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
+        }
+
+        if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            return accessor;
+        }
+
+        throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
+    }
+
     public static IJsPropertyAccessor? GetOptionsObject(object? optionsArg, RealmState realm, string typeName)
     {
         if (ReferenceEquals(optionsArg, Symbol.Undefined))

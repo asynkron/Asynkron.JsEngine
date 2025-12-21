@@ -110,14 +110,17 @@ public sealed partial class SetPrototype
 
     private JsSet RequireSet(JsValue receiver)
     {
-        var candidate = receiver.ToObject();
+        if (receiver.Kind != JsValueKind.Object)
+        {
+            throw StandardLibrary.ThrowTypeError("Set method called on incompatible receiver", realm: Realm);
+        }
 
-        if (candidate is JsSet set)
+        if (receiver.ObjectValue is JsSet set)
         {
             return set;
         }
 
-        if (candidate is JsObject obj &&
+        if (receiver.ObjectValue is JsObject obj &&
             obj.GetOwnPropertyDescriptor("_internalSet")?.Value is JsSet inner)
         {
             return inner;

@@ -434,7 +434,7 @@ public static class ReflectHelper
 
             if (newTargetRealmObject is not null &&
                 newTargetRealmObject.TryGetProperty("Array", out var realmArrayCtor) &&
-                TryGetPrototype(realmArrayCtor.ToObject()!, out var realmArrayProto))
+                TryGetPrototype(realmArrayCtor, out var realmArrayProto))
             {
                 return realmArrayProto;
             }
@@ -499,7 +499,7 @@ public static class ReflectHelper
         if (realmObject is not null &&
             realmObject.TryGetProperty(ctorName, out var realmCtor) &&
             !realmCtor.IsUndefined &&
-            TryGetPrototype(realmCtor.ToObject()!, out var realmProto))
+            TryGetPrototype(realmCtor, out var realmProto))
         {
             prototype = realmProto;
             return true;
@@ -508,7 +508,7 @@ public static class ReflectHelper
         if (realmObject is not null &&
             realmObject.TryGetProperty("Object", out var objectCtor) &&
             !objectCtor.IsUndefined &&
-            TryGetPrototype(objectCtor.ToObject()!, out var objectProto))
+            TryGetPrototype(objectCtor, out var objectProto))
         {
             prototype = objectProto;
             return true;
@@ -560,7 +560,7 @@ public static class ReflectHelper
             return false;
         }
 
-        return TryGetPrototype(ctorValue.ToObject()!, out prototype);
+        return TryGetPrototype(ctorValue, out prototype);
     }
 
     private static bool IsIntlConstructor(string ctorName)
@@ -605,6 +605,21 @@ public static class ReflectHelper
                 realmObject = null;
                 return false;
         }
+    }
+
+    /// <summary>
+    /// JsValue overload that avoids boxing when the value is already a JsValue.
+    /// </summary>
+    private static bool TryGetPrototype(JsValue value, out IJsObjectLike? prototype)
+    {
+        prototype = null;
+
+        if (value.Kind != JsValueKind.Object)
+        {
+            return false;
+        }
+
+        return TryGetPrototype(value.ObjectValue!, out prototype);
     }
 
     private static bool TryGetPrototype(object candidate, out IJsObjectLike? prototype)

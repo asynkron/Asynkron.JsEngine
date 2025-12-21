@@ -234,7 +234,29 @@ public static partial class StandardLibrary
             switch (value)
             {
                 case JsValue jsValue:
-                    value = jsValue.ToObject();
+                    // Extract JsValue object without boxing
+                    if (jsValue.IsNullOrUndefined)
+                    {
+                        throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
+                    }
+                    if (jsValue.Kind == JsValueKind.BigInt && jsValue.ObjectValue is JsBigInt directBigInt)
+                    {
+                        return directBigInt;
+                    }
+                    if (jsValue.Kind == JsValueKind.Boolean)
+                    {
+                        return jsValue.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero;
+                    }
+                    if (jsValue.Kind == JsValueKind.String && jsValue.ObjectValue is string strValue)
+                    {
+                        return new JsBigInt(ParseBigIntString(strValue, localContext, realmState));
+                    }
+                    if (jsValue.Kind == JsValueKind.Number)
+                    {
+                        return ConvertNumberToBigInt(jsValue.NumberValue, localContext, realmState);
+                    }
+                    // For objects and other types, use ObjectValue
+                    value = jsValue.ObjectValue;
                     continue;
                 case JsBigInt bigInt:
                     return bigInt;

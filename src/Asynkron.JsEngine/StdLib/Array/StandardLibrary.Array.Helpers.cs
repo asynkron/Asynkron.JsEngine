@@ -93,7 +93,7 @@ public static partial class StandardLibrary
         var context = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, context);
 
-        if (args.Count == 0 || args[0].ToObject() is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError($"{methodName} requires a callable callback", realm: realm);
         }
@@ -167,7 +167,7 @@ public static partial class StandardLibrary
         }
         else
         {
-            number = JsOps.ToNumberWithContext(value.ToObject(), context);
+            number = JsOps.ToNumberWithContext(value, context);
             if (context?.IsThrow == true)
             {
                 throw new ThrowSignal(context.FlowValue);
@@ -231,7 +231,7 @@ public static partial class StandardLibrary
         var lengthContext = realm?.CreateContext();
         var length = (long)ToLengthOrZero(lengthValue, lengthContext);
 
-        if (args.Count == 0 || args[0].ToObject() is not IJsCallable callback)
+        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
             throw ThrowTypeError($"{methodName} requires a callable accumulator", realm: realm);
         }
@@ -242,7 +242,7 @@ public static partial class StandardLibrary
         }
 
         var hasInitial = args.Count > 1;
-        var accumulator = hasInitial ? args[1].ToObject() : Symbol.Undefined;
+        var accumulator = hasInitial ? args[1] : JsValue.Undefined;
         var start = fromRight ? length - 1 : 0;
         var step = fromRight ? -1 : 1;
 
@@ -255,12 +255,12 @@ public static partial class StandardLibrary
                 if (!accumulatorSet)
                 {
                     // No initialValue provided: first present element becomes accumulator
-                    accumulator = value.ToObject();
+                    accumulator = value;
                     accumulatorSet = true;
                 }
                 else
                 {
-                    accumulator = callback.Invoke([JsValue.FromObjectUnsafe(accumulator), value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], JsValue.Undefined).ToObject();
+                    accumulator = callback.Invoke([accumulator, value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], JsValue.Undefined);
                 }
             }
 
@@ -288,8 +288,8 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg).ToObject();
-            if (IsTruthy(result))
+            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
+            if (result.IsTruthy)
             {
                 return true;
             }
@@ -518,9 +518,9 @@ public static partial class StandardLibrary
             objectPrototype.TryGetProperty("toString", out var toStringValue) &&
             toStringValue.TryGetObject<IJsCallable>(out var callable))
         {
-            return callable.Invoke([], JsValue.FromObjectUnsafe(target)).ToObject();
+            return callable.Invoke([], JsValue.FromObjectUnsafe(target));
         }
 
-        return "[object Object]";
+        return JsValue.FromString("[object Object]");
     }
 }

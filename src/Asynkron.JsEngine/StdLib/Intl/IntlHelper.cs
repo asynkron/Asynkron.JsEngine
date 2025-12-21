@@ -106,7 +106,7 @@ public static class IntlHelper
         JsArray CreateCanonicalLocalesResult(IReadOnlyList<JsValue> args)
         {
             var localesArg = args.GetArgument(0);
-            var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg.ToObject(), realm);
+            var canonicalized = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
             return CreateLocaleArray(canonicalized, realm);
         }
 
@@ -128,7 +128,7 @@ public static class IntlHelper
         JsValue localesArg,
         RealmState realm)
     {
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg.ToObject(), realm);
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
         var resolvedLocale = IntlUtilities.ResolveRequestedLocale(requestedLocales);
         return (requestedLocales, resolvedLocale);
     }
@@ -146,8 +146,8 @@ public static class IntlHelper
 
     internal static JsArray ResolveSupportedLocales(JsValue localesArg, JsValue optionsArg, RealmState realm)
     {
-        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg.ToObject(), realm);
-        var options = IntlOptionHelpers.GetOptionsObject(optionsArg.ToObject(), realm, "supportedLocalesOf");
+        var requestedLocales = IntlUtilities.CanonicalizeLocaleList(localesArg, realm);
+        var options = IntlOptionHelpers.GetOptionsObject(optionsArg, realm, "supportedLocalesOf");
         var _ = IntlOptionHelpers.GetStringOption(
             options,
             "localeMatcher",

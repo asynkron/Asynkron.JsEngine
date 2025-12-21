@@ -22,7 +22,19 @@ public static partial class StandardLibrary
                     accessor = null!;
                     return false;
                 case JsValue jsValue:
-                    candidate = jsValue.ToObject();
+                    // Handle JsValue by extracting the underlying object based on kind
+                    if (jsValue.Kind == JsValueKind.Object && jsValue.ObjectValue is { } objVal)
+                    {
+                        candidate = objVal;
+                        continue;
+                    }
+                    if (jsValue.IsNullOrUndefined)
+                    {
+                        accessor = null!;
+                        return false;
+                    }
+                    // For primitives, use ObjectValue which contains the wrapped value
+                    candidate = jsValue.ObjectValue;
                     continue;
                 case IJsObjectLike objectLike:
                     accessor = objectLike;

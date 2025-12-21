@@ -17,7 +17,18 @@ public static class ArrayBufferHelper
         // Handle boxed JsValue struct first - unwrap to get the underlying object
         if (thisVal is JsValue jsVal)
         {
-            thisVal = jsVal.ToObject();
+            if (jsVal.Kind == JsValueKind.Object && jsVal.ObjectValue is { } objVal)
+            {
+                thisVal = objVal;
+            }
+            else if (jsVal.IsNullOrUndefined)
+            {
+                throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
+            }
+            else
+            {
+                thisVal = jsVal.ObjectValue;
+            }
         }
 
         if (thisVal is JsArrayBuffer directBuffer)
@@ -54,7 +65,14 @@ public static class ArrayBufferHelper
         // Handle boxed JsValue struct first - unwrap to get the underlying object
         if (thisVal is JsValue jsVal)
         {
-            thisVal = jsVal.ToObject();
+            if (jsVal.Kind == JsValueKind.Object && jsVal.ObjectValue is { } objVal)
+            {
+                thisVal = objVal;
+            }
+            else
+            {
+                return defaultConstructor;
+            }
         }
 
         if (thisVal is not IJsPropertyAccessor accessor ||

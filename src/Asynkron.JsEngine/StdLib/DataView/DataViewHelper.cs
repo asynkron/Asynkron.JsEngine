@@ -16,7 +16,18 @@ public static class DataViewHelper
         // Handle boxed JsValue struct first - unwrap to get the underlying object
         if (thisVal is JsValue jsVal)
         {
-            thisVal = jsVal.ToObject();
+            if (jsVal.Kind == JsValueKind.Object && jsVal.ObjectValue is { } objVal)
+            {
+                thisVal = objVal;
+            }
+            else if (jsVal.IsNullOrUndefined)
+            {
+                throw ThrowTypeError("DataView method called on incompatible receiver", realm: realm);
+            }
+            else
+            {
+                thisVal = jsVal.ObjectValue;
+            }
         }
 
         if (thisVal is JsDataView directDv)

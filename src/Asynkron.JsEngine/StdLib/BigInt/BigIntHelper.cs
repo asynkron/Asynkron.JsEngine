@@ -28,9 +28,18 @@ public static class BigIntHelper
 
     internal static JsBigInt RequireBigIntValue(JsValue receiver, RealmState realm)
     {
-        var candidate = receiver.ToObject();
+        // Fast path for direct BigInt
+        if (receiver.Kind == JsValueKind.BigInt && receiver.ObjectValue is JsBigInt directBi)
+        {
+            return directBi;
+        }
 
-        return candidate switch
+        if (receiver.Kind != JsValueKind.Object)
+        {
+            throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: realm);
+        }
+
+        return receiver.ObjectValue switch
         {
             JsBigInt bi => bi,
             JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,

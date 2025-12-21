@@ -136,12 +136,32 @@ internal static class JsOps
     ///     Kept in sync with <see cref="IsTruthy" /> which is the legacy name used throughout the codebase.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool ToBoolean(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => false,
+            JsValueKind.Null => false,
+            JsValueKind.Boolean => value.NumberValue != 0,
+            JsValueKind.Number => !double.IsNaN(value.NumberValue) && value.NumberValue != 0,
+            JsValueKind.BigInt => value.ObjectValue is JsBigInt bi && !bi.Value.IsZero,
+            JsValueKind.String => value.ObjectValue is string s && s.Length > 0,
+            JsValueKind.Symbol => true,
+            JsValueKind.Object => value.ObjectValue is not IIsHtmlDda,
+            _ => true
+        };
+    }
+
+    /// <summary>
+    ///     ECMAScript-like ToBoolean semantics for engine values (object? overload for backward compatibility).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool ToBoolean(object? value)
     {
         return value switch
         {
             null => false,
-            JsValue jsValue => ToBoolean(jsValue.ToObject()),
+            JsValue jsValue => ToBoolean(jsValue),
             Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
             IIsHtmlDda => false,
             bool b => b,
@@ -154,14 +174,30 @@ internal static class JsOps
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsTruthy(JsValue value)
+    {
+        return ToBoolean(value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsTruthy(object? value)
     {
         return ToBoolean(value);
     }
 
+    public static double ToNumber(JsValue value, EvaluationContext? context = null)
+    {
+        return ToNumberWithContext(value, context);
+    }
+
     public static double ToNumber(object? value, EvaluationContext? context = null)
     {
         return ToNumberWithContext(value, context);
+    }
+
+    public static JsValue ToNumeric(JsValue value, EvaluationContext? context = null)
+    {
+        return ToNumericAsJsValue(value, context);
     }
 
     public static object ToNumeric(object? value, EvaluationContext? context = null)
@@ -171,6 +207,22 @@ internal static class JsOps
         if (result.IsNumber) return result;
         if (result.IsBigInt) return result.AsBigInt();
         return result;
+    }
+
+    /// <summary>
+    /// Converts a JsValue to numeric as JsValue without boxing. Use this for internal arithmetic operations.
+    /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue ToNumericAsJsValue(JsValue value, EvaluationContext? context = null)
+    {
+        if (value.IsNumber || value.IsBigInt) return value;
+        // Handle JsValue kinds that have null ObjectValue specially
+        // to avoid null being treated as 0 in ToNumericCore
+        if (value.Kind == JsValueKind.Undefined) return JsValue.NaN;
+        if (value.Kind == JsValueKind.Null) return JsValue.Zero;
+        if (value.Kind == JsValueKind.Boolean) return new JsValue(value.NumberValue);
+        return ToNumericCore(value.ObjectValue, context);
     }
 
     /// <summary>
@@ -186,16 +238,18 @@ internal static class JsOps
         if (value is int i) return new JsValue((double)i);
         if (value is JsValue jsv)
         {
-            if (jsv.IsNumber || jsv.IsBigInt) return jsv;
-            // Handle JsValue kinds that have null ObjectValue specially
-            // to avoid null being treated as 0 in ToNumericCore
-            if (jsv.Kind == JsValueKind.Undefined) return JsValue.NaN;
-            if (jsv.Kind == JsValueKind.Null) return JsValue.Zero;
-            if (jsv.Kind == JsValueKind.Boolean) return new JsValue(jsv.NumberValue);
-            return ToNumericCore(jsv.ObjectValue, context);
+            return ToNumericAsJsValue(jsv, context);
         }
 
         return ToNumericCore(value, context);
+    }
+
+    public static double ToNumberWithContext(JsValue value, EvaluationContext? context = null)
+    {
+        var result = ToNumericAsJsValue(value, context);
+        if (result.IsNumber) return result.NumberValue;
+        if (result.IsBigInt) return (double)result.AsBigInt().Value;
+        return double.NaN;
     }
 
     public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
@@ -608,12 +662,58 @@ internal static class JsOps
 
     public static string ToJsString(JsValue value, EvaluationContext? context = null)
     {
-        return value.ToObject().ToJsString(context, context?.RealmState);
+        var realm = context?.RealmState;
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => "undefined",
+            JsValueKind.Null => "null",
+            JsValueKind.Boolean => value.NumberValue != 0 ? "true" : "false",
+            JsValueKind.Number => ToCanonicalNumberString(value.NumberValue),
+            JsValueKind.String => value.ObjectValue as string ?? string.Empty,
+            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realm),
+            JsValueKind.BigInt => value.ObjectValue is JsBigInt bi ? bi.ToString() : string.Empty,
+            JsValueKind.Object => value.ObjectValue.ToJsString(context, realm),
+            _ => value.ObjectValue?.ToString() ?? string.Empty
+        };
+    }
+
+    /// <summary>
+    /// ECMAScript strict equality comparison for JsValue types.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool StrictEquals(JsValue left, JsValue right)
+    {
+        // Different types are never strictly equal
+        if (left.Kind != right.Kind)
+        {
+            return false;
+        }
+
+        return left.Kind switch
+        {
+            JsValueKind.Undefined => true,
+            JsValueKind.Null => true,
+            JsValueKind.Boolean => left.NumberValue == right.NumberValue,
+            JsValueKind.Number => !double.IsNaN(left.NumberValue) && !double.IsNaN(right.NumberValue) &&
+                                  left.NumberValue == right.NumberValue,
+            JsValueKind.String => ReferenceEquals(left.ObjectValue, right.ObjectValue) ||
+                                  string.Equals(left.ObjectValue as string, right.ObjectValue as string, StringComparison.Ordinal),
+            JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
+            JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi && lbi == rbi,
+            JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),
+            _ => false
+        };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool StrictEquals(object? left, object? right)
     {
+        // Fast path for JsValue
+        if (left is JsValue ljv && right is JsValue rjv)
+        {
+            return StrictEquals(ljv, rjv);
+        }
+
         if (ReferenceEquals(left, right))
         {
             return left is not double d || !double.IsNaN(d);
@@ -647,6 +747,12 @@ internal static class JsOps
         }
 
         return ln.Equals(rn);
+    }
+
+    public static bool LooseEquals(JsValue left, JsValue right, EvaluationContext? context = null)
+    {
+        // Delegate to object? version which handles the coercion loop
+        return LooseEquals(left.ToObject(), right.ToObject(), context);
     }
 
     public static bool LooseEquals(object? left, object? right, EvaluationContext? context = null)
@@ -749,9 +855,19 @@ internal static class JsOps
         GreaterThanOrEqual
     }
 
+    public static bool GreaterThan(JsValue left, JsValue right, EvaluationContext? context = null)
+    {
+        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.GreaterThan, context);
+    }
+
     public static bool GreaterThan(object? left, object? right, EvaluationContext? context = null)
     {
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
+    }
+
+    public static bool GreaterThanOrEqual(JsValue left, JsValue right, EvaluationContext? context = null)
+    {
+        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.GreaterThanOrEqual, context);
     }
 
     public static bool GreaterThanOrEqual(object? left, object? right, EvaluationContext? context = null)
@@ -759,9 +875,19 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
     }
 
+    public static bool LessThan(JsValue left, JsValue right, EvaluationContext? context = null)
+    {
+        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.LessThan, context);
+    }
+
     public static bool LessThan(object? left, object? right, EvaluationContext? context = null)
     {
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
+    }
+
+    public static bool LessThanOrEqual(JsValue left, JsValue right, EvaluationContext? context = null)
+    {
+        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.LessThanOrEqual, context);
     }
 
     public static bool LessThanOrEqual(object? left, object? right, EvaluationContext? context = null)
@@ -1598,6 +1724,17 @@ internal static class JsOps
     /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
     /// it does NOT invoke getters like [[Get]] would.
     /// </summary>
+    public static bool HasProperty(JsValue target, string propertyName)
+    {
+        return HasProperty(target.ToObject(), propertyName);
+    }
+
+    /// <summary>
+    /// Implements [[HasProperty]] internal method for the 'in' operator.
+    /// Returns true if the property exists on the object or its prototype chain.
+    /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
+    /// it does NOT invoke getters like [[Get]] would.
+    /// </summary>
     public static bool HasProperty(object? target, string propertyName)
     {
         // Walk the prototype chain checking for the property via [[GetOwnProperty]]
@@ -1641,6 +1778,18 @@ internal static class JsOps
             }
         }
 
+        return false;
+    }
+
+    public static bool TryGetPropertyValue(JsValue target, string propertyName, out JsValue value,
+        EvaluationContext? context = null)
+    {
+        if (TryGetPropertyValue(target.ToObject(), propertyName, out var objValue, context))
+        {
+            value = objValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(objValue);
+            return true;
+        }
+        value = JsValue.Undefined;
         return false;
     }
 

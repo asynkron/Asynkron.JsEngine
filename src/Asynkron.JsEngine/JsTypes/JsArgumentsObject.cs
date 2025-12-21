@@ -17,11 +17,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     private readonly Symbol?[] _mappedParameters;
     private readonly Dictionary<string, PropertyDescriptor> _ownDescriptors = new(StringComparer.Ordinal);
     private readonly RealmState _realm;
-    private readonly object?[] _values;
+    private readonly JsValue[] _values;
     private bool _suppressObserver;
 
     public JsArgumentsObject(
-        IReadOnlyList<object?> values,
+        IReadOnlyList<JsValue> values,
         Symbol?[] mappedParameters,
         JsEnvironment environment,
         bool mappedEnabled,
@@ -34,7 +34,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _mappedParameters = mappedParameters;
         _mappedEnabled = mappedEnabled;
         _isStrict = isStrict;
-        _values = values.ToArray();
+        _values = new JsValue[values.Count];
+        for (var i = 0; i < values.Count; i++)
+        {
+            _values[i] = values[i];
+        }
         _indexNames = new string[_values.Length];
 
         if (realm.ObjectPrototype is not null)
@@ -48,7 +52,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _indexNames[i] = name;
             var descriptor = new PropertyDescriptor
             {
-                Value = _values[i], Writable = true, Enumerable = true, Configurable = true
+                JsValue = _values[i], Writable = true, Enumerable = true, Configurable = true
             };
             _backing.DefinePropertyDirect(name, descriptor);
             TrackDescriptorDirect(name, descriptor);
@@ -180,16 +184,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         var isAccessor = descriptor?.IsAccessorDescriptor == true;
         var isWritable = !isAccessor && (!hasWritable || descriptor?.Writable != false);
 
-        var valueObj = value.ToObject();
-
         if (TryResolveIndex(name, out var index) &&
             _mappedEnabled &&
             isWritable &&
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            _values[index] = valueObj;
-            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, valueObj));
+            _values[index] = value;
+            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, value.ToObject()));
         }
 
         _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
@@ -239,7 +241,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             !descriptor.IsAccessorDescriptor)
         {
             var cloned = CloneDescriptor(descriptor);
-            cloned.Value = _environment.Get(mappedSymbol);
+            cloned.JsValue = JsValue.FromObjectUnsafe(_environment.Get(mappedSymbol));
             return cloned;
         }
 
@@ -264,7 +266,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _mappedParameters[index] = null;
             if (index < _values.Length)
             {
-                _values[index] = Symbol.Undefined;
+                _values[index] = JsValue.Undefined;
             }
         }
 
@@ -309,8 +311,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
             if (descriptor.HasValue)
             {
-                _values[index] = descriptor.Value;
-                WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.Value));
+                _values[index] = descriptor.JsValue;
+                WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.JsValue.ToObject()));
             }
 
             if (shouldUnmap)
@@ -337,13 +339,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             return;
         }
 
-        _values[index] = value;
+        var jsValue = JsValue.FromObjectUnsafe(value);
+        _values[index] = jsValue;
         WithSuppressedObserver(() =>
         {
             var existing = _backing.GetOwnPropertyDescriptor(_indexNames[index]);
             var descriptor = new PropertyDescriptor
             {
-                Value = value,
+                JsValue = jsValue,
                 Writable = existing?.Writable ?? true,
                 Enumerable = existing?.Enumerable ?? true,
                 Configurable = existing?.Configurable ?? true
@@ -493,26 +496,26 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
         if (descriptor.HasValue)
         {
-            normalized.Value = descriptor.Value;
+            normalized.JsValue = descriptor.JsValue;
         }
         else if (existing is not null)
         {
             if (_backing.TryGetProperty(name, out var existingValue))
             {
-                normalized.Value = existingValue.ToObject();
+                normalized.JsValue = existingValue;
             }
             else if (existing.HasValue)
             {
-                normalized.Value = existing.Value;
+                normalized.JsValue = existing.JsValue;
             }
             else
             {
-                normalized.Value = Symbol.Undefined;
+                normalized.JsValue = JsValue.Undefined;
             }
         }
         else
         {
-            normalized.Value = Symbol.Undefined;
+            normalized.JsValue = JsValue.Undefined;
         }
 
         normalized.Writable = descriptor.HasWritable
@@ -534,7 +537,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
         if (source.HasValue)
         {
-            clone.Value = source.Value;
+            clone.JsValue = source.JsValue;
         }
 
         if (source.HasWritable)

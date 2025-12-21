@@ -962,7 +962,7 @@ public static partial class TypedAstEvaluator
                 if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject = _function.CreateArgumentsObject(argumentValues, parameterEnvironment, _realmState, this,
+                    var argumentsObject = _function.CreateArgumentsObject(arguments, parameterEnvironment, _realmState, this,
                             _isStrict);
                     parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
@@ -2249,13 +2249,8 @@ public static partial class TypedAstEvaluator
             // Only create arguments object if the function body actually references it
             if (_usesArguments)
             {
-                var argumentValues = new object?[arguments.Count];
-                for (var i = 0; i < arguments.Count; i++)
-                {
-                    argumentValues[i] = arguments[i].ToObject();
-                }
                 var argumentsObject = new JsArgumentsObject(
-                    argumentValues,
+                    arguments,
                     new Symbol?[arguments.Count], // No mapped parameters in strict mode
                     functionEnvironment,
                     mappedEnabled: false,

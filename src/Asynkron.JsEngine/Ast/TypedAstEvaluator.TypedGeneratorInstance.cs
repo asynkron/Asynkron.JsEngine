@@ -282,14 +282,14 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 
-            // Convert JsValue arguments to object? for CreateArgumentsObject and BindFunctionParameters
+            // Convert JsValue arguments to object? for BindFunctionParameters
             var argumentValues = new object?[_arguments.Count];
             for (var i = 0; i < _arguments.Count; i++)
             {
                 argumentValues[i] = _arguments[i].ToObject();
             }
 
-            var argumentsObject = _function.CreateArgumentsObject(argumentValues, parameterEnvironment, _realmState, _callable,
+            var argumentsObject = _function.CreateArgumentsObject(_arguments, parameterEnvironment, _realmState, _callable,
                     _isStrict);
             parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))

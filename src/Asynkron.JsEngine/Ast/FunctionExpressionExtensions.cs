@@ -10,18 +10,12 @@ public static partial class TypedAstEvaluator
     extension(FunctionExpression function)
     {
         private JsArgumentsObject CreateArgumentsObject(
-            IReadOnlyList<object?> arguments,
+            IReadOnlyList<JsValue> arguments,
             JsEnvironment environment,
             RealmState realmState,
             IJsCallable? callee,
             bool isStrict)
         {
-            var values = new object?[arguments.Count];
-            for (var i = 0; i < arguments.Count; i++)
-            {
-                values[i] = arguments[i];
-            }
-
             var mapped = !isStrict && function.IsSimpleParameterList();
             var mappedParameters = new Symbol?[arguments.Count];
             if (mapped)
@@ -45,7 +39,7 @@ public static partial class TypedAstEvaluator
             }
 
             return new JsArgumentsObject(
-                values,
+                arguments,
                 mappedParameters,
                 environment,
                 mapped,

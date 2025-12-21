@@ -49,17 +49,18 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                var value = member.Function is { } functionExpression
-                    ? functionExpression.CreateFunctionValue(environment, context,
+                // Get value as JsValue and extract callable
+                var valueJs = member.Function is { } functionExpression
+                    ? JsValue.FromObjectUnsafe(functionExpression.CreateFunctionValue(environment, context,
                         createFunctionNameEnvironment: true,
-                        isConstructorFunction: false)
-                    : member.Function.EvaluateExpression(environment, context).ToObject();
+                        isConstructorFunction: false))
+                    : member.Function.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return;
                 }
 
-                if (value is not IJsCallable callable)
+                if (!valueJs.TryGetObject<IJsCallable>(out var callable))
                 {
                     throw new InvalidOperationException("Class member must be callable.");
                 }
@@ -70,44 +71,42 @@ public static partial class TypedAstEvaluator
                 var superTarget = member.IsStatic
                     ? superConstructor as IJsPropertyAccessor
                     : superPrototype;
-                if (value is TypedFunction typedFunction)
-                {
-                    typedFunction.SetPrivateNameScope(privateNameScope);
-                    typedFunction.SetSuperBinding(superConstructor, superTarget);
-                    if (homeObject is not null)
-                    {
-                        typedFunction.SetHomeObject(homeObject);
-                    }
 
-                    typedFunction.DisableConstruction();
-                    typedFunction.EnsureHasName(displayName, overwriteExisting: true);
-                }
-                else if (value is TypedGeneratorFactory generatorFactory)
+                // Pattern match on callable to configure the function
+                switch (callable)
                 {
-                    generatorFactory.SetPrivateNameScope(privateNameScope);
-                    if (homeObject is not null)
-                    {
-                        generatorFactory.SetHomeObject(homeObject);
-                    }
-
-                    // Class methods are non-constructors, even for generator forms.
-                    generatorFactory.DisableConstruction();
-                    generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
-                }
-                else if (value is AsyncGeneratorFactory asyncGeneratorFactory)
-                {
-                    asyncGeneratorFactory.SetPrivateNameScope(privateNameScope);
-                    if (homeObject is not null)
-                    {
-                        asyncGeneratorFactory.SetHomeObject(homeObject);
-                    }
-
-                    asyncGeneratorFactory.DisableConstruction();
-                    asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
-                }
-                else if (value is IFunctionNameTarget nameTarget)
-                {
-                    nameTarget.EnsureHasName(displayName);
+                    case TypedFunction typedFunction:
+                        typedFunction.SetPrivateNameScope(privateNameScope);
+                        typedFunction.SetSuperBinding(superConstructor, superTarget);
+                        if (homeObject is not null)
+                        {
+                            typedFunction.SetHomeObject(homeObject);
+                        }
+                        typedFunction.DisableConstruction();
+                        typedFunction.EnsureHasName(displayName, overwriteExisting: true);
+                        break;
+                    case TypedGeneratorFactory generatorFactory:
+                        generatorFactory.SetPrivateNameScope(privateNameScope);
+                        if (homeObject is not null)
+                        {
+                            generatorFactory.SetHomeObject(homeObject);
+                        }
+                        // Class methods are non-constructors, even for generator forms.
+                        generatorFactory.DisableConstruction();
+                        generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                        break;
+                    case AsyncGeneratorFactory asyncGeneratorFactory:
+                        asyncGeneratorFactory.SetPrivateNameScope(privateNameScope);
+                        if (homeObject is not null)
+                        {
+                            asyncGeneratorFactory.SetHomeObject(homeObject);
+                        }
+                        asyncGeneratorFactory.DisableConstruction();
+                        asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                        break;
+                    case IFunctionNameTarget nameTarget:
+                        nameTarget.EnsureHasName(displayName);
+                        break;
                 }
 
                 member.DefineMember(propertyName, callable, constructorAccessor, prototype);

@@ -147,7 +147,101 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var lengthLiteral = GetNamedDouble(constructorAttr, "Length");
         var displayName = GetNamedValue(constructorAttr, "DisplayName") ?? typeSymbol.Name;
 
-        return new ConstructorInfo(typeSymbol, prototypeTypeSymbol, lengthLiteral, displayName);
+        // Scan for static methods with JsConstructorMethodAttribute
+        var staticMethods = ImmutableArray.CreateBuilder<ConstructorMethodInfo>();
+        var jsValueType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
+        var readOnlyListType = context.SemanticModel.Compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
+        var realmStateType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.Runtime.RealmState");
+
+        foreach (var member in typeSymbol.GetMembers().OfType<IMethodSymbol>())
+        {
+            if (!member.IsStatic)
+            {
+                continue;
+            }
+
+            foreach (var attr in member.GetAttributes())
+            {
+                var attrName = attr.AttributeClass?.ToDisplayString();
+                if (!string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorMethodAttribute", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var propertyName = attr.ConstructorArguments.Length > 0
+                    ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                    : string.Empty;
+                if (string.IsNullOrWhiteSpace(propertyName))
+                {
+                    continue;
+                }
+
+                var methodLengthLiteral = GetNamedDouble(attr, "Length");
+                var methodDisplayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
+                var enumerable = GetNamedBool(attr, "Enumerable");
+                var configurable = GetNamedBool(attr, "Configurable", true);
+                var writable = GetNamedBool(attr, "Writable", true);
+
+                var signature = GetConstructorMethodSignature(member, jsValueType, readOnlyListType, realmStateType);
+                staticMethods.Add(new ConstructorMethodInfo(member, propertyName, methodDisplayName, methodLengthLiteral,
+                    enumerable, configurable, writable, signature));
+            }
+        }
+
+        return new ConstructorInfo(typeSymbol, prototypeTypeSymbol, lengthLiteral, displayName, staticMethods.ToImmutable());
+    }
+
+    private static ConstructorMethodSignature GetConstructorMethodSignature(
+        IMethodSymbol method,
+        INamedTypeSymbol? jsValueType,
+        INamedTypeSymbol? readOnlyListType,
+        INamedTypeSymbol? realmStateType)
+    {
+        var parameters = method.Parameters;
+
+        if (parameters.Length == 0)
+        {
+            return ConstructorMethodSignature.NoArgs;
+        }
+
+        if (parameters.Length == 1 &&
+            readOnlyListType is not null &&
+            jsValueType is not null &&
+            IsReadOnlyListOfJsValue(parameters[0].Type, readOnlyListType, jsValueType))
+        {
+            return ConstructorMethodSignature.ArgsOnly;
+        }
+
+        if (parameters.Length == 2 &&
+            readOnlyListType is not null &&
+            jsValueType is not null &&
+            realmStateType is not null &&
+            IsReadOnlyListOfJsValue(parameters[0].Type, readOnlyListType, jsValueType) &&
+            IsNullableRealmState(parameters[1].Type, realmStateType))
+        {
+            return ConstructorMethodSignature.ArgsRealm;
+        }
+
+        // Default: (object?, IReadOnlyList<JsValue>, RealmState?)
+        return ConstructorMethodSignature.ThisArgsRealm;
+    }
+
+    private static bool IsNullableRealmState(ITypeSymbol type, INamedTypeSymbol realmStateType)
+    {
+        // Handle both RealmState and RealmState?
+        if (SymbolEqualityComparer.Default.Equals(type, realmStateType))
+        {
+            return true;
+        }
+
+        if (type.NullableAnnotation == NullableAnnotation.Annotated &&
+            type is INamedTypeSymbol namedType &&
+            SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, realmStateType))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static void Emit(SourceProductionContext context, PrototypeInfo info)
@@ -318,6 +412,49 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine("            {");
         source.AppendLine("                Value = constructor, Writable = true, Enumerable = false, Configurable = true");
         source.AppendLine("            });");
+
+        // Generate static method registrations
+        foreach (var method in info.StaticMethods)
+        {
+            var methodVar = $"method_{Sanitize(method.PropertyName)}";
+            source.Append("        var ").Append(methodVar).Append(" = new HostFunction(");
+
+            switch (method.Signature)
+            {
+                case ConstructorMethodSignature.NoArgs:
+                    source.Append("(_, _) => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).AppendLine("()), realm, isConstructor: false);");
+                    break;
+                case ConstructorMethodSignature.ArgsOnly:
+                    source.Append("args => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).AppendLine("(args)), realm, isConstructor: false);");
+                    break;
+                case ConstructorMethodSignature.ArgsRealm:
+                    source.Append("args => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).AppendLine("(args, realm)), realm, isConstructor: false);");
+                    break;
+                default: // ThisArgsRealm
+                    source.Append("(thisValue, args) => JsValue.FromObjectUnsafe(").Append(info.Symbol.Name).Append(".")
+                        .Append(method.MethodSymbol.Name).AppendLine("(thisValue, args, realm)), realm, isConstructor: false);");
+                    break;
+            }
+
+            source.Append("        ").Append(methodVar)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
+                .Append(method.LengthLiteral).Append("d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            source.Append("        ").Append(methodVar)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(method.DisplayName.Replace("\"", "\\\""))
+                .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
+            source.Append("        constructor.DefineProperty(\"").Append(method.PropertyName)
+                .Append("\", new PropertyDescriptor { Value = ").Append(methodVar)
+                .Append(", Writable = ").Append(method.Writable ? "true" : "false")
+                .Append(", Enumerable = ").Append(method.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(method.Configurable ? "true" : "false")
+                .AppendLine(" });");
+        }
+
         source.AppendLine("        typed.ConfigureConstructor(constructor);");
         source.AppendLine("        return constructor;");
         source.AppendLine("    }");
@@ -407,7 +544,18 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, HostMethodSignature Signature, bool IsStatic);
 
     private sealed record ConstructorInfo(INamedTypeSymbol Symbol, INamedTypeSymbol PrototypeType, string LengthLiteral,
-        string DisplayName);
+        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods);
+
+    private sealed record ConstructorMethodInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName,
+        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature);
+
+    private enum ConstructorMethodSignature
+    {
+        ThisArgsRealm = 0,  // (object?, IReadOnlyList<JsValue>, RealmState?)
+        ArgsRealm = 1,      // (IReadOnlyList<JsValue>, RealmState?)
+        ArgsOnly = 2,       // (IReadOnlyList<JsValue>)
+        NoArgs = 3          // ()
+    }
 
     private enum HostMethodSignature
     {

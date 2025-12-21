@@ -13,6 +13,95 @@ namespace Asynkron.JsEngine.StdLib;
 [JsConstructor("Object", PrototypeType = typeof(ObjectPrototype), Length = 1d, DisplayName = "Object")]
 public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
+    // Static methods registered via code generation
+    [JsConstructorMethod("keys", Length = 1d)]
+    public static object? Keys(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectKeys(thisArg, args, realm);
+
+    [JsConstructorMethod("values", Length = 1d)]
+    public static object? Values(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectValues(thisArg, args, realm);
+
+    [JsConstructorMethod("entries", Length = 1d)]
+    public static object? Entries(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectEntries(thisArg, args, realm);
+
+    [JsConstructorMethod("assign", Length = 2d)]
+    public static object? Assign(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectAssign(thisArg, args, realm);
+
+    [JsConstructorMethod("fromEntries", Length = 1d)]
+    public static object? FromEntries(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectFromEntries(thisArg, args, realm);
+
+    [JsConstructorMethod("hasOwn", Length = 2d)]
+    public static object? HasOwn(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectHasOwn(thisArg, args, realm);
+
+    [JsConstructorMethod("freeze", Length = 1d)]
+    public static object? Freeze(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectFreeze(thisArg, args, realm);
+
+    [JsConstructorMethod("seal", Length = 1d)]
+    public static object? Seal(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectSeal(thisArg, args, realm);
+
+    [JsConstructorMethod("isFrozen", Length = 1d)]
+    public static object? IsFrozen(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectIsFrozen(thisArg, args, realm);
+
+    [JsConstructorMethod("isSealed", Length = 1d)]
+    public static object? IsSealed(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectIsSealed(thisArg, args, realm);
+
+    [JsConstructorMethod("is", Length = 2d)]
+    public static object? Is(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectIs(thisArg, args, realm);
+
+    [JsConstructorMethod("create", Length = 2d)]
+    public static object? Create(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectCreate(thisArg, args, realm);
+
+    [JsConstructorMethod("getOwnPropertyNames", Length = 1d)]
+    public static object? GetOwnPropertyNames(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectGetOwnPropertyNames(thisArg, args, realm);
+
+    [JsConstructorMethod("getOwnPropertyDescriptor", Length = 2d)]
+    public static object? GetOwnPropertyDescriptor(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectGetOwnPropertyDescriptor(thisArg, args, realm);
+
+    [JsConstructorMethod("getOwnPropertyDescriptors", Length = 1d)]
+    public static object? GetOwnPropertyDescriptors(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectGetOwnPropertyDescriptors(thisArg, args, realm);
+
+    [JsConstructorMethod("getPrototypeOf", Length = 1d)]
+    public static object? GetPrototypeOf(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectGetPrototypeOf(thisArg, args, realm);
+
+    [JsConstructorMethod("defineProperty", Length = 3d)]
+    public static object? DefineProperty(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectDefineProperty(thisArg, args, realm);
+
+    [JsConstructorMethod("defineProperties", Length = 2d)]
+    public static object? DefineProperties(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectDefineProperties(thisArg, args, realm);
+
+    [JsConstructorMethod("setPrototypeOf", Length = 2d)]
+    public static object? SetPrototypeOf(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectSetPrototypeOf(thisArg, args, realm);
+
+    [JsConstructorMethod("preventExtensions", Length = 1d)]
+    public static object? PreventExtensions(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectPreventExtensions(thisArg, args, realm);
+
+    [JsConstructorMethod("isExtensible", Length = 1d)]
+    public static object? IsExtensible(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectIsExtensible(thisArg, args, realm);
+
+    [JsConstructorMethod("getOwnPropertySymbols", Length = 1d)]
+    public static object? GetOwnPropertySymbols(object? thisArg, IReadOnlyList<JsValue> args, RealmState? realm) =>
+        ObjectGetOwnPropertySymbols(thisArg, args, realm);
+
     private HostFunction? _constructor;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -42,7 +131,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.FromObjectUnsafe(ConstructCore(args, target, null));
         });
 
-        AttachStatics(constructor);
+        // Static methods are now registered via code generation from [JsConstructorMethod] attributes
         AttachPrototypeShortcut(constructor);
     }
 
@@ -110,32 +199,6 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             instance.SetPrototype(proto);
         }
-    }
-
-    private void AttachStatics(HostFunction constructor)
-    {
-        constructor.SetHostedProperty("defineProperties", (thisArg, args, realm) => ObjectDefineProperties(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("setPrototypeOf", (thisArg, args, realm) => ObjectSetPrototypeOf(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("preventExtensions", (thisArg, args, realm) => ObjectPreventExtensions(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("isExtensible", (thisArg, args, realm) => ObjectIsExtensible(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("getOwnPropertySymbols", (thisArg, args, realm) => ObjectGetOwnPropertySymbols(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("keys", (thisArg, args, realm) => ObjectKeys(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("values", (thisArg, args, realm) => ObjectValues(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("entries", (thisArg, args, realm) => ObjectEntries(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("assign", (thisArg, args, realm) => ObjectAssign(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("fromEntries", (thisArg, args, realm) => ObjectFromEntries(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("hasOwn", (thisArg, args, realm) => ObjectHasOwn(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("freeze", (thisArg, args, realm) => ObjectFreeze(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("seal", (thisArg, args, realm) => ObjectSeal(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("isFrozen", (thisArg, args, realm) => ObjectIsFrozen(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("isSealed", (thisArg, args, realm) => ObjectIsSealed(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("is", (thisArg, args, realm) => ObjectIs(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("create", (thisArg, args, realm) => ObjectCreate(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("getOwnPropertyNames", (thisArg, args, realm) => ObjectGetOwnPropertyNames(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("getOwnPropertyDescriptor", (thisArg, args, realm) => ObjectGetOwnPropertyDescriptor(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("getOwnPropertyDescriptors", (thisArg, args, realm) => ObjectGetOwnPropertyDescriptors(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("getPrototypeOf", (thisArg, args, realm) => ObjectGetPrototypeOf(thisArg, args, realm), Realm);
-        constructor.SetHostedProperty("defineProperty", (thisArg, args, realm) => ObjectDefineProperty(thisArg, args, realm), Realm);
     }
 
     private void AttachPrototypeShortcut(HostFunction constructor)

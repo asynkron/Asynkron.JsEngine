@@ -103,7 +103,7 @@ public static partial class TypedAstEvaluator
                 if (context.ShouldStopEvaluation)
                     return JsValue.Undefined;
 
-                return PrivateFieldInOperator(privateId.Name, rightTarget.ToObject(), context) ? JsValue.True : JsValue.False;
+                return PrivateFieldInOperatorJsValue(privateId.Name, rightTarget, context) ? JsValue.True : JsValue.False;
             }
 
             var left = expression.Left.EvaluateExpression(environment, context);
@@ -116,8 +116,8 @@ public static partial class TypedAstEvaluator
 
             return expression.Operator switch
             {
-                BinaryOperator.In => InOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
-                BinaryOperator.InstanceOf => InstanceofOperator(left.ToObject(), right.ToObject(), context) ? JsValue.True : JsValue.False,
+                BinaryOperator.In => InOperatorJsValue(left, right, context) ? JsValue.True : JsValue.False,
+                BinaryOperator.InstanceOf => InstanceofOperatorJsValue(left, right, context) ? JsValue.True : JsValue.False,
                 _ => JsValue.Undefined
             };
         }
@@ -159,6 +159,43 @@ public static partial class TypedAstEvaluator
 
         // For private methods and accessors, we need to check the brand
         // The brand is associated with the PrivateNameScope
+        if (PrivateNameScope.TryResolveScope(resolvedKey, out var scope) && scope is not null)
+        {
+            return jsObject.HasPrivateBrand(scope.BrandToken);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// JsValue overload for private field 'in' operator - avoids boxing.
+    /// </summary>
+    private static bool PrivateFieldInOperatorJsValue(string privateName, JsValue target, EvaluationContext context)
+    {
+        // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
+        if (target.Kind != JsValueKind.Object || target.ObjectValue is not JsObject jsObject)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Cannot use 'in' operator to search for a private field in a non-object",
+                context,
+                context.RealmState));
+            return false;
+        }
+
+        // Resolve the private name through the current private name scope
+        var lexeme = $"#{privateName}";
+        var resolvedKey = context.ResolvePrivateNameKey(lexeme);
+
+        if (resolvedKey is null)
+        {
+            return false;
+        }
+
+        if (jsObject.HasPrivateField(resolvedKey))
+        {
+            return true;
+        }
+
         if (PrivateNameScope.TryResolveScope(resolvedKey, out var scope) && scope is not null)
         {
             return jsObject.HasPrivateBrand(scope.BrandToken);

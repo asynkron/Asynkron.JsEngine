@@ -74,8 +74,17 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            // Extract the object for property access (needed for methods that take object?)
-            var target = targetJs.ObjectValue;
+            // Extract the value for property access - primitives need boxing for prototype chain lookup
+            var target = targetJs.Kind switch
+            {
+                JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
+                JsValueKind.Number => targetJs.NumberValue,
+                JsValueKind.String => targetJs.ObjectValue,
+                JsValueKind.Symbol => targetJs.ObjectValue,
+                JsValueKind.BigInt => targetJs.ObjectValue,
+                JsValueKind.Object => targetJs.ObjectValue,
+                _ => targetJs.ObjectValue
+            };
 
             // Fast path: for non-computed member access with literal string property,
             // skip expression evaluation and use the property name directly

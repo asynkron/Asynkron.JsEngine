@@ -321,7 +321,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.String => JsOps.ToNumber(value.AsString(), context),
             JsValueKind.BigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number", context),
-            JsValueKind.Object => JsOps.ToNumber(value.ToObject(), context),
+            JsValueKind.Object => JsOps.ToNumber(value, context),
             _ => double.NaN
         };
     }
@@ -345,7 +345,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.Number => JsOps.ToJsString(value.NumberValue, context),
             JsValueKind.BigInt => value.AsBigInt().ToString(),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context),
-            JsValueKind.Object => JsOps.ToJsString(value.ToObject(), context),
+            JsValueKind.Object => JsOps.ToJsString(value, context),
             _ => "undefined"
         };
     }
@@ -516,8 +516,21 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsOps.MathPow(left.NumberValue, right.NumberValue));
         }
 
-        // Fall back to object path
-        return JsValue.FromObjectUnsafe(Power(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return PerformBigIntOrNumericOperationJsValue(left, right,
+            (l, r, ctx) =>
+            {
+                try
+                {
+                    return JsBigInt.Pow(l, r);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw StandardLibrary.ThrowRangeError(ex.Message, ctx);
+                }
+            },
+            JsOps.MathPow,
+            context);
     }
 
     /// <summary>
@@ -538,8 +551,8 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        // Fall back to object path for complex cases
-        return LooseEquals(left.ToObject(), right.ToObject(), context);
+        // Use JsOps.LooseEquals JsValue overload directly - avoids boxing
+        return JsOps.LooseEquals(left, right, context);
     }
 
     /// <summary>
@@ -580,7 +593,11 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue));
         }
 
-        return JsValue.FromObjectUnsafe(BitwiseAnd(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return PerformBigIntOrInt32OperationJsValue(left, right,
+            (l, r) => l & r,
+            (l, r) => l & r,
+            context);
     }
 
     /// <summary>
@@ -595,7 +612,11 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue));
         }
 
-        return JsValue.FromObjectUnsafe(BitwiseOr(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return PerformBigIntOrInt32OperationJsValue(left, right,
+            (l, r) => l | r,
+            (l, r) => l | r,
+            context);
     }
 
     /// <summary>
@@ -610,7 +631,11 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue));
         }
 
-        return JsValue.FromObjectUnsafe(BitwiseXor(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return PerformBigIntOrInt32OperationJsValue(left, right,
+            (l, r) => l ^ r,
+            (l, r) => l ^ r,
+            context);
     }
 
     /// <summary>
@@ -625,7 +650,8 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
-        return JsValue.FromObjectUnsafe(LeftShift(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return LeftShiftJsValue(left, right, context);
     }
 
     /// <summary>
@@ -640,7 +666,8 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
-        return JsValue.FromObjectUnsafe(RightShift(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return RightShiftJsValue(left, right, context);
     }
 
     /// <summary>
@@ -655,6 +682,7 @@ public static partial class TypedAstEvaluator
             return JsValue.FromDouble(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
-        return JsValue.FromObjectUnsafe(UnsignedRightShift(left.ToObject(), right.ToObject(), context));
+        // Use JsValue overload directly - avoids boxing
+        return UnsignedRightShiftJsValue(left, right, context);
     }
 }

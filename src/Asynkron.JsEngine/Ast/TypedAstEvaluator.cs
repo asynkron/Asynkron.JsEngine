@@ -719,6 +719,51 @@ public static partial class TypedAstEvaluator
         return new JsValue(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
     }
 
+    /// <summary>
+    /// JsValue overload for BigInt or numeric operations - avoids boxing.
+    /// </summary>
+    private static JsValue PerformBigIntOrNumericOperationJsValue(
+        JsValue left,
+        JsValue right,
+        Func<JsBigInt, JsBigInt, EvaluationContext, object> bigIntOp,
+        Func<double, double, double> numericOp,
+        EvaluationContext context)
+    {
+        var leftNumeric = ToNumericValue(left, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        var rightNumeric = ToNumericValue(right, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        // Both are numbers - most common case
+        if (leftNumeric.IsNumber && rightNumeric.IsNumber)
+        {
+            return JsValue.FromDouble(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+        }
+
+        // Both are BigInt
+        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
+        {
+            return JsValue.FromObjectUnsafe(bigIntOp(leftNumeric.AsBigInt(), rightNumeric.AsBigInt(), context));
+        }
+
+        // Mixed types - error
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
+        }
+
+        // Fallback (shouldn't reach here normally)
+        return JsValue.FromDouble(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
+    }
+
     private static bool LooseEquals(object? left, object? right, EvaluationContext context)
     {
         return JsOps.LooseEquals(left, right, context);
@@ -917,6 +962,135 @@ public static partial class TypedAstEvaluator
         return JsValueCache.GetNumber(leftUIntVal >> rightIntVal);
     }
 
+    /// <summary>
+    /// JsValue overload for left shift - avoids boxing.
+    /// </summary>
+    private static JsValue LeftShiftJsValue(JsValue left, JsValue right, EvaluationContext context)
+    {
+        // Fast path for number operands (most common case)
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
+            var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
+            return JsValue.FromDouble(leftInt << rightInt);
+        }
+
+        var leftNumeric = ToNumericValue(left, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        var rightNumeric = ToNumericValue(right, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
+        {
+            var rightBigInt = rightNumeric.AsBigInt();
+            if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
+                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large", context);
+            }
+
+            return JsValue.FromObjectUnsafe(leftNumeric.AsBigInt() << (int)rightBigInt.Value);
+        }
+
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
+        }
+
+        var leftIntVal = JsNumericConversions.ToInt32(leftNumeric.NumberValue);
+        var rightIntVal = JsNumericConversions.ToInt32(rightNumeric.NumberValue) & 0x1F;
+        return JsValue.FromDouble(leftIntVal << rightIntVal);
+    }
+
+    /// <summary>
+    /// JsValue overload for right shift - avoids boxing.
+    /// </summary>
+    private static JsValue RightShiftJsValue(JsValue left, JsValue right, EvaluationContext context)
+    {
+        // Fast path for number operands (most common case)
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
+            var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
+            return JsValue.FromDouble(leftInt >> rightInt);
+        }
+
+        var leftNumeric = ToNumericValue(left, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        var rightNumeric = ToNumericValue(right, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
+        {
+            var rightBigInt = rightNumeric.AsBigInt();
+            if (rightBigInt.Value > int.MaxValue || rightBigInt.Value < int.MinValue)
+            {
+                throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large", context);
+            }
+
+            return JsValue.FromObjectUnsafe(leftNumeric.AsBigInt() >> (int)rightBigInt.Value);
+        }
+
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
+        }
+
+        var leftIntVal = JsNumericConversions.ToInt32(leftNumeric.NumberValue);
+        var rightIntVal = JsNumericConversions.ToInt32(rightNumeric.NumberValue) & 0x1F;
+        return JsValue.FromDouble(leftIntVal >> rightIntVal);
+    }
+
+    /// <summary>
+    /// JsValue overload for unsigned right shift - avoids boxing.
+    /// </summary>
+    private static JsValue UnsignedRightShiftJsValue(JsValue left, JsValue right, EvaluationContext context)
+    {
+        // Fast path for number operands (most common case)
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftUInt = JsNumericConversions.ToUInt32(left.NumberValue);
+            var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
+            return JsValue.FromDouble(leftUInt >> rightInt);
+        }
+
+        var leftNumeric = ToNumericValue(left, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        var rightNumeric = ToNumericValue(right, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("BigInts have no unsigned right shift, use >> instead", context);
+        }
+
+        var leftUIntVal = JsNumericConversions.ToUInt32(leftNumeric.NumberValue);
+        var rightIntVal = JsNumericConversions.ToInt32(rightNumeric.NumberValue) & 0x1F;
+        return JsValue.FromDouble(leftUIntVal >> rightIntVal);
+    }
+
     private static object PerformBigIntOrInt32Operation(
         object? left,
         object? right,
@@ -958,6 +1132,52 @@ public static partial class TypedAstEvaluator
         var leftIntVal = JsNumericConversions.ToInt32(JsOps.ToNumber(leftNumeric, context));
         var rightIntVal = JsNumericConversions.ToInt32(JsOps.ToNumber(rightNumeric, context));
         return JsValueCache.GetNumber(int32Op(leftIntVal, rightIntVal));
+    }
+
+    /// <summary>
+    /// JsValue overload for BigInt or Int32 operations - avoids boxing.
+    /// </summary>
+    private static JsValue PerformBigIntOrInt32OperationJsValue(
+        JsValue left,
+        JsValue right,
+        Func<JsBigInt, JsBigInt, object> bigIntOp,
+        Func<int, int, int> int32Op,
+        EvaluationContext context)
+    {
+        // Fast path for number operands (most common case)
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
+            var rightInt = JsNumericConversions.ToInt32(right.NumberValue);
+            return JsValue.FromDouble(int32Op(leftInt, rightInt));
+        }
+
+        var leftNumeric = ToNumericValue(left, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        var rightNumeric = ToNumericValue(right, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return context.FlowValue;
+        }
+
+        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
+        {
+            return JsValue.FromObjectUnsafe(bigIntOp(leftNumeric.AsBigInt(), rightNumeric.AsBigInt()));
+        }
+
+        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
+        }
+
+        var leftIntVal = JsNumericConversions.ToInt32(leftNumeric.NumberValue);
+        var rightIntVal = JsNumericConversions.ToInt32(rightNumeric.NumberValue);
+        return JsValue.FromDouble(int32Op(leftIntVal, rightIntVal));
     }
 
     private static int ToInt32(object? value, EvaluationContext context)
@@ -1098,6 +1318,101 @@ public static partial class TypedAstEvaluator
         if (right is IJsCallable)
         {
             return OrdinaryHasInstance(left, right, context);
+        }
+
+        context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
+            context));
+        return false;
+    }
+
+    /// <summary>
+    /// JsValue overload for 'in' operator - avoids boxing.
+    /// </summary>
+    private static bool InOperatorJsValue(JsValue property, JsValue target, EvaluationContext context)
+    {
+        // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
+        if (target.Kind != JsValueKind.Object || target.ObjectValue is not IJsPropertyAccessor accessor)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Right-hand side of 'in' is not an object",
+                context,
+                context.RealmState));
+            return false;
+        }
+
+        var propertyName = JsOps.GetRequiredPropertyName(property, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return false;
+        }
+
+        if (accessor is ModuleNamespace moduleNamespace)
+        {
+            return moduleNamespace.HasProperty(propertyName);
+        }
+
+        if (propertyName.IsPrivateSlotName())
+        {
+            var handle = PropertyHandle.Resolve(target.ObjectValue, propertyName, context, context.CurrentScope.IsStrict);
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
+            return handle.Exists();
+        }
+
+        return JsOps.HasProperty(target, propertyName);
+    }
+
+    /// <summary>
+    /// JsValue overload for 'instanceof' operator - avoids boxing.
+    /// </summary>
+    private static bool InstanceofOperatorJsValue(JsValue left, JsValue right, EvaluationContext context)
+    {
+        if (right.Kind != JsValueKind.Object || right.ObjectValue is not IJsPropertyAccessor)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not an object",
+                context));
+            return false;
+        }
+
+        var hasInstanceSymbol = Symbols.HasInstance;
+        if (TryGetPropertyValue(right.ObjectValue, hasInstanceSymbol, out var hasInstance, context))
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+
+            if (!IsNullish(hasInstance))
+            {
+                if (hasInstance is not IJsCallable callable)
+                {
+                    context.SetThrow(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context));
+                    return false;
+                }
+
+                try
+                {
+                    var result = callable.Invoke([left], right);
+                    return JsOps.ToBoolean(result);
+                }
+                catch (ThrowSignal signal)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    return false;
+                }
+            }
+        }
+        else if (context.ShouldStopEvaluation)
+        {
+            return false;
+        }
+
+        if (right.ObjectValue is IJsCallable)
+        {
+            return OrdinaryHasInstance(left.ObjectValue, right.ObjectValue, context);
         }
 
         context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",

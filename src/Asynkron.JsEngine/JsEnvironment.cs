@@ -2843,11 +2843,8 @@ public sealed class JsEnvironment
 
         public readonly bool IsImmutableBinding => (_flags & BindingFlags.IsImmutableBinding) != 0;
 
-        public readonly bool IsImportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
-            && _specialBinding is ImportBindingWrapper;
-
         public readonly bool IsAsyncExportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
-            && _specialBinding is AsyncExportBinding;
+                                                     && _specialBinding is AsyncExportBinding;
 
         /// <summary>
         /// Checks if this binding holds the Uninitialized sentinel without triggering ToObject().

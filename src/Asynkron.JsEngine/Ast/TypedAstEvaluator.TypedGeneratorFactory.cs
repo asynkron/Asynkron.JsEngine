@@ -606,18 +606,5 @@ public static partial class TypedAstEvaluator
                     HasConfigurable = true
                 });
         }
-
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                descriptor.Writable = false;
-                descriptor.Enumerable = false;
-                descriptor.Configurable = true;
-            }
-
-            return descriptor;
-        }
     }
 }

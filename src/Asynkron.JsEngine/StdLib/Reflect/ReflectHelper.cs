@@ -399,7 +399,9 @@ public static class ReflectHelper
             throw new Exception("Reflect.setPrototypeOf: target must be an object.");
         }
 
-        var proto = args.Count > 1 ? args[1].ToObject() : null;
+        // Extract prototype: null is valid, objects are valid, others should be handled by SetPrototype
+        var protoArg = args.Count > 1 ? args[1] : JsValue.Null;
+        var proto = protoArg.IsNull ? null : protoArg.ObjectValue;
         try
         {
             target.SetPrototype(proto);

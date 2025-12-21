@@ -18,24 +18,32 @@ public static partial class TypedAstEvaluator
             // Hot path: handle common operators directly
             var op = expression.Operator;
 
-            // Logical operators evaluate left first and may short-circuit
-            if (op == BinaryOperator.LogicalAnd || op == BinaryOperator.LogicalOr || op == BinaryOperator.NullishCoalescing)
+            switch (op)
             {
-                var left = expression.Left.EvaluateExpression(environment, context);
-                if (context.ShouldStopEvaluation)
-                    return JsValue.Undefined;
+                // Logical operators evaluate left first and may short-circuit
+                case BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing:
+                {
+                    var left = expression.Left.EvaluateExpression(environment, context);
+                    if (context.ShouldStopEvaluation)
+                        return JsValue.Undefined;
 
-                if (op == BinaryOperator.LogicalAnd)
-                    return left.IsTruthy ? expression.Right.EvaluateExpression(environment, context) : left;
-                if (op == BinaryOperator.LogicalOr)
-                    return left.IsTruthy ? left : expression.Right.EvaluateExpression(environment, context);
-                // NullishCoalescing
-                return left.IsNullOrUndefined ? expression.Right.EvaluateExpression(environment, context) : left;
+                    return op switch
+                    {
+                        BinaryOperator.LogicalAnd => left.IsTruthy
+                            ? expression.Right.EvaluateExpression(environment, context)
+                            : left,
+                        BinaryOperator.LogicalOr => left.IsTruthy
+                            ? left
+                            : expression.Right.EvaluateExpression(environment, context),
+                        _ => left.IsNullOrUndefined ? expression.Right.EvaluateExpression(environment, context) : left
+                    };
+                    // NullishCoalescing
+                }
+                // Slow path: private field In operator, In, InstanceOf
+                case BinaryOperator.In:
+                case BinaryOperator.InstanceOf:
+                    return expression.EvaluateBinarySlow(environment, context);
             }
-
-            // Slow path: private field In operator, In, InstanceOf
-            if (op == BinaryOperator.In || op == BinaryOperator.InstanceOf)
-                return expression.EvaluateBinarySlow(environment, context);
 
             // Common case: evaluate both operands then apply operator
             var leftVal = expression.Left.EvaluateExpression(environment, context);
@@ -46,22 +54,19 @@ public static partial class TypedAstEvaluator
             if (context.ShouldStopEvaluation)
                 return JsValue.Undefined;
 
-            // Hot path operators - most common in loops and calculations
-            if (op == BinaryOperator.Add)
-                return AddValue(leftVal, rightVal, context);
-            if (op == BinaryOperator.Subtract)
-                return SubtractValue(leftVal, rightVal, context);
-            if (op == BinaryOperator.LessThan)
-                return LessThanValue(leftVal, rightVal, context);
-            if (op == BinaryOperator.LessThanOrEqual)
-                return LessThanOrEqualValue(leftVal, rightVal, context);
-            if (op == BinaryOperator.StrictEqual)
-                return StrictEqualsValue(leftVal, rightVal) ? JsValue.True : JsValue.False;
-            if (op == BinaryOperator.StrictNotEqual)
-                return StrictEqualsValue(leftVal, rightVal) ? JsValue.False : JsValue.True;
+            return op switch
+            {
+                // Hot path operators - most common in loops and calculations
+                BinaryOperator.Add => AddValue(leftVal, rightVal, context),
+                BinaryOperator.Subtract => SubtractValue(leftVal, rightVal, context),
+                BinaryOperator.LessThan => LessThanValue(leftVal, rightVal, context),
+                BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
+                BinaryOperator.StrictEqual => StrictEqualsValue(leftVal, rightVal) ? JsValue.True : JsValue.False,
+                BinaryOperator.StrictNotEqual => StrictEqualsValue(leftVal, rightVal) ? JsValue.False : JsValue.True,
+                _ => BinaryExpression.EvaluateBinaryOperator(op, leftVal, rightVal, context)
+            };
 
             // Medium frequency operators
-            return BinaryExpression.EvaluateBinaryOperator(op, leftVal, rightVal, context);
         }
 
         /// <summary>
@@ -121,50 +126,6 @@ public static partial class TypedAstEvaluator
                 _ => JsValue.Undefined
             };
         }
-    }
-
-    /// <summary>
-    /// Implements the ES2022 "Ergonomic brand checks for private fields" feature.
-    /// The #field in obj expression checks if obj has the private field #field.
-    /// </summary>
-    private static bool PrivateFieldInOperator(string privateName, object? target, EvaluationContext context)
-    {
-        // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
-        if (target is not JsObject jsObject)
-        {
-            context.SetThrow(StandardLibrary.CreateTypeError(
-                "Cannot use 'in' operator to search for a private field in a non-object",
-                context,
-                context.RealmState));
-            return false;
-        }
-
-        // Resolve the private name through the current private name scope
-        // The privateName comes as just the identifier (e.g., "field"), we need to add # prefix
-        var lexeme = $"#{privateName}";
-        var resolvedKey = context.ResolvePrivateNameKey(lexeme);
-
-        if (resolvedKey is null)
-        {
-            // Private name not found in current scope - this shouldn't happen for valid code
-            // but if it does, the field is definitely not present
-            return false;
-        }
-
-        // Check if the object has the private field with the resolved key (for private fields)
-        if (jsObject.HasPrivateField(resolvedKey))
-        {
-            return true;
-        }
-
-        // For private methods and accessors, we need to check the brand
-        // The brand is associated with the PrivateNameScope
-        if (PrivateNameScope.TryResolveScope(resolvedKey, out var scope) && scope is not null)
-        {
-            return jsObject.HasPrivateBrand(scope.BrandToken);
-        }
-
-        return false;
     }
 
     /// <summary>

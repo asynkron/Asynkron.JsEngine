@@ -15,7 +15,6 @@ public sealed class ScopeAnalyzer
     public sealed class ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope, int scopeId)
     {
         public ScopeInfo? Parent { get; } = parent;
-        private int Depth { get; } = parent is null ? 0 : parent.Depth + 1;
         public bool IsFunctionScope { get; } = isFunctionScope;
         public bool IsBlockScope { get; } = isBlockScope;
         public bool HasEval { get; set; }
@@ -881,100 +880,6 @@ public sealed class ScopeAnalyzer
             // For other expression types, return as-is (they don't contain calls we can optimize)
             _ => expression
         };
-    }
-
-    private static void CollectVariablesRecursive(ExpressionNode expression, HashSet<Symbol> variables)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case IdentifierExpression id:
-                    variables.Add(id.Name);
-                    break;
-
-                case BinaryExpression binary:
-                    CollectVariablesRecursive(binary.Left, variables);
-                    expression = binary.Right;
-                    continue;
-
-                case UnaryExpression unary:
-                    expression = unary.Operand;
-                    continue;
-
-                case CallExpression call:
-                    CollectVariablesRecursive(call.Callee, variables);
-                    foreach (var arg in call.Arguments)
-                    {
-                        CollectVariablesRecursive(arg.Expression, variables);
-                    }
-
-                    break;
-
-                case MemberExpression member:
-                    CollectVariablesRecursive(member.Target, variables);
-                    if (member.IsComputed)
-                    {
-                        expression = member.Property;
-                        continue;
-                    }
-
-                    break;
-
-                case ConditionalExpression cond:
-                    CollectVariablesRecursive(cond.Test, variables);
-                    CollectVariablesRecursive(cond.Consequent, variables);
-                    expression = cond.Alternate;
-                    continue;
-
-                case ArrayExpression array:
-                    foreach (var element in array.Elements)
-                    {
-                        if (element.Expression is not null)
-                        {
-                            CollectVariablesRecursive(element.Expression, variables);
-                        }
-                    }
-
-                    break;
-
-                case ObjectExpression obj:
-                    foreach (var member in obj.Members)
-                    {
-                        if (member.Value is not null)
-                        {
-                            CollectVariablesRecursive(member.Value, variables);
-                        }
-                    }
-
-                    break;
-
-                case SequenceExpression seq:
-                    CollectVariablesRecursive(seq.Left, variables);
-                    expression = seq.Right;
-                    continue;
-
-                case AssignmentExpression assign:
-                    variables.Add(assign.Target);
-                    expression = assign.Value;
-                    continue;
-
-                case AwaitExpression await:
-                    expression = await.Expression;
-                    continue;
-
-                case YieldExpression yield when yield.Expression is not null:
-                    expression = yield.Expression;
-                    continue;
-
-                // Literals and other expressions that don't reference variables
-                case LiteralExpression or ThisExpression or SuperExpression or NewTargetExpression or ImportMetaExpression or RegexLiteralExpression or FunctionExpression:
-                    // These don't reference scope variables directly
-                    break;
-            }
-
-            break;
-        }
     }
 
     private VariableDeclaration ResolveVariableDeclaration(VariableDeclaration varDecl)

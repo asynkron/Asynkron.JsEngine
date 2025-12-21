@@ -1,6 +1,5 @@
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
-using JetBrains.Annotations;
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -96,27 +95,6 @@ public static partial class TypedAstEvaluator
             templateObject.Freeze();
 
             return templateObject;
-        }
-    }
-
-    extension(JsArray array)
-    {
-        [MustDisposeResource]
-        private IEnumerator<object?> EnumerateArrayElements()
-        {
-            return Enumerate().GetEnumerator();
-
-            IEnumerable<object?> Enumerate()
-            {
-                var length = array.Length;
-                var truncated = Math.Truncate(length);
-                var clamped = truncated > int.MaxValue ? int.MaxValue : truncated;
-                var count = clamped < 0 ? 0 : (int)clamped;
-                for (var i = 0; i < count; i++)
-                {
-                    yield return array.GetElement(i);
-                }
-            }
         }
     }
 }

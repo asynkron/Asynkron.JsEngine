@@ -138,9 +138,9 @@ public static partial class NumberHelper
             var optionsArg = args.GetArgument(1);
 
             if (realm is not null &&
-                TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, realm, out var formatted))
+                TryFormatWithIntlNumberFormatJsValue(num, localesArg, optionsArg, realm, out var formatted))
             {
-                return JsValue.FromObjectUnsafe(formatted);
+                return formatted;
             }
 
             if (!optionsArg.TryGetObject<JsObject>(out var options) || options is null)

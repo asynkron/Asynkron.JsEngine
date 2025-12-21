@@ -26,14 +26,6 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Returns the cached result without advancing the iterator, or null if no cached result.
-        /// </summary>
-        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? PeekCachedResult()
-        {
-            return _hasCachedResult ? _cachedResult : null;
-        }
-
-        /// <summary>
         /// Clears the cached result, signaling that the value has been consumed.
         /// </summary>
         public void ConsumeCachedResult()

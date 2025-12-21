@@ -855,19 +855,5 @@ public static partial class TypedAstEvaluator
             set.Clear();
             return JsValue.Undefined;
         }
-
-        /// <summary>
-        /// Wraps an object?[] array as IReadOnlyList&lt;JsValue&gt; for compatibility with IJsCallable.Invoke.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static IReadOnlyList<JsValue> WrapArgumentsAsJsValues(object?[] args)
-        {
-            var result = new JsValue[args.Length];
-            for (var i = 0; i < args.Length; i++)
-            {
-                result[i] = JsValue.FromObjectUnsafe(args[i]);
-            }
-            return result;
-        }
     }
 }

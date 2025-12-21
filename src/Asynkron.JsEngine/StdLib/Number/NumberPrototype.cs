@@ -132,9 +132,9 @@ public sealed partial class NumberPrototype
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
 
-        if (TryFormatWithIntlNumberFormat(num, localesArg, optionsArg, Realm, out var formatted))
+        if (TryFormatWithIntlNumberFormatJsValue(num, localesArg, optionsArg, Realm, out var formatted))
         {
-            return JsValue.FromObjectUnsafe(formatted);
+            return formatted;
         }
 
         if (optionsArg.TryGetObject(out var options) && options is not null)

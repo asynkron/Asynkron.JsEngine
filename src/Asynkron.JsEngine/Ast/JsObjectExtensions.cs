@@ -9,13 +9,6 @@ public static partial class TypedAstEvaluator
 {
     extension(IJsObjectLike iterator)
     {
-        private JsValue InvokeIteratorNext(JsValue sendValue = default, bool hasSendValue = false,
-            EvaluationContext? context = null, JsEnvironment? callingEnvironment = null)
-        {
-            var nextCallable = iterator.GetIteratorNextCallable(context);
-            return iterator.InvokeIteratorNext(nextCallable, sendValue, hasSendValue, context, callingEnvironment);
-        }
-
         private JsValue InvokeIteratorNext(IJsCallable nextMethod,
             JsValue sendValue = default,
             bool hasSendValue = false,

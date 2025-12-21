@@ -54,35 +54,6 @@ public static partial class TypedAstEvaluator
     private static void AssignPropertyValueWithNullCheck(
         object? target,
         string propertyName,
-        object? value,
-        EvaluationContext context)
-    {
-        AssignPropertyValueWithNullCheck(target, propertyName, JsValue.FromObjectUnsafe(value), context,
-            context.CurrentScope.IsStrict);
-    }
-
-    private static void AssignPropertyValueWithNullCheck(
-        object? target,
-        string propertyName,
-        object? value,
-        EvaluationContext context,
-        bool isStrict)
-    {
-        AssignPropertyValueWithNullCheck(target, propertyName, JsValue.FromObjectUnsafe(value), context, isStrict);
-    }
-
-    private static void AssignPropertyValueWithNullCheck(
-        object? target,
-        string propertyName,
-        JsValue value,
-        EvaluationContext context)
-    {
-        AssignPropertyValueWithNullCheck(target, propertyName, value, context, context.CurrentScope.IsStrict);
-    }
-
-    private static void AssignPropertyValueWithNullCheck(
-        object? target,
-        string propertyName,
         JsValue value,
         EvaluationContext context,
         bool isStrict)

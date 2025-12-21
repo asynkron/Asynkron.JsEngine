@@ -10,7 +10,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("TypedArray", ToStringTag = "TypedArray")]
-public sealed partial class TypedArrayPrototype : JsPrototype
+public sealed partial class TypedArrayPrototype
 {
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -85,7 +85,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
     }
 
     [JsHostMethod("reverse", Length = 0d)]
-    public JsValue Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Reverse(JsValue thisValue)
     {
         return ReverseImpl(thisValue);
     }

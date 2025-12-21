@@ -584,25 +584,6 @@ public static partial class TypedAstEvaluator
             return ContainsWithOrDirectEval(synthetic);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int GetSlotIndex(ImmutableArray<int> slotIndices, Symbol binding, ImmutableArray<Symbol> bindingNames)
-        {
-            if (slotIndices.IsDefaultOrEmpty || bindingNames.IsDefaultOrEmpty || slotIndices.Length != bindingNames.Length)
-            {
-                return -1;
-            }
-
-            for (var i = 0; i < bindingNames.Length; i++)
-            {
-                if (ReferenceEquals(bindingNames[i], binding))
-                {
-                    return slotIndices[i];
-                }
-            }
-
-            return -1;
-        }
-
         /// <summary>
         /// Tries to execute a simple numeric loop using a fast path that bypasses AST evaluation.
         /// Supports: for, while, do-while with various comparison and arithmetic operators.

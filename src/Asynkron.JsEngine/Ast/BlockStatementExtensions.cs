@@ -326,20 +326,6 @@ public static partial class TypedAstEvaluator
             return names;
         }
 
-        private HashSet<Symbol> CollectFunctionNames()
-        {
-            var names = new HashSet<Symbol>();
-            foreach (var statement in block.Statements)
-            {
-                if (statement is FunctionDeclaration functionDeclaration)
-                {
-                    names.Add(functionDeclaration.Name);
-                }
-            }
-
-            return names;
-        }
-
         private HashSet<Symbol> CollectCatchParameterNames()
         {
             var names = new HashSet<Symbol>();
@@ -352,12 +338,6 @@ public static partial class TypedAstEvaluator
             var names = new HashSet<Symbol>();
             block.CollectSimpleCatchNamesFromStatement(names);
             return names;
-        }
-
-        private bool HasHoistableDeclarations()
-        {
-            var plan = ((IAstCacheable<HoistableDeclarationsPlan>)block).GetOrCreateCache();
-            return plan.HasHoistableDeclarations;
         }
     }
 }

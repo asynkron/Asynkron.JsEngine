@@ -39,13 +39,13 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
 
         var evalContext = Realm.CreateContext();
         var argCount = args.Count;
-        var bodyValue = argCount > 0 ? args[argCount - 1].ToObject() : string.Empty;
+        var bodyValue = argCount > 0 ? args[argCount - 1] : JsValue.Undefined;
         var parameterCount = Math.Max(argCount - 1, 0);
 
         var parameters = new string[parameterCount];
         for (var i = 0; i < parameterCount; i++)
         {
-            var paramText = ToFunctionArgumentString(args[i].ToObject(), evalContext, Realm);
+            var paramText = ToFunctionArgumentString(args[i], evalContext, Realm);
             parameters[i] = paramText;
         }
 
@@ -91,7 +91,33 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         return JsValue.FromObjectUnsafe(created);
     }
 
-    private static string ToFunctionArgumentString(object? value, EvaluationContext evalContext, RealmState realmState)
+    private static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realmState)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => "undefined",
+            JsValueKind.Null => "null",
+            JsValueKind.Boolean => value.NumberValue != 0 ? "true" : "false",
+            JsValueKind.Number => NumberToString(value.NumberValue),
+            JsValueKind.String => value.ObjectValue as string ?? string.Empty,
+            JsValueKind.Symbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realmState),
+            JsValueKind.BigInt => value.ObjectValue is JsBigInt bigInt
+                ? bigInt.Value.ToString(CultureInfo.InvariantCulture)
+                : string.Empty,
+            JsValueKind.Object => ToFunctionArgumentStringFromObject(value.ObjectValue, evalContext, realmState),
+            _ => string.Empty
+        };
+
+        static string NumberToString(double d)
+        {
+            if (double.IsNaN(d)) return "NaN";
+            if (double.IsPositiveInfinity(d)) return "Infinity";
+            if (double.IsNegativeInfinity(d)) return "-Infinity";
+            return d.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    private static string ToFunctionArgumentStringFromObject(object? value, EvaluationContext evalContext, RealmState realmState)
     {
         var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)

@@ -155,6 +155,38 @@ public static partial class StandardLibrary
         return truncated > MaxArrayLength ? MaxArrayLength : truncated;
     }
 
+    /// <summary>
+    /// JsValue overload for ToIntegerOrInfinity that avoids boxing.
+    /// </summary>
+    internal static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context = null)
+    {
+        double number;
+        if (value.Kind == JsValueKind.Number)
+        {
+            number = value.NumberValue;
+        }
+        else
+        {
+            number = JsOps.ToNumberWithContext(value.ToObject(), context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+
+        if (double.IsNaN(number) || number == 0)
+        {
+            return 0;
+        }
+
+        if (double.IsPositiveInfinity(number) || double.IsNegativeInfinity(number))
+        {
+            return number;
+        }
+
+        return Math.Sign(number) * Math.Floor(Math.Abs(number));
+    }
+
     internal static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);

@@ -44,9 +44,7 @@ public sealed partial class ArrayPrototype
             }
 
             var keep = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
-            if (!IsTruthy(keep.ToObject()))
-#pragma warning restore CS0618
+            if (!keep.IsTruthy)
             {
                 continue;
             }
@@ -102,9 +100,7 @@ public sealed partial class ArrayPrototype
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
             var match = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
-            if (IsTruthy(match.ToObject()))
-#pragma warning restore CS0618
+            if (match.IsTruthy)
             {
                 return value;
             }
@@ -156,9 +152,7 @@ public sealed partial class ArrayPrototype
             }
 
             var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-#pragma warning disable CS0618 // ToObject is obsolete but needed here for IsTruthy
-            if (!IsTruthy(result.ToObject()))
-#pragma warning restore CS0618
+            if (!result.IsTruthy)
             {
                 return JsValue.False;
             }
@@ -202,7 +196,7 @@ public sealed partial class ArrayPrototype
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
             var matches = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
-            if (IsTruthy(matches.ToObject()))
+            if (matches.IsTruthy)
             {
                 return new JsValue((double)k);
             }

@@ -123,11 +123,11 @@ public sealed partial class ArrayPrototype
                 return JsValue.Undefined;
             }
 
-            object? firstElement = Symbol.Undefined;
+            var firstElement = JsValue.Undefined;
             var firstExists = TryGetExistingElement(accessor, "0", out var firstValue);
             if (firstExists)
             {
-                firstElement = firstValue.ToObject();
+                firstElement = firstValue;
             }
 
             for (long k = 1; k < length; k++)
@@ -150,7 +150,7 @@ public sealed partial class ArrayPrototype
             var lastExists = HasProperty(accessor, lastKey);
             DeletePropertyOrThrow(objectLike, lastKey, lastExists, MethodName, Realm);
             accessor.SetProperty("length", (double)(length - 1));
-            return JsValue.FromObjectUnsafe(firstElement);
+            return firstElement;
         }
         finally
         {
@@ -237,7 +237,7 @@ public sealed partial class ArrayPrototype
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
             var length = (long)ToLengthOrZero(lengthValue);
 
-            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0].ToObject()) : 0;
+            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
             var actualStart = ClampRelativeIndex(startIndex, length);
 
             var insertCount = args.Count > 2 ? args.Count - 2 : 0;
@@ -249,7 +249,7 @@ public sealed partial class ArrayPrototype
             }
             else
             {
-                deleteCountArg = ToIntegerOrInfinity(args[1].ToObject());
+                deleteCountArg = ToIntegerOrInfinity(args[1]);
             }
 
             long actualDeleteCount;
@@ -482,7 +482,7 @@ public sealed partial class ArrayPrototype
         IJsCallable? compareFn = null;
         if (args.Count > 0 && !args[0].IsUndefined)
         {
-            if (args[0].ToObject() is not IJsCallable callable)
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
             {
                 throw ThrowTypeError("Array.prototype.sort comparefn must be callable", realm: realm);
             }
@@ -552,9 +552,9 @@ public sealed partial class ArrayPrototype
                 // Handle case where values are already boxed JsValues
                 var aArg = aVal is JsValue ajv ? ajv : JsValue.FromObjectUnsafe(aVal);
                 var bArg = bVal is JsValue bjv ? bjv : JsValue.FromObjectUnsafe(bVal);
-                var raw = compareFn.Invoke([aArg, bArg], JsValue.Undefined).ToObject();
+                var result = compareFn.Invoke([aArg, bArg], JsValue.Undefined);
                 var ctx = realm?.CreateContext();
-                var num = JsOps.ToNumberWithContext(raw, ctx);
+                var num = JsOps.ToNumber(result, ctx);
                 if (ctx?.IsThrow == true)
                 {
                     throw new ThrowSignal(ctx.FlowValue);

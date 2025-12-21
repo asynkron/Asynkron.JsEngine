@@ -73,7 +73,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                         var enumerable = GetNamedBool(attr, "Enumerable");
                         var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
 
-                        getters.Add(new GetterInfo(member, propertyName, displayName, enumerable, configurable));
+                        getters.Add(new GetterInfo(member, propertyName, displayName, enumerable, configurable, member.IsStatic));
                         break;
                     }
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsHostMethodAttribute":
@@ -94,7 +94,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
                         var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
                         methods.Add(new MethodInfo(member, propertyName, displayName, lengthLiteral, enumerable,
-                            configurable, writable, signature));
+                            configurable, writable, signature, member.IsStatic));
                         break;
                     }
                 }
@@ -192,8 +192,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         foreach (var getter in info.Getters)
         {
             var getterVar = $"getter_{Sanitize(getter.PropertyName)}";
+            var getterTarget = getter.IsStatic ? info.Symbol.Name : "typed";
             source.Append("        var ").Append(getterVar)
-                .Append(" = new HostFunction((thisValue, _) => typed.")
+                .Append(" = new HostFunction((thisValue, _) => ").Append(getterTarget).Append(".")
                 .Append(getter.MethodSymbol.Name)
                 .AppendLine("(thisValue), realm, isConstructor: false);");
             source.Append("        ").Append(getterVar)
@@ -212,18 +213,28 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         {
             var methodVar = $"method_{Sanitize(method.PropertyName)}";
             source.Append("        var ").Append(methodVar).Append(" = new HostFunction(");
+
+            // Determine the target: static uses ClassName, instance uses typed
+            var target = method.IsStatic
+                ? info.Symbol.Name
+                : "typed";
+
             switch (method.Signature)
             {
+                case HostMethodSignature.NoArgs:
+                    source.Append("(_, _) => ").Append(target).Append(".").Append(method.MethodSymbol.Name)
+                        .AppendLine("(), realm, isConstructor: false);");
+                    break;
                 case HostMethodSignature.ArgsOnly:
-                    source.Append("args => typed.").Append(method.MethodSymbol.Name)
+                    source.Append("args => ").Append(target).Append(".").Append(method.MethodSymbol.Name)
                         .AppendLine("(args), realm, isConstructor: false);");
                     break;
                 case HostMethodSignature.ThisOnly:
-                    source.Append("(thisValue, _) => typed.").Append(method.MethodSymbol.Name)
+                    source.Append("(thisValue, _) => ").Append(target).Append(".").Append(method.MethodSymbol.Name)
                         .AppendLine("(thisValue), realm, isConstructor: false);");
                     break;
                 default:
-                    source.Append("(thisValue, args) => typed.").Append(method.MethodSymbol.Name)
+                    source.Append("(thisValue, args) => ").Append(target).Append(".").Append(method.MethodSymbol.Name)
                         .AppendLine("(thisValue, args), realm, isConstructor: false);");
                     break;
             }
@@ -390,10 +401,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool UseFunctionInstance);
 
     private sealed record GetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
-        bool Configurable);
+        bool Configurable, bool IsStatic);
 
     private sealed record MethodInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName,
-        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, HostMethodSignature Signature);
+        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, HostMethodSignature Signature, bool IsStatic);
 
     private sealed record ConstructorInfo(INamedTypeSymbol Symbol, INamedTypeSymbol PrototypeType, string LengthLiteral,
         string DisplayName);
@@ -402,7 +413,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         ThisAndArgs = 0,
         ThisOnly = 1,
-        ArgsOnly = 2
+        ArgsOnly = 2,
+        NoArgs = 3
     }
 
     private enum PrototypeObjectKind
@@ -445,6 +457,12 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var parameters = method.Parameters;
+
+        if (parameters.Length == 0)
+        {
+            return HostMethodSignature.NoArgs;
+        }
+
         if (parameters.Length == 2 &&
             IsJsValue(parameters[0].Type, jsValueType) &&
             IsReadOnlyListOfJsValue(parameters[1].Type, readOnlyListType, jsValueType))

@@ -191,7 +191,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _mappedParameters[index] is { } mappedSymbol)
         {
             _values[index] = value;
-            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, value.ToObject()));
+            // Boxing JsValue is okay - Assign handles boxed JsValue properly
+            WithSuppressedObserver(() => _environment.Assign(mappedSymbol, value));
         }
 
         _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
@@ -312,7 +313,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             if (descriptor.HasValue)
             {
                 _values[index] = descriptor.JsValue;
-                WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.JsValue.ToObject()));
+                // Boxing JsValue is okay - Assign handles boxed JsValue properly
+                WithSuppressedObserver(() => _environment.Assign(mappedSymbol, descriptor.JsValue));
             }
 
             if (shouldUnmap)

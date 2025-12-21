@@ -113,7 +113,20 @@ public static partial class TypedAstEvaluator
             target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
         }
 
+        private void AssignBindingTargetJsValue(JsValue value, JsEnvironment environment,
+            EvaluationContext context)
+        {
+            target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
+        }
+
         private void DefineBindingTarget(object? value, JsEnvironment environment,
+            EvaluationContext context, bool isConst)
+        {
+            target.ApplyBindingTarget(value, environment, context,
+                isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
+        }
+
+        private void DefineBindingTargetJsValue(JsValue value, JsEnvironment environment,
             EvaluationContext context, bool isConst)
         {
             target.ApplyBindingTarget(value, environment, context,
@@ -124,6 +137,24 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             target.ApplyBindingTarget(value, environment, context, BindingMode.DefineVar);
+        }
+
+        private void DefineOrAssignVarJsValue(JsValue value, JsEnvironment environment,
+            EvaluationContext context)
+        {
+            target.ApplyBindingTarget(value, environment, context, BindingMode.DefineVar);
+        }
+
+        private void ApplyBindingTargetJsValue(JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode,
+            bool hasInitializer = true,
+            bool allowNameInference = true,
+            bool skipBlockedBindingLookup = false)
+        {
+            target.ApplyBindingTarget(value, environment, context, mode, hasInitializer,
+                allowNameInference, skipBlockedBindingLookup);
         }
 
         private void ApplyBindingTarget(object? value,

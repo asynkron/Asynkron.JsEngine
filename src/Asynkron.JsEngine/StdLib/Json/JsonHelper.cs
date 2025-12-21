@@ -33,40 +33,7 @@ public static class JsonHelper
         var holder = new JsObject();
         holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
 
-        return ApplyJsonReviverJsValue(reviver, holder, "", context, realm);
-    }
-
-    /// <summary>
-    /// JsValue overload for ParseJsonWithReviver that avoids boxing.
-    /// </summary>
-    internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
-        JsValue reviverValue)
-    {
-        return ParseJsonWithReviverJsValue(jsonStr, realm, context, reviverValue).ToObject();
-    }
-
-    internal static object? ParseJsonWithReviver(string jsonStr, RealmState realm, EvaluationContext? context,
-        object? reviverCandidate)
-    {
-        object? parsed;
-        try
-        {
-            parsed = ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
-        }
-        catch
-        {
-            throw ThrowSyntaxError("Unexpected token in JSON", context, realm);
-        }
-
-        if (reviverCandidate is not IJsCallable reviver)
-        {
-            return parsed;
-        }
-
-        var holder = new JsObject();
-        holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
-
-        return ApplyJsonReviverJsValue(reviver, holder, "", context, realm).ToObject();
+        return ApplyJsonReviverJsValue(reviver, holder, "");
     }
 
     private static object? ParseJsonValue(JsonElement element, RealmState realm)
@@ -109,19 +76,18 @@ public static class JsonHelper
         }
     }
 
-    private static JsValue ApplyJsonReviverJsValue(IJsCallable reviver, IJsObjectLike holder, string name,
-        EvaluationContext? context, RealmState realm)
+    private static JsValue ApplyJsonReviverJsValue(IJsCallable reviver, IJsObjectLike holder, string name)
     {
         if (!holder.TryGetProperty(name, out var value))
         {
             value = JsValue.Null;
         }
 
-        if (value.TryGetObject<JsObject>(out var jsObj) && jsObj is not null)
+        if (value.TryGetObject<JsObject>(out var jsObj))
         {
             foreach (var key in jsObj.Keys.ToArray())
             {
-                var revived = ApplyJsonReviverJsValue(reviver, jsObj, key, context, realm);
+                var revived = ApplyJsonReviverJsValue(reviver, jsObj, key);
                 if (revived.IsUndefined)
                 {
                     jsObj.Delete(key);
@@ -132,13 +98,13 @@ public static class JsonHelper
                 }
             }
         }
-        else if (value.TryGetObject<JsArray>(out var arr) && arr is not null)
+        else if (value.TryGetObject<JsArray>(out var arr))
         {
             var length = (int)arr.Length;
             for (var i = 0; i < length; i++)
             {
                 var revived = ApplyJsonReviverJsValue(reviver, arr,
-                    i.ToString(CultureInfo.InvariantCulture), context, realm);
+                    i.ToString(CultureInfo.InvariantCulture));
                 if (revived.IsUndefined)
                 {
                     arr.DeleteElement(i);
@@ -173,26 +139,26 @@ public static class JsonHelper
                     {
                         return "null";
                     }
-                    if (jsValue.Kind == JsValueKind.Boolean)
+                    switch (jsValue.Kind)
                     {
-                        return jsValue.NumberValue != 0 ? "true" : "false";
-                    }
-                    if (jsValue.Kind == JsValueKind.Number)
-                    {
-                        var d = jsValue.NumberValue;
-                        if (double.IsNaN(d) || double.IsInfinity(d))
+                        case JsValueKind.Boolean:
+                            return jsValue.NumberValue != 0 ? "true" : "false";
+                        case JsValueKind.Number:
                         {
-                            return "null";
+                            var d = jsValue.NumberValue;
+                            if (double.IsNaN(d) || double.IsInfinity(d))
+                            {
+                                return "null";
+                            }
+                            return d.ToString(CultureInfo.InvariantCulture);
                         }
-                        return d.ToString(CultureInfo.InvariantCulture);
+                        case JsValueKind.String when jsValue.ObjectValue is string str:
+                            return JsonSerializer.Serialize(str);
+                        default:
+                            // For objects and other types, continue with the underlying object
+                            value = jsValue.ObjectValue;
+                            continue;
                     }
-                    if (jsValue.Kind == JsValueKind.String && jsValue.ObjectValue is string str)
-                    {
-                        return JsonSerializer.Serialize(str);
-                    }
-                    // For objects and other types, continue with the underlying object
-                    value = jsValue.ObjectValue;
-                    continue;
 
                 case bool b:
                     return b ? "true" : "false";
@@ -232,7 +198,7 @@ public static class JsonHelper
                         objProps.Add($"{key}:{val}");
                     }
 
-                    return "{" + string.Join(",", objProps) + "}";
+                    return "{" + string.Join(',', objProps) + "}";
 
                 case IJsCallable:
                     return "undefined";

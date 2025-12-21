@@ -434,7 +434,7 @@ public sealed partial class ArrayPrototype
 
         foreach (var sourceValue in sources)
         {
-            if (IsConcatSpreadable(sourceValue, Realm, MethodName, out var spreadAccessor))
+            if (IsConcatSpreadable(sourceValue, Realm, out var spreadAccessor))
             {
                 var spreadLength = LengthOfArrayLike(spreadAccessor, Realm, MethodName);
                 const long MaxSafeIntegerLength = 9007199254740991L; // 2^53 - 1

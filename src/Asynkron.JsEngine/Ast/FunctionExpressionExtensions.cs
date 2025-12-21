@@ -153,7 +153,7 @@ public static partial class TypedAstEvaluator
 
                 if (parameter.Pattern is not null)
                 {
-                    parameter.Pattern.ApplyBindingTarget(value.ToObject(), environment, context, BindingMode.DefineParameter);
+                    parameter.Pattern.ApplyBindingTargetJsValue(value, environment, context, BindingMode.DefineParameter);
                     if (context.ShouldStopEvaluation)
                     {
                         return;

@@ -42,9 +42,9 @@ public static partial class TypedAstEvaluator
                 ? context.EnterFunctionNameHint(targetIdentifier.Name)
                 : null;
 
-            var value = declarator.Initializer is null
-                ? Symbol.Undefined
-                : declarator.Initializer.EvaluateExpression(environment, context).ToObject();
+            var valueJs = declarator.Initializer is null
+                ? JsValue.Undefined
+                : declarator.Initializer.EvaluateExpression(environment, context);
 
             if (context.ShouldStopEvaluation)
             {
@@ -53,9 +53,7 @@ public static partial class TypedAstEvaluator
 
             if (kind is VariableKind.Using or VariableKind.AwaitUsing)
             {
-                if (value is not null &&
-                    !ReferenceEquals(value, Symbol.Undefined) &&
-                    value is not IJsObjectLike)
+                if (!valueJs.IsNullOrUndefined && !valueJs.TryGetObject<IJsObjectLike>(out _))
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "using declarations require an object value",
@@ -63,7 +61,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                if (value is IJsObjectLike)
+                if (valueJs.TryGetObject<IJsObjectLike>(out _))
                 {
                     throw new NotSupportedException(
                         "Explicit resource management is not implemented for object resources.");
@@ -88,16 +86,16 @@ public static partial class TypedAstEvaluator
                     targetIdentifier.Name.Name,
                     environment.Depth,
                     environment.IsStrict,
-                    value);
+                    valueJs);
             }
 
             if (preResolvedVarReference is { } resolvedReference && targetIdentifier is not null)
             {
-                var assignedBlockedBinding = environment.TryAssignBlockedBinding(targetIdentifier.Name, value);
+                var assignedBlockedBinding = environment.TryAssignBlockedBindingJsValue(targetIdentifier.Name, valueJs);
                 environment.EnsureFunctionScopedVarBinding(targetIdentifier.Name, context);
                 if (!assignedBlockedBinding)
                 {
-                    resolvedReference.SetValue(JsValue.FromObjectUnsafe(value));
+                    resolvedReference.SetValue(valueJs);
                 }
 
                 return;
@@ -105,7 +103,7 @@ public static partial class TypedAstEvaluator
 
             // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true
             var allowNameInference = declarator.Initializer is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer);
-            declarator.Target.ApplyBindingTarget(value, environment, context, mode,
+            declarator.Target.ApplyBindingTargetJsValue(valueJs, environment, context, mode,
                 declarator.Initializer is not null, allowNameInference);
         }
     }

@@ -7,10 +7,10 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Function", ObjectKind = PrototypeObjectKind.Function)]
-public sealed partial class FunctionPrototype : JsPrototype
+public sealed partial class FunctionPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private static JsValue ToSßtring(JsValue thisValue)
     {
         if (thisValue.TryGetObject<IJsCallable>(out _))
         {
@@ -20,13 +20,13 @@ public sealed partial class FunctionPrototype : JsPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
+    public static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
 
     [JsHostMethod("call", Length = 1d)]
-    public JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private static JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (!thisValue.TryGetObject<IJsCallable>(out var target))
         {

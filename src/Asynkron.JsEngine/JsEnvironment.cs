@@ -443,7 +443,7 @@ public sealed class JsEnvironment
                 binding.JsValue = value;
                 if (_bindingObservers is not null)
                 {
-                    NotifyBindingObservers(name, value.ToObject());
+                    NotifyBindingObserversJsValue(name, value);
                 }
 
                 return;
@@ -463,10 +463,10 @@ public sealed class JsEnvironment
 
             binding.JsValue = value;
             binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
-            // Only notify if there are observers (avoid ToObject boxing in hot path)
+            // Only notify if there are observers
             if (_bindingObservers is not null)
             {
-                NotifyBindingObservers(name, value.ToObject());
+                NotifyBindingObserversJsValue(name, value);
             }
             TrySetSlot(name, value);
             return;
@@ -474,10 +474,10 @@ public sealed class JsEnvironment
 
         Values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
             canDelete, isImmutableBinding);
-        // Only notify if there are observers (avoid ToObject boxing in hot path)
+        // Only notify if there are observers
         if (_bindingObservers is not null)
         {
-            NotifyBindingObservers(name, value.ToObject());
+            NotifyBindingObserversJsValue(name, value);
         }
         TrySetSlot(name, value);
     }
@@ -905,6 +905,52 @@ public sealed class JsEnvironment
 
                     var globalObject = current.GetRootGlobalObject();
                     globalObject?.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
+
+                    return true;
+                }
+            }
+
+            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
+            {
+                break;
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
+    }
+
+    internal bool TryAssignBlockedBindingJsValue(Symbol name, JsValue value)
+    {
+        var current = this;
+        var passedFunctionBoundary = false;
+        while (current is not null)
+        {
+            if (current.IsFunctionScope)
+            {
+                if (passedFunctionBoundary)
+                {
+                    break;
+                }
+
+                passedFunctionBoundary = true;
+            }
+
+            if (current._values is not null)
+            {
+                ref var binding = ref current._values.GetValueRefOrNullRef(name);
+                if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
+                {
+                    binding.JsValue = value;
+                    current.NotifyBindingObserversJsValue(name, value);
+                    if (!current.IsGlobalFunctionScope)
+                    {
+                        return true;
+                    }
+
+                    var globalObject = current.GetRootGlobalObject();
+                    globalObject?.SetProperty(name.Name, value);
 
                     return true;
                 }
@@ -1593,10 +1639,10 @@ public sealed class JsEnvironment
 
         bindingEnvironment.TrySetSlot(name, value);
 
-        // Only notify if there are observers (avoid ToObject boxing in hot path)
+        // Only notify if there are observers
         if (bindingEnvironment._bindingObservers is not null)
         {
-            bindingEnvironment.NotifyBindingObservers(name, value.ToObject());
+            bindingEnvironment.NotifyBindingObserversJsValue(name, value);
         }
     }
 
@@ -2547,6 +2593,16 @@ public sealed class JsEnvironment
         {
             observer(value);
         }
+    }
+
+    /// <summary>
+    /// JsValue overload - boxes the JsValue which is better than ToObject() as it preserves type info.
+    /// </summary>
+    private void NotifyBindingObserversJsValue(Symbol symbol, JsValue value)
+    {
+        // Boxing JsValue is preferred over ToObject() because observers can detect
+        // "is JsValue" and handle efficiently without losing type information.
+        NotifyBindingObservers(symbol, value);
     }
 
     internal bool HasFunctionScopedBinding(Symbol name)

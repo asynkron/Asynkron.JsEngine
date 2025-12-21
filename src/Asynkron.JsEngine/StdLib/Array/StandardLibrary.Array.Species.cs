@@ -34,7 +34,7 @@ public static partial class StandardLibrary
             return CreateDefaultArray();
         }
 
-        if (!IsArrayObject(original, realm, "array species creation"))
+        if (!IsArrayObject(original, realm))
         {
             return CreateDefaultArray();
         }
@@ -226,7 +226,7 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static bool IsConcatSpreadable(JsValue candidate, RealmState? realm, string operation,
+    internal static bool IsConcatSpreadable(JsValue candidate, RealmState? realm,
         out IJsPropertyAccessor accessor)
     {
         accessor = null!;
@@ -248,7 +248,7 @@ public static partial class StandardLibrary
             return JsOps.ToBoolean(spreadable);
         }
 
-        if (IsArrayObject(candidate, realm, operation))
+        if (IsArrayObject(candidate, realm))
         {
             return true;
         }
@@ -287,7 +287,7 @@ public static partial class StandardLibrary
         return false;
     }
 
-    internal static bool TryGetArrayForFlatten(JsValue candidate, RealmState? realm, string operation,
+    private static bool TryGetArrayForFlatten(JsValue candidate, RealmState? realm,
         out IJsPropertyAccessor accessor)
     {
         accessor = null!;
@@ -310,7 +310,7 @@ public static partial class StandardLibrary
             accessor = boxed;
         }
 
-        return IsArrayObject(candidate, realm, operation);
+        return IsArrayObject(candidate, realm);
     }
 
     internal static JsValue UnwrapProxy(JsValue candidate, RealmState? realm, string operation)
@@ -329,7 +329,7 @@ public static partial class StandardLibrary
         return inspected;
     }
 
-    internal static bool IsArrayObject(JsValue candidate, RealmState? realm, string operation)
+    internal static bool IsArrayObject(JsValue candidate, RealmState? realm)
     {
         var inspected = candidate;
         while (!inspected.IsNull)
@@ -392,7 +392,7 @@ public static partial class StandardLibrary
             }
 
         IJsPropertyAccessor? mappedAccessor = null;
-        var spreadable = depth > 0 && TryGetArrayForFlatten(mapped, realm, operation, out mappedAccessor);
+        var spreadable = depth > 0 && TryGetArrayForFlatten(mapped, realm, out mappedAccessor);
 
         if (spreadable && mappedAccessor is not null)
         {

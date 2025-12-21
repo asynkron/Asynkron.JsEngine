@@ -143,7 +143,8 @@ public static partial class TypedAstEvaluator
                     if (element.DefaultValue is not null && isUndefined)
                     {
                         usedDefault = true;
-                        elementValue = element.DefaultValue.EvaluateExpression(environment, context).ToObject();
+                        // Boxing JsValue is preferred over ToObject() - existing code handles boxed JsValue
+                        elementValue = element.DefaultValue.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
                             if (context.IsYield && stateKey is { })
@@ -160,22 +161,30 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
+                    // Handle name inference for anonymous functions - check both boxed JsValue and direct object
                     if (usedDefault &&
                         element is
                         {
                             Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression
-                        } && defaultExpression.IsAnonymousFunctionDefinition() &&
-                        elementValue is IFunctionNameTarget nameTarget)
+                        } && defaultExpression.IsAnonymousFunctionDefinition())
                     {
-                        nameTarget.EnsureHasName(identifierTarget.Name.Name);
+                        IFunctionNameTarget? nameTarget = elementValue switch
+                        {
+                            JsValue jsv when jsv.TryGetObject<IFunctionNameTarget>(out var fn) => fn,
+                            IFunctionNameTarget fn => fn,
+                            _ => null
+                        };
+                        nameTarget?.EnsureHasName(identifierTarget.Name.Name);
                     }
 
                     if (preResolvedReference is { } resolvedReference)
                     {
+                        // FromObjectUnsafe handles boxed JsValue correctly
                         resolvedReference.SetValue(JsValue.FromObjectUnsafe(elementValue));
                     }
                     else
                     {
+                        // ApplyBindingTarget handles boxed JsValue via pattern matching
                         element.Target.ApplyBindingTarget(elementValue, environment, context, mode,
                             allowNameInference: false);
                     }

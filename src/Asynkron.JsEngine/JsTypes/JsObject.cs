@@ -446,7 +446,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         // Fall back to full implementation for complex cases
-        SetPropertyInternal(name, value.ToObject(), receiver.ToObject());
+        // Pass JsValue directly (will be boxed) - better than ToObject() which loses type info
+        SetPropertyInternal(name, value, receiver);
     }
 
     private void TrackArrayWriteJsValue(string name)
@@ -697,7 +698,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     public virtual bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (TryGetPropertyInternal(name, receiver.ToObject(), out var objValue))
+        // Pass receiver directly (will be boxed) - better than ToObject() which loses type info
+        if (TryGetPropertyInternal(name, receiver, out var objValue))
         {
             // Handle case where objValue is already a boxed JsValue
             value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);

@@ -60,13 +60,15 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(context.FlowValue);
                 }
 
-                var propertyValue = hasProperty ? val : Symbol.Undefined;
+                var propertyValueJs = hasProperty
+                    ? (val is null ? JsValue.Null : JsValue.FromObjectUnsafe(val))
+                    : JsValue.Undefined;
 
                 var usedDefault = false;
-                if (ReferenceEquals(propertyValue, Symbol.Undefined) && property.DefaultValue is not null)
+                if (propertyValueJs.IsUndefined && property.DefaultValue is not null)
                 {
                     usedDefault = true;
-                    propertyValue = property.DefaultValue.EvaluateExpression(environment, context).ToObject();
+                    propertyValueJs = property.DefaultValue.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return;
@@ -75,7 +77,7 @@ public static partial class TypedAstEvaluator
 
                 if (usedDefault &&
                     property is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } && defaultExpression.IsAnonymousFunctionDefinition() &&
-                    propertyValue is IFunctionNameTarget nameTarget)
+                    propertyValueJs.TryGetObject<IFunctionNameTarget>(out var nameTarget))
                 {
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
                 }
@@ -85,11 +87,11 @@ public static partial class TypedAstEvaluator
 
                 if (preResolvedReference is { } resolvedReference)
                 {
-                    resolvedReference.SetValue(JsValue.FromObjectUnsafe(propertyValue));
+                    resolvedReference.SetValue(propertyValueJs);
                 }
                 else
                 {
-                    property.Target.ApplyBindingTarget(propertyValue, environment, context, mode,
+                    property.Target.ApplyBindingTargetJsValue(propertyValueJs, environment, context, mode,
                         allowNameInference: false, skipBlockedBindingLookup: skipBlockedLookup);
                 }
             }

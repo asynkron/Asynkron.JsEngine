@@ -54,18 +54,17 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var target = targetJs.ToObject();
-            if (expression.IsOptional && IsNullish(target))
+            if (expression.IsOptional && targetJs.IsNullOrUndefined)
             {
                 return JsValue.Undefined;
             }
 
-            if (IsNullish(target) && HasOptionalChaining(expression.Target))
+            if (targetJs.IsNullOrUndefined && HasOptionalChaining(expression.Target))
             {
                 return JsValue.Undefined;
             }
 
-            if (IsNullish(target))
+            if (targetJs.IsNullOrUndefined)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Cannot read properties of null or undefined",
@@ -74,6 +73,9 @@ public static partial class TypedAstEvaluator
                 context.SetThrow(JsValue.FromObjectUnsafe(error));
                 return JsValue.Undefined;
             }
+
+            // Extract the object for property access (needed for methods that take object?)
+            var target = targetJs.ObjectValue;
 
             // Fast path: for non-computed member access with literal string property,
             // skip expression evaluation and use the property name directly

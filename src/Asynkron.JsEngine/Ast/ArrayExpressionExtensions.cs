@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    array.Push(element.Expression.EvaluateExpression(environment, context).ToObject());
+                    array.Push(element.Expression.EvaluateExpression(environment, context));
                 }
 
                 if (context.ShouldStopEvaluation)

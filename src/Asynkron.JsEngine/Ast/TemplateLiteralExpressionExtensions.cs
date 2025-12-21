@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                builder.Append(valueJs.ToObject().ToJsString());
+                builder.Append(valueJs.ToJsString());
             }
 
             return new JsValue(builder.ToString());

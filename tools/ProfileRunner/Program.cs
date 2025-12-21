@@ -3,13 +3,65 @@ using System.Globalization;
 using System.Text.Json;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
+using Jint;
 using Microsoft.Extensions.Logging;
 
 #pragma warning disable MA0047 // Top-level statements live in script-style Program.
 #pragma warning disable MA0048 // File name matches project entry point, not nested types.
 
 const string listCommand = "list";
-var profileKey = args.Length > 0 ? args[0] : "fib";
+var engineKind = EngineKind.Asynkron;
+var positionalArgs = new List<string>();
+
+for (var i = 0; i < args.Length; i++)
+{
+    var arg = args[i];
+    if (string.Equals(arg, "--jint", StringComparison.OrdinalIgnoreCase))
+    {
+        engineKind = EngineKind.Jint;
+        continue;
+    }
+
+    if (string.Equals(arg, "--asynkron", StringComparison.OrdinalIgnoreCase))
+    {
+        engineKind = EngineKind.Asynkron;
+        continue;
+    }
+
+    if (arg.StartsWith("--engine=", StringComparison.OrdinalIgnoreCase))
+    {
+        var engineValue = arg[(arg.IndexOf('=') + 1)..];
+        if (!TryParseEngineKind(engineValue, out engineKind))
+        {
+            Console.Error.WriteLine($"Unknown engine: {engineValue}");
+            return;
+        }
+
+        continue;
+    }
+
+    if (string.Equals(arg, "--engine", StringComparison.OrdinalIgnoreCase))
+    {
+        if (i + 1 >= args.Length)
+        {
+            Console.Error.WriteLine("Missing value for --engine.");
+            return;
+        }
+
+        if (!TryParseEngineKind(args[i + 1], out engineKind))
+        {
+            Console.Error.WriteLine($"Unknown engine: {args[i + 1]}");
+            return;
+        }
+
+        i++;
+        continue;
+    }
+
+    positionalArgs.Add(arg);
+}
+
+var profileKey = positionalArgs.Count > 0 ? positionalArgs[0] : "fib";
 var repoRoot = FindRepoRoot();
 var manifestPath = Path.Combine(repoRoot, "tools", "profile-manifest.json");
 var manifest = LoadManifest(manifestPath);
@@ -58,18 +110,29 @@ if (!string.IsNullOrWhiteSpace(profile.Header))
     Console.WriteLine(header);
 }
 
-if (profile.FreshEnginePerIteration)
+if (engineKind == EngineKind.Jint)
+{
+    if (profile.FreshEnginePerIteration)
+    {
+        RunWithFreshJintEngines(script, profile, warmup, iterations, runsForAverage);
+    }
+    else
+    {
+        RunWithSharedJintEngine(script, profile, warmup, iterations, runsForAverage);
+    }
+}
+else if (profile.FreshEnginePerIteration)
 {
     await RunWithFreshEnginesAsync(script, isAsync, profile, traceRealm, warmup, iterations, runsForAverage);
 }
 else
 {
-    await RunWithSharedEngineAsync(script, isAsync, profile, traceRealm, warmup, iterations, runsForAverage);
+    await RunWithSharedEnginesAsync(script, isAsync, profile, traceRealm, warmup, iterations, runsForAverage);
 }
 
 await Task.CompletedTask;
 
-async Task RunWithSharedEngineAsync(
+async Task RunWithSharedEnginesAsync(
     string source,
     bool isAsyncRun,
     ProfileDefinition profile,
@@ -148,6 +211,67 @@ async Task EvaluateAsync(JsEngine engine, ProgramNode parsed, bool isAsyncRun)
     }
 }
 
+void RunWithSharedJintEngine(
+    string source,
+    ProfileDefinition profile,
+    int warmup,
+    int iterations,
+    int runsForAverage)
+{
+    using var engine = CreateJintEngine();
+
+    for (var i = 0; i < warmup; i++)
+    {
+        EvaluateJint(engine, source);
+    }
+
+    var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
+    for (var iter = 0; iter < iterations; iter++)
+    {
+        EvaluateJint(engine, source);
+        if (profile.ShowProgress)
+        {
+            Console.Write(".");
+        }
+    }
+
+    sw?.Stop();
+    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
+}
+
+void RunWithFreshJintEngines(
+    string source,
+    ProfileDefinition profile,
+    int warmup,
+    int iterations,
+    int runsForAverage)
+{
+    for (var i = 0; i < warmup; i++)
+    {
+        using var warmEngine = CreateJintEngine();
+        EvaluateJint(warmEngine, source);
+    }
+
+    var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
+    for (var iter = 0; iter < iterations; iter++)
+    {
+        using var engine = CreateJintEngine();
+        EvaluateJint(engine, source);
+        if (profile.ShowProgress)
+        {
+            Console.Write(".");
+        }
+    }
+
+    sw?.Stop();
+    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
+}
+
+void EvaluateJint(Engine engine, string source)
+{
+    _ = engine.Evaluate(source).ToObject();
+}
+
 void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAverage)
 {
     if (!profile.ShowTiming)
@@ -176,6 +300,29 @@ JsEngine CreateEngine(bool traceRealm)
 
     var logger = new ConsoleLogger("ProfileRunner");
     return new JsEngine(new JsEngineOptions { Logger = logger });
+}
+
+Engine CreateJintEngine()
+{
+    return new Engine(options => options.TimeoutInterval(TimeSpan.FromMinutes(5)));
+}
+
+bool TryParseEngineKind(string value, out EngineKind engineKind)
+{
+    if (string.Equals(value, "jint", StringComparison.OrdinalIgnoreCase))
+    {
+        engineKind = EngineKind.Jint;
+        return true;
+    }
+
+    if (string.Equals(value, "asynkron", StringComparison.OrdinalIgnoreCase))
+    {
+        engineKind = EngineKind.Asynkron;
+        return true;
+    }
+
+    engineKind = EngineKind.Asynkron;
+    return false;
 }
 
 static ProfileManifest LoadManifest(string manifestPath)
@@ -313,6 +460,12 @@ sealed class ProfileDefinition
     public string? TraceRealmEnv { get; init; }
 
     public int TraceRealmRuns { get; init; }
+}
+
+enum EngineKind
+{
+    Asynkron,
+    Jint
 }
 
 sealed class ConsoleLogger(string name) : ILogger

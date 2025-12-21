@@ -28,7 +28,7 @@ build_runner() {
 run_profile() {
   local profile_key=$1
   shift
-  (cd "$script_dir" && asynkron-profiler "$@" -- "${runner_cmd[@]}" "$profile_key")
+  (cd "$script_dir" && asynkron-profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "$profile_key")
 }
 
 if ! command -v asynkron-profiler &> /dev/null; then
@@ -53,6 +53,8 @@ done
 
 profile_key="fib"
 pass_args=()
+engine_args=()
+profiler_args=()
 
 if [[ ${#args[@]} -gt 0 && "${args[0]}" != -* ]]; then
   profile_key="${args[0]}"
@@ -61,15 +63,42 @@ else
   pass_args=("${args[@]}")
 fi
 
+i=0
+while [[ $i -lt ${#pass_args[@]} ]]; do
+  arg="${pass_args[$i]}"
+  case "$arg" in
+    --engine)
+      if [[ $((i + 1)) -lt ${#pass_args[@]} ]]; then
+        engine_args+=("$arg" "${pass_args[$((i + 1))]}")
+        i=$((i + 2))
+        continue
+      fi
+      ;;
+    --engine=*)
+      engine_args+=("$arg")
+      i=$((i + 1))
+      continue
+      ;;
+    --jint|--asynkron)
+      engine_args+=("$arg")
+      i=$((i + 1))
+      continue
+      ;;
+  esac
+
+  profiler_args+=("$arg")
+  i=$((i + 1))
+done
+
 if [[ "$profile_key" == "list" ]]; then
   build_runner
-  "${runner_cmd[@]}" list
+  "${runner_cmd[@]}" "${engine_args[@]}" list
   exit 0
 fi
 
 if [[ "$profile_key" == "all" ]]; then
   build_runner
-  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" "${pass_args[@]}"
+  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" --engine-args "${engine_args[@]}" --profiler-args "${profiler_args[@]}"
 import json
 import subprocess
 import sys
@@ -78,7 +107,21 @@ from pathlib import Path
 manifest_path = sys.argv[1]
 runner_exe = Path(sys.argv[2])
 runner_dll = Path(sys.argv[3])
-args = sys.argv[4:]
+raw_args = sys.argv[4:]
+engine_args = []
+profiler_args = []
+mode = "profiler"
+for arg in raw_args:
+    if arg == "--engine-args":
+        mode = "engine"
+        continue
+    if arg == "--profiler-args":
+        mode = "profiler"
+        continue
+    if mode == "engine":
+        engine_args.append(arg)
+    else:
+        profiler_args.append(arg)
 
 with open(manifest_path, "r", encoding="utf-8") as f:
     data = json.load(f)
@@ -89,11 +132,11 @@ runner_cmd = [str(runner_path)] if runner_path == runner_exe else ["dotnet", str
 
 profiles = sorted(data.get("profiles", {}).keys())
 for key in profiles:
-    cmd = ["asynkron-profiler", *args, "--", *runner_cmd, key]
+    cmd = ["asynkron-profiler", *profiler_args, "--", *runner_cmd, *engine_args, key]
     subprocess.run(cmd, check=True, cwd=str(tools_dir))
 PY
   exit 0
 fi
 
 build_runner
-run_profile "$profile_key" "${pass_args[@]}"
+run_profile "$profile_key" "${profiler_args[@]}"

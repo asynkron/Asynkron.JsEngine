@@ -57,6 +57,35 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Hel
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProfileRunner", "tools\ProfileRunner\ProfileRunner.csproj", "{36599B14-23F5-483B-A715-BFC5B1663D83}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{9BC3EB28-7705-423A-9DB2-6335CCB3A7A4}"
+	ProjectSection(SolutionItems) = preProject
+		tools\profile-scripts\forofiteration.js = tools\profile-scripts\forofiteration.js
+		tools\profile-scripts\asyncpending.js = tools\profile-scripts\asyncpending.js
+		tools\profile-scripts\asyncresolved.js = tools\profile-scripts\asyncresolved.js
+		tools\profile-scripts\asyncforof.js = tools\profile-scripts\asyncforof.js
+		tools\profile-scripts\asyncgen.js = tools\profile-scripts\asyncgen.js
+		tools\profile-scripts\generator.js = tools\profile-scripts\generator.js
+		tools\profile-scripts\asyncawait.js = tools\profile-scripts\asyncawait.js
+		tools\profile-scripts\promise.js = tools\profile-scripts\promise.js
+		tools\profile-scripts\regex.js = tools\profile-scripts\regex.js
+		tools\profile-scripts\json.js = tools\profile-scripts\json.js
+		tools\profile-scripts\mapset.js = tools\profile-scripts\mapset.js
+		tools\profile-scripts\spread.js = tools\profile-scripts\spread.js
+		tools\profile-scripts\destructuring.js = tools\profile-scripts\destructuring.js
+		tools\profile-scripts\classdef.js = tools\profile-scripts\classdef.js
+		tools\profile-scripts\propertyaccess.js = tools\profile-scripts\propertyaccess.js
+		tools\profile-scripts\recursion.js = tools\profile-scripts\recursion.js
+		tools\profile-scripts\closures.js = tools\profile-scripts\closures.js
+		tools\profile-scripts\functioncalls.js = tools\profile-scripts\functioncalls.js
+		tools\profile-scripts\stringops.js = tools\profile-scripts\stringops.js
+		tools\profile-scripts\arrayops.js = tools\profile-scripts\arrayops.js
+		tools\profile-scripts\objectcreation.js = tools\profile-scripts\objectcreation.js
+		tools\profile-scripts\whileloop.js = tools\profile-scripts\whileloop.js
+		tools\profile-scripts\simplearithmetic.js = tools\profile-scripts\simplearithmetic.js
+		tools\profile-scripts\forloop.js = tools\profile-scripts\forloop.js
+		tools\profile-scripts\fib.js = tools\profile-scripts\fib.js
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -190,5 +219,6 @@ Global
 		{D5E6F7A8-B9C0-4D1E-2F3A-4B5C6D7E8F9A} = {F8A3D1E2-B4C5-4D6E-8F9A-0B1C2D3E4F5A}
 		{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{36599B14-23F5-483B-A715-BFC5B1663D83} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
+		{9BC3EB28-7705-423A-9DB2-6335CCB3A7A4} = {95C5BFA4-0A4E-46B9-AB43-9040A770C140}
 	EndGlobalSection
 EndGlobal

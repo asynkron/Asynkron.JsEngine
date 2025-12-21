@@ -16,26 +16,16 @@ public sealed partial record AwaitExpression
 
     Symbol IAstCacheable<Symbol>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedAwaitStateKey, this, static self => self.BuildAwaitStateKey());
+        return AstCache.GetOrCreate(ref _cachedAwaitStateKey, this, static _ => BuildAwaitStateKey());
     }
 
-    private Symbol BuildAwaitStateKey()
+    private static Symbol BuildAwaitStateKey()
     {
-        if (Source is null)
-        {
-            var id = Interlocked.Increment(ref NextAwaitStateId);
-            var key = string.Format(
-                CultureInfo.InvariantCulture,
-                "__await_state_{0}",
-                id);
-            return Symbol.Intern(key);
-        }
-
-        var keyWithSource = string.Format(
+        var id = Interlocked.Increment(ref NextAwaitStateId);
+        var key = string.Format(
             CultureInfo.InvariantCulture,
-            "__await_state_{0}_{1}",
-            Source.StartPosition,
-            Source.EndPosition);
-        return Symbol.Intern(keyWithSource);
+            "__await_state_{0}",
+            id);
+        return Symbol.Intern(key);
     }
 }

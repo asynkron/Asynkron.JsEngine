@@ -486,6 +486,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         // Scope analysis: resolve variable references to slot indices for O(1) lookup
         typedProgram = _scopeAnalyzer.Analyze(typedProgram);
+        AstCacheWarmup.Warm(typedProgram);
 
         // NOTE: CPS transformation is no longer used for async functions.
         // Async functions now use the same IR executor as generators, with

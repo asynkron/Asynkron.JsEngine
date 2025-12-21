@@ -70,7 +70,7 @@ public sealed partial class FunctionPrototype : JsPrototype
 
     private void AttachHasInstance()
     {
-        var hasInstanceKey = SymbolKeys.GetHasInstance(Realm);
+        var hasInstanceKey = SymbolKeys.HasInstance;
         var hasInstance = new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> args) =>
         {
             if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))

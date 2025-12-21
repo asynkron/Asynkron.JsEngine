@@ -12,7 +12,7 @@ public sealed partial class ObjectPrototype : JsPrototype
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var tagKey = SymbolKeys.GetToStringTag(Realm);
+        var tagKey = SymbolKeys.ToStringTag;
         if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
         {
             if (obj.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)

@@ -58,4 +58,10 @@ public sealed partial record FunctionExpression
 
         return cache;
     }
+
+    internal void WarmGeneratorPlanCache()
+    {
+        _ = AstCache.GetOrCreate(ref _cachedGeneratorPlan, this,
+            static function => GeneratorPlanCache.Build(function, reportDiagnostics: false));
+    }
 }

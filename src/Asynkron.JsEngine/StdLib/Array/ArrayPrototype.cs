@@ -22,7 +22,7 @@ public sealed partial class ArrayPrototype
                 Configurable = false
             });
 
-        var iteratorKey = SymbolKeys.GetIterator(Realm);
+        var iteratorKey = SymbolKeys.Iterator;
         if (Prototype.TryGetProperty("values", out var valuesFunction))
         {
             Prototype.DefineProperty(iteratorKey,

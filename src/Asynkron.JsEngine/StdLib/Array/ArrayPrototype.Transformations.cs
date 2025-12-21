@@ -40,7 +40,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("toString", Length = 0d)]
-    public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToString(JsValue thisValue)
     {
         var target = ToObjectPropertyAccessor(thisValue, "Array.prototype.toString", Realm);
 
@@ -491,7 +491,7 @@ public sealed partial class ArrayPrototype
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
-    public JsValue ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue ToReversed(JsValue thisValue)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toReversed", Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;

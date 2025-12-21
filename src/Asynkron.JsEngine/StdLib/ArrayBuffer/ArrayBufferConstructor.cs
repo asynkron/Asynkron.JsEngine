@@ -35,7 +35,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             return JsValue.FromObjectUnsafe(ConstructBuffer(args, effectiveNewTarget));
         });
 
-        var speciesKey = SymbolKeys.GetSpecies(Realm);
+        var speciesKey = SymbolKeys.Species;
         var speciesGetter = new HostFunction((thisVal, _) => thisVal, Realm)
         {
             IsConstructor = false

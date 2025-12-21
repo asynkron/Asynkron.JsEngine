@@ -37,7 +37,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             return JsValue.FromObjectUnsafe(ConstructBuffer(args, effectiveNewTarget));
         });
 
-        var speciesKey = SymbolKeys.GetSpecies(Realm);
+        var speciesKey = SymbolKeys.Species;
         constructor.DefineProperty(speciesKey,
             new PropertyDescriptor
             {

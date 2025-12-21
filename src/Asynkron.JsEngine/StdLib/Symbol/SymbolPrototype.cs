@@ -30,7 +30,7 @@ public sealed partial class SymbolPrototype
 
     protected override void ConfigurePrototype()
     {
-        var toPrimitiveKey = SymbolKeys.GetToPrimitive(Realm);
+        var toPrimitiveKey = SymbolKeys.ToPrimitive;
         Prototype.SetProperty(toPrimitiveKey,
             new HostFunction((thisValue, _) =>
             {
@@ -38,7 +38,7 @@ public sealed partial class SymbolPrototype
                 return new JsValue(JsValueKind.Symbol, 0.0, symbol);
             }, Realm, isConstructor: false));
 
-        var toStringTagKey = SymbolKeys.GetToStringTag(Realm);
+        var toStringTagKey = SymbolKeys.ToStringTag;
         Prototype.SetProperty(toStringTagKey, "Symbol");
     }
 }

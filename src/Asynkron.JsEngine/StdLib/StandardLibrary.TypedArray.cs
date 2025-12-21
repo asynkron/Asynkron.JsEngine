@@ -15,7 +15,7 @@ public static partial class StandardLibrary
         {
             var proto = new JsObject(realm.ObjectPrototype);
 
-            var tagKey = SymbolKeys.GetToStringTag(realm);
+            var tagKey = SymbolKeys.ToStringTag;
             proto.DefineProperty(tagKey,
                 new PropertyDescriptor
                 {
@@ -30,7 +30,7 @@ public static partial class StandardLibrary
                 (thisValue, reduceArgs, realmState) =>
                     TypedArrayReduce(thisValue, reduceArgs, realmState, "%TypedArray%.prototype.reduceRight", true),
                 realm);
-            var iteratorKey = SymbolKeys.GetIterator(realm);
+            var iteratorKey = SymbolKeys.Iterator;
 
             var valuesIterator = new HostFunction((thisValue, _) =>
             {
@@ -157,7 +157,7 @@ public static partial class StandardLibrary
         constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
         prototype.SetPrototype(realm.ObjectPrototype);
         prototype.SetProperty("constructor", (JsValue)constructor);
-        var toStringTagKey = SymbolKeys.GetToStringTag(realm);
+        var toStringTagKey = SymbolKeys.ToStringTag;
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {

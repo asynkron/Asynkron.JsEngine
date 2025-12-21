@@ -127,7 +127,7 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
-                if (TryRewriteVariableDeclaration(statement, isStrict, out var replacement))
+                if (TryRewriteVariableDeclaration(statement, out var replacement))
                 {
                     builder.AddRange(replacement);
                     changed = true;
@@ -974,7 +974,7 @@ internal static class GeneratorYieldLowerer
             return true;
         }
 
-        private bool TryRewriteVariableDeclaration(StatementNode statement, bool isStrict,
+        private bool TryRewriteVariableDeclaration(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
             if (statement is not VariableDeclaration { Declarators.Length: 1 } declaration)

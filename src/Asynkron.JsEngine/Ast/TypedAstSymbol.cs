@@ -142,15 +142,8 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 
     public static string PropertyKey(string wellKnownName, RealmState? realm = null)
     {
-        if (realm is not null && realm.TryGetSymbolPropertyKey(wellKnownName, out var cached))
-        {
-            return cached;
-        }
-
-        var computed = PropertyKey(For(wellKnownName));
-        realm?.GetSymbolPropertyKey(wellKnownName);
-
-        return computed;
+        _ = realm;
+        return PropertyKey(For(wellKnownName));
     }
 
     public override string ToString()

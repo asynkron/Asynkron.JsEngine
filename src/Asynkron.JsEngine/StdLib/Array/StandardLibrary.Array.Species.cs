@@ -298,21 +298,17 @@ public static partial class StandardLibrary
         {
             accessor = propertyAccessor;
         }
-        else if (!TryGetObject(candidate, realm, out var boxed))
-        {
-            return false;
-        }
         else
         {
+            if (!TryGetObject(candidate, realm, out var boxed))
+            {
+                return false;
+            }
+
             accessor = boxed;
         }
 
-        if (!IsArrayObject(candidate, realm, operation))
-        {
-            return false;
-        }
-
-        return true;
+        return IsArrayObject(candidate, realm, operation);
     }
 
     internal static JsValue UnwrapProxy(JsValue candidate, RealmState? realm, string operation)
@@ -338,12 +334,7 @@ public static partial class StandardLibrary
         {
             if (inspected.TryGetObject<JsArray>(out var array))
             {
-                if (array.TryGetProperty("__arguments__", out var isArgs) && isArgs.TryGetBoolean(out var isArgsValue) && isArgsValue)
-                {
-                    return false;
-                }
-
-                return true;
+                return !array.TryGetProperty("__arguments__", out var isArgs) || !isArgs.TryGetBoolean(out var isArgsValue) || !isArgsValue;
             }
 
             if (inspected.TryGetObject<JsProxy>(out var proxy))

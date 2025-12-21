@@ -102,7 +102,7 @@ public sealed partial class MapPrototype
 
         Realm.MapPrototype ??= Prototype as JsObject;
 
-        var iteratorKey = SymbolKeys.GetIterator(Realm);
+        var iteratorKey = SymbolKeys.Iterator;
         if (Prototype.TryGetProperty("entries", out var entries))
         {
             Prototype.DefineProperty(iteratorKey,

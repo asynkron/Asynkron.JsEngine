@@ -10,7 +10,8 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal static class GeneratorIrBuilder
 {
-    public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
+    public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason,
+        bool reportDiagnostics = true)
     {
         // All function kinds (generators, async generators, pure async) use the same IR builder.
         // The difference is in how they're executed:
@@ -19,7 +20,10 @@ internal static class GeneratorIrBuilder
         // - Pure async functions: run to completion with await suspension
         var succeeded = SyncGeneratorIrBuilder.TryBuild(function, out plan, out failureReason);
 
-        GeneratorIrDiagnostics.ReportResult(function, succeeded, failureReason);
+        if (reportDiagnostics)
+        {
+            GeneratorIrDiagnostics.ReportResult(function, succeeded, failureReason);
+        }
         return succeeded;
     }
 }

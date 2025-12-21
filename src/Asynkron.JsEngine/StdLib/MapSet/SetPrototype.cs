@@ -94,7 +94,7 @@ public sealed partial class SetPrototype
 
         Realm.SetPrototype ??= Prototype as JsObject;
 
-        var iteratorKey = SymbolKeys.GetIterator(Realm);
+        var iteratorKey = SymbolKeys.Iterator;
         if (Prototype.TryGetProperty("values", out var values))
         {
             Prototype.DefineProperty(iteratorKey,

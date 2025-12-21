@@ -25,7 +25,7 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
         return instance;
     }
 
-    internal static void InitializeLocaleSlots(JsObject target, string canonicalTag, RealmState realm)
+    internal static void InitializeLocaleSlots(JsObject target, string canonicalTag, RealmState realmState)
     {
         var baseName = ExtractBaseName(canonicalTag);
         var (language, script, region, variants) = ParseBaseName(baseName);

@@ -63,7 +63,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.DefinePropertyDirect("__arguments__",
             new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
 
-        var tagKey = SymbolKeys.GetToStringTag(realm);
+        var tagKey = SymbolKeys.ToStringTag;
         _backing.DefinePropertyDirect(tagKey,
             new PropertyDescriptor { Value = "Arguments", Writable = false, Enumerable = false, Configurable = true });
 
@@ -92,7 +92,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _backing.DefinePropertyDirect("callee", _calleeDescriptor);
         }
 
-        var iteratorKey = SymbolKeys.GetIterator(realm);
+        var iteratorKey = SymbolKeys.Iterator;
         if (TryGetArrayIterator(realm, iteratorKey, out var iteratorValue))
         {
             _backing.DefinePropertyDirect(iteratorKey,

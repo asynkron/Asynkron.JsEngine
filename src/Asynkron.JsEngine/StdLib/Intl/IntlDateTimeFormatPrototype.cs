@@ -60,7 +60,7 @@ public sealed partial class IntlDateTimeFormatPrototype
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
-    private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _unused)
+    private JsValue ResolvedOptions(JsValue thisValue)
     {
         var slots = ValidateReceiver(thisValue, out _);
         var obj = new JsObject(Realm.ObjectPrototype);

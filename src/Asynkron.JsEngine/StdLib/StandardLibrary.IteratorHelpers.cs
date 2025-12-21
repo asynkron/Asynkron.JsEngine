@@ -66,7 +66,7 @@ public static partial class StandardLibrary
 
             static bool TryInvokeSymbolIterator(JsObject target, TypedAstSymbol symbol, out JsObject? iterator)
             {
-                var propertyName = SymbolKeys.GetKey(symbol, target.RealmState);
+                var propertyName = TypedAstSymbol.PropertyKey(symbol);
                 if (target.TryGetProperty(propertyName, out var method) && method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
                 {
                     var result = callable.Invoke([], new JsValue(target));

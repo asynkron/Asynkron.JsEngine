@@ -72,9 +72,6 @@ internal sealed class BaseRealmSnapshot
 
     private sealed class RealmCloner
     {
-        private static readonly FieldInfo RealmStateSymbolKeysField =
-            typeof(RealmState).GetField("_symbolPropertyKeys", BindingFlags.Instance | BindingFlags.NonPublic)!;
-
         private readonly JsEngine _templateEngine;
         private readonly JsObject _templateGlobal;
         private readonly RealmState _templateRealm;
@@ -115,16 +112,6 @@ internal sealed class BaseRealmSnapshot
 
         private void CloneRealmState()
         {
-            // Copy cached well-known symbol property keys for perf.
-            if (RealmStateSymbolKeysField.GetValue(_templateRealm) is Dictionary<string, string> baseKeys &&
-                RealmStateSymbolKeysField.GetValue(_newRealm) is Dictionary<string, string> newKeys)
-            {
-                foreach (var kv in baseKeys)
-                {
-                    newKeys[kv.Key] = kv.Value;
-                }
-            }
-
             foreach (var prop in typeof(RealmState).GetProperties(BindingFlags.Instance | BindingFlags.Public))
             {
                 if (!prop.CanRead || !prop.CanWrite)

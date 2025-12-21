@@ -22,7 +22,7 @@ public sealed partial class ConsolePrototype
     }
 
     [JsHostMethod("warn", Length = 0d)]
-    public JsValue Warn(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue Warn(IReadOnlyList<JsValue> args)
     {
         Console.WriteLine($"Warning: {FormatConsoleArgs(args)}");
         return JsValue.Undefined;

@@ -346,7 +346,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        if (TryGetPropertyValue(targetJs.ToObject(), "formatArgs", out var innerValue) &&
+                        if (TryGetPropertyValue(targetJs.ObjectValue, "formatArgs", out var innerValue) &&
                             innerValue is IJsCallable innerFunction)
                         {
                             return innerFunction.InvokeWithCall(expression.Arguments, environment, context);
@@ -354,17 +354,18 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                var calleeObj = callee.ToObject();
-                var typeName = calleeObj?.GetType().Name ?? "null";
+                var calleeObj = callee.Kind == JsValueKind.Object ? callee.ObjectValue : null;
+                var typeName = calleeObj?.GetType().Name ?? callee.Kind.ToString();
                 var sourceInfo = context.GetSourceInfo(expression.Source);
                 var symbolName = calleeObj is Symbol sym ? sym.Name : null;
                 var symbolSuffix = symbolName is null ? string.Empty : $" (symbol '{symbolName}')";
                 var calleeDescription = expression.Callee.DescribeCallee();
+                var thisObj = thisValue.Kind == JsValueKind.Object ? thisValue.ObjectValue : null;
                 context.RealmState.Logger?.LogInformation(
                     "[EvaluateCall] Non-callable callee={Callee} type={Type} thisValueType={ThisType}{SymbolSuffix}{SourceInfo}",
                     calleeDescription,
                     typeName,
-                    thisValue.ToObject()?.GetType().Name ?? "null",
+                    thisObj?.GetType().Name ?? thisValue.Kind.ToString(),
                     symbolSuffix,
                     sourceInfo);
                 var error = StandardLibrary.CreateTypeError(
@@ -499,11 +500,11 @@ public static partial class TypedAstEvaluator
 
                 if (expression.Callee is SuperExpression)
                 {
-                    var callResultObj = callResult.ToObject();
+                    var callResultObj = callResult.Kind == JsValueKind.Object ? callResult.ObjectValue : null;
                     var thisAfterSuper = callResultObj;
                     if (callResultObj is not JsObject && callResultObj is not IJsObjectLike)
                     {
-                        thisAfterSuper = thisValue.ToObject();
+                        thisAfterSuper = thisValue.Kind == JsValueKind.Object ? thisValue.ObjectValue : null;
                     }
 
                     if (context is not null)
@@ -528,7 +529,7 @@ public static partial class TypedAstEvaluator
                             context.RealmState?.Logger?.LogInformation(
                                 "Super call pre-check thisInit env={Env} value={Value}",
                                 thisInitializationEnvironment.GetHashCode(),
-                                alreadyInitialized.ToObject());
+                                alreadyInitialized.Kind == JsValueKind.Object ? alreadyInitialized.ObjectValue : alreadyInitialized.Kind.ToString());
                             if (JsOps.ToBoolean(alreadyInitialized))
                             {
                                 throw StandardLibrary.ThrowReferenceError(
@@ -602,9 +603,10 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal)
             {
+                var thrownObj = signal.ThrownValue.Kind == JsValueKind.Object ? signal.ThrownValue.ObjectValue : null;
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateCall caught ThrowSignal type={Type} calleeType={CalleeType}",
-                    signal.ThrownValue.ToObject()?.GetType().Name ?? "null",
+                    thrownObj?.GetType().Name ?? signal.ThrownValue.Kind.ToString(),
                     callable.GetType().Name);
                 if (isAsyncCallable)
                 {

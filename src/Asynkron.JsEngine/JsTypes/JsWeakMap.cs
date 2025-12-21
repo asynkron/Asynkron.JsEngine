@@ -92,8 +92,28 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         // Use AddOrUpdate to set the value
         // Store the underlying object (boxing unavoidable for ConditionalWeakTable)
         _entries.Remove(keyObj);
-        _entries.Add(keyObj, value.ToObject());
+        _entries.Add(keyObj, ExtractValueObject(value));
         return this;
+    }
+
+    /// <summary>
+    /// Extracts the underlying value from a JsValue for storage.
+    /// For primitives, returns a boxed value. For objects, returns the object reference.
+    /// </summary>
+    private static object? ExtractValueObject(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => value.NumberValue != 0,  // Box boolean
+            JsValueKind.Number => value.NumberValue,         // Box number
+            JsValueKind.String => value.ObjectValue ?? string.Empty,
+            JsValueKind.Symbol => value.ObjectValue ?? throw new InvalidOperationException("Symbol value cannot be null"),
+            JsValueKind.BigInt => value.ObjectValue ?? throw new InvalidOperationException("BigInt value cannot be null"),
+            JsValueKind.Object => value.ObjectValue ?? throw new InvalidOperationException("Object value cannot be null"),
+            _ => throw new InvalidOperationException($"Unexpected value kind: {value.Kind}")
+        };
     }
 
     /// <summary>
@@ -147,12 +167,13 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
             return null;
         }
 
-        var obj = key.ToObject();
+        // Extract the object directly from the JsValue
+        var obj = key.ObjectValue;
 
         // Handle potentially boxed JsValue (shouldn't happen normally)
         while (obj is JsValue nested)
         {
-            obj = nested.ToObject();
+            obj = nested.ObjectValue;
         }
 
         return IsObject(obj) ? obj : null;

@@ -658,7 +658,7 @@ public class TypedArrayTests
                                            """);
         Assert.Equal(2d, result); // Elements at indices 3, 4
     }
-    
+
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Map_UsesSpeciesConstructor()
     {

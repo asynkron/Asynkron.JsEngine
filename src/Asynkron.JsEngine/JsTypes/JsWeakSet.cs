@@ -130,12 +130,13 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
             return null;
         }
 
-        var obj = value.ToObject();
+        // Extract the object directly from the JsValue
+        var obj = value.ObjectValue;
 
         // Handle potentially boxed JsValue (shouldn't happen normally)
         while (obj is JsValue nested)
         {
-            obj = nested.ToObject();
+            obj = nested.ObjectValue;
         }
 
         return IsObject(obj) ? obj : null;

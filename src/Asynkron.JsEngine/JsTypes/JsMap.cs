@@ -166,7 +166,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - extract object for dictionary storage
-        var keyObj = key.ToObject()!;
+        var keyObj = ExtractKeyObject(key);
         if (!_map.ContainsKey(keyObj))
         {
             _insertionOrder.Add(keyObj);
@@ -193,8 +193,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        var keyObj = key.ToObject();
-        return keyObj is not null && _map.TryGetValue(keyObj, out var value) ? value : JsValue.Undefined;
+        var keyObj = ExtractKeyObject(key);
+        return _map.TryGetValue(keyObj, out var value) ? value : JsValue.Undefined;
     }
 
     /// <summary>
@@ -215,8 +215,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        var keyObj = key.ToObject();
-        return keyObj is not null && _map.ContainsKey(keyObj);
+        var keyObj = ExtractKeyObject(key);
+        return _map.ContainsKey(keyObj);
     }
 
     /// <summary>
@@ -246,8 +246,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular key - use dictionary
-        var keyObj = key.ToObject();
-        if (keyObj is null || !_map.Remove(keyObj)) return false;
+        var keyObj = ExtractKeyObject(key);
+        if (!_map.Remove(keyObj)) return false;
         _insertionOrder.Remove(keyObj);
         return true;
     }
@@ -263,6 +263,24 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _nullValue = JsValue.Undefined;
         _hasUndefinedKey = false;
         _undefinedValue = JsValue.Undefined;
+    }
+
+    /// <summary>
+    /// Extracts the key object from a JsValue for dictionary storage.
+    /// For primitives, returns a boxed value. For objects, returns the object reference.
+    /// </summary>
+    private static object ExtractKeyObject(JsValue key)
+    {
+        return key.Kind switch
+        {
+            JsValueKind.Boolean => key.NumberValue != 0,  // Box boolean
+            JsValueKind.Number => key.NumberValue,         // Box number
+            JsValueKind.String => key.ObjectValue ?? string.Empty,
+            JsValueKind.Symbol => key.ObjectValue ?? throw new InvalidOperationException("Symbol key cannot be null"),
+            JsValueKind.BigInt => key.ObjectValue ?? throw new InvalidOperationException("BigInt key cannot be null"),
+            JsValueKind.Object => key.ObjectValue ?? throw new InvalidOperationException("Object key cannot be null"),
+            _ => throw new InvalidOperationException($"Unexpected key kind: {key.Kind}")
+        };
     }
 
     /// <summary>

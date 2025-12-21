@@ -141,8 +141,8 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - convert to object for HashSet storage
-        var value = jsValue.ToObject();
-        if (value is not null && _set.Add(value))
+        var value = ExtractValueObject(jsValue);
+        if (_set.Add(value))
         {
             _insertionOrder.Add(value);
         }
@@ -167,8 +167,8 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - use HashSet
-        var value = jsValue.ToObject();
-        return value is not null && _set.Contains(value);
+        var value = ExtractValueObject(jsValue);
+        return _set.Contains(value);
     }
 
     /// <summary>
@@ -196,10 +196,28 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         // Regular value - use HashSet
-        var value = jsValue.ToObject();
-        if (value is null || !_set.Remove(value)) return false;
+        var value = ExtractValueObject(jsValue);
+        if (!_set.Remove(value)) return false;
         _insertionOrder.Remove(value);
         return true;
+    }
+
+    /// <summary>
+    /// Extracts the underlying value from a JsValue for HashSet storage.
+    /// For primitives, returns a boxed value. For objects, returns the object reference.
+    /// </summary>
+    private static object ExtractValueObject(JsValue jsValue)
+    {
+        return jsValue.Kind switch
+        {
+            JsValueKind.Boolean => jsValue.NumberValue != 0,  // Box boolean
+            JsValueKind.Number => jsValue.NumberValue,         // Box number
+            JsValueKind.String => jsValue.ObjectValue ?? string.Empty,
+            JsValueKind.Symbol => jsValue.ObjectValue ?? throw new InvalidOperationException("Symbol value cannot be null"),
+            JsValueKind.BigInt => jsValue.ObjectValue ?? throw new InvalidOperationException("BigInt value cannot be null"),
+            JsValueKind.Object => jsValue.ObjectValue ?? throw new InvalidOperationException("Object value cannot be null"),
+            _ => throw new InvalidOperationException($"Unexpected value kind: {jsValue.Kind}")
+        };
     }
 
     /// <summary>

@@ -51,7 +51,18 @@ internal static class JsValueExtensions
             return value switch
             {
                 null => 0,
-                JsValue jsValue => jsValue.ToObject().ToNumber(),
+                JsValue jsValue => jsValue.Kind switch
+                {
+                    JsValueKind.Undefined => double.NaN,
+                    JsValueKind.Null => 0,
+                    JsValueKind.Boolean => jsValue.NumberValue,
+                    JsValueKind.Number => jsValue.NumberValue,
+                    JsValueKind.String => StringToNumber(jsValue.ObjectValue as string ?? string.Empty),
+                    JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number"),
+                    JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi ? (double)bi.Value : double.NaN,
+                    JsValueKind.Object => jsValue.ObjectValue.ToNumber(),
+                    _ => double.NaN
+                },
                 Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
                 IIsHtmlDda => double.NaN,
                 JsBigInt bigInt => (double)bigInt.Value,
@@ -89,10 +100,21 @@ internal static class JsValueExtensions
                 return "null";
             }
 
-            // Handle JsValue struct - unwrap and recurse
+            // Handle JsValue struct - unwrap based on kind to avoid boxing
             if (value is JsValue jsValue)
             {
-                return jsValue.ToObject().ToJsString(context, realm);
+                return jsValue.Kind switch
+                {
+                    JsValueKind.Undefined => "undefined",
+                    JsValueKind.Null => "null",
+                    JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
+                    JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
+                    JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
+                    JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realm ?? context?.RealmState),
+                    JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi ? bi.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                    JsValueKind.Object => jsValue.ObjectValue.ToJsString(context, realm),
+                    _ => string.Empty
+                };
             }
 
             if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
@@ -165,10 +187,28 @@ internal static class JsValueExtensions
                 return string.Empty;
             }
 
-            // Handle JsValue struct - unwrap and recurse
+            // Handle JsValue struct - unwrap based on kind to avoid boxing
             if (value is JsValue jsValue)
             {
-                return jsValue.ToObject().ToJsStringForArray(context, realm);
+                // For array join, undefined and null become empty string
+                if (jsValue.IsNullOrUndefined)
+                {
+                    return string.Empty;
+                }
+                // For objects, recurse with the underlying object
+                if (jsValue.Kind == JsValueKind.Object)
+                {
+                    return jsValue.ObjectValue.ToJsStringForArray(context, realm);
+                }
+                // For primitives, use ToJsString which handles them directly
+                return jsValue.Kind switch
+                {
+                    JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
+                    JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
+                    JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
+                    JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi ? bi.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                    _ => string.Empty
+                };
             }
 
             return value.ToJsString(context, realm);

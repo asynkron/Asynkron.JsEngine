@@ -125,7 +125,7 @@ internal static class JsOps
     {
         if (value is JsValue jsValue)
         {
-            value = jsValue.ToObject();
+            return jsValue.IsNullOrUndefined;
         }
         return value is null ||
                (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined));
@@ -299,10 +299,8 @@ internal static class JsOps
                         case JsValueKind.String:
                         case JsValueKind.Symbol:
                         case JsValueKind.Object:
-                            value = jsValue.ObjectValue;
-                            continue;
                         default:
-                            value = jsValue.ToObject();
+                            value = jsValue.ObjectValue;
                             continue;
                     }
                 case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
@@ -822,8 +820,30 @@ internal static class JsOps
 
     public static bool LooseEquals(JsValue left, JsValue right, EvaluationContext? context = null)
     {
-        // Delegate to object? version which handles the coercion loop
-        return LooseEquals(left.ToObject(), right.ToObject(), context);
+        // Fast path for same-type comparisons
+        if (left.Kind == right.Kind)
+        {
+            return left.Kind switch
+            {
+                JsValueKind.Undefined => true,
+                JsValueKind.Null => true,
+                JsValueKind.Boolean => left.NumberValue == right.NumberValue,
+                JsValueKind.Number => left.NumberValue == right.NumberValue, // NaN != NaN per IEEE 754
+                JsValueKind.String => string.Equals(left.ObjectValue as string, right.ObjectValue as string, StringComparison.Ordinal),
+                JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
+                JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi && lbi == rbi,
+                JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),
+                _ => false
+            };
+        }
+        // Fast path for null/undefined comparison
+        if ((left.Kind == JsValueKind.Null && right.Kind == JsValueKind.Undefined) ||
+            (left.Kind == JsValueKind.Undefined && right.Kind == JsValueKind.Null))
+        {
+            return true;
+        }
+        // Delegate to object? version for type coercion
+        return LooseEquals(ExtractValueForComparison(left), ExtractValueForComparison(right), context);
     }
 
     public static bool LooseEquals(object? left, object? right, EvaluationContext? context = null)
@@ -928,7 +948,17 @@ internal static class JsOps
 
     public static bool GreaterThan(JsValue left, JsValue right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.GreaterThan, context);
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
+            return left.NumberValue > right.NumberValue;
+        }
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
+        }
+        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right), ComparisonOperator.GreaterThan, context);
     }
 
     public static bool GreaterThan(object? left, object? right, EvaluationContext? context = null)
@@ -938,7 +968,17 @@ internal static class JsOps
 
     public static bool GreaterThanOrEqual(JsValue left, JsValue right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.GreaterThanOrEqual, context);
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
+            return left.NumberValue >= right.NumberValue;
+        }
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
+        }
+        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right), ComparisonOperator.GreaterThanOrEqual, context);
     }
 
     public static bool GreaterThanOrEqual(object? left, object? right, EvaluationContext? context = null)
@@ -948,7 +988,17 @@ internal static class JsOps
 
     public static bool LessThan(JsValue left, JsValue right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.LessThan, context);
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
+            return left.NumberValue < right.NumberValue;
+        }
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
+        }
+        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right), ComparisonOperator.LessThan, context);
     }
 
     public static bool LessThan(object? left, object? right, EvaluationContext? context = null)
@@ -958,7 +1008,33 @@ internal static class JsOps
 
     public static bool LessThanOrEqual(JsValue left, JsValue right, EvaluationContext? context = null)
     {
-        return PerformComparisonOperation(left.ToObject(), right.ToObject(), ComparisonOperator.LessThanOrEqual, context);
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
+            return left.NumberValue <= right.NumberValue;
+        }
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
+        }
+        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right), ComparisonOperator.LessThanOrEqual, context);
+    }
+
+    /// <summary>
+    /// Extracts the underlying value from a JsValue for use in comparison operations.
+    /// For numbers and booleans, returns a boxed value. For other types, returns ObjectValue.
+    /// </summary>
+    private static object? ExtractValueForComparison(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => Symbol.Undefined,
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => value.NumberValue != 0,
+            JsValueKind.Number => value.NumberValue,
+            _ => value.ObjectValue
+        };
     }
 
     public static bool LessThanOrEqual(object? left, object? right, EvaluationContext? context = null)
@@ -1269,9 +1345,31 @@ internal static class JsOps
                 case null:
                     return "null";
                 case JsValue jsValue:
-                    // Unwrap JsValue and continue with the inner value
-                    value = jsValue.ToObject();
-                    continue;
+                    // Handle JsValue based on kind to avoid boxing
+                    switch (jsValue.Kind)
+                    {
+                        case JsValueKind.Null:
+                            return "null";
+                        case JsValueKind.Undefined:
+                            return "undefined";
+                        case JsValueKind.Boolean:
+                            return jsValue.NumberValue != 0 ? "true" : "false";
+                        case JsValueKind.Number:
+                            return ToCanonicalNumberString(jsValue.NumberValue);
+                        case JsValueKind.String:
+                            return jsValue.ObjectValue as string ?? string.Empty;
+                        case JsValueKind.BigInt:
+                            return jsValue.ObjectValue is JsBigInt bi ? bi.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+                        case JsValueKind.Symbol:
+                            if (jsValue.ObjectValue is TypedAstSymbol sym)
+                                return TypedAstSymbol.PropertyKey(sym);
+                            if (jsValue.ObjectValue is Symbol s)
+                                return s.Name;
+                            return null;
+                        default:
+                            value = jsValue.ObjectValue;
+                            continue;
+                    }
                 case string s:
                     return s;
                 case JsBigInt bigInt:
@@ -1811,7 +1909,14 @@ internal static class JsOps
     /// </summary>
     public static bool HasProperty(JsValue target, string propertyName)
     {
-        return HasProperty(target.ToObject(), propertyName);
+        // Fast path: only objects can have properties via prototype chain
+        if (target.Kind == JsValueKind.Object)
+        {
+            return HasProperty(target.ObjectValue, propertyName);
+        }
+        // Primitives boxed into objects would have gone through the object path
+        // but a raw JsValue primitive doesn't have properties to check
+        return false;
     }
 
     /// <summary>
@@ -1869,7 +1974,17 @@ internal static class JsOps
     public static bool TryGetPropertyValue(JsValue target, string propertyName, out JsValue value,
         EvaluationContext? context = null)
     {
-        if (TryGetPropertyValue(target.ToObject(), propertyName, out var objValue, context))
+        // Fast path: for objects, use ObjectValue directly
+        object? targetObj = target.Kind switch
+        {
+            JsValueKind.Object => target.ObjectValue,
+            JsValueKind.String => target.ObjectValue,
+            JsValueKind.Symbol => target.ObjectValue,
+            JsValueKind.BigInt => target.ObjectValue,
+            _ => null // Primitives like numbers/booleans don't have properties directly
+        };
+
+        if (targetObj != null && TryGetPropertyValue(targetObj, propertyName, out var objValue, context))
         {
             value = objValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(objValue);
             return true;
@@ -1884,7 +1999,14 @@ internal static class JsOps
         // Unwrap JsValue early so property access works on wrapped callables/objects
         if (target is JsValue jsVal)
         {
-            target = jsVal.ToObject();
+            target = jsVal.Kind switch
+            {
+                JsValueKind.Object => jsVal.ObjectValue,
+                JsValueKind.String => jsVal.ObjectValue,
+                JsValueKind.Symbol => jsVal.ObjectValue,
+                JsValueKind.BigInt => jsVal.ObjectValue,
+                _ => null
+            };
         }
 
         if (target is IJsPropertyAccessor propertyAccessor)
@@ -2103,7 +2225,10 @@ internal static class JsOps
             switch (value)
             {
                 case JsValue jsValue:
-                    value = jsValue.ToObject();
+                    // Only objects can be constructors
+                    if (jsValue.Kind != JsValueKind.Object)
+                        return false;
+                    value = jsValue.ObjectValue;
                     continue;
                 case JsProxy proxy:
                     value = proxy.Target;

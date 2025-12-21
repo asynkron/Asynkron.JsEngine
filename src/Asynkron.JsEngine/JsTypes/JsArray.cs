@@ -21,7 +21,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private static readonly JsValue ArrayHole = new(JsValueKind.Object, 0.0, ArrayHoleSentinel);
 
     private static bool IsArrayHole(JsValue value) =>
-        value.Kind == JsValueKind.Object && ReferenceEquals(value.ToObject(), ArrayHoleSentinel);
+        value.Kind == JsValueKind.Object && ReferenceEquals(value.ObjectValue, ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
     private readonly List<JsValue> _items = [];
 
@@ -343,8 +343,16 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 continue;
             }
 
-            var obj = item.ToObject();
-            parts.Add(Convert.ToString(obj, CultureInfo.InvariantCulture) ?? string.Empty);
+            // Convert to string based on JsValue kind to avoid boxing
+            var str = item.Kind switch
+            {
+                JsValueKind.Boolean => item.NumberValue != 0 ? "true" : "false",
+                JsValueKind.Number => JsOps.ToCanonicalNumberString(item.NumberValue),
+                JsValueKind.String => item.ObjectValue as string ?? string.Empty,
+                JsValueKind.BigInt => item.ObjectValue is JsBigInt bi ? bi.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                _ => Convert.ToString(item.ObjectValue, CultureInfo.InvariantCulture) ?? string.Empty
+            };
+            parts.Add(str);
         }
 
         return string.Join(",", parts);

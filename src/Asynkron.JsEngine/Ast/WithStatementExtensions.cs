@@ -14,7 +14,9 @@ public static partial class TypedAstEvaluator
                 return objValueJs;
             }
 
-            var objValue = objValueJs.ToObject();
+            // Extract object value - TryConvertToWithBindingObject will handle error for non-objects
+            var objValue = objValueJs.Kind == JsValueKind.Object ? objValueJs.ObjectValue :
+                           objValueJs.IsNullOrUndefined ? null : objValueJs.ObjectValue;
             if (!TryConvertToWithBindingObject(objValue, context, out var withObject))
             {
                 return JsValue.Undefined;

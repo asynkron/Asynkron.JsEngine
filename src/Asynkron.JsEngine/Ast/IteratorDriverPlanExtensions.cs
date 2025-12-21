@@ -128,7 +128,7 @@ public static partial class TypedAstEvaluator
                 // Unwrap JsValue struct if present (only for iterator protocol path)
                 if (nextResult is JsValue jsVal)
                 {
-                    nextResult = jsVal.ToObject();
+                    nextResult = jsVal.Kind == JsValueKind.Object ? jsVal.ObjectValue : null;
                 }
 
                 if (nextResult is IJsObjectLike resultObj)

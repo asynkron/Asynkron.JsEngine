@@ -9,8 +9,6 @@ public static partial class TypedAstEvaluator
         private string ResolveObjectMemberName(JsEnvironment environment,
             EvaluationContext context)
         {
-            object? keyValue;
-
             if (member.IsComputed)
             {
                 if (member.Key is not ExpressionNode keyExpression)
@@ -18,11 +16,14 @@ public static partial class TypedAstEvaluator
                     throw new InvalidOperationException("Computed property name must be an expression.");
                 }
 
-                keyValue = keyExpression.EvaluateExpression(environment, context).ToObject();
-            }
-            else
-            {
-                keyValue = member.Key;
+                var keyValue = keyExpression.EvaluateExpression(environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return string.Empty;
+                }
+
+                var propertyName = JsOps.GetRequiredPropertyName(keyValue, context);
+                return context.ShouldStopEvaluation ? string.Empty : propertyName;
             }
 
             if (context.ShouldStopEvaluation)
@@ -30,8 +31,8 @@ public static partial class TypedAstEvaluator
                 return string.Empty;
             }
 
-            var propertyName = JsOps.GetRequiredPropertyName(keyValue, context);
-            return context.ShouldStopEvaluation ? string.Empty : propertyName;
+            var propertyNameFromKey = JsOps.GetRequiredPropertyName(member.Key, context);
+            return context.ShouldStopEvaluation ? string.Empty : propertyNameFromKey;
         }
     }
 }

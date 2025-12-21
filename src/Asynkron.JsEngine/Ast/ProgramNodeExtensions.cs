@@ -23,7 +23,15 @@ public static partial class TypedAstEvaluator
             var result = program.EvaluateProgramJsValue(environment, realmState, cancellationToken,
                 executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
                 drainAwaitMicrotasks);
-            return result.IsUnit ? Symbol.Undefined : result.ToObject();
+            if (result.IsUnit) return Symbol.Undefined;
+            return result.Kind switch
+            {
+                JsValueKind.Undefined => Symbol.Undefined,
+                JsValueKind.Null => null,
+                JsValueKind.Boolean => result.NumberValue != 0,
+                JsValueKind.Number => result.NumberValue,
+                _ => result.ObjectValue
+            };
         }
 
         public JsValue EvaluateProgramJsValue(

@@ -102,7 +102,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
         return TryGetProperty(name, out var value)
-            ? new PropertyDescriptor { Value = value.ToObject(), Writable = true, Enumerable = false, Configurable = true }
+            ? new PropertyDescriptor { JsValue = value, Writable = true, Enumerable = false, Configurable = true }
             : null;
     }
 

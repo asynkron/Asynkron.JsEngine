@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
 
             var descriptor = new PropertyDescriptor
             {
-                Value = valueJs.ToObject(),
+                JsValue = valueJs,
                 Writable = true,
                 Enumerable = true,
                 Configurable = true

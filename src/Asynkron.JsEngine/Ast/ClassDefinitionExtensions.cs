@@ -49,14 +49,13 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Class constructor must be callable.");
             }
 
-            var constructorValue = (object)constructorAccessor;
             var realm = context.RealmState;
             var prototype = constructorAccessor.EnsurePrototype(realm);
             if (definition.Extends is not null)
             {
                 prototype.SetPrototype(superPrototype);
             }
-            if (constructorValue is TypedFunction typedCtorForOrdering)
+            if (constructorAccessor is TypedFunction typedCtorForOrdering)
             {
                 typedCtorForOrdering.SeedIntrinsicConstructorKeys();
                 typedCtorForOrdering.SetPrototypeObject(prototype);
@@ -66,7 +65,7 @@ public static partial class TypedAstEvaluator
                 ctorForOrdering.SeedIntrinsicConstructorKeys();
             }
 
-            if (constructorValue is TypedFunction typedFunction)
+            if (constructorAccessor is TypedFunction typedFunction)
             {
                 typedFunction.SetSuperBinding(superConstructor, superPrototype);
                 var instanceFields = resolvedFields.Where(field => !field.IsStatic).ToImmutableArray();
@@ -106,7 +105,7 @@ public static partial class TypedAstEvaluator
             prototype.SetProperty("constructor", constructorJsValue);
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost &&
-                constructorValue is TypedFunction { IsClassConstructor: true })
+                constructorAccessor is TypedFunction { IsClassConstructor: true })
             {
                 definitionHost.TryDefineProperty("prototype", new PropertyDescriptor
                 {
@@ -128,7 +127,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            if (constructorValue is IFunctionNameTarget nameTarget && className is not null)
+            if (constructorAccessor is IFunctionNameTarget nameTarget && className is not null)
             {
                 nameTarget.EnsureHasName(className.Name);
             }
@@ -138,7 +137,7 @@ public static partial class TypedAstEvaluator
             // so that static blocks can reference the class name
             if (classScopeEnvironment is not null && className is not null)
             {
-                classScopeEnvironment.TryAssignBlockedBinding(className, constructorValue);
+                classScopeEnvironment.TryAssignBlockedBinding(className, constructorAccessor);
             }
 
             InitializeStaticElements(definition, resolvedFields, constructorAccessor, evaluationEnvironment, context,

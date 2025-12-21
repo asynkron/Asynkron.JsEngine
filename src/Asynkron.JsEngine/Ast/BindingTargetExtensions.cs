@@ -6,7 +6,7 @@ public static partial class TypedAstEvaluator
 {
     extension(BindingTarget target)
     {
-        private void AssignLoopBinding(object? value, JsEnvironment loopEnvironment,
+        private void AssignLoopBinding(object? /* intentional */ value, JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
         {
             if (declarationKind is null)
@@ -133,7 +133,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void AssignBindingTarget(object? value, JsEnvironment environment,
+        private void AssignBindingTarget(object? /* intentional */ value, JsEnvironment environment,
             EvaluationContext context)
         {
             target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
@@ -145,7 +145,7 @@ public static partial class TypedAstEvaluator
             target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
         }
 
-        private void DefineBindingTarget(object? value, JsEnvironment environment,
+        private void DefineBindingTarget(object? /* intentional */ value, JsEnvironment environment,
             EvaluationContext context, bool isConst)
         {
             target.ApplyBindingTarget(value, environment, context,
@@ -159,7 +159,7 @@ public static partial class TypedAstEvaluator
                 isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
         }
 
-        private void DefineOrAssignVar(object? value, JsEnvironment environment,
+        private void DefineOrAssignVar(object? /* intentional */ value, JsEnvironment environment,
             EvaluationContext context)
         {
             target.ApplyBindingTarget(value, environment, context, BindingMode.DefineVar);
@@ -183,7 +183,7 @@ public static partial class TypedAstEvaluator
                 allowNameInference, skipBlockedBindingLookup);
         }
 
-        private void ApplyBindingTarget(object? value,
+        private void ApplyBindingTarget(object? /* intentional */ value,
             JsEnvironment environment,
             EvaluationContext context,
             BindingMode mode,

@@ -251,22 +251,24 @@ public sealed partial class IntlCollatorPrototype
                 continue;
             }
 
-            if (char.ToUpperInvariant(left) == char.ToUpperInvariant(right) &&
-                char.ToLowerInvariant(left) == char.ToLowerInvariant(right))
+            if (char.ToUpperInvariant(left) != char.ToUpperInvariant(right) ||
+                char.ToLowerInvariant(left) != char.ToLowerInvariant(right))
             {
-                if (char.IsUpper(left) != char.IsUpper(right))
-                {
-                    return string.Equals(casePreference, "upper", StringComparison.Ordinal)
-                        ? (char.IsUpper(left) ? -1 : 1)
-                        : (char.IsUpper(left) ? 1 : -1);
-                }
+                continue;
+            }
 
-                if (char.IsLower(left) != char.IsLower(right))
-                {
-                    return string.Equals(casePreference, "upper", StringComparison.Ordinal)
-                        ? (char.IsLower(left) ? 1 : -1)
-                        : (char.IsLower(left) ? -1 : 1);
-                }
+            if (char.IsUpper(left) != char.IsUpper(right))
+            {
+                return string.Equals(casePreference, "upper", StringComparison.Ordinal)
+                    ? char.IsUpper(left) ? -1 : 1
+                    : char.IsUpper(left) ? 1 : -1;
+            }
+
+            if (char.IsLower(left) != char.IsLower(right))
+            {
+                return string.Equals(casePreference, "upper", StringComparison.Ordinal)
+                    ? char.IsLower(left) ? 1 : -1
+                    : char.IsLower(left) ? -1 : 1;
             }
         }
 

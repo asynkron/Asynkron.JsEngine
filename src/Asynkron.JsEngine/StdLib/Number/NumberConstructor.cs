@@ -14,7 +14,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("isInteger", Length = 1d)]
-    public static object? IsInteger(IReadOnlyList<JsValue> args)
+    private static object? IsInteger(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
@@ -41,7 +41,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("isNaN", Length = 1d)]
-    public static object? IsNaN(IReadOnlyList<JsValue> args)
+    private static bool IsNaN(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -57,7 +57,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("isSafeInteger", Length = 1d)]
-    public static object? IsSafeInteger(IReadOnlyList<JsValue> args)
+    private static bool IsSafeInteger(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
@@ -78,7 +78,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("parseFloat", Length = 1d)]
-    public static object? ParseFloat(IReadOnlyList<JsValue> args)
+    private static double? ParseFloat(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -121,7 +121,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("parseInt", Length = 2d)]
-    public static object? ParseInt(IReadOnlyList<JsValue> args)
+    private static double? ParseInt(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -253,7 +253,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         }
     }
 
-    private void AttachConstants(HostFunction constructor)
+    private static void AttachConstants(HostFunction constructor)
     {
         DefineConstantProperty(constructor, "EPSILON", double.Epsilon);
         DefineConstantProperty(constructor, "MAX_SAFE_INTEGER", 9007199254740991d);

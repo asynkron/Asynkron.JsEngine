@@ -347,7 +347,7 @@ public static partial class TypedAstEvaluator
 
         }
 
-        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? value)
+        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
             if (environment.TryGet(symbol, out _))
             {
@@ -373,7 +373,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? value)
+        private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? /* intentional */ value)
         {
             if (environment.TryGet(symbol, out var existing))
             {
@@ -1775,7 +1775,7 @@ public static partial class TypedAstEvaluator
             _programCounter = resumeTarget;
         }
 
-        private bool HandleAbruptCompletion(AbruptKind kind, object? value, JsEnvironment environment)
+        private bool HandleAbruptCompletion(AbruptKind kind, object? /* intentional */ value, JsEnvironment environment)
         {
             while (_tryStack.Count > 0)
             {

@@ -18,69 +18,6 @@ public static class DateHelper
     internal const double MsPerMinute = 60000d;
     internal const double MsPerSecond = 1000d;
 
-    internal static JsValue DateParse(IReadOnlyList<JsValue> args)
-    {
-        if (args.Count == 0 || !args[0].TryGetString(out var dateStr))
-        {
-            return JsValue.NaN;
-        }
-
-        return DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture , out var parsed)
-            ? new JsValue((double)parsed.ToUnixTimeMilliseconds())
-            : JsValue.NaN;
-    }
-
-    internal static JsValue DateUtc(IReadOnlyList<JsValue> args)
-    {
-        if (args.Count == 0)
-        {
-            return JsValue.NaN;
-        }
-
-        double ToNumberOrNaN(JsValue v)
-        {
-            return v.TryGetDouble(out var d) ? d : double.NaN;
-        }
-
-        var y = ToNumberOrNaN(args[0]);
-        var m = args.Count > 1 ? ToNumberOrNaN(args[1]) : 0;
-        var dt = args.Count > 2 ? ToNumberOrNaN(args[2]) : 1;
-        var h = args.Count > 3 ? ToNumberOrNaN(args[3]) : 0;
-        var min = args.Count > 4 ? ToNumberOrNaN(args[4]) : 0;
-        var s = args.Count > 5 ? ToNumberOrNaN(args[5]) : 0;
-        var ms = args.Count > 6 ? ToNumberOrNaN(args[6]) : 0;
-
-        if (double.IsNaN(y) || double.IsNaN(m) || double.IsNaN(dt) ||
-            double.IsNaN(h) || double.IsNaN(min) || double.IsNaN(s) || double.IsNaN(ms))
-        {
-            return JsValue.NaN;
-        }
-
-        var year = (int)y;
-        if (year is >= 0 and <= 99)
-        {
-            year += 1900;
-        }
-
-        var month = (int)m + 1;
-        var day = (int)dt;
-        var hour = (int)h;
-        var minute = (int)min;
-        var second = (int)s;
-        var millisecond = (int)ms;
-
-        try
-        {
-            var utcDate = new DateTime(year, month, day, hour, minute, second, millisecond, DateTimeKind.Utc);
-            var dto = new DateTimeOffset(utcDate);
-            return new JsValue((double)dto.ToUnixTimeMilliseconds());
-        }
-        catch
-        {
-            return JsValue.NaN;
-        }
-    }
-
     internal static double ComputeDateTimeValue(
         IReadOnlyList<JsValue> args,
         RealmState realm,

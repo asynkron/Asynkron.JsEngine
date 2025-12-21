@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(IdentifierBinding identifier)
     {
-        private void ApplyIdentifierBinding(object? value,
+        private void ApplyIdentifierBinding(object? /* intentional */ value,
             JsEnvironment environment,
             EvaluationContext context,
             BindingMode mode,

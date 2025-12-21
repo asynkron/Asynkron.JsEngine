@@ -122,9 +122,7 @@ public static partial class StandardLibrary
             JsValue mapped;
             if (mapping && mapper is not null)
             {
-                var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
-                // Handle case where result is already a boxed JsValue
-                mapped = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObjectUnsafe(mapperResult);
+                mapped = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
             }
             else
             {
@@ -278,9 +276,7 @@ public static partial class StandardLibrary
             {
                 try
                 {
-                    var mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
-                    // Handle case where result is already a boxed JsValue
-                    mappedValue = mapperResult is JsValue mrJs ? mrJs : JsValue.FromObjectUnsafe(mapperResult);
+                    mappedValue = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
                 }
                 catch (ThrowSignal)
                 {
@@ -370,7 +366,7 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static object? InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,
+    internal static JsValue InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,
         long index)
     {
         if (mapper is IJsEnvironmentAwareCallable envAware && host.CallingJsEnvironment is not null)
@@ -381,7 +377,7 @@ public static partial class StandardLibrary
         // Handle case where value and thisArg are already boxed JsValues
         var valueArg = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
         var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObjectUnsafe(thisArg);
-        return mapper.Invoke([valueArg, (double)index], thisArgJs).ToObject();
+        return mapper.Invoke([valueArg, (double)index], thisArgJs);
     }
 
     private sealed class ArrayFromAsyncOperation(
@@ -538,14 +534,14 @@ public static partial class StandardLibrary
 
             if (mapping && mapper is not null)
             {
-                object? mapperResult;
+                JsValue mapperResult;
                 try
                 {
                     mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, _index);
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectWithClose(signal.ThrownValue.ToObject());
+                    RejectWithClose(signal.ThrownValue);
                     return false;
                 }
 
@@ -581,7 +577,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                RejectWithClose(signal.ThrownValue.ToObject());
+                RejectWithClose(signal.ThrownValue);
                 return false;
             }
 
@@ -646,14 +642,14 @@ public static partial class StandardLibrary
 
             if (mapping && mapper is not null)
             {
-                object? mapperResult;
+                JsValue mapperResult;
                 try
                 {
                     mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, resolved, _index);
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectFailure(signal.ThrownValue.ToObject());
+                    RejectFailure(signal.ThrownValue);
                     return false;
                 }
 
@@ -689,7 +685,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                RejectFailure(signal.ThrownValue.ToObject());
+                RejectFailure(signal.ThrownValue);
                 return false;
             }
 
@@ -699,7 +695,7 @@ public static partial class StandardLibrary
 
         private void RejectSignal(ThrowSignal signal)
         {
-            RejectFailure(signal.ThrownValue.ToObject());
+            RejectFailure(signal.ThrownValue);
         }
 
         private void RejectFailure(object? reason)
@@ -723,7 +719,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    reason = signal.ThrownValue.ToObject();
+                    reason = signal.ThrownValue;
                 }
             }
 

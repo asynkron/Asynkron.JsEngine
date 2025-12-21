@@ -875,7 +875,7 @@ public sealed class JsEnvironment
         return _values?.Keys ?? [];
     }
 
-    internal bool TryAssignBlockedBinding(Symbol name, object? value)
+    internal bool TryAssignBlockedBinding(Symbol name, object? /* intentional */ value)
     {
         var current = this;
         var passedFunctionBoundary = false;
@@ -1937,7 +1937,7 @@ public sealed class JsEnvironment
         return _simpleCatchParameters?.Contains(name) == true;
     }
 
-    public bool TryGet(Symbol name, out object? value)
+    public bool TryGet(Symbol name, out object? /* intentional - public API */ value)
     {
         var current = this;
         var hops = 0;
@@ -2104,7 +2104,7 @@ public sealed class JsEnvironment
         return false;
     }
 
-    public void Assign(Symbol name, object? value)
+    public void Assign(Symbol name, object? /* intentional - public API */ value)
     {
         // Remember if we're in strict mode at the call site
         var isStrictContext = IsStrict;
@@ -2122,7 +2122,7 @@ public sealed class JsEnvironment
         AssignInternal(name, value, isStrictContext);
     }
 
-    private void AssignInternal(Symbol name, object? value, bool isStrictContext)
+    private void AssignInternal(Symbol name, object? /* intentional */ value, bool isStrictContext)
     {
         var current = this;
         var hops = 0;
@@ -2352,7 +2352,7 @@ public sealed class JsEnvironment
 
         if (current._values is not null &&
             current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-            thisBinding.JsValue.ToObject() is JsObject globalObject)
+            thisBinding.JsValue.TryGetObject<JsObject>(out var globalObject))
         {
             return globalObject;
         }

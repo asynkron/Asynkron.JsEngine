@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ObjectBinding binding)
     {
-        private void BindObjectPattern(object? value, JsEnvironment environment,
+        private void BindObjectPattern(object? /* intentional */ value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
         {
             var obj = ToObjectForDestructuring(value, context);

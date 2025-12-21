@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ArrayBinding binding)
     {
-        private void BindArrayPattern(object? value, JsEnvironment environment,
+        private void BindArrayPattern(object? /* intentional */ value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
         {
             var stateKey = GetArrayPatternStateKey(binding);

@@ -183,8 +183,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 var writable = GetNamedBool(attr, "Writable", true);
 
                 var signature = GetConstructorMethodSignature(member, jsValueType, readOnlyListType, realmStateType);
+                var returnsJsValue = jsValueType is not null && IsJsValue(member.ReturnType, jsValueType);
                 staticMethods.Add(new ConstructorMethodInfo(member, propertyName, methodDisplayName, methodLengthLiteral,
-                    enumerable, configurable, writable, signature));
+                    enumerable, configurable, writable, signature, returnsJsValue));
             }
         }
 
@@ -547,7 +548,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods);
 
     private sealed record ConstructorMethodInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName,
-        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature);
+        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature, bool ReturnsJsValue);
 
     private enum ConstructorMethodSignature
     {

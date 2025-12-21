@@ -1,7 +1,7 @@
+using System.Numerics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
-using static Asynkron.JsEngine.StdLib.BigIntHelper;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -13,7 +13,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("asIntN", Length = 2d)]
-    public static object? AsIntN(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static object AsIntN(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count < 2)
         {
@@ -28,11 +28,27 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var bigIntValue = ToBigInt(value, realmState: realm);
-        return new JsValue(new JsBigInt(BigIntHelper.AsIntN(bits, bigIntValue.Value)));
+
+        // Inline AsIntN implementation
+        if (bits == 0)
+        {
+            return new JsValue(new JsBigInt(BigInteger.Zero));
+        }
+
+        var modulus = BigInteger.One << bits;
+        var unsigned = bigIntValue.Value % modulus;
+        if (unsigned.Sign < 0)
+        {
+            unsigned += modulus;
+        }
+
+        var threshold = modulus >> 1;
+        var result = unsigned >= threshold ? unsigned - modulus : unsigned;
+        return new JsValue(new JsBigInt(result));
     }
 
     [JsConstructorMethod("asUintN", Length = 2d)]
-    public static object? AsUintN(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static object AsUintN(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count < 2)
         {
@@ -47,10 +63,22 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var bigIntValue = ToBigInt(value, realmState: realm);
-        return new JsValue(new JsBigInt(BigIntHelper.AsUintN(bits, bigIntValue.Value)));
-    }
 
-    private HostFunction? _constructor;
+        // Inline AsUintN implementation
+        if (bits == 0)
+        {
+            return new JsValue(new JsBigInt(BigInteger.Zero));
+        }
+
+        var modulus = BigInteger.One << bits;
+        var result = bigIntValue.Value % modulus;
+        if (result.Sign < 0)
+        {
+            result += modulus;
+        }
+
+        return new JsValue(new JsBigInt(result));
+    }
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -61,7 +89,6 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        _constructor = constructor;
         Realm.BigIntPrototype ??= Prototype as JsObject;
 
         constructor.DisallowConstruct = true;

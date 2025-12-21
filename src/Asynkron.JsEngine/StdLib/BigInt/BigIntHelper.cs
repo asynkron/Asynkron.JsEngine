@@ -73,38 +73,4 @@ public static class BigIntHelper
         return value.Sign < 0 ? "-" + result : result;
     }
 
-    internal static BigInteger AsIntN(int bits, BigInteger value)
-    {
-        if (bits == 0)
-        {
-            return BigInteger.Zero;
-        }
-
-        var modulus = BigInteger.One << bits;
-        var unsigned = value % modulus;
-        if (unsigned.Sign < 0)
-        {
-            unsigned += modulus;
-        }
-
-        var threshold = modulus >> 1;
-        return unsigned >= threshold ? unsigned - modulus : unsigned;
-    }
-
-    internal static BigInteger AsUintN(int bits, BigInteger value)
-    {
-        if (bits == 0)
-        {
-            return BigInteger.Zero;
-        }
-
-        var modulus = BigInteger.One << bits;
-        var result = value % modulus;
-        if (result.Sign < 0)
-        {
-            result += modulus;
-        }
-
-        return result;
-    }
 }

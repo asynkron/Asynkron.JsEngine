@@ -394,6 +394,6 @@ public static partial class NumberHelper
         return NumberConstructor.CreateConstructor(realm);
     }
 
-    [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")]
+    [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?",RegexOptions.Compiled | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 5000)]
     internal static partial Regex FloatRegex();
 }

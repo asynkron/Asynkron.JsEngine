@@ -15,103 +15,103 @@ public sealed partial class TypedArrayPrototype : JsPrototype
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduce", false));
+        return ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduce", false);
     }
 
     [JsHostMethod("reduceRight", Length = 1d)]
     public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduceRight", true));
+        return ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduceRight", true);
     }
 
     [JsHostMethod("map", Length = 1d)]
     public JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(MapImpl(thisValue, args));
+        return MapImpl(thisValue, args);
     }
 
     [JsHostMethod("filter", Length = 1d)]
     public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(FilterImpl(thisValue, args));
+        return FilterImpl(thisValue, args);
     }
 
     [JsHostMethod("every", Length = 1d)]
     public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(EveryImpl(thisValue, args));
+        return EveryImpl(thisValue, args);
     }
 
     [JsHostMethod("find", Length = 1d)]
     public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(FindImpl(thisValue, args));
+        return FindImpl(thisValue, args);
     }
 
     [JsHostMethod("findIndex", Length = 1d)]
     public JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(FindIndexImpl(thisValue, args));
+        return FindIndexImpl(thisValue, args);
     }
 
     [JsHostMethod("findLast", Length = 1d)]
     public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(FindLastImpl(thisValue, args));
+        return FindLastImpl(thisValue, args);
     }
 
     [JsHostMethod("findLastIndex", Length = 1d)]
     public JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(FindLastIndexImpl(thisValue, args));
+        return FindLastIndexImpl(thisValue, args);
     }
 
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ForEachImpl(thisValue, args));
+        return ForEachImpl(thisValue, args);
     }
 
     [JsHostMethod("fill", Length = 1d)]
     public JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(FillImpl(thisValue, args));
+        return FillImpl(thisValue, args);
     }
 
     [JsHostMethod("copyWithin", Length = 2d)]
     public JsValue CopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(CopyWithinImpl(thisValue, args));
+        return CopyWithinImpl(thisValue, args);
     }
 
     [JsHostMethod("reverse", Length = 0d)]
     public JsValue Reverse(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ReverseImpl(thisValue));
+        return ReverseImpl(thisValue);
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
     public JsValue ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ToReversedImpl(thisValue));
+        return ToReversedImpl(thisValue);
     }
 
     [JsHostMethod("toSorted", Length = 1d)]
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ToSortedImpl(thisValue, args));
+        return ToSortedImpl(thisValue, args);
     }
 
     [JsHostMethod("toSpliced", Length = 2d)]
     public JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(ToSplicedImpl(thisValue, args));
+        return ToSplicedImpl(thisValue, args);
     }
 
     [JsHostMethod("with", Length = 2d)]
     public JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return JsValue.FromObjectUnsafe(WithImpl(thisValue, args));
+        return WithImpl(thisValue, args);
     }
 
     [JsHostMethod("indexOf", Length = 1d)]
@@ -212,7 +212,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         return typedArray;
     }
 
-    private object? ReduceImpl(JsValue thisValue, IReadOnlyList<JsValue> args, string methodName, bool fromRight)
+    private JsValue ReduceImpl(JsValue thisValue, IReadOnlyList<JsValue> args, string methodName, bool fromRight)
     {
         var typedArray = ValidateReceiver(thisValue, methodName);
 
@@ -230,7 +230,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         var step = fromRight ? -1 : 1;
         var k = fromRight ? length - 1 : 0;
 
-        object? accumulator = Symbol.Undefined;
+        var accumulator = JsValue.Undefined;
         var hasAccumulator = false;
         if (args.Count > 1 && !args[1].IsUndefined)
         {
@@ -259,8 +259,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             }
             else
             {
-                var accumulatorJs = accumulator is JsValue accJs ? accJs : JsValue.FromObjectUnsafe(accumulator);
-                accumulator = callback.Invoke([accumulatorJs, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
+                accumulator = callback.Invoke([accumulator, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
             }
 
             k += step;
@@ -274,7 +273,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         return accumulator;
     }
 
-    private object? MapImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue MapImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.map");
 
@@ -308,10 +307,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             result.SetValue(k, mapped);
         }
 
-        return result;
+        return (JsValue)result;
     }
 
-    private object? FilterImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FilterImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.filter");
 
@@ -354,10 +353,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             filtered.SetValue(i, kept[i]);
         }
 
-        return filtered;
+        return (JsValue)filtered;
     }
 
-    private object? EveryImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue EveryImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.every");
 
@@ -391,14 +390,14 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (!IsTruthy(result))
             {
-                return false;
+                return JsValue.False;
             }
         }
 
-        return true;
+        return JsValue.True;
     }
 
-    private object? FindImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.find");
 
@@ -428,7 +427,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         return JsValue.Undefined;
     }
 
-    private object? FindIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findIndex");
 
@@ -458,7 +457,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         return -1d;
     }
 
-    private object? FindLastImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindLastImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findLast");
 
@@ -488,7 +487,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         return JsValue.Undefined;
     }
 
-    private object? FindLastIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindLastIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findLastIndex");
 
@@ -518,7 +517,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         return -1d;
     }
 
-    private object? ForEachImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ForEachImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.forEach");
 
@@ -550,10 +549,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
         }
 
-        return Symbol.Undefined;
+        return JsValue.Undefined;
     }
 
-    private object? FillImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FillImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.fill");
 
@@ -580,10 +579,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             typedArray.SetValue(k, value);
         }
 
-        return typedArray;
+        return (JsValue)typedArray;
     }
 
-    private object? CopyWithinImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue CopyWithinImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.copyWithin");
 
@@ -599,7 +598,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         var count = Math.Min(final - from, length - to);
         if (count <= 0)
         {
-            return typedArray;
+            return (JsValue)typedArray;
         }
 
         var direction = 1;
@@ -623,17 +622,17 @@ public sealed partial class TypedArrayPrototype : JsPrototype
                 break;
             }
 
-            var value = typedArray.GetValueForIndex(from);
-            typedArray.SetValue(to, value);
+            var srcValue = typedArray.GetValueForIndex(from);
+            typedArray.SetValue(to, srcValue);
 
             from += direction;
             to += direction;
         }
 
-        return typedArray;
+        return (JsValue)typedArray;
     }
 
-    private object? ReverseImpl(JsValue thisValue)
+    private JsValue ReverseImpl(JsValue thisValue)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.reverse");
 
@@ -660,10 +659,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             typedArray.SetValue(upper, lowerValue);
         }
 
-        return typedArray;
+        return (JsValue)typedArray;
     }
 
-    private object? ToReversedImpl(JsValue thisValue)
+    private JsValue ToReversedImpl(JsValue thisValue)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toReversed");
 
@@ -680,10 +679,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             result.SetValue(k, value);
         }
 
-        return result;
+        return (JsValue)result;
     }
 
-    private object? ToSortedImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ToSortedImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toSorted");
 
@@ -718,7 +717,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             result.SetValue(i, values[i]);
         }
 
-        return result;
+        return (JsValue)result;
 
         int Comparer(JsValue left, JsValue right)
         {
@@ -731,10 +730,8 @@ public sealed partial class TypedArrayPrototype : JsPrototype
 
             if (typedArray.IsBigIntArray)
             {
-                var leftObj = left.ToObject();
-                var rightObj = right.ToObject();
-                var leftBig = leftObj as JsBigInt ?? ToBigInt(leftObj, realmState: Realm);
-                var rightBig = rightObj as JsBigInt ?? ToBigInt(rightObj, realmState: Realm);
+                var leftBig = left.TryGetObject<JsBigInt>(out var lb) ? lb : ToBigInt(left, realmState: Realm);
+                var rightBig = right.TryGetObject<JsBigInt>(out var rb) ? rb : ToBigInt(right, realmState: Realm);
                 return leftBig.Value.CompareTo(rightBig.Value);
             }
 
@@ -754,7 +751,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
         }
     }
 
-    private object? ToSplicedImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ToSplicedImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toSpliced");
 
@@ -814,10 +811,10 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             result.SetValue(targetIndex++, typedArray.GetValueForIndex(i));
         }
 
-        return result;
+        return (JsValue)result;
     }
 
-    private object? WithImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue WithImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.with");
 
@@ -856,7 +853,7 @@ public sealed partial class TypedArrayPrototype : JsPrototype
             result.SetValue(i, value);
         }
 
-        return result;
+        return (JsValue)result;
     }
 
     private TypedArrayBase SpeciesCreate(TypedArrayBase exemplar, int length)

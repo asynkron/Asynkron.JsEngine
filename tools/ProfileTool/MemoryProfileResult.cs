@@ -17,5 +17,6 @@ internal sealed record MemoryProfileResult(
     string? HeapAfter,
     string? AllocationTotal,
     IReadOnlyList<AllocationEntry> AllocationEntries,
+    AllocationCallTreeResult? AllocationCallTree,
     string? AllocationByTypeRaw,
     string? RawOutput);

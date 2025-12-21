@@ -5,6 +5,9 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Asynkron.JsEngine.Tools.ProfileTool;
+using Microsoft.Diagnostics.Tracing;
+using Microsoft.Diagnostics.Tracing.Etlx;
+using Microsoft.Diagnostics.Tracing.Parsers;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -431,10 +434,148 @@ MemoryProfileResult? MemoryProfile(string profileKey)
 
     if (File.Exists(jsonPath))
     {
-        return ParseMemoryJson(jsonPath);
+        var results = ParseMemoryJson(jsonPath);
+        return AttachAllocationCallTree(results, profileKey);
     }
 
-    return ParseAllocationOutput(stdout);
+    return AttachAllocationCallTree(ParseAllocationOutput(stdout), profileKey);
+}
+
+MemoryProfileResult? AttachAllocationCallTree(MemoryProfileResult? results, string profileKey)
+{
+    if (results == null)
+    {
+        return null;
+    }
+
+    var callTree = AllocationCallTree(profileKey);
+    return results with { AllocationCallTree = callTree };
+}
+
+AllocationCallTreeResult? AllocationCallTree(string profileKey)
+{
+    var profile = profiles[profileKey];
+    var exePath = GetExecutable();
+    if (exePath == null)
+    {
+        AnsiConsole.MarkupLine("[red]Executable not found. Run build first.[/]");
+        return null;
+    }
+
+    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+    var traceFile = Path.Combine(outputDir, $"{profile.Name}_{timestamp}.alloc.nettrace");
+
+    return AnsiConsole.Status()
+        .Spinner(Spinner.Known.Dots)
+        .Start($"Collecting allocation trace for [yellow]{profile.Name}[/]...", ctx =>
+        {
+            ctx.Status("Collecting trace data...");
+            var (success, _, stderr) = RunCommand(
+                $"dotnet-trace collect --profile gc-verbose --output \"{traceFile}\" -- \"{exePath}\" {profileKey}",
+                timeoutMs: 180000);
+
+            if (!success || !File.Exists(traceFile))
+            {
+                AnsiConsole.MarkupLine($"[red]Allocation trace failed:[/] {Markup.Escape(stderr)}");
+                return null;
+            }
+
+            ctx.Status("Analyzing allocation trace...");
+            return AnalyzeAllocationTrace(traceFile);
+        });
+}
+
+AllocationCallTreeResult? AnalyzeAllocationTrace(string traceFile)
+{
+    try
+    {
+        var typeRoots = new Dictionary<string, AllocationCallTreeNode>(StringComparer.Ordinal);
+        long totalBytes = 0;
+        long totalCount = 0;
+
+        var etlxPath = traceFile;
+        if (traceFile.EndsWith(".nettrace", StringComparison.OrdinalIgnoreCase))
+        {
+            var targetPath = Path.ChangeExtension(traceFile, ".etlx");
+            var options = new TraceLogOptions { ConversionLog = TextWriter.Null };
+            etlxPath = TraceLog.CreateFromEventPipeDataFile(traceFile, targetPath, options);
+        }
+
+        using var traceLog = TraceLog.OpenOrConvert(etlxPath, new TraceLogOptions { ConversionLog = TextWriter.Null });
+        using var source = traceLog.Events.GetSource();
+        source.Clr.GCAllocationTick += data =>
+        {
+            var bytes = data.AllocationAmount64;
+            if (bytes <= 0)
+            {
+                return;
+            }
+
+            var typeName = string.IsNullOrWhiteSpace(data.TypeName) ? "Unknown" : data.TypeName;
+            if (!typeRoots.TryGetValue(typeName, out var typeRoot))
+            {
+                typeRoot = new AllocationCallTreeNode(typeName);
+                typeRoots[typeName] = typeRoot;
+            }
+
+            totalBytes += bytes;
+            totalCount++;
+            typeRoot.TotalBytes += bytes;
+            typeRoot.Count++;
+
+            var stack = data.CallStack();
+            if (stack == null)
+            {
+                return;
+            }
+
+            var node = typeRoot;
+            foreach (var frame in EnumerateAllocationFrames(stack))
+            {
+                if (string.IsNullOrWhiteSpace(frame))
+                {
+                    continue;
+                }
+
+                if (!node.Children.TryGetValue(frame, out var child))
+                {
+                    child = new AllocationCallTreeNode(frame);
+                    node.Children[frame] = child;
+                }
+
+                child.TotalBytes += bytes;
+                child.Count++;
+                node = child;
+            }
+        };
+
+        source.Process();
+
+        var roots = typeRoots.Values
+            .OrderByDescending(node => node.TotalBytes)
+            .ToList();
+
+        return new AllocationCallTreeResult(totalBytes, totalCount, roots);
+    }
+    catch (Exception ex)
+    {
+        AnsiConsole.MarkupLine($"[yellow]Allocation trace parse failed:[/] {Markup.Escape(ex.Message)}");
+        return null;
+    }
+}
+
+IEnumerable<string> EnumerateAllocationFrames(TraceCallStack stack)
+{
+    for (var current = stack; current != null; current = current.Caller)
+    {
+        var methodName = current.CodeAddress?.FullMethodName;
+        if (string.IsNullOrWhiteSpace(methodName))
+        {
+            methodName = current.CodeAddress?.Method?.FullMethodName;
+        }
+
+        yield return methodName ?? "Unknown";
+    }
 }
 
 MemoryProfileResult ParseMemoryJson(string jsonPath)
@@ -478,6 +619,7 @@ MemoryProfileResult ParseMemoryJson(string jsonPath)
         ReadJsonValue(root, "heap_after"),
         ReadJsonValue(root, "allocation_total"),
         allocationEntries,
+        null,
         null,
         null);
 }
@@ -622,6 +764,7 @@ MemoryProfileResult ParseAllocationOutput(string output)
         heapAfter,
         null,
         Array.Empty<AllocationEntry>(),
+        null,
         allocationByTypeRaw,
         output);
 }
@@ -637,7 +780,14 @@ string? GetValueAfterColon(string line)
     return line[(idx + 1)..].Trim();
 }
 
-void PrintMemoryResults(MemoryProfileResult? results, string profileKey)
+void PrintMemoryResults(
+    MemoryProfileResult? results,
+    string profileKey,
+    string? callTreeRoot,
+    bool includeRuntime,
+    int callTreeDepth,
+    int callTreeWidth,
+    int callTreeSiblingCutoffPercent)
 {
     if (results == null)
     {
@@ -700,6 +850,255 @@ void PrintMemoryResults(MemoryProfileResult? results, string profileKey)
     {
         AnsiConsole.WriteLine(results.RawOutput);
     }
+
+    if (results.AllocationCallTree != null)
+    {
+        PrintSection("Allocation Call Tree (Sampled)");
+        PrintAllocationCallTree(
+            results.AllocationCallTree,
+            callTreeRoot,
+            includeRuntime,
+            callTreeDepth,
+            callTreeWidth,
+            callTreeSiblingCutoffPercent);
+    }
+}
+
+void PrintAllocationCallTree(
+    AllocationCallTreeResult results,
+    string? rootFilter,
+    bool includeRuntime,
+    int maxDepth,
+    int maxWidth,
+    int siblingCutoffPercent)
+{
+    maxDepth = Math.Max(1, maxDepth);
+    maxWidth = Math.Max(1, maxWidth);
+    siblingCutoffPercent = Math.Max(0, siblingCutoffPercent);
+
+    var roots = FilterAllocationRoots(results.TypeRoots, rootFilter);
+    var visibleRoots = GetVisibleAllocationRoots(roots, maxWidth, siblingCutoffPercent);
+    var totalBytes = results.TotalBytes;
+
+    if (visibleRoots.Count == 0)
+    {
+        AnsiConsole.MarkupLine("[dim]No allocation call stacks captured.[/]");
+        return;
+    }
+
+    foreach (var root in visibleRoots)
+    {
+        var pct = totalBytes > 0 ? 100d * root.TotalBytes / totalBytes : 0d;
+        var pctText = pct.ToString("F1", CultureInfo.InvariantCulture);
+        var bytesText = FormatBytes(root.TotalBytes);
+        var countText = root.Count.ToString("N0", CultureInfo.InvariantCulture);
+        var header = $"{FormatTypeDisplayName(root.Name)} ({bytesText}, {pctText}%, {countText}x)";
+
+        var tree = BuildAllocationCallTree(root, includeRuntime, maxDepth, maxWidth, siblingCutoffPercent);
+        AnsiConsole.Write(new Rows(new Markup($"[bold yellow]{Markup.Escape(header)}[/]"), tree));
+    }
+}
+
+IEnumerable<AllocationCallTreeNode> FilterAllocationRoots(
+    IReadOnlyList<AllocationCallTreeNode> roots,
+    string? rootFilter)
+{
+    if (string.IsNullOrWhiteSpace(rootFilter))
+    {
+        return roots;
+    }
+
+    var filter = rootFilter.Trim();
+    return roots.Where(root =>
+        root.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+        FormatTypeDisplayName(root.Name).Contains(filter, StringComparison.OrdinalIgnoreCase));
+}
+
+IReadOnlyList<AllocationCallTreeNode> GetVisibleAllocationRoots(
+    IEnumerable<AllocationCallTreeNode> roots,
+    int maxWidth,
+    int siblingCutoffPercent)
+{
+    var ordered = roots
+        .OrderByDescending(root => root.TotalBytes)
+        .ToList();
+
+    if (ordered.Count == 0)
+    {
+        return ordered;
+    }
+
+    if (siblingCutoffPercent <= 0)
+    {
+        return ordered.Take(maxWidth).ToList();
+    }
+
+    var topBytes = ordered[0].TotalBytes;
+    if (topBytes <= 0)
+    {
+        return ordered.Take(maxWidth).ToList();
+    }
+
+    var minBytes = topBytes * siblingCutoffPercent / 100d;
+    return ordered
+        .Where(root => root.TotalBytes >= minBytes)
+        .Take(maxWidth)
+        .ToList();
+}
+
+IRenderable BuildAllocationCallTree(
+    AllocationCallTreeNode root,
+    bool includeRuntime,
+    int maxDepth,
+    int maxWidth,
+    int siblingCutoffPercent)
+{
+    var rootLabel = FormatAllocationCallTreeLine(root, root.TotalBytes, isRoot: true, isLeaf: false);
+    var tree = new Tree(rootLabel).Guide(new CompactTreeGuide());
+    var children = GetVisibleAllocationChildren(root, includeRuntime, maxWidth, siblingCutoffPercent);
+    foreach (var child in children)
+    {
+        var isSpecialLeaf = ShouldStopAtLeaf(FormatMethodDisplayName(child.Name));
+        var childChildren = !isSpecialLeaf
+            ? GetVisibleAllocationChildren(child, includeRuntime, maxWidth, siblingCutoffPercent)
+            : Array.Empty<AllocationCallTreeNode>();
+        var isLeaf = isSpecialLeaf || maxDepth <= 1 || childChildren.Count == 0;
+
+        var childNode = tree.AddNode(FormatAllocationCallTreeLine(child, root.TotalBytes, isRoot: false, isLeaf));
+        if (!isSpecialLeaf)
+        {
+            AddAllocationCallTreeChildren(
+                childNode,
+                child,
+                root.TotalBytes,
+                includeRuntime,
+                2,
+                maxDepth,
+                maxWidth,
+                siblingCutoffPercent);
+        }
+    }
+
+    return tree;
+}
+
+void AddAllocationCallTreeChildren(
+    TreeNode parent,
+    AllocationCallTreeNode node,
+    long rootTotalBytes,
+    bool includeRuntime,
+    int depth,
+    int maxDepth,
+    int maxWidth,
+    int siblingCutoffPercent)
+{
+    if (depth > maxDepth)
+    {
+        return;
+    }
+
+    var children = GetVisibleAllocationChildren(node, includeRuntime, maxWidth, siblingCutoffPercent);
+    foreach (var child in children)
+    {
+        var nextDepth = depth + 1;
+        var isSpecialLeaf = ShouldStopAtLeaf(FormatMethodDisplayName(child.Name));
+        var childChildren = !isSpecialLeaf && nextDepth <= maxDepth
+            ? GetVisibleAllocationChildren(child, includeRuntime, maxWidth, siblingCutoffPercent)
+            : Array.Empty<AllocationCallTreeNode>();
+        var isLeaf = isSpecialLeaf || nextDepth > maxDepth || childChildren.Count == 0;
+
+        var childNode = parent.AddNode(FormatAllocationCallTreeLine(child, rootTotalBytes, isRoot: false, isLeaf));
+        if (!isSpecialLeaf)
+        {
+            AddAllocationCallTreeChildren(
+                childNode,
+                child,
+                rootTotalBytes,
+                includeRuntime,
+                nextDepth,
+                maxDepth,
+                maxWidth,
+                siblingCutoffPercent);
+        }
+    }
+}
+
+IReadOnlyList<AllocationCallTreeNode> GetVisibleAllocationChildren(
+    AllocationCallTreeNode node,
+    bool includeRuntime,
+    int maxWidth,
+    int siblingCutoffPercent)
+{
+    var ordered = EnumerateVisibleAllocationChildren(node, includeRuntime)
+        .OrderByDescending(child => child.TotalBytes)
+        .ToList();
+
+    if (ordered.Count == 0)
+    {
+        return ordered;
+    }
+
+    if (siblingCutoffPercent <= 0)
+    {
+        return ordered.Take(maxWidth).ToList();
+    }
+
+    var topBytes = ordered[0].TotalBytes;
+    if (topBytes <= 0)
+    {
+        return ordered.Take(maxWidth).ToList();
+    }
+
+    var minBytes = topBytes * siblingCutoffPercent / 100d;
+    return ordered
+        .Where(child => child.TotalBytes >= minBytes)
+        .Take(maxWidth)
+        .ToList();
+}
+
+IEnumerable<AllocationCallTreeNode> EnumerateVisibleAllocationChildren(
+    AllocationCallTreeNode node,
+    bool includeRuntime)
+{
+    foreach (var child in node.Children.Values)
+    {
+        if (includeRuntime || !IsRuntimeNoise(child.Name))
+        {
+            yield return child;
+            continue;
+        }
+
+        foreach (var grandChild in EnumerateVisibleAllocationChildren(child, includeRuntime))
+        {
+            yield return grandChild;
+        }
+    }
+}
+
+string FormatAllocationCallTreeLine(
+    AllocationCallTreeNode node,
+    long rootTotalBytes,
+    bool isRoot,
+    bool isLeaf)
+{
+    var bytes = node.TotalBytes;
+    var pct = rootTotalBytes > 0 ? 100d * bytes / rootTotalBytes : 0d;
+    var count = node.Count;
+    var bytesText = FormatBytes(bytes);
+    var pctText = pct.ToString("F1", CultureInfo.InvariantCulture);
+    var countText = count.ToString("N0", CultureInfo.InvariantCulture);
+
+    var displayName = isRoot ? FormatTypeDisplayName(node.Name) : FormatMethodDisplayName(node.Name);
+    if (displayName.Length > 80)
+    {
+        displayName = displayName[..77] + "...";
+    }
+
+    var nameText = isRoot
+        ? $"[white]{Markup.Escape(displayName)}[/]"
+        : FormatCallTreeName(displayName, displayName, isLeaf);
+
+    return $"[green]{bytesText}[/] [cyan]{pctText}%[/] [blue]{countText}x[/] {nameText}";
 }
 
 IRenderable BuildCallTree(
@@ -741,7 +1140,7 @@ IRenderable BuildCallTree(
     var children = GetVisibleChildren(rootNode, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent);
     foreach (var child in children)
     {
-        var isSpecialLeaf = ShouldStopAtLeaf(child);
+        var isSpecialLeaf = ShouldStopAtLeaf(GetCallTreeMatchName(child));
         var isLeaf = isSpecialLeaf || maxDepth <= 1 ||
                      GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent).Count == 0;
         var childNode = tree.AddNode(FormatCallTreeLine(child, rootTotal, useSelfTime, isRoot: false, isLeaf));
@@ -786,7 +1185,7 @@ void AddCallTreeChildren(
     foreach (var child in children)
     {
         var nextDepth = depth + 1;
-        var isSpecialLeaf = ShouldStopAtLeaf(child);
+        var isSpecialLeaf = ShouldStopAtLeaf(GetCallTreeMatchName(child));
         var childChildren = !isSpecialLeaf && nextDepth <= maxDepth
             ? GetVisibleChildren(child, includeRuntime, useSelfTime, maxWidth, siblingCutoffPercent)
             : Array.Empty<CallTreeNode>();
@@ -1064,6 +1463,26 @@ string FormatTypeDisplayName(string rawName)
     return CleanTypeName(rawName);
 }
 
+string FormatBytes(long bytes)
+{
+    if (bytes < 1024)
+    {
+        return bytes.ToString(CultureInfo.InvariantCulture) + " B";
+    }
+
+    if (bytes < 1024 * 1024)
+    {
+        return (bytes / 1024d).ToString("F2", CultureInfo.InvariantCulture) + " KB";
+    }
+
+    if (bytes < 1024L * 1024L * 1024L)
+    {
+        return (bytes / (1024d * 1024d)).ToString("F2", CultureInfo.InvariantCulture) + " MB";
+    }
+
+    return (bytes / (1024d * 1024d * 1024d)).ToString("F2", CultureInfo.InvariantCulture) + " GB";
+}
+
 string CleanTypeName(string name)
 {
     if (string.IsNullOrWhiteSpace(name))
@@ -1169,9 +1588,8 @@ string GetCallTreeMatchName(CallTreeNode node)
     return FormatMethodDisplayName(node.Name);
 }
 
-bool ShouldStopAtLeaf(CallTreeNode node)
+bool ShouldStopAtLeaf(string matchName)
 {
-    var matchName = GetCallTreeMatchName(node);
     return matchName.Contains("CastHelpers.", StringComparison.Ordinal) ||
            matchName.Contains("Array.Copy", StringComparison.Ordinal) ||
            matchName.Contains("Dictionary<__Canon,__Canon>.Resize", StringComparison.Ordinal) ||
@@ -1613,7 +2031,14 @@ rootCommand.SetHandler(context =>
         {
             Console.WriteLine($"{profileKey} - memory");
             var results = MemoryProfile(profileKey);
-            PrintMemoryResults(results, profileKey);
+            PrintMemoryResults(
+                results,
+                profileKey,
+                callTreeRoot,
+                includeRuntime,
+                callTreeDepth,
+                callTreeWidth,
+                callTreeSiblingCutoff);
         }
 
         if (runHeap)

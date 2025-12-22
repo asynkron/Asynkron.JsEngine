@@ -181,7 +181,7 @@ public static class JsonHelper
                         arrItems.Add(StringifyValue(item, depth + 1));
                     }
 
-                    return "[" + string.Join(",", arrItems) + "]";
+                    return "[" + string.Join(',', arrItems) + "]";
 
                 case JsObject obj:
                     var objProps = new List<string>();

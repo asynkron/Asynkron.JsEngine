@@ -356,7 +356,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             parts.Add(str);
         }
 
-        return string.Join(",", parts);
+        return string.Join(',', parts);
     }
 
     /// <summary>

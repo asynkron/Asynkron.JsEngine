@@ -18,6 +18,7 @@ public static partial class TypedAstEvaluator
 
     private static readonly object GeneratorBrandMarker = new();
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static bool TryConvertToWithBindingObject(
         object? value,
         EvaluationContext context,
@@ -65,24 +66,28 @@ public static partial class TypedAstEvaluator
     /// NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.
     /// </summary>
     [MustDisposeResource]
-    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(object? value)
+    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(JsValue value)
     {
-        return value switch
+        // JsArray - fast path only if no custom indexed properties (getters/setters)
+        // Arrays with Object.defineProperty on numeric indices need full iterator protocol
+        if (value is { Kind: JsValueKind.Object, ObjectValue: JsArray { HasCustomIndexedProperties: false } array })
         {
-            // JsArray - fast path only if no custom indexed properties (getters/setters)
-            // Arrays with Object.defineProperty on numeric indices need full iterator protocol
-            JsArray { HasCustomIndexedProperties: false } array => array.GetEnumerator(),
+            return array.GetEnumerator();
+        }
 
-            // Strings - Unicode code point enumeration (handles surrogate pairs)
-            // Strings are immutable so no modification concerns
-            string s => EnumerateStringCharacters(s),
+        // Strings - Unicode code point enumeration (handles surrogate pairs)
+        // Strings are immutable so no modification concerns
+        if (value is { Kind: JsValueKind.String, ObjectValue: string s })
+        {
+            return EnumerateStringCharacters(s);
+        }
 
-            // Fall back to null - caller should use full iterator protocol
-            // TypedArray: resizable buffer shrink needs proper error propagation
-            _ => null
-        };
+        // Fall back to null - caller should use full iterator protocol
+        // TypedArray: resizable buffer shrink needs proper error propagation
+        return null;
     }
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
     private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context, out IJsObjectLike? iterator)
     {
@@ -99,7 +104,7 @@ public static partial class TypedAstEvaluator
             iteratorKey);
         if (accessor is IJsObjectLike objectLike)
         {
-            var keysPreview = string.Join(",", objectLike.Keys.Take(8));
+            var keysPreview = string.Join(',', objectLike.Keys.Take(8));
             logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
         }
 
@@ -155,33 +160,9 @@ public static partial class TypedAstEvaluator
         return AwaitScheduler.IsPromiseLike(candidate);
     }
 
-    // RequireObjectCoercible for iteration heads so null/undefined throw a JS TypeError
-    // before attempting iterator resolution (ES2024 14.7.5.1, 14.7.5.2).
-    private static void EnsureObjectCoercibleForIteration(object? value, EvaluationContext context)
-    {
-        if (value is null || ReferenceEquals(value, Symbol.Undefined) || value is IIsHtmlDda)
-        {
-            throw StandardLibrary.ThrowTypeError("Cannot iterate over undefined or null", context, context.RealmState);
-        }
-    }
-
     // ToObject for iteration lookup: primitives must be wrapped so @@iterator can be
     // found on their prototypes (ES2024 GetIterator/ToObject step).
-    private static object NormalizeIterableTarget(object? value, EvaluationContext context)
-    {
-        EnsureObjectCoercibleForIteration(value, context);
-
-        return value switch
-        {
-            IJsPropertyAccessor => value,
-            _ => ToObjectForDestructuring(value, context)
-        };
-    }
-
-    /// <summary>
-    /// JsValue overload for NormalizeIterableTarget. Avoids boxing by handling JsValue directly.
-    /// </summary>
-    private static object NormalizeIterableTargetJsValue(JsValue jsValue, EvaluationContext context)
+    private static object NormalizeIterableTarget(JsValue jsValue, EvaluationContext context)
     {
         if (jsValue.IsNull || jsValue.IsUndefined)
         {
@@ -214,21 +195,22 @@ public static partial class TypedAstEvaluator
     }
 
 
-    private static IEnumerable<object?> EnumeratePropertyKeys(object? value)
+    private static IEnumerable<JsValue> EnumeratePropertyKeys(JsValue value)
     {
-        switch (value)
+        // Per ES spec, for-in over null or undefined should not iterate (no properties to enumerate)
+        if (value.IsNull || value.IsUndefined)
         {
-            case null:
-            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                // Per ES spec, for-in over null or undefined should not iterate (no properties to enumerate)
-                yield break;
+            yield break;
+        }
 
-            case JsArray array:
+        switch (value.Kind)
+        {
+            case JsValueKind.Object when value.ObjectValue is JsArray array:
             {
                 // First, enumerate numeric indices (array elements)
                 for (var i = 0; i < array.Items.Count; i++)
                 {
-                    yield return i.ToString(CultureInfo.InvariantCulture);
+                    yield return JsValue.FromString(i.ToString(CultureInfo.InvariantCulture));
                 }
 
                 // Track seen keys to properly handle shadowing
@@ -266,7 +248,7 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
-                        yield return key;
+                        yield return JsValue.FromString(key);
                     }
 
                     // Move to prototype
@@ -281,7 +263,7 @@ public static partial class TypedAstEvaluator
                 yield break;
             }
 
-            case TypedArrayBase typedArray:
+            case JsValueKind.Object when value.ObjectValue is TypedArrayBase typedArray:
             {
                 // TypedArray for-in only exposes own enumerable properties (indices and custom slots).
                 var seenKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -293,28 +275,28 @@ public static partial class TypedAstEvaluator
                     }
 
                     var desc = typedArray.GetOwnPropertyDescriptor(key);
-                    if (desc is null || desc is { Enumerable: false })
+                    if (desc is null or { Enumerable: false })
                     {
                         continue;
                     }
 
-                    yield return key;
+                    yield return JsValue.FromString(key);
                 }
 
                 yield break;
             }
 
-            case string s:
+            case JsValueKind.String when value.ObjectValue is string s:
             {
                 for (var i = 0; i < s.Length; i++)
                 {
-                    yield return i.ToString(CultureInfo.InvariantCulture);
+                    yield return JsValue.FromString(i.ToString(CultureInfo.InvariantCulture));
                 }
 
                 yield break;
             }
 
-            case IJsObjectLike accessor:
+            case JsValueKind.Object when value.ObjectValue is IJsObjectLike accessor:
             {
                 // Track seen keys to properly handle shadowing - prototype properties
                 // with the same name as own properties should not be enumerated
@@ -349,7 +331,7 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
-                        yield return key;
+                        yield return JsValue.FromString(key);
                     }
 
                     // Move to prototype
@@ -368,33 +350,9 @@ public static partial class TypedAstEvaluator
         throw new InvalidOperationException("Cannot iterate properties of non-object value.");
     }
 
-    private static DelegatedYieldState CreateDelegatedState(object? iterable, EvaluationContext context)
+    private static DelegatedYieldState CreateDelegatedState(JsValue iterable, EvaluationContext context)
     {
         var iteratorTarget = NormalizeIterableTarget(iterable, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return DelegatedYieldState.FromEnumerable([]);
-        }
-
-        if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
-        {
-            return DelegatedYieldState.FromIterator(iterator);
-        }
-
-        if (context.ShouldStopEvaluation)
-        {
-            return DelegatedYieldState.FromEnumerable([]);
-        }
-
-        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
-    }
-
-    /// <summary>
-    /// JsValue overload for CreateDelegatedState. Avoids boxing by handling JsValue directly.
-    /// </summary>
-    private static DelegatedYieldState CreateDelegatedStateJsValue(JsValue iterable, EvaluationContext context)
-    {
-        var iteratorTarget = NormalizeIterableTargetJsValue(iterable, context);
         if (context.ShouldStopEvaluation)
         {
             return DelegatedYieldState.FromEnumerable([]);
@@ -501,10 +459,7 @@ public static partial class TypedAstEvaluator
                 var (item, done) = iteratorRecord.Next(context);
                 if (context.ShouldStopEvaluation)
                 {
-                    if (iterator is not null)
-                    {
-                        iterator.IteratorClose(context);
-                    }
+                    iterator?.IteratorClose(context);
 
                     throw new ThrowSignal(context.FlowValue);
                 }
@@ -536,6 +491,7 @@ public static partial class TypedAstEvaluator
     }
 
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static bool IsNullish(object? value)
     {
         return value.IsNullish();
@@ -561,82 +517,6 @@ public static partial class TypedAstEvaluator
             }
         }
         return false;
-    }
-
-    public static object? Add(object? left, object? right, EvaluationContext context)
-    {
-        // Fast path: both operands are already doubles (very common in loops)
-        if (left is double leftDouble && right is double rightDouble)
-        {
-            return JsValueCache.GetNumber(leftDouble + rightDouble);
-        }
-
-        var leftPrimitive = JsOps.ToPrimitive(left, ToPrimitiveHint.Default, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return context.FlowValue;
-        }
-
-        var rightPrimitive = JsOps.ToPrimitive(right, ToPrimitiveHint.Default, context);
-        if (context.ShouldStopEvaluation)
-        {
-            return context.FlowValue;
-        }
-
-        if (leftPrimitive is string || rightPrimitive is string)
-        {
-            if (IsRealSymbol(leftPrimitive) || IsRealSymbol(rightPrimitive))
-            {
-                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context);
-            }
-
-            return JsOps.ToJsString(leftPrimitive, context) + JsOps.ToJsString(rightPrimitive, context);
-
-            bool IsRealSymbol(object? v)
-            {
-                return v switch
-                {
-                    TypedAstSymbol => true,
-                    Symbol sym when !ReferenceEquals(sym, Symbol.Undefined) => true,
-                    _ => false
-                };
-            }
-        }
-
-        // Use JsValue-based conversion to avoid boxing
-        var leftNumeric = ToNumericValue(leftPrimitive is JsValue leftJs ? leftJs : JsValue.FromObjectUnsafe(leftPrimitive), context);
-        if (context.ShouldStopEvaluation)
-        {
-            return context.FlowValue;
-        }
-
-        var rightNumeric = ToNumericValue(rightPrimitive is JsValue rightJs ? rightJs : JsValue.FromObjectUnsafe(rightPrimitive), context);
-        if (context.ShouldStopEvaluation)
-        {
-            return context.FlowValue;
-        }
-
-        // Both are numbers - most common case
-        if (leftNumeric.IsNumber && rightNumeric.IsNumber)
-        {
-            return new JsValue(leftNumeric.NumberValue + rightNumeric.NumberValue);
-        }
-
-        // Both are BigInt
-        if (leftNumeric.IsBigInt && rightNumeric.IsBigInt)
-        {
-            return new JsValue(leftNumeric.AsBigInt() + rightNumeric.AsBigInt());
-        }
-
-        // Mixed types - error
-        if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
-        {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
-                context);
-        }
-
-        // Fallback
-        return new JsValue(leftNumeric.NumberValue + rightNumeric.NumberValue);
     }
 
     /// <summary>
@@ -886,17 +766,20 @@ public static partial class TypedAstEvaluator
         return JsValue.FromDouble(int32Op(leftIntVal, rightIntVal));
     }
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
     {
         return JsOps.TryGetPropertyValue(target, propertyName, out value);
     }
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value,
         EvaluationContext? context = null)
     {
         return JsOps.TryGetPropertyValue(target, propertyKey, out value, context);
     }
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static void AssignPropertyValue(object? target, object? propertyKey, object? value,
         EvaluationContext? context = null)
     {
@@ -1034,6 +917,7 @@ public static partial class TypedAstEvaluator
     }
 
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
     private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
         out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
@@ -1126,8 +1010,6 @@ public static partial class TypedAstEvaluator
         {
             JsValueKind.Boolean => (object?)(jsValue.NumberValue != 0),
             JsValueKind.Number => jsValue.NumberValue,
-            JsValueKind.Symbol => jsValue.ObjectValue,
-            JsValueKind.BigInt => jsValue.ObjectValue,
             _ => jsValue.ObjectValue
         };
 
@@ -1206,22 +1088,18 @@ public static partial class TypedAstEvaluator
         // For primitives, extract and coerce
         var value = jsValue.Kind switch
         {
-            JsValueKind.Boolean => (object?)(jsValue.NumberValue != 0),
+            JsValueKind.Boolean => jsValue.NumberValue != 0,
             JsValueKind.Number => jsValue.NumberValue,
-            JsValueKind.String => jsValue.ObjectValue,
-            JsValueKind.Symbol => jsValue.ObjectValue,
-            JsValueKind.BigInt => jsValue.ObjectValue,
-            JsValueKind.Object => jsValue.ObjectValue,
             _ => jsValue.ObjectValue
         };
 
-        if (realm is not null && StandardLibrary.TryGetObject(value, realm, out var coerced))
+        if (StandardLibrary.TryGetObject(value, realm, out var coerced))
         {
             return coerced;
         }
 
         var obj = new JsObject();
-        if (realm?.ObjectPrototype is not null)
+        if (realm.ObjectPrototype is not null)
         {
             obj.SetPrototype(realm.ObjectPrototype);
         }
@@ -1249,7 +1127,7 @@ public static partial class TypedAstEvaluator
                 return objectLike;
         }
 
-        if (realm is not null && StandardLibrary.TryGetObject(value, realm, out var coerced))
+        if (StandardLibrary.TryGetObject(value, realm, out var coerced))
         {
             return coerced;
         }

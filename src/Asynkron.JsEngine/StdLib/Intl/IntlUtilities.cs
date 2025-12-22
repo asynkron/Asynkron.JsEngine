@@ -751,12 +751,12 @@ internal static class IntlUtilities
 
         if (variants.Count > 0)
         {
-            canonical += "-" + string.Join("-", variants);
+            canonical += "-" + string.Join('-', variants);
         }
 
         if (extensions.Count > 0)
         {
-            canonical += "-" + string.Join("-", extensions);
+            canonical += "-" + string.Join('-', extensions);
         }
 
         if (privateUse is not null)
@@ -774,7 +774,7 @@ internal static class IntlUtilities
             return string.Empty;
         }
 
-        return string.Join("-", subtags, start, endExclusive - start);
+        return string.Join('-', subtags, start, endExclusive - start);
     }
 
     private static string DetermineDefaultLocale()
@@ -1109,7 +1109,7 @@ internal static class IntlUtilities
                     i++;
                 }
 
-                var value = string.Join("-", typeParts);
+                var value = string.Join('-', typeParts);
                 keywords[next] = value;
             }
 
@@ -1152,7 +1152,7 @@ internal static class IntlUtilities
             }
         }
 
-        return string.Join("-", output);
+        return string.Join('-', output);
     }
 
     private static string ResolveLocaleEntry(object? candidate, RealmState realm)

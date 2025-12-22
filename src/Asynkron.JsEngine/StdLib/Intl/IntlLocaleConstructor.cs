@@ -187,7 +187,7 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
 
     internal static string BuildVariantSuffix(List<string> variants)
     {
-        return variants.Count == 0 ? string.Empty : "-" + string.Join("-", variants);
+        return variants.Count == 0 ? string.Empty : "-" + string.Join('-', variants);
     }
 
     internal static string BuildBaseTag(string language, string? script, string? region)
@@ -515,7 +515,7 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
                     i++;
                 }
 
-                var value = typeParts.Count == 0 ? "true" : string.Join("-", typeParts);
+                var value = typeParts.Count == 0 ? "true" : string.Join('-', typeParts);
                 keywords[key] = value;
             }
 

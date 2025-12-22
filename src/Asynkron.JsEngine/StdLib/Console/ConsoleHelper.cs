@@ -55,6 +55,6 @@ public static class ConsoleHelper
             }
         }
 
-        return string.Join(" ", parts);
+        return string.Join(' ', parts);
     }
 }

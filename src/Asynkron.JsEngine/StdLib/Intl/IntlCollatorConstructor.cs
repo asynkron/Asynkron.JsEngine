@@ -154,7 +154,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             parts.AddRange(entry.Values);
         }
 
-        return $"{baseLocale}-{string.Join("-", parts)}";
+        return $"{baseLocale}-{string.Join('-', parts)}";
     }
 
     private static string ResolveCaseFirstFromExtension(IReadOnlyDictionary<string, List<string>> keywords)

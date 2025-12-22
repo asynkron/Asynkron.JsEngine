@@ -329,7 +329,7 @@ public static partial class TypedAstEvaluator
             IteratorDriverKind kind,
             EvaluationContext context)
         {
-            var iteratorTarget = NormalizeIterableTargetJsValue(iterable, context);
+            var iteratorTarget = NormalizeIterableTarget(iterable, context);
 
             if (!TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) || iterator is null)
             {
@@ -652,7 +652,7 @@ public static partial class TypedAstEvaluator
                                         throw new ThrowSignal(thrown);
                                     }
 
-                                    yieldStarState.State = CreateDelegatedStateJsValue(yieldStarIterableValue, context);
+                                    yieldStarState.State = CreateDelegatedState(yieldStarIterableValue, context);
 
                                     // Check if CreateDelegatedState resulted in a throw (e.g., from calling @@iterator)
                                     if (context.IsThrow)

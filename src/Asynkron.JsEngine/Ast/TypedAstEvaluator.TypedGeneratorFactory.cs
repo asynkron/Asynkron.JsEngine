@@ -433,7 +433,7 @@ public static partial class TypedAstEvaluator
             }
 
             var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var paramList = string.Join(",", parameters);
+            var paramList = string.Join(',', parameters);
 
             // Build source as a generator function (note the *)
             var functionSource = $"(function* anonymous({paramList}\n) {{\n{bodySource}\n}})";

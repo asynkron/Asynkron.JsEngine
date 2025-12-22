@@ -251,7 +251,7 @@ public sealed partial class ArrayPrototype
             parts.Add(part);
         }
 
-        return new JsValue(string.Join(",", parts));
+        return new JsValue(string.Join(',', parts));
     }
 
     [JsHostMethod("slice", Length = 2d)]

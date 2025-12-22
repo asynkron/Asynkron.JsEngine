@@ -389,7 +389,7 @@ public sealed partial class IntlLocalePrototype
         var variants = GetLocaleVariants(locale);
         if (variants.Count > 0)
         {
-            result += "-" + string.Join("-", variants);
+            result += "-" + string.Join('-', variants);
         }
 
         return result;

@@ -422,7 +422,7 @@ public static partial class TypedAstEvaluator
             }
 
             var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var paramList = string.Join(",", parameters);
+            var paramList = string.Join(',', parameters);
             var functionSource = $"(async function* anonymous({paramList}\n) {{\n{bodySource}\n}})";
 
             var scriptGoalOptions = new JsEngineOptions

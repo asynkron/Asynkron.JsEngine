@@ -60,14 +60,6 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Get the underlying object for iteration protocols
-            var iterable = iterableJsValue.Kind switch
-            {
-                JsValueKind.Null => null,
-                JsValueKind.Undefined => Symbol.Undefined,
-                _ => iterableJsValue.ObjectValue
-            };
-
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
             var lastValueJs = JsValue.Undefined;
@@ -91,7 +83,7 @@ public static partial class TypedAstEvaluator
 
                 // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
                 // This avoids allocating iterator result objects {done, value} per iteration.
-                var fastEnumerator = TryGetFastEnumeratorForIteration(iterable);
+                var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJsValue);
                 if (fastEnumerator is not null)
                 {
                     try
@@ -111,7 +103,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // SLOW PATH: Full iterator protocol for custom iterables
-                var iteratorTarget = NormalizeIterableTarget(iterable, context);
+                var iteratorTarget = NormalizeIterableTarget(iterableJsValue, context);
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     return plan.ExecuteIteratorDriverJsValue(iterator,
@@ -128,7 +120,7 @@ public static partial class TypedAstEvaluator
 
             var values = statement.Kind switch
             {
-                ForEachKind.In => EnumeratePropertyKeys(iterable),
+                ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
                 _ => throw new ArgumentOutOfRangeException()
             };
 
@@ -162,7 +154,7 @@ public static partial class TypedAstEvaluator
                             description: "for-each-iteration")
                 : loopEnvironment;
 
-                statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
+                statement.Target.AssignLoopBindingJsValue(value, iterationEnvironment, environment, context,
                 statement.DeclarationKind);
 
                 IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
@@ -220,9 +212,6 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, context.RealmState);
             }
 
-            // Get the underlying object for iteration protocols
-            var iterable = iterableJs.ObjectValue;
-
             var loopEnvironment =
                 new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
 
@@ -243,7 +232,7 @@ public static partial class TypedAstEvaluator
 
             // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
             // This avoids iterator result object allocations while maintaining async semantics.
-            var fastEnumerator = TryGetFastEnumeratorForIteration(iterable);
+            var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJs);
             if (fastEnumerator is not null)
             {
                 try
@@ -263,7 +252,7 @@ public static partial class TypedAstEvaluator
             }
 
             // SLOW PATH: Full iterator protocol for custom async/sync iterables
-            var iteratorTarget = NormalizeIterableTarget(iterable, context);
+            var iteratorTarget = NormalizeIterableTarget(iterableJs, context);
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
                 return plan.ExecuteIteratorDriverJsValue(iterator,

@@ -76,7 +76,7 @@ public static partial class TypedAstEvaluator
             {
                 var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
                 Func<JsEnvironment>? rentIterationEnvironment = null;
-                if (plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0 &&
+                if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                     statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                         or VariableKind.AwaitUsing)
                 {
@@ -134,7 +134,7 @@ public static partial class TypedAstEvaluator
 
             Func<JsEnvironment>? rentLoopIterationEnv = null;
             var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            if (cachedPlan.IterationSlotCount >= 0 && cachedPlan.IterationScopeId >= 0 &&
+            if (cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                 statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing)
             {

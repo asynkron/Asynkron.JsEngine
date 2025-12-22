@@ -70,7 +70,7 @@ internal static class IntlUtilities
             throw StandardLibrary.ThrowTypeError("Intl locale list cannot be null", realm: realm);
         }
 
-        if (locales.Kind == JsValueKind.String && locales.ObjectValue is string single)
+        if (locales is { Kind: JsValueKind.String, ObjectValue: string single })
         {
             var seen = new List<string>();
             AppendCanonicalLocale(seen, single, realm);

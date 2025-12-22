@@ -496,7 +496,7 @@ public static partial class TypedAstEvaluator
                 case ObjectExpression obj:
                     foreach (var member in obj.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                        if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
                             work.Push(keyExpression);
                         if (member.Value is not null)
                             work.Push(member.Value);
@@ -623,7 +623,7 @@ public static partial class TypedAstEvaluator
                 case ObjectExpression obj:
                     foreach (var member in obj.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                        if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
                         {
                             work.Push(keyExpression);
                         }
@@ -1025,7 +1025,7 @@ public static partial class TypedAstEvaluator
                 case ObjectExpression obj:
                     foreach (var member in obj.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                        if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
                             work.Push(keyExpression);
                         // Methods in object literals are FunctionExpressions - check Value
                         if (member.Value is not null)

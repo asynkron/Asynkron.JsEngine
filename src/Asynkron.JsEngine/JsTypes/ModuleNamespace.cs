@@ -203,19 +203,19 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             }
 
             // If writable is specified and true (different from current false), return false
-            if (descriptor.HasWritable && descriptor.Writable)
+            if (descriptor is { HasWritable: true, Writable: true })
             {
                 return false;
             }
 
             // If enumerable is specified and true (different from current false), return false
-            if (descriptor.HasEnumerable && descriptor.Enumerable)
+            if (descriptor is { HasEnumerable: true, Enumerable: true })
             {
                 return false;
             }
 
             // If configurable is specified and true (different from current false), return false
-            if (descriptor.HasConfigurable && descriptor.Configurable)
+            if (descriptor is { HasConfigurable: true, Configurable: true })
             {
                 return false;
             }

@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
             var scope = new JsEnvironment(environment, false, block.IsStrict);
             scope.ScopeId = block.ScopeId;
             scope.SetSlotMap(block.SlotMap);
-            if (block.SlotCount > 0 && block.ScopeId >= 0)
+            if (block is { SlotCount: > 0, ScopeId: >= 0 })
             {
                 scope.InitializeSlots(block.SlotCount, block.ScopeId);
             }

@@ -134,7 +134,7 @@ internal static class IntlNumberFormatter
                 fractionDigits = fractionDigits.TrimEnd('0');
             }
         }
-        else if (!slots.UseSignificantDigits && slots.MinimumFractionDigits > 0)
+        else if (slots is { UseSignificantDigits: false, MinimumFractionDigits: > 0 })
         {
             fractionDigits = new string('0', slots.MinimumFractionDigits);
         }
@@ -278,7 +278,7 @@ internal static class IntlNumberFormatter
             return DecimalQuantity.FromDecimal(0m);
         }
 
-        if (value <= DecimalMaxMagnitude && value >= -DecimalMaxMagnitude)
+        if (value is <= DecimalMaxMagnitude and >= -DecimalMaxMagnitude)
         {
             try
             {

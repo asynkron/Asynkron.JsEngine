@@ -138,7 +138,7 @@ public static partial class TypedAstEvaluator
                     var usedDefault = false;
                     // Check for undefined: could be Symbol.Undefined, JsValue.Undefined, or null
                     var isUndefined = ReferenceEquals(elementValue, Symbol.Undefined) ||
-                                      (elementValue is JsValue jsVal && jsVal.IsUndefined) ||
+                                      elementValue is JsValue { IsUndefined: true } ||
                                       elementValue is null;
                     if (element.DefaultValue is not null && isUndefined)
                     {
@@ -234,7 +234,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     var restArray = resumeState?.RestArray ?? new JsArray(context.RealmState);
-                    var consumePendingRest = resumeState?.ConsumingRest == true && resumeState.HasPendingElement;
+                    var consumePendingRest = resumeState is { ConsumingRest: true, HasPendingElement: true };
                     var pendingRestValue = consumePendingRest ? resumeState!.PendingValue : null;
                     var pendingRestDone = consumePendingRest && resumeState!.PendingDone;
                     while (true)

@@ -16,7 +16,7 @@ public static class DataViewHelper
         // Handle boxed JsValue struct first - unwrap to get the underlying object
         if (thisVal is JsValue jsVal)
         {
-            if (jsVal.Kind == JsValueKind.Object && jsVal.ObjectValue is { } objVal)
+            if (jsVal is { Kind: JsValueKind.Object, ObjectValue: { } objVal })
             {
                 thisVal = objVal;
             }

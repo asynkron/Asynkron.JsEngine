@@ -23,7 +23,7 @@ public static partial class StandardLibrary
                     return false;
                 case JsValue jsValue:
                     // Handle JsValue by extracting the underlying object based on kind
-                    if (jsValue.Kind == JsValueKind.Object && jsValue.ObjectValue is { } objVal)
+                    if (jsValue is { Kind: JsValueKind.Object, ObjectValue: { } objVal })
                     {
                         candidate = objVal;
                         continue;

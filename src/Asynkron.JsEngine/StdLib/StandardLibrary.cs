@@ -239,7 +239,7 @@ public static partial class StandardLibrary
                     {
                         throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
                     }
-                    if (jsValue.Kind == JsValueKind.BigInt && jsValue.ObjectValue is JsBigInt directBigInt)
+                    if (jsValue is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt directBigInt })
                     {
                         return directBigInt;
                     }
@@ -247,7 +247,7 @@ public static partial class StandardLibrary
                     {
                         return jsValue.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero;
                     }
-                    if (jsValue.Kind == JsValueKind.String && jsValue.ObjectValue is string strValue)
+                    if (jsValue is { Kind: JsValueKind.String, ObjectValue: string strValue })
                     {
                         return new JsBigInt(ParseBigIntString(strValue, localContext, realmState));
                     }

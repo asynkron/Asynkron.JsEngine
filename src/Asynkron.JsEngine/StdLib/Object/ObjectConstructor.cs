@@ -228,7 +228,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot freeze module namespace", realm: realmState);
         }
 
-        if (target is TypedArrayBase typedArray && typedArray.Buffer.Resizable)
+        if (target is TypedArrayBase { Buffer.Resizable: true })
         {
             throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realmState);
         }
@@ -648,7 +648,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var value = args[0];
 
         // Check if it's a TypedAstSymbol (stored in ObjectValue when Kind is Symbol)
-        if (value.IsSymbol && value.ObjectValue is TypedAstSymbol typedSym)
+        if (value is { IsSymbol: true, ObjectValue: TypedAstSymbol typedSym })
         {
             return CreateSymbolWrapper(typedSym, realm: Realm);
         }

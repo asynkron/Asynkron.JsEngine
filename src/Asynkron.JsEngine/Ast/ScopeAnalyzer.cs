@@ -541,7 +541,7 @@ public sealed class ScopeAnalyzer
             }
 
             // Only increment depth when crossing function boundaries
-            if (scope.IsFunctionScope && scope.Parent is not null)
+            if (scope is { IsFunctionScope: true, Parent: not null })
             {
                 depth++;
             }
@@ -693,8 +693,7 @@ public sealed class ScopeAnalyzer
         }
 
         // Check if environment reuse is possible for this function
-        var canOptimize = _currentFunctionScope?.IsDynamic == false &&
-                          !_currentFunctionScope.HasClosures;
+        var canOptimize = _currentFunctionScope is { IsDynamic: false, HasClosures: false };
 
         if (!canOptimize)
         {
@@ -703,12 +702,10 @@ public sealed class ScopeAnalyzer
 
         // Check if we have a binary expression with exactly 2 direct call expressions
         // In this case, we can use argument pre-evaluation to enable environment reuse for ALL calls
-        if (returnStmt.Expression is BinaryExpression binary &&
-            binary.Operator is not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing) &&
-            binary.Left is CallExpression leftCall &&
-            binary.Right is CallExpression rightCall &&
-            leftCall.Arguments.Length == 1 && !leftCall.Arguments[0].IsSpread &&
-            rightCall.Arguments.Length == 1 && !rightCall.Arguments[0].IsSpread)
+        if (returnStmt.Expression is BinaryExpression { Operator: not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing), Left: CallExpression
+            {
+                Arguments: [{ IsSpread: false }]
+            } leftCall, Right: CallExpression { Arguments: [{ IsSpread: false }] } rightCall } binary)
         {
             // Mark both calls for environment reuse and set the pre-evaluation flag
             var resolvedLeftCall = ResolveCallExpression(leftCall) with { CanReuseCallerEnvironment = true };
@@ -719,11 +716,10 @@ public sealed class ScopeAnalyzer
 
         // Check if we have call * identifier pattern (e.g., return __func(arg-1) * arg)
         // Pre-evaluate the identifier before the call to preserve its value
-        if (returnStmt.Expression is BinaryExpression binaryCallId &&
-            binaryCallId.Operator is not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing) &&
-            binaryCallId.Left is CallExpression callLeft &&
-            binaryCallId.Right is IdentifierExpression idRight &&
-            callLeft.Arguments.Length == 1 && !callLeft.Arguments[0].IsSpread)
+        if (returnStmt.Expression is BinaryExpression { Operator: not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing), Left: CallExpression
+            {
+                Arguments: [{ IsSpread: false }]
+            } callLeft, Right: IdentifierExpression idRight } binaryCallId)
         {
             var resolvedCall = ResolveCallExpression(callLeft) with { CanReuseCallerEnvironment = true };
             var resolvedId = ResolveIdentifierExpression(idRight);

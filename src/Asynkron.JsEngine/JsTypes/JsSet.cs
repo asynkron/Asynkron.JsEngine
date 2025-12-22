@@ -297,7 +297,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             if (x == null || y == null) return false;
 
             // Handle NaN (NaN is equal to NaN in SameValueZero)
-            if (x is double dx && double.IsNaN(dx) && y is double dy && double.IsNaN(dy))
+            if (x is double and Double.NaN && y is double and Double.NaN)
             {
                 return true;
             }
@@ -321,7 +321,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         public int GetHashCode(object obj)
         {
             // Handle NaN - all NaN values should hash the same
-            if (obj is double d && double.IsNaN(d))
+            if (obj is double and Double.NaN)
             {
                 return 0; // All NaN values get the same hash
             }

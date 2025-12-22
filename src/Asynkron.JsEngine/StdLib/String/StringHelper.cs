@@ -55,7 +55,7 @@ public static class StringHelper
         }
 
         // For objects, check for __value__ property
-        if (receiver.Kind == JsValueKind.Object && receiver.ObjectValue is IJsPropertyAccessor accessor)
+        if (receiver is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor accessor })
         {
             if (accessor.TryGetProperty("__value__", out var inner) && inner.TryGetString(out var s))
             {

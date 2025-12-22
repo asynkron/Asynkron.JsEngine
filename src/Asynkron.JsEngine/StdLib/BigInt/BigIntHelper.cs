@@ -29,7 +29,7 @@ public static class BigIntHelper
     internal static JsBigInt RequireBigIntValue(JsValue receiver, RealmState realm)
     {
         // Fast path for direct BigInt
-        if (receiver.Kind == JsValueKind.BigInt && receiver.ObjectValue is JsBigInt directBi)
+        if (receiver is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt directBi })
         {
             return directBi;
         }

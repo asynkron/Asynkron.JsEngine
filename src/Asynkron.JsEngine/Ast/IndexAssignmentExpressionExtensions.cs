@@ -34,8 +34,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Only extract for IFunctionNameTarget check - keep as JsValue otherwise
-                if (superAssignedValueJs.Kind == JsValueKind.Object &&
-                    superAssignedValueJs.ObjectValue is IFunctionNameTarget superNameTarget &&
+                if (superAssignedValueJs is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget superNameTarget } &&
                     expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                 {
                     superNameTarget.EnsureHasName(string.Empty);
@@ -130,8 +129,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Only extract for IFunctionNameTarget check - keep as JsValue otherwise
-            if (assignedValueJs.Kind == JsValueKind.Object &&
-                assignedValueJs.ObjectValue is IFunctionNameTarget nameTarget &&
+            if (assignedValueJs is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget } &&
                 expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
             {
                 nameTarget.EnsureHasName(string.Empty);

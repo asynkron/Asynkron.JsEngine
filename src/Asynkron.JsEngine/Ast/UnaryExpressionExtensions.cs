@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Fastest path: slot-based access
-                    if (identifier.SlotIndex >= 0 && identifier.ScopeId >= 0 &&
+                    if (identifier is { SlotIndex: >= 0, ScopeId: >= 0 } &&
                         environment.TryReadIdentifierWithSlot(identifier, context, out var slotValue))
                     {
                         if (context.ShouldStopEvaluation)

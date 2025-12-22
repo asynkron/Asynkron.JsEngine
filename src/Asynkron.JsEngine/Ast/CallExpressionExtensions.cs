@@ -19,9 +19,7 @@ public static partial class TypedAstEvaluator
         {
             // Ultra-fast path for simple identifier calls to TypedFunctions (e.g., fib(n-1))
             // This is the most common case in recursive benchmarks
-            if (!expression.IsOptional &&
-                expression.Callee is IdentifierExpression calleeId &&
-                expression.Arguments.Length <= 2)
+            if (expression is { IsOptional: false, Callee: IdentifierExpression calleeId, Arguments.Length: <= 2 })
             {
                 // If the identifier was NOT statically resolved (SlotIndex < 0), it might be
                 // in a dynamic scope (with/eval). Check for 'with' environment - if found, we need
@@ -52,7 +50,7 @@ public static partial class TypedAstEvaluator
                 {
                     // Fast slot-based lookup for the function
                     JsValue calleeValue;
-                    if (calleeId.SlotIndex >= 0 && calleeId.ScopeId >= 0)
+                    if (calleeId is { SlotIndex: >= 0, ScopeId: >= 0 })
                     {
                         calleeValue = environment.TryReadIdentifierWithSlot(
                                 calleeId,

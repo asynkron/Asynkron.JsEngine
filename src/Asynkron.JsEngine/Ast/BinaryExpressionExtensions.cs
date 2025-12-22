@@ -102,7 +102,7 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateBinarySlow(JsEnvironment environment, EvaluationContext context)
         {
             // ES2022: Handle private identifier in 'in' operator (#field in obj)
-            if (expression.Operator == BinaryOperator.In && expression.Left is PrivateIdentifierExpression privateId)
+            if (expression is { Operator: BinaryOperator.In, Left: PrivateIdentifierExpression privateId })
             {
                 var rightTarget = expression.Right.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)

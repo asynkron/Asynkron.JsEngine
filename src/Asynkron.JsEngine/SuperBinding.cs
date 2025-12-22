@@ -74,8 +74,7 @@ public sealed class SuperBinding(
             }
         }
 
-        if (Constructor is IJsPropertyAccessor ctorAccessor &&
-            ctorAccessor is not SuperBinding &&
+        if (Constructor is IJsPropertyAccessor ctorAccessor and not SuperBinding &&
             ctorAccessor.TryGetProperty(name, out value))
         {
             return true;

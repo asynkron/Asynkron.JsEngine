@@ -187,7 +187,7 @@ public sealed partial class DataViewPrototype : JsPrototype
 
     protected override void ConfigurePrototype()
     {
-        if (Prototype is JsObject jsObj && jsObj.RealmState is null)
+        if (Prototype is JsObject { RealmState: null } jsObj)
         {
             jsObj.RealmState = Realm;
         }

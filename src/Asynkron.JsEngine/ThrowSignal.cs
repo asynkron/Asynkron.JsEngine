@@ -32,10 +32,10 @@ public sealed class ThrowSignal(JsValue thrownValue) : Exception(FormatThrowMess
         if (thrownValue.TryGetObject<JsObject>(out var jsObj))
         {
             // Try to get error message or name from the object
-            if (jsObj.TryGetProperty("message", out var message) && !message.IsNull && !message.IsUndefined)
+            if (jsObj.TryGetProperty("message", out var message) && message is { IsNull: false, IsUndefined: false })
             {
                 var msgStr = JsOps.ToJsString(message);
-                if (jsObj.TryGetProperty("name", out var name) && !name.IsNull && !name.IsUndefined)
+                if (jsObj.TryGetProperty("name", out var name) && name is { IsNull: false, IsUndefined: false })
                 {
                     return $"Unhandled JavaScript throw: '{JsOps.ToJsString(name)}': '{msgStr}'";
                 }
@@ -43,7 +43,7 @@ public sealed class ThrowSignal(JsValue thrownValue) : Exception(FormatThrowMess
                 return $"Unhandled JavaScript throw: {msgStr}";
             }
 
-            if (jsObj.TryGetProperty("name", out var errorName) && !errorName.IsNull && !errorName.IsUndefined)
+            if (jsObj.TryGetProperty("name", out var errorName) && errorName is { IsNull: false, IsUndefined: false })
             {
                 return $"Unhandled JavaScript throw: {JsOps.ToJsString(errorName)}";
             }

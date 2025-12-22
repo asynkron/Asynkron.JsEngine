@@ -77,7 +77,7 @@ public static partial class TypedAstEvaluator
             // Fast path: for non-computed member access with literal string property,
             // skip expression evaluation and use the property name directly
             string? propertyName;
-            if (!expression.IsComputed && expression.Property is LiteralExpression { Value.IsString: true } literalProp)
+            if (expression is { IsComputed: false, Property: LiteralExpression { Value.IsString: true } literalProp })
             {
                 propertyName = literalProp.Value.AsString();
             }

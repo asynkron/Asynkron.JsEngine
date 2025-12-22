@@ -210,8 +210,7 @@ internal static class GeneratorYieldLowerer
                 return true;
             }
 
-            if (statement.Expression is AssignmentExpression assignment &&
-                assignment.Value is ClassExpression classValue &&
+            if (statement.Expression is AssignmentExpression { Value: ClassExpression classValue } assignment &&
                 TryRewriteClassExpression(classValue, out var rewrittenValue, out var valuePrefix))
             {
                 var rewrittenAssignment = assignment with { Value = rewrittenValue };
@@ -296,8 +295,7 @@ internal static class GeneratorYieldLowerer
                 return true;
             }
 
-            if (statement.Expression is AssignmentExpression assignment &&
-                assignment.Value is ObjectExpression objectValue &&
+            if (statement.Expression is AssignmentExpression { Value: ObjectExpression objectValue } assignment &&
                 TryRewriteObjectExpression(objectValue, out var rewrittenValue, out var valuePrefix))
             {
                 var rewrittenAssignment = assignment with { Value = rewrittenValue };
@@ -324,7 +322,7 @@ internal static class GeneratorYieldLowerer
             foreach (var member in objectExpression.Members)
             {
                 var key = member.Key;
-                if (member.IsComputed && member.Key is ExpressionNode keyExpression &&
+                if (member is { IsComputed: true, Key: ExpressionNode keyExpression } &&
                     AstShapeAnalyzer.ContainsYield(keyExpression))
                 {
                     var keyChanged = false;
@@ -425,7 +423,7 @@ internal static class GeneratorYieldLowerer
             for (var i = 0; i < members.Count; i++)
             {
                 var member = members[i];
-                if (member.IsComputed && member.ComputedName is not null &&
+                if (member is { IsComputed: true, ComputedName: not null } &&
                     AstShapeAnalyzer.ContainsYield(member.ComputedName))
                 {
                     var memberChanged = false;
@@ -438,7 +436,7 @@ internal static class GeneratorYieldLowerer
             for (var i = 0; i < fields.Count; i++)
             {
                 var field = fields[i];
-                if (field.IsComputed && field.ComputedName is not null &&
+                if (field is { IsComputed: true, ComputedName: not null } &&
                     AstShapeAnalyzer.ContainsYield(field.ComputedName))
                 {
                     var fieldChanged = false;
@@ -722,7 +720,7 @@ internal static class GeneratorYieldLowerer
                     foreach (var member in objectExpression.Members)
                     {
                         var key = member.Key;
-                        if (member.IsComputed && member.Key is ExpressionNode keyExpression)
+                        if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
                         {
                             var rewrittenKey =
                                 RewriteExpressionForComplexYields(keyExpression, prefixStatements, ref changed);

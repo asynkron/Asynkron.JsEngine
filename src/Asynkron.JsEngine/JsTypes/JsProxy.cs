@@ -29,8 +29,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             _meta.SetPrototype(jsObject.Prototype);
             _privateStorage.SetPrototype(_meta.Prototype);
         }
-        else if (_meta.Prototype is null && Target is IPrototypeAccessorProvider provider &&
-                 provider.PrototypeAccessor is { } protoAccessor)
+        else if (_meta.Prototype is null && Target is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
         {
             _meta.SetPrototype(protoAccessor);
             _privateStorage.SetPrototype(_meta.Prototype);
@@ -341,7 +340,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             var resultObj = result.AsObject();
-            if (resultObj is not not null && resultObj is not not null)
+            if (resultObj is not not (null and not not null))
             {
                 throw StandardLibrary.ThrowTypeError(
                     "Proxy getPrototypeOf trap must return an object or null",

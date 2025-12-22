@@ -144,8 +144,8 @@ internal static class JsOps
             JsValueKind.Null => false,
             JsValueKind.Boolean => value.NumberValue != 0,
             JsValueKind.Number => !double.IsNaN(value.NumberValue) && value.NumberValue != 0,
-            JsValueKind.BigInt => value.ObjectValue is JsBigInt bi && !bi.Value.IsZero,
-            JsValueKind.String => value.ObjectValue is string s && s.Length > 0,
+            JsValueKind.BigInt => value.ObjectValue is JsBigInt { Value.IsZero: false },
+            JsValueKind.String => value.ObjectValue is string { Length: > 0 },
             JsValueKind.Symbol => true,
             JsValueKind.Object => value.ObjectValue is not IIsHtmlDda,
             _ => true
@@ -1049,7 +1049,7 @@ internal static class JsOps
         // ES Spec 7.2.15 Abstract Relational Comparison
         // Step 1-3: Call ToPrimitive with hint "number" on both operands
         var leftPrimitive = left;
-        if (left is IJsPropertyAccessor leftAccessor && left is not TypedAstSymbol)
+        if (left is IJsPropertyAccessor leftAccessor and not TypedAstSymbol)
         {
             leftPrimitive = ToPrimitive(leftAccessor, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
@@ -1059,7 +1059,7 @@ internal static class JsOps
         }
 
         var rightPrimitive = right;
-        if (right is IJsPropertyAccessor rightAccessor && right is not TypedAstSymbol)
+        if (right is IJsPropertyAccessor rightAccessor and not TypedAstSymbol)
         {
             rightPrimitive = ToPrimitive(rightAccessor, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
@@ -1293,7 +1293,7 @@ internal static class JsOps
             result = d;
             return true;
         }
-        if (value is JsValue jsv && jsv.IsNumber)
+        if (value is JsValue { IsNumber: true } jsv)
         {
             result = jsv.NumberValue;
             return true;
@@ -1678,7 +1678,7 @@ internal static class JsOps
             }
 
             // Fall through to object-based resolution for wrapped objects
-            if (candidate.Kind == JsValueKind.Object && candidate.ObjectValue is JsObject jsObj && jsObj.TryGetValue("__value__", out var innerValue))
+            if (candidate is { Kind: JsValueKind.Object, ObjectValue: JsObject jsObj } && jsObj.TryGetValue("__value__", out var innerValue))
             {
                 candidate = JsValue.FromObjectUnsafe(innerValue);
                 continue;
@@ -2222,7 +2222,7 @@ internal static class JsOps
         if (propertyKey.Kind == JsValueKind.Number)
         {
             var num = propertyKey.NumberValue;
-            if (num >= 0 && num <= int.MaxValue && num == Math.Floor(num))
+            if (num is >= 0 and <= int.MaxValue && num == Math.Floor(num))
             {
                 index = (int)num;
                 return true;

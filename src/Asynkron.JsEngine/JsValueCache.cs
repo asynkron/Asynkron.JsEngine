@@ -118,7 +118,7 @@ public static class JsValueCache
     {
         // Check for common integer values first
         // Note: Must check for negative zero first since -0.0 >= 0 is true
-        if (value >= 0 && value < IntegerCacheSize && value == Math.Truncate(value))
+        if (value is >= 0 and < IntegerCacheSize && value == Math.Truncate(value))
         {
             // Preserve negative zero (don't use cache for -0)
             if (value == 0 && double.IsNegative(value))
@@ -178,7 +178,7 @@ public static class JsValueCache
     public static string? TryGetIndexString(double value)
     {
         // Check if it's a valid non-negative integer within cache range
-        if (value >= 0 && value < IndexStringCacheSize && value == Math.Truncate(value))
+        if (value is >= 0 and < IndexStringCacheSize && value == Math.Truncate(value))
         {
             return CachedIndexStrings[(int)value];
         }

@@ -1351,7 +1351,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         // Other_ID_Continue code points per ECMA-262 (includes ID_Continue and additional middle dots etc).
-        if (c is '\u00B7' or '\u0387' or '\u19DA' || (c >= '\u1369' && c <= '\u1371'))
+        if (c is '\u00B7' or '\u0387' or '\u19DA' || c is >= '\u1369' and <= '\u1371')
         {
             return true;
         }

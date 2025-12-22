@@ -19,19 +19,13 @@ public static partial class TypedAstEvaluator
             JsValue jsValue;
 
             // Use specialized pre-evaluation path for binary expressions with multiple calls
-            if (statement.UseArgumentPreEvaluation &&
-                statement.Expression is BinaryExpression binary &&
-                binary.Left is CallExpression leftCall &&
-                binary.Right is CallExpression rightCall)
+            if (statement is { UseArgumentPreEvaluation: true, Expression: BinaryExpression { Left: CallExpression leftCall, Right: CallExpression rightCall } binary })
             {
                 Interlocked.Increment(ref PreEvalPathCount);
                 jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
             }
             // Use specialized pre-evaluation path for call * identifier pattern
-            else if (statement.UseArgumentPreEvaluation &&
-                statement.Expression is BinaryExpression binaryCallId &&
-                binaryCallId.Left is CallExpression callLeft &&
-                binaryCallId.Right is IdentifierExpression idRight)
+            else if (statement is { UseArgumentPreEvaluation: true, Expression: BinaryExpression { Left: CallExpression callLeft, Right: IdentifierExpression idRight } binaryCallId })
             {
                 Interlocked.Increment(ref PreEvalPathCount);
                 jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);
@@ -80,7 +74,7 @@ public static partial class TypedAstEvaluator
 
         // Left call arguments
         var leftArg0 = JsValue.Undefined;
-        if (leftCall.Arguments.Length >= 1 && !leftCall.Arguments[0].IsSpread)
+        if (leftCall.Arguments is [{ IsSpread: false }, ..])
         {
             leftArg0 = leftCall.Arguments[0].Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation) return JsValue.Undefined;
@@ -88,7 +82,7 @@ public static partial class TypedAstEvaluator
 
         // Right call arguments
         var rightArg0 = JsValue.Undefined;
-        if (rightCall.Arguments.Length >= 1 && !rightCall.Arguments[0].IsSpread)
+        if (rightCall.Arguments is [{ IsSpread: false }, ..])
         {
             rightArg0 = rightCall.Arguments[0].Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation) return JsValue.Undefined;
@@ -155,7 +149,7 @@ public static partial class TypedAstEvaluator
         // This reads from the environment BEFORE the call modifies it
 
         var callArg0 = JsValue.Undefined;
-        if (call.Arguments.Length >= 1 && !call.Arguments[0].IsSpread)
+        if (call.Arguments is [{ IsSpread: false }, ..])
         {
             callArg0 = call.Arguments[0].Expression.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation) return JsValue.Undefined;

@@ -253,7 +253,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var value = args.GetArgument(0);
-        if (value.IsSymbol && value.ObjectValue is TypedAstSymbol typedSymbol)
+        if (value is { IsSymbol: true, ObjectValue: TypedAstSymbol typedSymbol })
         {
             return typedSymbol.ToString();
         }

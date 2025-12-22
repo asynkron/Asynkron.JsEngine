@@ -240,7 +240,7 @@ public sealed partial class ObjectPrototype : JsPrototype
         {
             prototype = null;
 
-            if (candidate is IJsObjectLike objLike && objLike.Prototype is { } protoObj)
+            if (candidate is IJsObjectLike { Prototype: { } protoObj })
             {
                 prototype = protoObj;
                 return true;

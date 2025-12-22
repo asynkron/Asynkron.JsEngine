@@ -867,7 +867,7 @@ internal sealed class SyncGeneratorIrBuilder
         // Check computed property names in members (methods, getters, setters)
         foreach (var member in definition.Members)
         {
-            if (member.IsComputed && member.ComputedName is not null &&
+            if (member is { IsComputed: true, ComputedName: not null } &&
                 AstShapeAnalyzer.ContainsYield(member.ComputedName))
             {
                 return true;
@@ -877,7 +877,7 @@ internal sealed class SyncGeneratorIrBuilder
         // Check computed property names in fields
         foreach (var field in definition.Fields)
         {
-            if (field.IsComputed && field.ComputedName is not null &&
+            if (field is { IsComputed: true, ComputedName: not null } &&
                 AstShapeAnalyzer.ContainsYield(field.ComputedName))
             {
                 return true;

@@ -229,10 +229,10 @@ internal static class AssignmentReferenceResolver
                 return propertyNameCache;
             }
 
-            TypedAstEvaluator.PropertyHandle GetHandle()
+            PropertyHandle GetHandle()
             {
                 var propertyName = GetPropertyName();
-                return TypedAstEvaluator.PropertyHandle.Resolve(
+                return PropertyHandle.Resolve(
                     target,
                     propertyName,
                     context,
@@ -257,7 +257,7 @@ internal static class AssignmentReferenceResolver
                 });
         }
 
-        var handle = TypedAstEvaluator.PropertyHandle.Resolve(
+        var handle = PropertyHandle.Resolve(
             target,
             propertyValue,
             context,

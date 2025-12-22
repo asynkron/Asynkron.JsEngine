@@ -74,7 +74,7 @@ internal static class AwaitScheduler
     private static bool TryGetSettledValueFast(JsValue candidate, out JsValue value, out bool isRejected)
     {
         // Direct JsPromise check (fastest path)
-        if (candidate.IsObject && candidate.ObjectValue is JsPromise directPromise)
+        if (candidate is { IsObject: true, ObjectValue: JsPromise directPromise })
         {
             return directPromise.TryGetSettled(out value, out isRejected);
         }

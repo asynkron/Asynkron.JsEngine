@@ -647,9 +647,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Pattern: identifier <op> literal
-            if (condBinary.Left is IdentifierExpression leftId &&
-                leftId.ScopeId >= 0 && leftId.SlotIndex >= 0 &&
-                condBinary.Right is LiteralExpression { Value.IsNumber: true } rightLit)
+            if (condBinary is { Left: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } leftId, Right: LiteralExpression { Value.IsNumber: true } rightLit })
             {
                 loopVarId = leftId;
                 limit = rightLit.Value.NumberValue;
@@ -665,9 +663,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Pattern: literal <op> identifier (reversed)
-            if (condBinary.Right is IdentifierExpression rightId &&
-                rightId.ScopeId >= 0 && rightId.SlotIndex >= 0 &&
-                condBinary.Left is LiteralExpression { Value.IsNumber: true } leftLit)
+            if (condBinary is { Right: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } rightId, Left: LiteralExpression { Value.IsNumber: true } leftLit })
             {
                 loopVarId = rightId;
                 limit = leftLit.Value.NumberValue;

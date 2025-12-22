@@ -1485,7 +1485,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             // Check if this level has an own accessor property with a setter
             var descriptor = current.GetOwnPropertyDescriptor(name);
-            if (descriptor?.IsAccessorDescriptor == true && descriptor.Set is not null)
+            if (descriptor is { IsAccessorDescriptor: true, Set: not null })
             {
                 return descriptor.Set;
             }
@@ -1674,17 +1674,17 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     private static IJsPropertyAccessor? GetNextPrototypeAccessor(IJsPropertyAccessor prototype)
     {
-        if (prototype is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } nextAccessor)
+        if (prototype is IPrototypeAccessorProvider { PrototypeAccessor: { } nextAccessor })
         {
             return nextAccessor;
         }
 
-        if (prototype is IJsObjectLike objLike && objLike.Prototype is { } objProto)
+        if (prototype is IJsObjectLike { Prototype: { } objProto })
         {
             return objProto;
         }
 
-        if (prototype is JsObject jsObj && jsObj.Prototype is { } jsObjProto)
+        if (prototype is JsObject { Prototype: { } jsObjProto })
         {
             return jsObjProto;
         }
@@ -1825,19 +1825,19 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 return true;
             }
 
-            if (prototype is IPrototypeAccessorProvider provider && provider.PrototypeAccessor is { } next)
+            if (prototype is IPrototypeAccessorProvider { PrototypeAccessor: { } next })
             {
                 prototype = next;
                 continue;
             }
 
-            if (prototype is IJsObjectLike objLike && objLike.Prototype is { } objProto)
+            if (prototype is IJsObjectLike { Prototype: { } objProto })
             {
         prototype = objProto;
         continue;
     }
 
-            if (prototype is JsObject jsObj && jsObj.Prototype is { } jsObjProto)
+            if (prototype is JsObject { Prototype: { } jsObjProto })
             {
                 prototype = jsObjProto;
                 continue;
@@ -2107,7 +2107,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return ownRealm;
         }
 
-        if (receiver is JsObject receiverObj && receiverObj.RealmState is { } receiverRealm)
+        if (receiver is JsObject { RealmState: { } receiverRealm })
         {
             return receiverRealm;
         }

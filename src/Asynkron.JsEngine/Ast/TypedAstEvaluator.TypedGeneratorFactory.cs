@@ -357,7 +357,7 @@ public static partial class TypedAstEvaluator
                 _realmState.GeneratorFunctionPrototype = genFuncProto;
 
                 // Create the GeneratorFunction constructor if we have access to the engine
-                if (_realmState.Engine is { } engine && _realmState.GeneratorFunctionConstructor is null)
+                if (_realmState is { Engine: { } engine, GeneratorFunctionConstructor: null })
                 {
                     var generatorFunctionConstructor = CreateGeneratorFunctionConstructor(engine, _realmState);
                     _realmState.GeneratorFunctionConstructor = generatorFunctionConstructor;

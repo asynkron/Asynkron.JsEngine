@@ -4808,7 +4808,7 @@ public sealed class JsEngine : IAsyncDisposable
                 return expr switch
                 {
                     IdentifierExpression id => id.Name.Name,
-                    MemberExpression member when member.Property is IdentifierExpression pid =>
+                    MemberExpression { Property: IdentifierExpression pid } member =>
                         $"{DescribeTarget(member.Target)}.{pid.Name.Name}",
                     MemberExpression member => $"{DescribeTarget(member.Target)}.[computed]",
                     _ => expr.GetType().Name,

@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             value => handle.SetValue(value));
     }
 
-    private static void AssignPropertyValueWithNullCheck(
+    internal static void AssignPropertyValueWithNullCheck(
         JsValue target,
         string propertyName,
         JsValue value,
@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (target is IExtensibilityControl extensibility && !extensibility.IsExtensible)
+            if (target is IExtensibilityControl { IsExtensible: false })
             {
                 if (isStrict)
                 {

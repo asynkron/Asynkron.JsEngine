@@ -10,12 +10,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Ast;
 
-/// <summary>
-///     Proof-of-concept evaluator that executes the new typed AST directly instead of walking cons cells.
-///     The goal is to showcase the recommended shape: a dedicated evaluator with explicit pattern matching
-///     rather than virtual methods on the node hierarchy. Only a focused subset of JavaScript semantics is
-///     implemented for now so the skeleton stays approachable.
-/// </summary>
 public static partial class TypedAstEvaluator
 {
     private const string GeneratorBrandPropertyName = "__generator_brand__";
@@ -196,7 +190,7 @@ public static partial class TypedAstEvaluator
         }
 
         // For objects, check if already an IJsPropertyAccessor
-        if (jsValue.Kind == JsValueKind.Object && jsValue.ObjectValue is IJsPropertyAccessor accessor)
+        if (jsValue is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor accessor })
         {
             return accessor;
         }
@@ -910,24 +904,6 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
-    /// JsValue overload for TryGetPropertyValue - avoids boxing.
-    /// </summary>
-    private static bool TryGetPropertyValueJsValue(JsValue target, JsValue propertyKey, out JsValue value,
-        EvaluationContext? context = null)
-    {
-        return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out value, context);
-    }
-
-    /// <summary>
-    /// JsValue overload for AssignPropertyValue - avoids boxing.
-    /// </summary>
-    private static void AssignPropertyValueJsValue(JsValue target, JsValue propertyKey, JsValue value,
-        EvaluationContext? context = null)
-    {
-        JsOps.AssignPropertyValueJsValue(target, propertyKey, value, context);
-    }
-
-    /// <summary>
     /// JsValue overload for 'in' operator - avoids boxing.
     /// </summary>
     private static bool InOperatorJsValue(JsValue property, JsValue target, EvaluationContext context)
@@ -979,17 +955,17 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        var hasInstanceSymbol = Symbols.HasInstance;
-        if (TryGetPropertyValue(right.ObjectValue, hasInstanceSymbol, out var hasInstance, context))
+        var hasInstanceKey = SymbolKeys.HasInstance;
+        if (JsOps.TryGetPropertyValue(right, hasInstanceKey, out var hasInstanceJs, context))
         {
             if (context.ShouldStopEvaluation)
             {
                 return false;
             }
 
-            if (!IsNullish(hasInstance))
+            if (!hasInstanceJs.IsNullOrUndefined)
             {
-                if (hasInstance is not IJsCallable callable)
+                if (!hasInstanceJs.TryGetObject<IJsCallable>(out var callable))
                 {
                     context.SetThrow(StandardLibrary.CreateTypeError("@@hasInstance is not callable", context));
                     return false;
@@ -998,7 +974,7 @@ public static partial class TypedAstEvaluator
                 try
                 {
                     var result = callable.Invoke([left], right);
-                    return JsOps.ToBoolean(result);
+                    return result.IsTruthy;
                 }
                 catch (ThrowSignal signal)
                 {
@@ -1014,7 +990,7 @@ public static partial class TypedAstEvaluator
 
         if (right.ObjectValue is IJsCallable)
         {
-            return OrdinaryHasInstance(left.ObjectValue, right.ObjectValue, context);
+            return OrdinaryHasInstanceJsValue(left, right, context);
         }
 
         context.SetThrow(StandardLibrary.CreateTypeError("Right-hand side of 'instanceof' is not callable",
@@ -1022,20 +998,20 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    private static bool OrdinaryHasInstance(object? candidate, object? constructor, EvaluationContext context)
+    private static bool OrdinaryHasInstanceJsValue(JsValue candidate, JsValue constructor, EvaluationContext context)
     {
-        if (constructor is not IJsCallable)
+        if (constructor.ObjectValue is not IJsCallable)
         {
             return false;
         }
 
-        if (candidate is not JsObject && candidate is not IJsObjectLike)
+        if (candidate.Kind != JsValueKind.Object)
         {
             return false;
         }
 
-        if (!TryGetPropertyValue(constructor, "prototype", out var prototype, context) ||
-            prototype is not IJsPropertyAccessor prototypeObject)
+        if (!JsOps.TryGetPropertyValue(constructor, "prototype", out var prototypeJs, context) ||
+            !prototypeJs.TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
         {
             context.SetThrow(
                 StandardLibrary.CreateTypeError("Function has non-object prototype in instanceof check", context));
@@ -1138,7 +1114,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fast path for strings
-        if (jsValue.Kind == JsValueKind.String && jsValue.ObjectValue is string s)
+        if (jsValue is { Kind: JsValueKind.String, ObjectValue: string s })
         {
             iterator = null;
             enumerator = EnumerateStringCharacters(s);
@@ -1222,7 +1198,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Fast path: if it's already an IJsObjectLike, return directly
-        if (jsValue.Kind == JsValueKind.Object && jsValue.ObjectValue is IJsObjectLike objectLike)
+        if (jsValue is { Kind: JsValueKind.Object, ObjectValue: IJsObjectLike objectLike })
         {
             return objectLike;
         }

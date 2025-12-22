@@ -1499,8 +1499,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    if (valueJs.ObjectValue is TypedFunction typedFunction &&
-                        typedFunction.IsArrowFunction &&
+                    if (valueJs.ObjectValue is TypedFunction { IsArrowFunction: true } typedFunction &&
                         fieldSuperBinding is not null)
                     {
                         typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
@@ -1592,7 +1591,7 @@ public static partial class TypedAstEvaluator
 
         private static string DescribeValueJsValue(JsValue value)
         {
-            if (value.Kind == JsValueKind.Object && value.ObjectValue is JsObject jsObj)
+            if (value is { Kind: JsValueKind.Object, ObjectValue: JsObject jsObj })
             {
                 var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
                 var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;

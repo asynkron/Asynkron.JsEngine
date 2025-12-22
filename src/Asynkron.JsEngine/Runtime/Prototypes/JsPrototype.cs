@@ -18,7 +18,7 @@ public abstract class JsPrototype
             Prototype.SetPrototype(Realm.ObjectPrototype);
         }
 
-        if (Prototype is JsObject jsObj && jsObj.RealmState is null)
+        if (Prototype is JsObject { RealmState: null } jsObj)
         {
             jsObj.RealmState = Realm;
         }

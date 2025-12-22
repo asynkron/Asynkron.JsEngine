@@ -104,8 +104,7 @@ public static partial class TypedAstEvaluator
 
             prototype.SetProperty("constructor", constructorJsValue);
 
-            if (constructorAccessor is IPropertyDefinitionHost definitionHost &&
-                constructorAccessor is TypedFunction { IsClassConstructor: true })
+            if (constructorAccessor is IPropertyDefinitionHost definitionHost and TypedFunction { IsClassConstructor: true })
             {
                 definitionHost.TryDefineProperty("prototype", new PropertyDescriptor
                 {

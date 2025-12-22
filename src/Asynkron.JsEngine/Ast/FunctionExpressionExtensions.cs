@@ -362,7 +362,7 @@ public static partial class TypedAstEvaluator
             // This environment uses slot-based storage with the ScopeId from scope analysis.
             var hasFunctionNameEnvironment = skipInternalNameBinding;
             if (!skipInternalNameBinding && functionExpression.Name is not null &&
-                !functionExpression.IsArrow && functionExpression.FunctionNameScopeId >= 0)
+                functionExpression is { IsArrow: false, FunctionNameScopeId: >= 0 })
             {
                 functionNameEnvironment = new JsEnvironment(environment);
                 functionNameEnvironment.ScopeId = functionExpression.FunctionNameScopeId;

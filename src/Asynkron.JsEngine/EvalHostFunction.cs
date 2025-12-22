@@ -311,8 +311,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 // Exception: Arrow functions don't have their own 'arguments' binding, so this
                 // restriction doesn't apply to them.
                 if (isDirectEval &&
-                    environment.IsParameterEnvironment &&
-                    !environment.IsArrowFunctionEnvironment &&
+                    environment is { IsParameterEnvironment: true, IsArrowFunctionEnvironment: false } &&
                     ReferenceEquals(name, Symbol.Arguments))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
@@ -411,7 +410,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             // Evaluate directly in the constructed eval environment (direct eval is synchronous).
             // Note: evalPrivateNameScopes was captured earlier for AllPrivateNamesValid validation.
-            if (evalPrivateNameScopes.HasValue && !evalPrivateNameScopes.Value.IsDefaultOrEmpty && CallingContext is not null)
+            if (evalPrivateNameScopes is { IsDefaultOrEmpty: false } && CallingContext is not null)
             {
                 CallingContext.RealmState.Logger?.LogInformation(
                     "Eval direct: captured {PrivateScopeCount} private scopes (class initializer={InInitializer})",
@@ -1018,9 +1017,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             null => globalObject.IsExtensible,
             { Configurable: true } => true,
-            _ => !descriptor.IsAccessorDescriptor &&
-                 descriptor.Writable &&
-                 descriptor.Enumerable
+            _ => descriptor is { IsAccessorDescriptor: false, Writable: true, Enumerable: true }
         };
     }
 
@@ -1092,7 +1089,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 case ExpressionStatement expressionStatement:
                     return ExpressionContainsNewTarget(expressionStatement.Expression, includeFunctionBodies);
-                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                case ReturnStatement { Expression: not null } returnStatement:
                     return ExpressionContainsNewTarget(returnStatement.Expression, includeFunctionBodies);
                 case VariableDeclaration varDecl:
                     foreach (var declarator in varDecl.Declarators)
@@ -1302,7 +1299,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
-                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                case ReturnStatement { Expression: not null } returnStatement:
                     return ExpressionContainsSuperCall(returnStatement.Expression, includeFunctionBodies);
                 case VariableDeclaration varDecl:
                     foreach (var declarator in varDecl.Declarators)
@@ -1423,7 +1420,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
-                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                case ReturnStatement { Expression: not null } returnStatement:
                     return ExpressionContainsSuper(returnStatement.Expression, includeFunctionBodies);
                 case VariableDeclaration varDecl:
                     foreach (var declarator in varDecl.Declarators)
@@ -1544,7 +1541,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
-                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                case ReturnStatement { Expression: not null } returnStatement:
                     return ExpressionContainsArguments(returnStatement.Expression, includeFunctionBodies);
                 case VariableDeclaration varDecl:
                     foreach (var declarator in varDecl.Declarators)
@@ -1648,13 +1645,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey } &&
                             ExpressionContainsNewTarget(computedKey, includeFunctionBodies))
                         {
                             return true;
                         }
 
-                        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
+                        if (member is { Kind: ObjectMemberKind.Spread, Value: not null } &&
                             ExpressionContainsNewTarget(member.Value, includeFunctionBodies))
                         {
                             return true;
@@ -1663,7 +1660,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
                             or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
-                            if (member.IsComputed && member.Value is not null &&
+                            if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsNewTarget(member.Value, includeFunctionBodies))
                             {
                                 return true;
@@ -1725,7 +1722,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     }
 
                     return false;
-                case YieldExpression yieldExpression when yieldExpression.Expression is not null:
+                case YieldExpression { Expression: not null } yieldExpression:
                     expression = yieldExpression.Expression;
                     continue;
                 case AwaitExpression awaitExpression:
@@ -1762,7 +1759,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             switch (expression)
             {
-                case IdentifierExpression identifier when identifier.Name.Name == "arguments":
+                case IdentifierExpression { Name.Name: "arguments" }:
                     return true;
                 case BinaryExpression binary:
                     return ExpressionContainsArguments(binary.Left, includeFunctionBodies) ||
@@ -1836,13 +1833,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey } &&
                             ExpressionContainsArguments(computedKey, includeFunctionBodies))
                         {
                             return true;
                         }
 
-                        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
+                        if (member is { Kind: ObjectMemberKind.Spread, Value: not null } &&
                             ExpressionContainsArguments(member.Value, includeFunctionBodies))
                         {
                             return true;
@@ -1851,7 +1848,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
                             or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
-                            if (member.IsComputed && member.Value is not null &&
+                            if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsArguments(member.Value, includeFunctionBodies))
                             {
                                 return true;
@@ -2025,13 +2022,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey } &&
                             ExpressionContainsSuperCall(computedKey, includeFunctionBodies))
                         {
                             return true;
                         }
 
-                        if (member.Kind == ObjectMemberKind.Spread && member.Value is not null &&
+                        if (member is { Kind: ObjectMemberKind.Spread, Value: not null } &&
                             ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
                         {
                             return true;
@@ -2040,7 +2037,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
                             or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
-                            if (member.IsComputed && member.Value is not null &&
+                            if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
                             {
                                 return true;
@@ -2223,7 +2220,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey &&
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey } &&
                             ExpressionContainsSuper(computedKey, includeFunctionBodies))
                         {
                             return true;
@@ -2232,7 +2229,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         if (member.Function is not null ||
                             member.Kind is ObjectMemberKind.Method or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
-                            if (member.IsComputed && member.Value is not null &&
+                            if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsSuper(member.Value, includeFunctionBodies))
                             {
                                 return true;
@@ -2716,7 +2713,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     statement = labeledStatement.Statement;
                     continue;
 
-                case ReturnStatement returnStatement when returnStatement.Expression is not null:
+                case ReturnStatement { Expression: not null } returnStatement:
                     return FindInvalidPrivateNameInExpression(returnStatement.Expression, availableScopes);
 
                 case ThrowStatement throwStatement:
@@ -2759,7 +2756,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     foreach (var member in classDeclaration.Definition.Members)
                     {
-                        if (member.IsComputed && member.ComputedName is { } computedKey)
+                        if (member is { IsComputed: true, ComputedName: { } computedKey })
                         {
                             var keyResult = FindInvalidPrivateNameInExpression(computedKey, availableScopes);
                             if (keyResult is not null)
@@ -2795,8 +2792,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     // For non-computed member expressions with private names (e.g., this.#x),
                     // the Property is a LiteralExpression containing the private name string.
-                    if (!memberExpression.IsComputed &&
-                        memberExpression.Property is LiteralExpression { Value.IsString: true } propLit)
+                    if (memberExpression is { IsComputed: false, Property: LiteralExpression { Value.IsString: true } propLit })
                     {
                         var propName = propLit.Value.AsString()!;
                         if (propName.IsPrivateName())
@@ -2959,7 +2955,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ObjectExpression objectExpression:
                     foreach (var member in objectExpression.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey)
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey })
                         {
                             var keyResult = FindInvalidPrivateNameInExpression(computedKey, availableScopes);
                             if (keyResult is not null)
@@ -3022,7 +3018,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     return null;
 
-                case YieldExpression yieldExpression when yieldExpression.Expression is not null:
+                case YieldExpression { Expression: not null } yieldExpression:
                     expression = yieldExpression.Expression;
                     continue;
 
@@ -3046,7 +3042,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     foreach (var member in classExpression.Definition.Members)
                     {
-                        if (member.IsComputed && member.ComputedName is { } computedKey)
+                        if (member is { IsComputed: true, ComputedName: { } computedKey })
                         {
                             var keyResult = FindInvalidPrivateNameInExpression(computedKey, availableScopes);
                             if (keyResult is not null)
@@ -3412,7 +3408,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ObjectExpression objectExpr:
                     foreach (var member in objectExpr.Members)
                     {
-                        if (member.IsComputed && member.Key is ExpressionNode computedKey)
+                        if (member is { IsComputed: true, Key: ExpressionNode computedKey })
                         {
                             ScanExpression(computedKey, ref flags, inFunctionBody);
                         }
@@ -3461,7 +3457,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     expression = awaitExpr.Expression;
                     continue;
 
-                case YieldExpression yieldExpr when yieldExpr.Expression is not null:
+                case YieldExpression { Expression: not null } yieldExpr:
                     expression = yieldExpr.Expression;
                     continue;
 

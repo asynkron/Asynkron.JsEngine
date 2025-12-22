@@ -1591,8 +1591,7 @@ public sealed class JsEnvironment
         var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
 
         // Check IsUninitialized before reading
-        if (binding.IsUninitialized &&
-            binding.IsLexical &&
+        if (binding is { IsUninitialized: true, IsLexical: true } &&
             !Equals(name, Symbol.This))
         {
             throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);

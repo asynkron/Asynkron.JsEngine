@@ -16,11 +16,11 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("fromCodePoint", Length = 1d)]
-    public static object? FromCodePoint(IReadOnlyList<JsValue> args)
+    public static JsValue FromCodePoint(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return "";
+            return new JsValue("");
         }
 
         var result = new StringBuilder();
@@ -50,15 +50,15 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return result.ToString();
+        return new JsValue(result.ToString());
     }
 
     [JsConstructorMethod("fromCharCode", Length = 1d)]
-    public static object? FromCharCode(IReadOnlyList<JsValue> args)
+    public static JsValue FromCharCode(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return "";
+            return new JsValue("");
         }
 
         var result = new StringBuilder();
@@ -74,25 +74,25 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             result.Append((char)charCode);
         }
 
-        return result.ToString();
+        return new JsValue(result.ToString());
     }
 
     [JsConstructorMethod("raw", Length = 1d)]
-    public static object? Raw(IReadOnlyList<JsValue> args)
+    public static JsValue Raw(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return "";
+            return new JsValue("");
         }
 
         if (!args[0].TryGetObject<IJsPropertyAccessor>(out var template))
         {
-            return "";
+            return new JsValue("");
         }
 
         if (!template.TryGetProperty("raw", out var rawValue) || !rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
         {
-            return "";
+            return new JsValue("");
         }
 
         IReadOnlyList<JsValue>? rawItems = null;
@@ -116,7 +116,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
         if (rawItems == null || rawItems.Count == 0)
         {
-            return "";
+            return new JsValue("");
         }
 
         var result = new StringBuilder();
@@ -129,15 +129,15 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return result.ToString();
+        return new JsValue(result.ToString());
     }
 
     [JsConstructorMethod("escape", Length = 1d)]
-    public static object? Escape(IReadOnlyList<JsValue> args)
+    public static JsValue Escape(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
-            return "";
+            return new JsValue("");
         }
 
         var value = JsOps.ToJsString(args[0]);
@@ -189,7 +189,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return result.ToString();
+        return new JsValue(result.ToString());
     }
 
     private HostFunction? _constructor;

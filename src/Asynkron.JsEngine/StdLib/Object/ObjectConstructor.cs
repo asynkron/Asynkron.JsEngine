@@ -16,12 +16,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     // Static methods registered via code generation
 
     [JsConstructorMethod("keys", Length = 1d)]
-    public static object? Keys(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Keys(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -39,7 +39,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         var keys = new JsArray(realmState);
@@ -52,16 +52,16 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return keys;
+        return JsValue.FromObjectUnsafe(keys);
     }
 
     [JsConstructorMethod("values", Length = 1d)]
-    public static object? Values(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Values(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -79,7 +79,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         var values = new JsArray(realmState);
@@ -91,16 +91,16 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return values;
+        return JsValue.FromObjectUnsafe(values);
     }
 
     [JsConstructorMethod("entries", Length = 1d)]
-    public static object? Entries(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Entries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -118,7 +118,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         var entries = new JsArray(realmState);
@@ -133,13 +133,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             entries.Push(entry);
         }
 
-        return entries;
+        return JsValue.FromObjectUnsafe(entries);
     }
 
     [JsConstructorMethod("assign", Length = 2d)]
-    public static object? Assign(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Assign(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        var realmState = RequireRealm(realm);
         if (args.Count == 0 || !args[0].TryGetObject<IJsPropertyAccessor>(out var targetAccessor))
         {
             return args.GetArgument(0);
@@ -165,12 +164,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("fromEntries", Length = 1d)]
-    public static object? FromEntries(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue FromEntries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !args[0].TryGetObject(out JsArray? entries))
         {
-            return new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
+            return JsValue.FromObjectUnsafe(new JsObject(realmState.ObjectPrototype) { RealmState = realmState });
         }
 
         var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
@@ -187,39 +186,40 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             result[key] = value;
         }
 
-        return result;
+        return JsValue.FromObjectUnsafe(result);
     }
 
     [JsConstructorMethod("hasOwn", Length = 2d)]
-    public static object? HasOwn(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue HasOwn(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count < 2)
         {
-            return false;
+            return JsValue.False;
         }
 
         var propName = JsOps.ToPropertyName(args[1]);
         if (propName is null)
         {
-            return false;
+            return JsValue.False;
         }
 
-        return args[0].ObjectValue switch
+        var hasOwn = args[0].ObjectValue switch
         {
             JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
             JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
             IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
             _ => false
         };
+        return new JsValue(hasOwn);
     }
 
     [JsConstructorMethod("freeze", Length = 1d)]
-    public static object? Freeze(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Freeze(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         var target = args[0].ObjectValue;
@@ -239,15 +239,15 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         obj.Freeze();
-        return obj;
+        return JsValue.FromObjectUnsafe(obj);
     }
 
     [JsConstructorMethod("seal", Length = 1d)]
-    public static object? Seal(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Seal(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count == 0)
         {
-            return null;
+            return JsValue.Undefined;
         }
 
         if (args[0].ObjectValue is not JsObject obj)
@@ -256,55 +256,55 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         obj.Seal();
-        return obj;
+        return JsValue.FromObjectUnsafe(obj);
     }
 
     [JsConstructorMethod("isFrozen", Length = 1d)]
-    public static object? IsFrozen(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue IsFrozen(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count == 0)
         {
-            return true;
+            return JsValue.True;
         }
 
         var target = args[0].ObjectValue;
         if (target is ModuleNamespace)
         {
-            return false;
+            return JsValue.False;
         }
 
         if (target is not JsObject obj)
         {
-            return true;
+            return JsValue.True;
         }
 
-        return obj.IsFrozen;
+        return new JsValue(obj.IsFrozen);
     }
 
     [JsConstructorMethod("isSealed", Length = 1d)]
-    public static object? IsSealed(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue IsSealed(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         if (args.Count == 0)
         {
-            return true;
+            return JsValue.True;
         }
 
         if (args[0].ObjectValue is not JsObject obj)
         {
-            return true;
+            return JsValue.True;
         }
 
-        return obj.IsSealed;
+        return new JsValue(obj.IsSealed);
     }
 
     [JsConstructorMethod("is", Length = 2d)]
-    public static object? Is(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Is(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        return JsOps.SameValue(args.GetArgument(0), args.GetArgument(1));
+        return new JsValue(JsOps.SameValue(args.GetArgument(0), args.GetArgument(1)));
     }
 
     [JsConstructorMethod("create", Length = 2d)]
-    public static object? Create(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Create(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         var obj = new JsObject { RealmState = realmState };
@@ -315,7 +315,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
         {
-            return obj;
+            return JsValue.FromObjectUnsafe(obj);
         }
 
         foreach (var propName in propsObj.GetOwnPropertyNames())
@@ -329,16 +329,16 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
         }
 
-        return obj;
+        return JsValue.FromObjectUnsafe(obj);
     }
 
     [JsConstructorMethod("getOwnPropertyNames", Length = 1d)]
-    public static object? GetOwnPropertyNames(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue GetOwnPropertyNames(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -356,15 +356,15 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         var names = new JsArray(obj.GetOwnPropertyNames(), realmState);
-        return names;
+        return JsValue.FromObjectUnsafe(names);
     }
 
     [JsConstructorMethod("getOwnPropertyDescriptor", Length = 2d)]
-    public static object? GetOwnPropertyDescriptor(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue GetOwnPropertyDescriptor(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count < 2 || !TryGetObject(args[0], realmState, out var obj))
@@ -388,11 +388,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var result = FromPropertyDescriptor(descriptorForResult, realmState);
-        return result ?? JsValue.Undefined;
+        return result is not null ? new JsValue(result) : JsValue.Undefined;
     }
 
     [JsConstructorMethod("getOwnPropertyDescriptors", Length = 1d)]
-    public static object? GetOwnPropertyDescriptors(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue GetOwnPropertyDescriptors(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
@@ -413,11 +413,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             descriptors.SetProperty(key, (JsValue)(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
         }
 
-        return descriptors;
+        return JsValue.FromObjectUnsafe(descriptors);
     }
 
     [JsConstructorMethod("getPrototypeOf", Length = 1d)]
-    public static object? GetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue GetPrototypeOf(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !TryGetObject(args[0], realmState, out var obj))
@@ -427,12 +427,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is ModuleNamespace)
         {
-            return null;
+            return JsValue.Null;
         }
 
         if (obj is JsProxy proxy)
         {
-            return proxy.GetPrototypeWithTrap();
+            return JsValue.FromObjectUnsafe(proxy.GetPrototypeWithTrap());
         }
 
         object? proto = obj.Prototype;
@@ -451,11 +451,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             proto = fnProto;
         }
 
-        return proto;
+        return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
     }
 
     [JsConstructorMethod("defineProperty", Length = 3d)]
-    public static object? DefineProperty(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue DefineProperty(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count < 3)
@@ -472,11 +472,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var descriptor = ToPropertyDescriptor(args[2], realmState);
 
         TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
-        return obj;
+        return JsValue.FromObjectUnsafe(obj);
     }
 
     [JsConstructorMethod("defineProperties", Length = 2d)]
-    public static object? DefineProperties(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue DefineProperties(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count < 2)
@@ -505,11 +505,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             TryDefinePropertyOnTarget(target, key, descriptor, realmState, true);
         }
 
-        return target;
+        return JsValue.FromObjectUnsafe(target);
     }
 
     [JsConstructorMethod("setPrototypeOf", Length = 2d)]
-    public static object? SetPrototypeOf(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue SetPrototypeOf(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count < 2)
@@ -524,7 +524,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         switch (target)
         {
             case ModuleNamespace when protoValue is null:
-                return target;
+                return JsValue.FromObjectUnsafe(target);
             case ModuleNamespace:
                 throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
             case JsArray array:
@@ -538,11 +538,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
                 break;
         }
 
-        return target;
+        return target is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(target);
     }
 
     [JsConstructorMethod("preventExtensions", Length = 1d)]
-    public static object? PreventExtensions(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue PreventExtensions(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
@@ -551,33 +551,33 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         PreventExtensionsOnTarget(target);
-        return target;
+        return JsValue.FromObjectUnsafe(target);
     }
 
     [JsConstructorMethod("isExtensible", Length = 1d)]
-    public static object? IsExtensible(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue IsExtensible(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !TryGetObject(args[0], realmState, out var target))
         {
-            return false;
+            return JsValue.False;
         }
 
-        return IsTargetExtensible(target);
+        return new JsValue(IsTargetExtensible(target));
     }
 
     [JsConstructorMethod("getOwnPropertySymbols", Length = 1d)]
-    public static object? GetOwnPropertySymbols(object? _, IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue GetOwnPropertySymbols(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         if (!TryGetObject(args[0], realmState, out var obj))
         {
-            return new JsArray(realmState);
+            return JsValue.FromObjectUnsafe(new JsArray(realmState));
         }
 
         var symbols = new JsArray(realmState);
@@ -591,7 +591,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
                 }
             }
 
-            return symbols;
+            return JsValue.FromObjectUnsafe(symbols);
         }
 
         foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
@@ -602,7 +602,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return symbols;
+        return JsValue.FromObjectUnsafe(symbols);
     }
 
     private HostFunction? _constructor;

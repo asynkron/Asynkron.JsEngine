@@ -307,6 +307,41 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     /// <summary>
+    ///     Tries to extract a JsSet from a JsValue, handling both direct instances
+    ///     and subclass instances with an internal _internalSet slot.
+    /// </summary>
+    internal static bool TryGetInternal(JsValue candidate, out JsSet? set)
+    {
+        if (candidate is not { Kind: JsValueKind.Object, ObjectValue: { } objVal })
+        {
+            set = null;
+            return false;
+        }
+
+        switch (objVal)
+        {
+            case JsSet directSet:
+                set = directSet;
+                return true;
+            case JsObject obj:
+            {
+                // Check for _internalSet slot (used by Set subclasses)
+                if (obj.TryGetProperty("_internalSet", out var internalSlot) &&
+                    internalSlot.TryGetObject<JsSet>(out var slotSet))
+                {
+                    set = slotSet;
+                    return true;
+                }
+
+                break;
+            }
+        }
+
+        set = null;
+        return false;
+    }
+
+    /// <summary>
     ///     Equality comparer implementing SameValueZero algorithm for Set values.
     ///     Similar to strict equality (===) but treats NaN as equal to NaN.
     /// </summary>

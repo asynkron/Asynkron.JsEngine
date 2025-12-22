@@ -38,10 +38,7 @@ public static partial class StandardLibrary
             realm?.Logger?.LogInformation("ArrayIterator.next index={Index}", index);
             if (exhausted)
             {
-                var doneResult = new JsObject(realm?.ObjectPrototype);
-                doneResult.SetProperty("value", JsValue.Undefined);
-                doneResult.SetProperty("done", JsValue.True);
-                return new JsValue(doneResult);
+                return JsValue.FromObjectUnsafe(new IteratorResultObject(JsValue.Undefined, true));
             }
 
             if (typedAccessor?.IsDetachedOrOutOfBounds() == true)
@@ -56,23 +53,16 @@ public static partial class StandardLibrary
             }
 
             var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lenVal), 0), uint.MaxValue);
-            var result = new JsObject(realm?.ObjectPrototype);
             if (index < length)
             {
                 // Projector now returns JsValue directly - no boxing
                 var valueJs = projector(index);
-                result.SetProperty("value", valueJs);
-                result.SetProperty("done", JsValue.False);
                 index++;
-            }
-            else
-            {
-                result.SetProperty("value", JsValue.Undefined);
-                result.SetProperty("done", JsValue.True);
-                exhausted = true;
+                return JsValue.FromObjectUnsafe(new IteratorResultObject(valueJs, false));
             }
 
-            return new JsValue(result);
+            exhausted = true;
+            return JsValue.FromObjectUnsafe(new IteratorResultObject(JsValue.Undefined, true));
         }
 
         JsValue ReturnIterator(JsValue _, IReadOnlyList<JsValue> __, RealmState? ___)

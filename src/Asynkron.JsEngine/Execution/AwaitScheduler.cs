@@ -5,6 +5,8 @@ using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
+// ResolvedPromiseValue is internal in JsTypes namespace, accessible here
+
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
@@ -336,29 +338,23 @@ internal static class AwaitScheduler
             return false;
         }
 
-        // Non-promise value: wrap in Promise.resolve() to ensure proper microtask
-        // scheduling. This is critical for `for await` over sync iterables - each
-        // value must suspend to allow synchronous code after the async function
+        // Non-promise value: wrap in a lightweight resolved promise to ensure proper
+        // microtask scheduling. This is critical for `for await` over sync iterables -
+        // each value must suspend to allow synchronous code after the async function
         // call to execute before the loop continues.
-        var promiseCtor = context.RealmState.PromiseConstructor;
-        var promiseCtorValue = JsValue.FromObjectUnsafe(promiseCtor);
-        if (promiseCtorValue.TryGetPropertyAccessor(out var accessor))
+        //
+        // Use ResolvedPromiseValue instead of full Promise.resolve() to avoid
+        // JsPromise + JsObject allocation overhead.
+        var engine = context.RealmState.Engine;
+        if (engine is not null)
         {
-            // Use Promise.resolve() to wrap the value
-            if (accessor.TryGetProperty("resolve", out var resolveMethod) &&
-                resolveMethod.TryGetCallable(out var resolveCallable))
-            {
-                var wrappedPromise = resolveCallable.Invoke([candidate], promiseCtorValue);
-                if (wrappedPromise.TryGetObject<JsObject>(out var promiseObj))
-                {
-                    pendingPromise = new JsValue(promiseObj);
-                    resolvedValue = JsValue.Undefined;
-                    return false;
-                }
-            }
+            var resolvedPromise = new ResolvedPromiseValue(candidate, engine);
+            pendingPromise = JsValue.FromObjectUnsafe(resolvedPromise);
+            resolvedValue = JsValue.Undefined;
+            return false;
         }
 
-        // Fallback: if we can't create a promise, pass through synchronously
+        // Fallback: if we can't get the engine, pass through synchronously
         // (this shouldn't happen in normal operation)
         resolvedValue = candidate;
         return true;

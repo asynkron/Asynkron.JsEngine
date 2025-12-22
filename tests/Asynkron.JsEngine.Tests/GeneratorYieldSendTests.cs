@@ -23,9 +23,9 @@ public class GeneratorYieldSendTests
         }
 
         var steps = Assert.IsType<JsArray>(result);
-        var first = Assert.IsType<JsObject>(steps.Items[0].ToObject());
-        var second = Assert.IsType<JsObject>(steps.Items[1].ToObject());
-        var third = Assert.IsType<JsObject>(steps.Items[2].ToObject());
+        var first = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[0].ToObject());
+        var second = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[1].ToObject());
+        var third = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[2].ToObject());
 
         Assert.True(first.TryGetProperty("done", out var firstDone));
         Assert.False(firstDone.AsBoolean());
@@ -59,10 +59,10 @@ public class GeneratorYieldSendTests
         var steps = Assert.IsType<JsArray>(result);
         Assert.Equal(4, steps.Items.Count);
 
-        var first = Assert.IsType<JsObject>(steps.Items[0].ToObject());
-        var second = Assert.IsType<JsObject>(steps.Items[1].ToObject());
-        var third = Assert.IsType<JsObject>(steps.Items[2].ToObject());
-        var fourth = Assert.IsType<JsObject>(steps.Items[3].ToObject());
+        var first = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[0].ToObject());
+        var second = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[1].ToObject());
+        var third = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[2].ToObject());
+        var fourth = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[3].ToObject());
 
         Assert.True(first.TryGetProperty("done", out var firstDone));
         Assert.False(firstDone.AsBoolean());

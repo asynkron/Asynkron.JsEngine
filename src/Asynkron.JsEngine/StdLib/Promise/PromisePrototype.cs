@@ -8,13 +8,13 @@ using static Asynkron.JsEngine.StdLib.PromiseHelper;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Promise", ToStringTag = "Promise")]
+[JsPrototype("Promise", ToStringTag = "Promise", InstanceType = typeof(JsPromise), TryGetMethod = "TryGetInternalPromise")]
 public sealed partial class PromisePrototype
 {
     [JsHostMethod("then", Length = 2d)]
     public JsValue Then(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var promise = RequirePromiseInstance(thisValue, Realm);
+        var promise = RequireInstance(thisValue);
         var onFulfilled = args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var f) ? f : null;
         var onRejected = args.Count > 1 && args[1].TryGetObject<IJsCallable>(out var r) ? r : null;
 
@@ -26,7 +26,7 @@ public sealed partial class PromisePrototype
     [JsHostMethod("catch", Length = 1d)]
     public JsValue Catch(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var promise = RequirePromiseInstance(thisValue, Realm);
+        var promise = RequireInstance(thisValue);
         var onRejected = args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var r) ? r : null;
 
         var result = promise.Then(null, onRejected);
@@ -37,7 +37,7 @@ public sealed partial class PromisePrototype
     [JsHostMethod("finally", Length = 1d)]
     public JsValue Finally(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var promise = RequirePromiseInstance(thisValue, Realm);
+        var promise = RequireInstance(thisValue);
         var onFinally = args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var f) ? f : null;
         if (onFinally is null)
         {

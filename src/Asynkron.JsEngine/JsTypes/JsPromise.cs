@@ -23,13 +23,12 @@ public sealed class JsPromise
 
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
+    private JsObject? _jsObject;
 
     public JsPromise(JsEngine engine)
     {
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        JsObject = new JsObject();
-        // Store the promise reference in a dedicated internal slot to avoid property allocation.
-        JsObject.SetPromiseSlot(this);
+        // JsObject is now created lazily to avoid allocation when not needed
     }
 
     // Debug helpers for instrumentation
@@ -39,8 +38,20 @@ public sealed class JsPromise
 
     /// <summary>
     ///     Gets the underlying JsObject for property access.
+    ///     Created lazily to avoid allocation when only internal promise machinery is used.
     /// </summary>
-    public JsObject JsObject { get; }
+    public JsObject JsObject
+    {
+        get
+        {
+            if (_jsObject is null)
+            {
+                _jsObject = new JsObject();
+                _jsObject.SetPromiseSlot(this);
+            }
+            return _jsObject;
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool TryGetInternalPromise(JsValue candidate, out JsPromise? promise)

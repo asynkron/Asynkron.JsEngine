@@ -182,7 +182,7 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
-            if (!step.PendingPromise.TryGetObject<JsObject>(out var pendingPromise))
+            if (!step.PendingPromise.TryGetPropertyAccessor(out var pendingPromise))
             {
                 InvokeWithOneArg(reject, (JsValue)"Awaited value is not a promise");
                 return;
@@ -209,7 +209,7 @@ public static partial class TypedAstEvaluator
                 thenCallable,
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
-                (JsValue)pendingPromise);
+                step.PendingPromise);
 
             // Don't drain microtasks here - let them drain naturally after synchronous
             // code completes. This ensures proper async semantics where async functions

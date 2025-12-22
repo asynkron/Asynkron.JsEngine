@@ -8,7 +8,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Set", ToStringTag = "Set")]
+[JsPrototype("Set", ToStringTag = "Set", InstanceType = typeof(JsSet), TryGetMethod = "TryGetInternal")]
 [JsSymbolAlias("iterator", "values")]
 [JsMethodAlias("keys", "values")]
 public sealed partial class SetPrototype
@@ -16,7 +16,7 @@ public sealed partial class SetPrototype
     [JsHostMethod("add", Length = 1d)]
     public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         set.Add(args.GetArgument(0));
         return thisValue;
     }
@@ -24,21 +24,21 @@ public sealed partial class SetPrototype
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         return new JsValue(set.Has(args.GetArgument(0)));
     }
 
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         return new JsValue(set.Delete(args.GetArgument(0)));
     }
 
     [JsHostMethod("clear", Length = 0d)]
     public JsValue Clear(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         set.Clear();
         return JsValue.Undefined;
     }
@@ -46,7 +46,7 @@ public sealed partial class SetPrototype
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         if (!args.GetArgument(0).TryGetObject<IJsCallable>(out var callback))
         {
             throw StandardLibrary.ThrowTypeError("Set.prototype.forEach callback must be callable", realm: Realm);
@@ -59,7 +59,7 @@ public sealed partial class SetPrototype
     [JsHostMethod("entries", Length = 0d)]
     public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         return new JsValue(CreateSetIterator(set, SetIterationKind.Entries));
     }
 
@@ -68,14 +68,14 @@ public sealed partial class SetPrototype
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         return new JsValue(CreateSetIterator(set, SetIterationKind.Values));
     }
 
     [JsHostGetter("size")]
     public JsValue Size(JsValue thisValue)
     {
-        var set = RequireSet(thisValue);
+        var set = RequireInstance(thisValue);
         return new JsValue((double)set.Size);
     }
 
@@ -89,27 +89,6 @@ public sealed partial class SetPrototype
         Realm.SetPrototype ??= Prototype as JsObject;
 
         // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
-    }
-
-    private JsSet RequireSet(JsValue receiver)
-    {
-        if (receiver.Kind != JsValueKind.Object)
-        {
-            throw StandardLibrary.ThrowTypeError("Set method called on incompatible receiver", realm: Realm);
-        }
-
-        if (receiver.ObjectValue is JsSet set)
-        {
-            return set;
-        }
-
-        if (receiver.ObjectValue is JsObject obj &&
-            obj.GetOwnPropertyDescriptor("_internalSet")?.Value is JsSet inner)
-        {
-            return inner;
-        }
-
-        throw StandardLibrary.ThrowTypeError("Set method called on incompatible receiver", realm: Realm);
     }
 
     private JsObject CreateSetIterator(JsSet set, SetIterationKind kind)

@@ -12,6 +12,44 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsDataView : IJsPropertyAccessor
 {
+    /// <summary>
+    ///     Attempts to extract a JsDataView from a JsValue, handling both direct instances
+    ///     and objects with an internal _internalDataView property.
+    /// </summary>
+    internal static bool TryGetInternal(JsValue candidate, out JsDataView? dataView)
+    {
+        if (candidate is not { Kind: JsValueKind.Object, ObjectValue: { } objVal })
+        {
+            dataView = null;
+            return false;
+        }
+
+        switch (objVal)
+        {
+            case JsDataView directDv:
+                dataView = directDv;
+                return true;
+            case JsObject obj:
+            {
+                var descriptor = obj.GetOwnPropertyDescriptor("_internalDataView");
+                switch (descriptor?.Value)
+                {
+                    case JsDataView internalDv:
+                        dataView = internalDv;
+                        return true;
+                    case JsValue dvJsVal when dvJsVal.TryGetObject<JsDataView>(out var dvFromJsValue):
+                        dataView = dvFromJsValue;
+                        return true;
+                }
+
+                break;
+            }
+        }
+
+        dataView = null;
+        return false;
+    }
+
     private readonly HostFunction _getFloat32;
     private readonly HostFunction _getFloat64;
     private readonly HostFunction _getInt16;

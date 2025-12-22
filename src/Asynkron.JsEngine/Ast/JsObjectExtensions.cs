@@ -186,10 +186,11 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(typeError);
                 }
 
-                if (IsPromiseLike(new JsValue((JsObject)returnObject)))
+                var returnValue = JsValue.FromObjectUnsafe(returnObject);
+                if (IsPromiseLike(returnValue))
                 {
                     AwaitScheduler.TryAwaitPromiseSync(
-                        new JsValue((JsObject)returnObject),
+                        returnValue,
                         context,
                         out _,
                         context.DrainAwaitMicrotasks);

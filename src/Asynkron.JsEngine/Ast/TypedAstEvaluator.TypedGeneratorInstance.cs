@@ -159,13 +159,13 @@ public static partial class TypedAstEvaluator
             {
                 var result = ExecutePlan(mode, resumeValue);
 
-                if (_pendingPromise.TryGetObject<JsObject>(out var pending))
+                if (_pendingPromise.TryGetPropertyAccessor(out _))
                 {
                     return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
-                        new JsValue(pending));
+                        _pendingPromise);
                 }
 
-                if (result.TryGetObject<JsObject>(out var obj) &&
+                if (result.TryGetObject<IJsPropertyAccessor>(out var obj) &&
                     obj.TryGetProperty("done", out var doneRaw) &&
                     obj.TryGetProperty("value", out var value))
                 {
@@ -327,12 +327,9 @@ public static partial class TypedAstEvaluator
             return executionEnvironment;
         }
 
-        private static JsObject CreateIteratorResult(JsValue value, bool done)
+        private static JsValue CreateIteratorResult(JsValue value, bool done)
         {
-            var result = new JsObject();
-            result.SetProperty("value", value);
-            result.SetProperty("done", new JsValue(done));
-            return result;
+            return JsValue.FromObjectUnsafe(new IteratorResultObject(value, done));
         }
 
         private static IteratorDriverState CreateIteratorDriverState(
@@ -555,8 +552,9 @@ public static partial class TypedAstEvaluator
                                     context.Clear();
                                     _state = GeneratorState.Suspended;
                                     // If we have an original iterator result object, return it to preserve done property
-                                    return JsValue.FromObjectUnsafe(iteratorResultObject ??
-                                                                    CreateIteratorResult(yieldedSignalValue, false));
+                                    return iteratorResultObject is not null
+                                        ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                                        : CreateIteratorResult(yieldedSignalValue, false);
                                 }
 
                                 _programCounter = statementInstruction.Next;
@@ -596,15 +594,16 @@ public static partial class TypedAstEvaluator
                                         _programCounter = _currentInstructionIndex;
                                         RecordYield(context);
                                         _state = GeneratorState.Suspended;
-                                        return JsValue.FromObjectUnsafe(nestedIteratorResult ??
-                                                                        CreateIteratorResult(yieldedValue, false));
+                                        return nestedIteratorResult is not null
+                                            ? JsValue.FromObjectUnsafe(nestedIteratorResult)
+                                            : CreateIteratorResult(yieldedValue, false);
                                     }
                                 }
 
                                 _programCounter = yieldInstruction.Next;
                                 RecordYield(context);
                                 _state = GeneratorState.Suspended;
-                                return (JsValue)CreateIteratorResult(yieldedValue, false);
+                                return CreateIteratorResult(yieldedValue, false);
 
                             case YieldStarInstruction yieldStarInstruction:
                             {
@@ -777,9 +776,9 @@ public static partial class TypedAstEvaluator
                                             _programCounter = currentIndex;
                                             _state = GeneratorState.Suspended;
                                             // Use original iterator result object to preserve done/value properties
-                                            return JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject ??
-                                                                            CreateIteratorResult(iteratorResult.Value,
-                                                                                false));
+                                            return iteratorResult.IteratorResultObject is not null
+                                                ? JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject)
+                                                : CreateIteratorResult(iteratorResult.Value, false);
                                         }
 
                                         yieldStarState.State = null;
@@ -845,7 +844,7 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     var resultDone = propagateReturn && iteratorResult.Done;
-                                    return (JsValue)CreateIteratorResult(iteratorResult.Value, resultDone);
+                                    return CreateIteratorResult(iteratorResult.Value, resultDone);
                                 }
 
                                 continue;
@@ -1017,7 +1016,7 @@ public static partial class TypedAstEvaluator
                                             context: context,
                                             callingEnvironment: environment);
                                         // Handle case where nextResult is already a boxed JsValue
-                                        if (!nextResult.TryGetObject<JsObject>(out var resultObj))
+                                        if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultObj))
                                         {
                                             // Per ES spec 7.4.2: if result is not an object, throw TypeError
                                             var typeError = JsValue.FromObjectUnsafe(
@@ -1130,14 +1129,14 @@ public static partial class TypedAstEvaluator
                                             callingEnvironment: environment);
                                         if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
                                         {
-                                            if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                            if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                             {
                                                 driverState.AwaitingNextResult = true;
                                                 StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                     driverState);
                                                 _state = GeneratorState.Suspended;
                                                 _programCounter = iteratorIndex;
-                                                return (JsValue)CreateIteratorResult(JsValue.Undefined, false);
+                                                return CreateIteratorResult(JsValue.Undefined, false);
                                             }
 
                                             if (context.IsThrow)
@@ -1160,7 +1159,7 @@ public static partial class TypedAstEvaluator
                                         awaitedNextResult = awaitedNext;
                                     }
 
-                                    if (!awaitedNextResult.TryGetObject<JsObject>(out var awaitResultObj))
+                                    if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var awaitResultObj))
                                     {
                                         // Per ES spec 7.4.2: if result is not an object, throw TypeError
                                         var typeError = JsValue.FromObjectUnsafe(
@@ -1188,14 +1187,14 @@ public static partial class TypedAstEvaluator
                                         : JsValue.Undefined;
                                     if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
                                     {
-                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                        if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
                                             StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                 driverState);
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
+                                            return CreateIteratorResult(JsValue.Undefined, false);
                                         }
 
                                         if (context.IsThrow)
@@ -1229,14 +1228,14 @@ public static partial class TypedAstEvaluator
                                     var enumerated = awaitEnumerator.Current;
                                     if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
                                     {
-                                        if (_asyncStepMode && _pendingPromise.TryGetObject<JsObject>(out _))
+                                        if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
                                             StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                 driverState);
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            return new JsValue(CreateIteratorResult(JsValue.Undefined, false));
+                                            return CreateIteratorResult(JsValue.Undefined, false);
                                         }
 
                                         if (context.IsThrow)
@@ -1366,7 +1365,7 @@ public static partial class TypedAstEvaluator
                                 _state = GeneratorState.Completed;
                                 _done = true;
                                 _tryStack.Clear();
-                                return (JsValue)CreateIteratorResult(returnValue, true);
+                                return CreateIteratorResult(returnValue, true);
 
                             case EnterWithInstruction enterWithInstruction:
                             {
@@ -1537,7 +1536,7 @@ public static partial class TypedAstEvaluator
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return (JsValue)CreateIteratorResult(JsValue.Undefined, true);
+            return CreateIteratorResult(JsValue.Undefined, true);
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
@@ -1594,7 +1593,7 @@ public static partial class TypedAstEvaluator
             return mode switch
             {
                 ResumeMode.Throw => throw new ThrowSignal(value),
-                _ => (JsValue)CreateIteratorResult(value, true)
+                _ => CreateIteratorResult(value, true)
             };
         }
 
@@ -1675,7 +1674,7 @@ public static partial class TypedAstEvaluator
                 return resolved;
             }
 
-            if (!_pendingPromise.TryGetObject<JsObject>(out _) || awaitKey is null)
+            if (!_pendingPromise.TryGetPropertyAccessor(out _) || awaitKey is null)
             {
                 return resolved;
             }
@@ -1717,7 +1716,7 @@ public static partial class TypedAstEvaluator
             // caller without allocating an iterator result object.
             result = _asyncStepMode
                 ? JsValue.Undefined
-                : (JsValue)CreateIteratorResult(JsValue.Undefined, false);
+                : CreateIteratorResult(JsValue.Undefined, false);
             return true;
         }
 
@@ -1897,7 +1896,7 @@ public static partial class TypedAstEvaluator
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();
-            return new JsValue(CreateIteratorResult(value, true));
+            return CreateIteratorResult(value, true);
         }
 
         private void CloseActiveArrayPatternIterators()

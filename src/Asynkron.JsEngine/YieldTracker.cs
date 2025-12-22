@@ -6,8 +6,6 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class YieldTracker(ISet<int> consumedYieldIndices)
 {
-    private readonly ISet<int> _consumed = consumedYieldIndices;
-
     public int CurrentIndex { get; private set; }
 
     public int Advance()
@@ -23,11 +21,11 @@ public sealed class YieldTracker(ISet<int> consumedYieldIndices)
     {
         yieldIndex = CurrentIndex;
         CurrentIndex++;
-        return !_consumed.Contains(yieldIndex);
+        return !consumedYieldIndices.Contains(yieldIndex);
     }
 
     public void MarkConsumed(int yieldIndex)
     {
-        _consumed.Add(yieldIndex);
+        consumedYieldIndices.Add(yieldIndex);
     }
 }

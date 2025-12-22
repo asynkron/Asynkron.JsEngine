@@ -2,7 +2,6 @@
 
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -10,16 +9,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class PromiseHelper
 {
-    internal static JsPromise RequirePromiseInstance(JsValue receiver, RealmState realm)
-    {
-        if (JsPromise.TryGetInternalPromise(receiver, out var promise) && promise is not null)
-        {
-            return promise;
-        }
-
-        throw ThrowTypeError("Promise method called on incompatible receiver", realm: realm);
-    }
-
     internal static JsPromise CreatePromise(RealmState realm, IJsObjectLike? prototypeOverride = null)
     {
         var engine = realm.Engine ?? throw new InvalidOperationException("Promise creation requires an engine.");

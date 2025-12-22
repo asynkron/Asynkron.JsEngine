@@ -206,9 +206,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var objectKind = TryGetPrototypeObjectKind(prototypeAttr);
         var useArrayInstance = objectKind == PrototypeObjectKind.Array;
         var useFunctionInstance = objectKind == PrototypeObjectKind.Function;
+        var instanceType = GetNamedTypeValue(prototypeAttr, "InstanceType");
+        var tryGetMethod = GetNamedValue(prototypeAttr, "TryGetMethod");
         return new PrototypeInfo(typeSymbol, getters.ToImmutable(), setters.ToImmutable(), methods.ToImmutable(),
             symbolMethods.ToImmutable(), symbolGetters.ToImmutable(), symbolAliases.ToImmutable(), methodAliases.ToImmutable(),
-            toStringTag, useArrayInstance, useFunctionInstance);
+            toStringTag, useArrayInstance, useFunctionInstance, instanceType, tryGetMethod);
     }
 
     private static ConstructorInfo? TransformConstructor(GeneratorSyntaxContext context)
@@ -359,6 +361,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine("using Asynkron.JsEngine.JsTypes;");
         source.AppendLine("using Asynkron.JsEngine.Runtime;");
         source.AppendLine("using Asynkron.JsEngine.Runtime.Prototypes;");
+        source.AppendLine("using Asynkron.JsEngine.StdLib;");
         source.AppendLine();
         if (!string.IsNullOrEmpty(ns))
         {
@@ -606,6 +609,43 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine("        typed.ConfigurePrototype();");
         source.AppendLine("        return prototype;");
         source.AppendLine("    }");
+
+        // Generate RequireInstance method if InstanceType is specified
+        if (info.InstanceType is not null)
+        {
+            var instanceTypeName = info.InstanceType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var instanceSimpleName = info.InstanceType.Name;
+            var intrinsicName = GetNamedValue(
+                info.Symbol.GetAttributes().First(a =>
+                    string.Equals(a.AttributeClass?.ToDisplayString(),
+                        "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute", StringComparison.Ordinal)),
+                "IntrinsicName") ?? instanceSimpleName;
+
+            source.AppendLine();
+            source.Append("    private ").Append(instanceTypeName).AppendLine(" RequireInstance(JsValue receiver)");
+            source.AppendLine("    {");
+
+            if (!string.IsNullOrEmpty(info.TryGetMethod))
+            {
+                // Use custom TryGet method (e.g., JsPromise.TryGetInternalPromise)
+                source.Append("        if (").Append(instanceTypeName).Append(".").Append(info.TryGetMethod)
+                    .AppendLine("(receiver, out var instance) && instance is not null)");
+            }
+            else
+            {
+                // Use standard TryGetObject<T>
+                source.Append("        if (receiver.TryGetObject<").Append(instanceTypeName).AppendLine(">(out var instance))");
+            }
+
+            source.AppendLine("        {");
+            source.AppendLine("            return instance;");
+            source.AppendLine("        }");
+            source.AppendLine();
+            source.Append("        throw StandardLibrary.ThrowTypeError(\"").Append(intrinsicName)
+                .AppendLine(" method called on incompatible receiver\", realm: Realm);");
+            source.AppendLine("    }");
+        }
+
         source.AppendLine("}");
 
         context.AddSource($"{info.Symbol.Name}.Prototype.g.cs", source.ToString());
@@ -736,6 +776,19 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return null;
     }
 
+    private static INamedTypeSymbol? GetNamedTypeValue(AttributeData attr, string name)
+    {
+        foreach (var arg in attr.NamedArguments)
+        {
+            if (string.Equals(arg.Key, name, StringComparison.Ordinal) && arg.Value.Value is INamedTypeSymbol typeSymbol)
+            {
+                return typeSymbol;
+            }
+        }
+
+        return null;
+    }
+
     private static bool GetNamedBool(AttributeData attr, string name, bool defaultValue = false)
     {
         foreach (var arg in attr.NamedArguments)
@@ -789,7 +842,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         ImmutableArray<MethodAliasInfo> MethodAliases,
         string? ToStringTag,
         bool UseArrayInstance,
-        bool UseFunctionInstance);
+        bool UseFunctionInstance,
+        INamedTypeSymbol? InstanceType,
+        string? TryGetMethod);
 
     private sealed record GetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
         bool Configurable, bool IsStatic);

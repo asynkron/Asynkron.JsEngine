@@ -15,7 +15,6 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public sealed class JsEngine : IAsyncDisposable
 {
-    private static readonly object UninitializedExportMarker = new();
     private int _activeTimerCount; // Track registered timers (timeouts/intervals)
     private readonly Channel<string>? _asyncIteratorTraceChannel;
     private readonly bool _asyncIteratorTracingEnabled;
@@ -3197,7 +3196,7 @@ public sealed class JsEngine : IAsyncDisposable
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        var ns = new ModuleNamespace(exportNames, Lookup, RealmState, UninitializedExportMarker,
+        var ns = new ModuleNamespace(exportNames, Lookup, RealmState,
             phase == ImportPhase.Defer, phase == ImportPhase.Defer ? EnsureEvaluated : null);
 
         if (phase == ImportPhase.Defer)
@@ -3212,19 +3211,19 @@ public sealed class JsEngine : IAsyncDisposable
 
         return ns;
 
-        object? Lookup(string name)
+        JsValue Lookup(string name)
         {
             if (!entry.Exports.TryGetValue(name, out var value))
             {
-                return Symbol.Undefined;
+                return JsValue.FromObjectUnsafe(Symbol.Undefined);
             }
 
             if (value is LiveExportBinding liveBinding)
             {
-                value = liveBinding.GetValue();
+                return liveBinding.GetValue();
             }
 
-            return value;
+            return JsValue.FromObjectUnsafe(value);
         }
 
         void EnsureEvaluated()
@@ -3248,11 +3247,11 @@ public sealed class JsEngine : IAsyncDisposable
                 case ExportDefaultStatement exportDefaultStmt:
                     if (moduleEnv.IsAsyncModule)
                     {
-                        exports["default"] = new LiveExportBinding(() => moduleEnv.Get(Symbol.Intern("*default*")));
+                        exports["default"] = new LiveExportBinding(() => moduleEnv.GetJsValue(Symbol.Intern("*default*")));
                     }
                     else
                     {
-                        exports["default"] = UninitializedExportMarker;
+                        exports["default"] = JsValue.Uninitialized;
                     }
                     // For hoistable anonymous function declarations, binding is created during HoistFunctionDeclarations
                     // For all other default exports (classes, expressions), we need to create the *default* binding here in TDZ
@@ -3290,12 +3289,12 @@ public sealed class JsEngine : IAsyncDisposable
 
                             var symbol = identifier.Name;
                             var isVar = variableDeclaration.Kind == VariableKind.Var;
-                            var exportInitValue = isVar ? Symbol.Undefined : UninitializedExportMarker;
+                            var exportInitValue = isVar ? JsValue.FromObjectUnsafe(Symbol.Undefined) : JsValue.Uninitialized;
                             var envInitValue = isVar ? Symbol.Undefined : JsEnvironment.Uninitialized;
 
                             if (moduleEnv.IsAsyncModule)
                             {
-                                exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
+                                exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
                                 var envInit = isVar
                                     ? JsValue.FromObjectUnsafe(Symbol.Undefined)
                                     : JsValue.Uninitialized;
@@ -3318,13 +3317,13 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         if (moduleEnv.IsAsyncModule)
                         {
-                            exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
+                            exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
                             moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexical: true,
                                 blocksFunctionScopeOverride: false);
                         }
                         else
                         {
-                            exports[symbol.Name] = UninitializedExportMarker;
+                            exports[symbol.Name] = JsValue.Uninitialized;
                             moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexical: true,
                                 blocksFunctionScopeOverride: false);
                         }
@@ -3337,12 +3336,12 @@ public sealed class JsEngine : IAsyncDisposable
                         if (moduleEnv.IsAsyncModule)
                         {
                             var promise = CreateRealmPromise();
-                            exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.Get(specifier.Local));
+                            exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(specifier.Local));
                             moduleEnv.DefineExportPromiseBinding(specifier.Local, promise, isLexical: true, isConst: true);
                         }
                         else
                         {
-                            exports[specifier.Exported.Name] = UninitializedExportMarker;
+                            exports[specifier.Exported.Name] = JsValue.Uninitialized;
                         }
                     }
 
@@ -3367,14 +3366,14 @@ public sealed class JsEngine : IAsyncDisposable
                             ResolveExport(sourceEntry, name, phase, []);
                         if (resolution.Kind == ExportResolutionKind.Resolved)
                         {
-                            exports[name] = UninitializedExportMarker;
+                            exports[name] = JsValue.Uninitialized;
                         }
                     }
 
                     exportStarSet.Remove(sourceEntry.Path);
                     break;
                 case ExportNamespaceAsStatement exportNamespace:
-                    exports[exportNamespace.Exported.Name] = UninitializedExportMarker;
+                    exports[exportNamespace.Exported.Name] = JsValue.Uninitialized;
                     break;
             }
         }
@@ -3644,7 +3643,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     private static object CreateLiveBinding(ExportResolution resolution)
     {
-        return new LiveExportBinding(() => resolution.Module!.Environment.Get(resolution.BindingName));
+        return new LiveExportBinding(() => resolution.Module!.Environment.GetJsValue(resolution.BindingName));
     }
 
     /// <summary>
@@ -4428,9 +4427,9 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (statement.Value is ExportDefaultExpression { Expression: AwaitExpression awaitExpression })
             {
-                exports["default"] = new LiveExportBinding(() => env.Get(defaultBindingName));
+                exports["default"] = new LiveExportBinding(() => env.GetJsValue(defaultBindingName));
                 return TryAwaitExpression(awaitExpression.Expression,
-                    resolved => env.Assign(defaultBindingName, ConvertJsValueToObject(resolved)),
+                    resolved => env.AssignJsValue(defaultBindingName, resolved),
                     env);
             }
 
@@ -4453,7 +4452,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
             {
-                exports[symbol.Name] = new LiveExportBinding(() => env.Get(symbol));
+                exports[symbol.Name] = new LiveExportBinding(() => env.GetJsValue(symbol));
             }
 
             if (statement.Declaration is VariableDeclaration variableDeclaration &&
@@ -4526,7 +4525,7 @@ public sealed class JsEngine : IAsyncDisposable
                     else
                     {
                         // For var declarations, assign to the already-hoisted binding
-                        env.Assign(identifier.Name, ConvertJsValueToObject(resolved));
+                        env.AssignJsValue(identifier.Name, resolved);
                     }
                 }, env);
             }
@@ -5581,7 +5580,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
         // `export default (function() {})` is NOT hoistable (it's a parenthesized expression)
         if (statement.Value is ExportDefaultExpression { Expression: FunctionExpression { Name: null, IsHoistableDefaultExport: true } })
         {
-            return new LiveExportBinding(() => moduleEnv.Get(defaultBindingName));
+            return new LiveExportBinding(() => moduleEnv.GetJsValue(defaultBindingName));
         }
 
         // For ExportDefaultDeclaration (named function/class declarations), delegate to specialized handler
@@ -5609,9 +5608,9 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
                 isAnonymousFunctionDefinition ? Symbol.Intern("default") : null);
 
             // Initialize the *default* binding (it was created in TDZ during PredeclareExportNames)
-            moduleEnv.Assign(defaultBindingName, value);
+            moduleEnv.AssignJsValue(defaultBindingName, JsValue.FromObjectUnsafe(value));
 
-            return new LiveExportBinding(() => moduleEnv.Get(defaultBindingName));
+            return new LiveExportBinding(() => moduleEnv.GetJsValue(defaultBindingName));
         }
 
         return Symbol.Undefined;
@@ -5627,7 +5626,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
             var bindingName = functionDeclaration.Name.Name?.Length == 0
                 ? Symbol.Intern("*default*")
                 : functionDeclaration.Name;
-            return new LiveExportBinding(() => moduleEnv.Get(bindingName));
+            return new LiveExportBinding(() => moduleEnv.GetJsValue(bindingName));
         }
 
         // Classes need to be evaluated (they aren't hoisted like functions)
@@ -5639,7 +5638,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
                 var bindingName = classDeclaration.Name.Name?.Length == 0
                     ? Symbol.Intern("*default*")
                     : classDeclaration.Name;
-                return moduleEnv.Get(bindingName);
+                return moduleEnv.GetJsValue(bindingName);
             }),
             _ => Symbol.Undefined,
         };
@@ -5669,7 +5668,7 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
 
         foreach (var specifier in statement.Specifiers)
         {
-            exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.Get(specifier.Local));
+            exports[specifier.Exported.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(specifier.Local));
         }
     }
 
@@ -5679,8 +5678,8 @@ private bool TryEvaluateWhileStatementWithAwait(WhileStatement whileStatement, J
         ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict, false);
         foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
         {
-            var value = moduleEnv.Get(symbol);
-            exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.Get(symbol));
+            var value = moduleEnv.GetJsValue(symbol);
+            exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
         }
     }
 

@@ -360,7 +360,7 @@ public class StrictModeTests
     {
         await using var engine = new JsEngine();
 
-        Assert.IsType<JsObject>(engine.GlobalEnvironment.Get(Symbol.This));
+        Assert.True(engine.GlobalEnvironment.GetJsValue(Symbol.This).TryGetObject<JsObject>(out _));
 
         var definition =
             $"function foo() {{\n  {directiveLine}\n  return this !== undefined;\n}};";

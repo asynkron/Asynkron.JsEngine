@@ -160,7 +160,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol)
         {
-            value = JsValue.FromObjectUnsafe(_environment.Get(mappedSymbol));
+            value = _environment.GetJsValue(mappedSymbol);
             return true;
         }
 
@@ -241,7 +241,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             !descriptor.IsAccessorDescriptor)
         {
             var cloned = CloneDescriptor(descriptor);
-            cloned.JsValue = JsValue.FromObjectUnsafe(_environment.Get(mappedSymbol));
+            cloned.JsValue = _environment.GetJsValue(mappedSymbol);
             return cloned;
         }
 

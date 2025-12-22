@@ -1025,7 +1025,7 @@ public sealed partial class StringPrototype
         return number;
     }
 
-    private bool TryResolveRegExp(JsValue candidate, out JsRegExp regex)
+    private static bool TryResolveRegExp(JsValue candidate, out JsRegExp regex)
     {
         if (candidate.TryGetObject<JsRegExp>(out var direct))
         {

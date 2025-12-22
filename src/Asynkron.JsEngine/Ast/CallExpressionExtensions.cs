@@ -554,7 +554,7 @@ public static partial class TypedAstEvaluator
                         "Super assigning this (hasBinding={HasBinding}, beforeType={BeforeType})",
                         hasThisBinding,
                         beforeType);
-                    targetEnvironment.Assign(Symbol.This, thisAfterSuper);
+                    targetEnvironment.AssignJsValue(Symbol.This, JsValue.FromObjectUnsafe(thisAfterSuper));
                     try
                     {
                         targetEnvironment.TryGetJsValue(Symbol.This, out var afterThis);
@@ -573,8 +573,8 @@ public static partial class TypedAstEvaluator
                     {
                         var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                         var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
-                        targetEnvironment.Assign(Symbol.Super,
-                            new SuperBinding(constructorForSuper, prototypeForSuper, JsValue.FromObjectUnsafe(thisAfterSuper), true));
+                        targetEnvironment.AssignJsValue(Symbol.Super,
+                            JsValue.FromObjectUnsafe(new SuperBinding(constructorForSuper, prototypeForSuper, JsValue.FromObjectUnsafe(thisAfterSuper), true)));
                     }
 
                     context.MarkThisInitialized();

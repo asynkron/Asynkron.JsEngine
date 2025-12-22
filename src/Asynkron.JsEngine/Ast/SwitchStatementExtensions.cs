@@ -166,7 +166,7 @@ public static partial class TypedAstEvaluator
                     // const binding for its name (the binding was already defined during instantiation).
                     var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
                         skipInternalNameBinding: true);
-                    switchEnv.Assign(funcDecl.Name, functionValue);
+                    switchEnv.AssignJsValue(funcDecl.Name, JsValue.FromObjectUnsafe(functionValue));
                     // Function declarations have empty completion
                     continue;
                 }

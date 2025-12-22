@@ -1,7 +1,5 @@
-using System.Numerics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -25,52 +23,4 @@ public static class BigIntHelper
 
         return wrapper;
     }
-
-    internal static JsBigInt RequireBigIntValue(JsValue receiver, RealmState realm)
-    {
-        // Fast path for direct BigInt
-        if (receiver is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt directBi })
-        {
-            return directBi;
-        }
-
-        if (receiver.Kind != JsValueKind.Object)
-        {
-            throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: realm);
-        }
-
-        return receiver.ObjectValue switch
-        {
-            JsBigInt bi => bi,
-            JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,
-            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var slot) &&
-                                              slot.TryGetObject<JsBigInt>(out var wrapped) => wrapped,
-            _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: realm)
-        };
-    }
-
-    internal static string BigIntToString(BigInteger value, int radix)
-    {
-        if (radix is < 2 or > 36)
-        {
-            throw ThrowRangeError("radix must be between 2 and 36", realm: null);
-        }
-
-        if (value.IsZero)
-        {
-            return "0";
-        }
-
-        const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
-        var result = "";
-        var current = BigInteger.Abs(value);
-        while (current > 0)
-        {
-            current = BigInteger.DivRem(current, radix, out var remainder);
-            result = digits[(int)remainder] + result;
-        }
-
-        return value.Sign < 0 ? "-" + result : result;
-    }
-
 }

@@ -742,71 +742,6 @@ public sealed class JsEnvironment
     }
 
 
-    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
-    public object? Get(Symbol name)
-    {
-        var current = this;
-        var hops = 0;
-        const int maxLookupDepth = 10_000;
-        while (current is not null && hops++ < maxLookupDepth)
-        {
-            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
-            if (Equals(name, Symbol.This) && current._hasThisValue)
-            {
-                return current._thisValue.ToObject();
-            }
-
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
-            {
-                if (binding.IsUninitialized)
-                {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-                }
-
-                if (!current.IsGlobalFunctionScope ||
-                    binding.IsLexical)
-                {
-                    return binding.JsValue.ToObject();
-                }
-
-                var globalObject = current.GetRootGlobalObject();
-                if (globalObject is not null &&
-                    globalObject.TryGetProperty(name.Name, out var globalValue))
-                {
-                    return globalValue;
-                }
-
-                return binding.JsValue.ToObject();
-            }
-
-            if (current._varEnvironmentOverride is not null &&
-                current._varEnvironmentOverride != current)
-            {
-                return current._varEnvironmentOverride.Get(name);
-            }
-
-            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out var withValue))
-            {
-                return withValue;
-            }
-
-            current = current.Enclosing;
-        }
-
-        if (!IsGlobalFunctionScope)
-        {
-            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-        }
-
-        var rootGlobal = GetRootGlobalObject();
-        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
-        {
-            return propertyValue;
-        }
-
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-    }
-
     /// <summary>
     /// Gets a binding value as JsValue, avoiding boxing for primitives.
     /// Throws ReferenceError if binding doesn't exist or is uninitialized.
@@ -2077,14 +2012,6 @@ public sealed class JsEnvironment
         return false;
     }
 
-    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
-    public void Assign(Symbol name, object? /* intentional - public API */ value)
-    {
-        // Remember if we're in strict mode at the call site
-        var isStrictContext = IsStrict;
-        AssignInternal(name, JsValue.FromObjectUnsafe(value), isStrictContext);
-    }
-
     /// <summary>
     /// JsValue overload that avoids boxing.
     /// </summary>
@@ -2345,19 +2272,6 @@ public sealed class JsEnvironment
         touchedUnscopables = true;
         return unscopables.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
                JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked);
-    }
-
-    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
-    private static bool TryGetFromWith(IJsObjectLike target, Symbol name, out object? value)
-    {
-        if (TryGetFromWithJsValue(target, name, out var jsValue))
-        {
-            value = jsValue.ToObject();
-            return true;
-        }
-
-        value = null;
-        return false;
     }
 
     private static bool TryGetFromWithJsValue(IJsObjectLike target, Symbol name, out JsValue value)
@@ -2627,7 +2541,11 @@ public sealed class JsEnvironment
     ///     Gets all variables from this environment and all enclosing environments.
     ///     Used for debugging purposes.
     /// </summary>
-    /// Only for debugging..
+    /// <remarks>
+    /// Intentionally returns object? for debugging/inspection purposes.
+    /// This API is not on the hot path and boxing here is acceptable.
+    /// Do not migrate to JsValue - debuggers and inspectors expect object?.
+    /// </remarks>
     public Dictionary<string, object?> GetAllVariables()
     {
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);
@@ -2661,6 +2579,11 @@ public sealed class JsEnvironment
     ///     Builds environment chain information for debugging.
     ///     Shows ScopeId, slots, and dictionary variables for each environment.
     /// </summary>
+    /// <remarks>
+    /// Uses object? internally for debugging/inspection purposes.
+    /// This API is not on the hot path and boxing here is acceptable.
+    /// Do not migrate to JsValue - debuggers and inspectors expect object?.
+    /// </remarks>
     public List<EnvironmentInfo> BuildEnvironmentChain()
     {
         var chain = new List<EnvironmentInfo>();
@@ -2781,7 +2704,7 @@ public sealed class JsEnvironment
     private struct Binding : IEquatable<Binding>
     {
         private JsValue _jsValue;
-        private readonly object? _specialBinding; // Only used when HasSpecialBinding flag is set
+        private readonly ISpecialBinding? _specialBinding; // Only used when HasSpecialBinding flag is set
         private BindingFlags _flags;
 
         public Binding(
@@ -2832,13 +2755,13 @@ public sealed class JsEnvironment
         public JsValue JsValue
         {
             readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
-                ? ((ISpecialBinding)_specialBinding!).GetJsValue()
+                ? _specialBinding!.GetJsValue()
                 : _jsValue;
             set
             {
                 if ((_flags & BindingFlags.HasSpecialBinding) != 0)
                 {
-                    ((ISpecialBinding)_specialBinding!).SetJsValue(value);
+                    _specialBinding!.SetJsValue(value);
                 }
                 else
                 {
@@ -2848,7 +2771,7 @@ public sealed class JsEnvironment
         }
 
         public readonly bool IsConst => (_flags & BindingFlags.HasSpecialBinding) != 0
-            ? ((ISpecialBinding)_specialBinding!).IsConst
+            ? _specialBinding!.IsConst
             : (_flags & BindingFlags.IsConst) != 0;
 
         public readonly bool IsGlobalConstant => (_flags & BindingFlags.IsGlobalConstant) != 0;

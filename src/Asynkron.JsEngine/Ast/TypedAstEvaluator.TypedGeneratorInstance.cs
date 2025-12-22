@@ -349,14 +349,14 @@ public static partial class TypedAstEvaluator
 
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
+            // Handle case where value is already a boxed JsValue
+            var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
             if (environment.HasBinding(symbol))
             {
-                environment.Assign(symbol, value);
+                environment.AssignJsValue(symbol, jsVal);
             }
             else
             {
-                // Handle case where value is already a boxed JsValue
-                var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
                 environment.DefineJsValue(symbol, jsVal);
             }
         }
@@ -475,14 +475,14 @@ public static partial class TypedAstEvaluator
                         state.HasResult = true;
                         state.IsThrow = isThrow;
                         state.Result = value;
-                        environment.Assign(awaitKey, state);
+                        environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(state));
                     }
                     else
                     {
                         var newState = new AwaitState { HasResult = true, IsThrow = isThrow, Result = value };
                         if (environment.HasBinding(awaitKey))
                         {
-                            environment.Assign(awaitKey, newState);
+                            environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
                         }
                         else
                         {
@@ -623,7 +623,7 @@ public static partial class TypedAstEvaluator
                                     yieldStarState.PendingValue = JsValue.Undefined;
                                     yieldStarState.State = null;
                                     yieldStarState.AwaitingResume = false;
-                                    environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                    environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
 
                                     switch (pendingKind)
                                     {
@@ -739,7 +739,7 @@ public static partial class TypedAstEvaluator
                                         context.Clear();
                                         yieldStarState.State = null;
                                         yieldStarState.AwaitingResume = false;
-                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
                                         if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
                                         {
                                             break;
@@ -772,7 +772,7 @@ public static partial class TypedAstEvaluator
 
                                         yieldStarState.State = null;
                                         yieldStarState.AwaitingResume = false;
-                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
 
                                         if (pendingKind == AbruptKind.Throw)
                                         {
@@ -799,7 +799,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         yieldStarState.State = null;
                                         yieldStarState.AwaitingResume = false;
-                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
                                         if (yieldStarInstruction.ResultSlotSymbol is { } throwResultSlot)
                                         {
                                             StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
@@ -813,7 +813,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         yieldStarState.State = null;
                                         yieldStarState.AwaitingResume = false;
-                                        environment.Assign(yieldStarInstruction.StateSlotSymbol, null);
+                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
                                         if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
                                         {
                                             StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
@@ -1593,7 +1593,7 @@ public static partial class TypedAstEvaluator
                 // (e.g. in loops) see a fresh await.
                 var result = state.Result;
                 var isThrow = state.IsThrow;
-                environment.Assign(awaitKey, new AwaitState());
+                environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(new AwaitState()));
                 _pendingAwaitKey = null;
 
                 // If the await was rejected, throw at this point so the
@@ -1615,15 +1615,15 @@ public static partial class TypedAstEvaluator
 
             if (awaitKey is not null)
             {
-                var existingState = new AwaitState();
+                var existingState = JsValue.FromObjectUnsafe(new AwaitState());
 
                 if (environment.HasBinding(awaitKey))
                 {
-                    environment.Assign(awaitKey, existingState);
+                    environment.AssignJsValue(awaitKey, existingState);
                 }
                 else
                 {
-                    environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(existingState));
+                    environment.DefineJsValue(awaitKey, existingState);
                 }
             }
 
@@ -1798,14 +1798,14 @@ public static partial class TypedAstEvaluator
                     frame.CatchUsed = true;
                     if (frame.CatchSlotSymbol is { } slot)
                     {
+                        // Handle case where value is already a boxed JsValue
+                        var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
                         if (environment.HasBinding(slot))
                         {
-                            environment.Assign(slot, value);
+                            environment.AssignJsValue(slot, valueJs);
                         }
                         else
                         {
-                            // Handle case where value is already a boxed JsValue
-                            var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
                             environment.DefineJsValue(slot, valueJs);
                         }
                     }

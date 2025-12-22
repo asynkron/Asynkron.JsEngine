@@ -28,13 +28,14 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
+            var jsValue = JsValue.FromObjectUnsafe(state);
             if (environment.HasBinding(key))
             {
-                environment.Assign(key, state);
+                environment.AssignJsValue(key, jsValue);
             }
             else
             {
-                environment.DefineJsValue(key, JsValue.FromObjectUnsafe(state));
+                environment.DefineJsValue(key, jsValue);
             }
         }
 
@@ -47,7 +48,7 @@ public static partial class TypedAstEvaluator
 
             if (environment.HasBinding(key))
             {
-                environment.Assign(key, null);
+                environment.AssignJsValue(key, JsValue.Null);
             }
         }
     }

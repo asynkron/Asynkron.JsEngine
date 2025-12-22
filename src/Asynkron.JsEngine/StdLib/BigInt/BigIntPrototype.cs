@@ -2,7 +2,6 @@ using System.Numerics;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
-using static Asynkron.JsEngine.StdLib.BigIntHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
@@ -13,7 +12,7 @@ public sealed partial class BigIntPrototype : JsPrototype
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = RequireBigIntValue(thisValue, Realm);
+        var value = RequireBigIntValue(thisValue);
         var radixArg = args.GetArgument(0);
         double radixNumber;
         if (radixArg.IsUndefined)
@@ -46,13 +45,13 @@ public sealed partial class BigIntPrototype : JsPrototype
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return new JsValue(RequireBigIntValue(thisValue, Realm));
+        return new JsValue(RequireBigIntValue(thisValue));
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
     public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var value = RequireBigIntValue(thisValue, Realm);
+        var value = RequireBigIntValue(thisValue);
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
         if (TryFormatWithIntlNumberFormatJsValue(new JsValue(value), localesArg, optionsArg, Realm, out var formatted))
@@ -76,5 +75,52 @@ public sealed partial class BigIntPrototype : JsPrototype
         }
 
         Realm.BigIntPrototype ??= Prototype as JsObject;
+    }
+
+    private JsBigInt RequireBigIntValue(JsValue receiver)
+    {
+        // Fast path for direct BigInt
+        if (receiver is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt directBi })
+        {
+            return directBi;
+        }
+
+        if (receiver.Kind != JsValueKind.Object)
+        {
+            throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: Realm);
+        }
+
+        return receiver.ObjectValue switch
+        {
+            JsBigInt bi => bi,
+            JsObject obj when obj.TryGetValue("__value__", out var inner) && inner is JsBigInt wrapped => wrapped,
+            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var slot) &&
+                                              slot.TryGetObject<JsBigInt>(out var wrapped) => wrapped,
+            _ => throw ThrowTypeError("BigInt.prototype method called on incompatible receiver", realm: Realm)
+        };
+    }
+
+    private static string BigIntToString(BigInteger value, int radix)
+    {
+        if (radix is < 2 or > 36)
+        {
+            throw ThrowRangeError("radix must be between 2 and 36", realm: null);
+        }
+
+        if (value.IsZero)
+        {
+            return "0";
+        }
+
+        const string digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+        var result = "";
+        var current = BigInteger.Abs(value);
+        while (current > 0)
+        {
+            current = BigInteger.DivRem(current, radix, out var remainder);
+            result = digits[(int)remainder] + result;
+        }
+
+        return value.Sign < 0 ? "-" + result : result;
     }
 }

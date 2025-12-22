@@ -591,6 +591,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Symbol => ObjectValue,
             JsValueKind.Object => ObjectValue,
             JsValueKind.Unit => ObjectValue, // Returns UnitSentinel
+            JsValueKind.Uninitialized => JsEnvironment.Uninitialized, // Preserve TDZ sentinel
             _ => Symbol.Undefined
         };
     }

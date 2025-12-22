@@ -185,15 +185,15 @@ public static partial class TypedAstEvaluator
             var logger = environment.RealmState?.Logger;
             if (environment.HasBinding(Symbol.ThisInitialized))
             {
-                environment.Assign(Symbol.ThisInitialized, initialized);
+                environment.AssignJsValue(Symbol.ThisInitialized, initialized);
                 if (initialized &&
                     environment.TryGetObject<SuperBinding>(Symbol.Super, out var binding) &&
                     !binding.IsThisInitialized)
                 {
                     logger?.LogInformation("SuperBinding: bump thisInit -> true env={Env}",
                         environment.GetHashCode());
-                    environment.Assign(Symbol.Super,
-                        new SuperBinding(binding.Constructor, binding.Prototype, binding.thisValue, true));
+                    environment.AssignJsValue(Symbol.Super,
+                        JsValue.FromObjectUnsafe(new SuperBinding(binding.Constructor, binding.Prototype, binding.thisValue, true)));
                 }
 
                 logger?.LogInformation("ThisInitialized updated to {Initialized} env={Env}",

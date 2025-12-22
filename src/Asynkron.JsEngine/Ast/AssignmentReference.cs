@@ -159,16 +159,16 @@ internal readonly struct AssignmentReference
     }
 
     /// <summary>
-    /// Gets the value as JsValue, avoiding boxing for primitives in the declarative binding path.
+    /// Gets the value as JsValue, avoiding boxing for primitives.
     /// </summary>
     public JsValue GetJsValue()
     {
         return _kind switch
         {
             ReferenceKind.DeclarativeBinding => ReadDeclarativeBindingJsValue(),
-            ReferenceKind.GlobalBinding => JsValue.FromObjectUnsafe(ReadGlobalBinding()),
-            ReferenceKind.WithBinding => JsValue.FromObjectUnsafe(ReadWithBinding()),
-            ReferenceKind.Unresolvable => JsValue.FromObjectUnsafe(ReadUnresolvable()),
+            ReferenceKind.GlobalBinding => ReadGlobalBindingJsValue(),
+            ReferenceKind.WithBinding => ReadWithBindingJsValue(),
+            ReferenceKind.Unresolvable => ReadUnresolvableJsValue(),
             ReferenceKind.Delegate => _delegateGetterJs!(),
             _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
         };
@@ -219,36 +219,36 @@ internal readonly struct AssignmentReference
         _binding.WriteJsValue(value, _isStrict);
     }
 
-    private object? ReadGlobalBinding()
+    private JsValue ReadGlobalBindingJsValue()
     {
         try
         {
-            return JsEnvironment.GetWithBindingValue(_globalBinding);
+            return JsEnvironment.GetWithBindingValueJsValue(_globalBinding);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
             _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
     }
 
     private void WriteGlobalBinding(JsValue value)
     {
-        JsEnvironment.TrySetWithBindingValue(_globalBinding, ConvertJsValueToObject(value), _context.RealmState);
+        JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context.RealmState);
     }
 
-    private object? ReadWithBinding()
+    private JsValue ReadWithBindingJsValue()
     {
         try
         {
-            return JsEnvironment.GetWithBindingValue(_globalBinding);
+            return JsEnvironment.GetWithBindingValueJsValue(_globalBinding);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
             _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
     }
 
@@ -261,56 +261,34 @@ internal readonly struct AssignmentReference
                 _context.RealmState));
         }
 
-        // TrySetWithBindingValue still takes object?, but Assign has a JsValue overload
-        var objValue = ConvertJsValueToObject(value);
-        if (!JsEnvironment.TrySetWithBindingValue(_globalBinding, objValue, _context.RealmState))
+        if (!JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context.RealmState))
         {
             _withFallbackEnvironment!.AssignJsValue(_name, value);
         }
     }
 
-    private object? ReadUnresolvable()
+    private JsValue ReadUnresolvableJsValue()
     {
         try
         {
-            return JsEnvironment.ReadUnresolvable(_name);
+            return JsEnvironment.ReadUnresolvableJsValue(_name);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
             _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return Symbol.Undefined;
+            return JsValue.Undefined;
         }
     }
 
     private void WriteUnresolvable(JsValue value)
     {
-        JsEnvironment.AssignUnresolvable(_name, ConvertJsValueToObject(value), _isStrict, _context, _withFallbackEnvironment);
+        JsEnvironment.AssignUnresolvableJsValue(_name, value, _isStrict, _context, _withFallbackEnvironment);
     }
 
     private static bool IsStrictRestrictedName(Symbol name)
     {
         return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
                string.Equals(name.Name, "arguments", StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
-    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
-    /// </summary>
-    private static object? ConvertJsValueToObject(JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => Symbol.Undefined,
-            JsValueKind.Null => null,
-            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
-            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
-            JsValueKind.BigInt => value.ObjectValue,
-            JsValueKind.String => value.ObjectValue,
-            JsValueKind.Symbol => value.ObjectValue,
-            JsValueKind.Object => value.ObjectValue,
-            _ => Symbol.Undefined
-        };
     }
 }

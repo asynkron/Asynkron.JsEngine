@@ -1650,6 +1650,11 @@ public sealed class JsEnvironment
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
+    internal static JsValue ReadUnresolvableJsValue(Symbol name)
+    {
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+    }
+
     internal static void AssignUnresolvable(Symbol name, object? value, bool isStrictContext, EvaluationContext context, JsEnvironment? environment = null)
     {
         var realm = environment?.RealmState ?? environment?.Enclosing?.RealmState ?? context.RealmState;
@@ -1690,6 +1695,48 @@ public sealed class JsEnvironment
             "Sloppy assignment created unresolvable binding name={Name} valueType={ValueType}",
             name.Name,
             value?.GetType().Name ?? "null");
+    }
+
+    internal static void AssignUnresolvableJsValue(Symbol name, JsValue value, bool isStrictContext, EvaluationContext context, JsEnvironment? environment = null)
+    {
+        var realm = environment?.RealmState ?? environment?.Enclosing?.RealmState ?? context.RealmState;
+        if (isStrictContext)
+        {
+            context.RealmState?.Logger?.LogInformation(
+                "AssignUnresolvable strict throw name={Name} scopeStrict={ScopeStrict} functionScopeStrict={FnStrict} env={Env}",
+                name.Name,
+                context.CurrentScope.IsStrict,
+                environment?.GetFunctionScope().IsStrict ?? false,
+                environment?.GetHashCode() ?? 0);
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        if (environment is null)
+        {
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+        }
+
+        var globalScope = environment;
+        while (globalScope.Enclosing is not null)
+        {
+            globalScope = globalScope.Enclosing;
+        }
+
+        var globalObject = environment.GetRootGlobalObject();
+        if (globalObject is null)
+        {
+            globalScope.DefineJsValue(name, value, isLexical: false, canDelete: true);
+            return;
+        }
+
+        // Sloppy assignment to an unresolvable reference creates a new
+        // configurable property on the global object rather than a declarative
+        // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
+        globalObject.SetProperty(name.Name, value);
+        context.RealmState?.Logger?.LogInformation(
+            "Sloppy assignment created unresolvable binding name={Name} valueKind={ValueKind}",
+            name.Name,
+            value.Kind);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -2575,6 +2622,27 @@ public sealed class JsEnvironment
 
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static JsValue GetWithBindingValueJsValue(in ObjectEnvironmentBinding binding)
+    {
+        var propertyName = binding.PropertyName;
+        if (HasProperty(binding.BindingObject, propertyName))
+        {
+            return JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(binding.BindingObject), propertyName, out var value, null)
+                ? value
+                : JsValue.Undefined;
+        }
+
+        if (!binding.IsStrictReference)
+        {
+            return JsValue.Undefined;
+        }
+
+        var realm = (binding.BindingObject as JsObject)?.RealmState;
+        throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
+            realm: realm);
+    }
+
     internal static bool TrySetWithBindingValue(in ObjectEnvironmentBinding binding, object? value,
         RealmState? realm = null)
     {
@@ -2615,6 +2683,51 @@ public sealed class JsEnvironment
 
         var descriptorClone = ownDescriptor.Clone();
         descriptorClone.Value = value;
+        definitionHost.TryDefineProperty(propertyName, descriptorClone);
+
+        return true;
+    }
+
+    internal static bool TrySetWithBindingValueJsValue(in ObjectEnvironmentBinding binding, JsValue value,
+        RealmState? realm = null)
+    {
+        var propertyName = binding.PropertyName;
+        var bindingObject = binding.BindingObject;
+        var stillExists = HasProperty(bindingObject, propertyName);
+        if (!stillExists && binding is { AllowMissingAssignment: false, IsStrictReference: true })
+        {
+            realm ??= (bindingObject as JsObject)?.RealmState;
+            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
+                realm: realm);
+        }
+
+        if (bindingObject is JsObject jsObject)
+        {
+            AssignmentReferenceResolver.AssignObjectProperty(
+                jsObject,
+                propertyName,
+                value,
+                binding.IsStrictReference,
+                null,
+                realm ?? jsObject.RealmState,
+                bindingObject);
+            return true;
+        }
+
+        JsOps.AssignPropertyValueByNameJsValue(JsValue.FromObjectUnsafe(bindingObject), propertyName, value);
+        if (bindingObject is not IPropertyDefinitionHost definitionHost)
+        {
+            return true;
+        }
+
+        var ownDescriptor = bindingObject.GetOwnPropertyDescriptor(propertyName);
+        if (ownDescriptor?.IsDataDescriptor != true)
+        {
+            return true;
+        }
+
+        var descriptorClone = ownDescriptor.Clone();
+        descriptorClone.JsValue = value;
         definitionHost.TryDefineProperty(propertyName, descriptorClone);
 
         return true;

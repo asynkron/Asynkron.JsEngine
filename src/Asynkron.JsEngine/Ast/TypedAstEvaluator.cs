@@ -955,7 +955,7 @@ public static partial class TypedAstEvaluator
 
         if (propertyName.IsPrivateSlotName())
         {
-            var handle = PropertyHandle.Resolve(target.ObjectValue, propertyName, context, context.CurrentScope.IsStrict);
+            var handle = PropertyHandle.Resolve(target, propertyName, context, context.CurrentScope.IsStrict);
             if (context.ShouldStopEvaluation)
             {
                 return false;

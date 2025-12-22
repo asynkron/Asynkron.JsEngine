@@ -90,20 +90,6 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            // For property access, primitives need proper boxing
-            var target = targetJs.Kind switch
-            {
-                JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
-                JsValueKind.Number => targetJs.NumberValue,
-                JsValueKind.String => targetJs.ObjectValue,
-                JsValueKind.Symbol => targetJs.ObjectValue,
-                JsValueKind.BigInt => targetJs.ObjectValue,
-                JsValueKind.Object => targetJs.ObjectValue,
-                JsValueKind.Null => null,
-                JsValueKind.Undefined => null,
-                _ => targetJs.ObjectValue
-            };
-
             if (expression.IsCompoundAssignment)
             {
                 if (targetJs.IsNullOrUndefined)
@@ -118,7 +104,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                var reference = CreatePropertyReference(target, propertyName, context, allowPrivate: false);
+                var reference = CreatePropertyReference(targetJs, propertyName, context, allowPrivate: false);
 
                 if (TryEvaluateCompoundAssignmentJsValue(null, expression.Value, reference, environment, context,
                         out var compoundValueJs, out var shouldAssign))
@@ -163,7 +149,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var finalReference = CreatePropertyReference(target, finalPropertyName, context, allowPrivate: false);
+            var finalReference = CreatePropertyReference(targetJs, finalPropertyName, context, allowPrivate: false);
             finalReference.SetValue(assignedValueJs);
             return assignedValueJs;
         }

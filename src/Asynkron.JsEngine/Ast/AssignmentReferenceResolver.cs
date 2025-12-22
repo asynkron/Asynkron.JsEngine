@@ -233,7 +233,7 @@ internal static class AssignmentReferenceResolver
             {
                 var propertyName = GetPropertyName();
                 return TypedAstEvaluator.PropertyHandle.Resolve(
-                    ConvertJsValueToObject(target),
+                    target,
                     propertyName,
                     context,
                     context.CurrentScope.IsStrict,
@@ -258,7 +258,7 @@ internal static class AssignmentReferenceResolver
         }
 
         var handle = TypedAstEvaluator.PropertyHandle.Resolve(
-            ConvertJsValueToObject(target),
+            target,
             propertyValue,
             context,
             context.CurrentScope.IsStrict,

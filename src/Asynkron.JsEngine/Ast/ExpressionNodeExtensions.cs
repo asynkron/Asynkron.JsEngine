@@ -375,17 +375,6 @@ public static partial class TypedAstEvaluator
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
-                // Extract target for property access - primitives need boxing for prototype chain lookup
-                var target = targetJs.Kind switch
-                {
-                    JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
-                    JsValueKind.Number => targetJs.NumberValue,
-                    JsValueKind.String => targetJs.ObjectValue,
-                    JsValueKind.Symbol => targetJs.ObjectValue,
-                    JsValueKind.BigInt => targetJs.ObjectValue,
-                    JsValueKind.Object => targetJs.ObjectValue,
-                    _ => targetJs.ObjectValue
-                };
                 string propertyName;
                 if (member.IsComputed)
                 {
@@ -448,7 +437,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 var handle = PropertyHandle.Resolve(
-                    target,
+                    targetJs,
                     propertyName,
                     context,
                     context.CurrentScope.IsStrict,
@@ -537,19 +526,8 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
-                    // Extract target for property access - primitives need boxing for prototype chain lookup
-                    var target = targetJs.Kind switch
-                    {
-                        JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
-                        JsValueKind.Number => targetJs.NumberValue,
-                        JsValueKind.String => targetJs.ObjectValue,
-                        JsValueKind.Symbol => targetJs.ObjectValue,
-                        JsValueKind.BigInt => targetJs.ObjectValue,
-                        JsValueKind.Object => targetJs.ObjectValue,
-                        _ => targetJs.ObjectValue
-                    };
                     var handle = PropertyHandle.Resolve(
-                        target,
+                        targetJs,
                         propertyValueJs,
                         context,
                         context.CurrentScope.IsStrict,

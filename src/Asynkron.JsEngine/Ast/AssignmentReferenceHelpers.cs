@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Ast;
 public static partial class TypedAstEvaluator
 {
     private static AssignmentReference CreatePropertyReference(
-        object? target,
+        JsValue target,
         string propertyName,
         EvaluationContext context,
         bool allowPrivate)
@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
             return AssignmentReference.ForDelegateJsValue(
                 () =>
                 {
-                    if (IsNullish(target))
+                    if (target.IsNullOrUndefined)
                     {
                         var errorMessage = propertyName.Length > 0
                             ? $"Cannot read property '{propertyName}' of null or undefined"
@@ -32,7 +32,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
-                        ? JsValue.FromObjectUnsafe(directValue)
+                        ? directValue
                         : JsValue.Undefined;
                 },
                 value => AssignPropertyValueWithNullCheck(target, propertyName, value, context,
@@ -52,6 +52,27 @@ public static partial class TypedAstEvaluator
     }
 
     private static void AssignPropertyValueWithNullCheck(
+        JsValue target,
+        string propertyName,
+        JsValue value,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        // Extract object for existing logic - primitives need proper handling
+        var targetObj = target.Kind switch
+        {
+            JsValueKind.Boolean => (object?)target.AsBoolean(),
+            JsValueKind.Number => target.NumberValue,
+            JsValueKind.String => target.ObjectValue,
+            JsValueKind.Symbol => target.ObjectValue,
+            JsValueKind.BigInt => target.ObjectValue,
+            JsValueKind.Object => target.ObjectValue,
+            _ => null
+        };
+        AssignPropertyValueWithNullCheckCore(targetObj, propertyName, value, context, isStrict);
+    }
+
+    private static void AssignPropertyValueWithNullCheckCore(
         object? target,
         string propertyName,
         JsValue value,

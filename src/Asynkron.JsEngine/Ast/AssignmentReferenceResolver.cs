@@ -36,7 +36,7 @@ internal static class AssignmentReferenceResolver
         }
 
         // Wrap in delegate for strict restricted names (eval/arguments)
-        return AssignmentReference.ForDelegateJsValue(
+        return AssignmentReference.ForDelegate(
             reference.GetJsValue,
             _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
                 "Assignment to eval or arguments is not allowed in strict mode.", context,
@@ -134,13 +134,13 @@ internal static class AssignmentReferenceResolver
             var superPropertyValue = evaluateExpression(member.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return AssignmentReference.ForDelegateJsValue(() => JsValue.Undefined, _ => { });
+                return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
             }
 
             var binding = environment.ExpectSuperBinding(context);
             string? propertyNameCache = null;
 
-            return AssignmentReference.ForDelegateJsValue(
+            return AssignmentReference.ForDelegate(
                 () =>
                 {
                     if (binding.Prototype is null)
@@ -192,13 +192,13 @@ internal static class AssignmentReferenceResolver
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return AssignmentReference.ForDelegateJsValue(() => JsValue.Undefined, _ => { });
+            return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
         }
 
         var propertyValue = evaluateExpression(member.Property, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return AssignmentReference.ForDelegateJsValue(() => JsValue.Undefined, _ => { });
+            return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
         }
 
         if (target.IsNullish)
@@ -211,7 +211,7 @@ internal static class AssignmentReferenceResolver
         {
             string? propertyNameCache = null;
 
-            return AssignmentReference.ForDelegateJsValue(
+            return AssignmentReference.ForDelegate(
                 () =>
                 {
                     var handle = GetHandle();
@@ -244,7 +244,7 @@ internal static class AssignmentReferenceResolver
         if (target.ObjectValue is TypedArrayBase typedArray &&
             JsOps.TryResolveArrayIndex(ConvertJsValueToObject(propertyValue), out var typedIndex, context))
         {
-            return AssignmentReference.ForDelegateJsValue(
+            return AssignmentReference.ForDelegate(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
                     ? JsValue.FromDouble(typedArray.GetElement(typedIndex))
                     : JsValue.Undefined,
@@ -263,7 +263,7 @@ internal static class AssignmentReferenceResolver
             context,
             context.CurrentScope.IsStrict,
             allowPrivate: !member.IsComputed);
-        return AssignmentReference.ForDelegateJsValue(
+        return AssignmentReference.ForDelegate(
             () => handle.GetJsValue(),
             newValue => handle.SetValue(newValue));
     }

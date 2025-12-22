@@ -30,9 +30,7 @@ internal readonly struct AssignmentReference
     private readonly ObjectEnvironmentBinding _globalBinding;
     private readonly JsEnvironment? _withFallbackEnvironment;
 
-    // Delegate fallback for member access
-    private readonly Func<object?>? _delegateGetter;
-    private readonly Action<object?>? _delegateSetter;
+    // Delegate fallback for member access (JsValue-based)
     private readonly Func<JsValue>? _delegateGetterJs;
     private readonly Action<JsValue>? _delegateSetterJs;
 
@@ -54,8 +52,6 @@ internal readonly struct AssignmentReference
             default,
             null,
             null,
-            null,
-            null,
             null);
     }
 
@@ -73,8 +69,6 @@ internal readonly struct AssignmentReference
             context,
             false,
             globalBinding,
-            null,
-            null,
             null,
             null,
             null);
@@ -99,8 +93,6 @@ internal readonly struct AssignmentReference
             withBinding,
             fallbackEnvironment,
             null,
-            null,
-            null,
             null);
     }
 
@@ -122,8 +114,6 @@ internal readonly struct AssignmentReference
             default,
             environment,  // Store environment for sloppy mode global creation
             null,
-            null,
-            null,
             null);
     }
 
@@ -131,27 +121,6 @@ internal readonly struct AssignmentReference
     /// Creates a reference using delegate fallback (for complex member access).
     /// </summary>
     internal static AssignmentReference ForDelegate(
-        Func<object?> getter,
-        Action<object?> setter)
-    {
-        return new AssignmentReference(
-            ReferenceKind.Delegate,
-            default,
-            default,
-            null!,
-            false,
-            default,
-            null,
-            getter,
-            setter,
-            null,
-            null);
-    }
-
-    /// <summary>
-    /// Creates a reference using JsValue delegate fallback (for complex member access).
-    /// </summary>
-    internal static AssignmentReference ForDelegateJsValue(
         Func<JsValue> getter,
         Action<JsValue> setter)
     {
@@ -162,8 +131,6 @@ internal readonly struct AssignmentReference
             null!,
             false,
             default,
-            null,
-            null,
             null,
             getter,
             setter);
@@ -177,8 +144,6 @@ internal readonly struct AssignmentReference
         bool isStrict,
         in ObjectEnvironmentBinding globalBinding,
         JsEnvironment? withFallbackEnvironment,
-        Func<object?>? delegateGetter,
-        Action<object?>? delegateSetter,
         Func<JsValue>? delegateGetterJs,
         Action<JsValue>? delegateSetterJs)
     {
@@ -189,25 +154,8 @@ internal readonly struct AssignmentReference
         _isStrict = isStrict;
         _globalBinding = globalBinding;
         _withFallbackEnvironment = withFallbackEnvironment;
-        _delegateGetter = delegateGetter;
-        _delegateSetter = delegateSetter;
         _delegateGetterJs = delegateGetterJs;
         _delegateSetterJs = delegateSetterJs;
-    }
-
-    public object? GetValue()
-    {
-        return _kind switch
-        {
-            ReferenceKind.DeclarativeBinding => ReadDeclarativeBinding(),
-            ReferenceKind.GlobalBinding => ReadGlobalBinding(),
-            ReferenceKind.WithBinding => ReadWithBinding(),
-            ReferenceKind.Unresolvable => ReadUnresolvable(),
-            ReferenceKind.Delegate => _delegateGetterJs is not null
-                ? ConvertJsValueToObject(_delegateGetterJs())
-                : _delegateGetter!(),
-            _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
-        };
     }
 
     /// <summary>
@@ -221,9 +169,7 @@ internal readonly struct AssignmentReference
             ReferenceKind.GlobalBinding => JsValue.FromObjectUnsafe(ReadGlobalBinding()),
             ReferenceKind.WithBinding => JsValue.FromObjectUnsafe(ReadWithBinding()),
             ReferenceKind.Unresolvable => JsValue.FromObjectUnsafe(ReadUnresolvable()),
-            ReferenceKind.Delegate => _delegateGetterJs is not null
-                ? _delegateGetterJs()
-                : JsValue.FromObjectUnsafe(_delegateGetter!()),
+            ReferenceKind.Delegate => _delegateGetterJs!(),
             _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
         };
     }
@@ -245,31 +191,10 @@ internal readonly struct AssignmentReference
                 WriteUnresolvable(value);
                 break;
             case ReferenceKind.Delegate:
-                if (_delegateSetterJs is not null)
-                {
-                    _delegateSetterJs(value);
-                }
-                else
-                {
-                    _delegateSetter!(ConvertJsValueToObject(value));
-                }
+                _delegateSetterJs!(value);
                 break;
             default:
                 throw new InvalidOperationException($"Unknown reference kind: {_kind}");
-        }
-    }
-
-    private object? ReadDeclarativeBinding()
-    {
-        try
-        {
-            return _binding.Read();
-        }
-        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
-        {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
-            _context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-            return Symbol.Undefined;
         }
     }
 

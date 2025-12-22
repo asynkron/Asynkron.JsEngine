@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
     {
         if (!allowPrivate || !propertyName.IsPrivateName())
         {
-            return AssignmentReference.ForDelegateJsValue(
+            return AssignmentReference.ForDelegate(
                 () =>
                 {
                     if (target.IsNullOrUndefined)
@@ -46,7 +46,7 @@ public static partial class TypedAstEvaluator
             context.CurrentScope.IsStrict,
             allowPrivate);
 
-        return AssignmentReference.ForDelegateJsValue(
+        return AssignmentReference.ForDelegate(
             () => handle.GetJsValue(),
             value => handle.SetValue(value));
     }

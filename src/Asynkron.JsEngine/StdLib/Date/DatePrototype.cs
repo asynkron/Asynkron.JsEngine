@@ -7,6 +7,7 @@ using static Asynkron.JsEngine.StdLib.DateHelper;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Date", ToStringTag = "Date")]
+[JsMethodAlias("toGMTString", "toUTCString")]
 public sealed partial class DatePrototype
 {
     [JsHostMethod("getTime", Length = 0d)]
@@ -553,19 +554,6 @@ public sealed partial class DatePrototype
 
         Realm.DatePrototype ??= Prototype as JsObject;
 
-        if (Prototype is not JsObject prototype ||
-            !prototype.TryGetProperty("toUTCString", out var toUtc) ||
-            toUtc.IsNullOrUndefined)
-        {
-            return;
-        }
-
-        // Convert JsValue to object for PropertyDescriptor
-        var toUtcObj = toUtc.TryGetObject<object>(out var obj) ? obj! : toUtc;
-        prototype.DefineProperty("toGMTString",
-            new PropertyDescriptor
-            {
-                Value = toUtcObj, Writable = true, Enumerable = false, Configurable = true
-            });
+        // toGMTString is registered via code generation from [JsMethodAlias] attribute
     }
 }

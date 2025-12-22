@@ -199,11 +199,7 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         Realm.RegExpPrototype ??= Prototype as JsObject;
 
-        var splitKey = SymbolKeys.Split;
-        if (Prototype is JsObject obj)
-        {
-            obj.SetHostedProperty(splitKey, Split);
-        }
+        // [Symbol.split] is registered via code generation from [JsSymbolMethod] attribute
     }
 
     private JsRegExp RequireRegExp(JsValue receiver)
@@ -254,6 +250,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new string(buffer[..length]);
     }
 
+    [JsSymbolMethod("split", Length = 2d)]
     private JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var resolved = ResolveRegExpInstance(thisValue);

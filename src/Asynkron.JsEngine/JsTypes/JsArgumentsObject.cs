@@ -332,14 +332,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         return true;
     }
 
-    private void UpdateFromBinding(int index, object? value)
+    private void UpdateFromBinding(int index, JsValue jsValue)
     {
         if (_suppressObserver || index >= _values.Length || _mappedParameters[index] is null)
         {
             return;
         }
 
-        var jsValue = JsValue.FromObjectUnsafe(value);
         _values[index] = jsValue;
         WithSuppressedObserver(() =>
         {

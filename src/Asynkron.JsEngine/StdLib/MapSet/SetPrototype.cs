@@ -6,12 +6,12 @@ namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Set", ToStringTag = "Set")]
 [JsSymbolAlias("iterator", "values")]
+[JsMethodAlias("keys", "values")]
 public sealed partial class SetPrototype
 {
     private enum SetIterationKind
     {
         Entries,
-        Keys,
         Values
     }
 
@@ -65,12 +65,7 @@ public sealed partial class SetPrototype
         return new JsValue(CreateSetIterator(set, SetIterationKind.Entries));
     }
 
-    [JsHostMethod("keys", Length = 0d)]
-    public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
-    {
-        var set = RequireSet(thisValue);
-        return new JsValue(CreateSetIterator(set, SetIterationKind.Keys));
-    }
+    // keys is registered via code generation from [JsMethodAlias] attribute (ES spec: Set.prototype.keys === Set.prototype.values)
 
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)

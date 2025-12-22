@@ -54,13 +54,15 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var symbolMethods = ImmutableArray.CreateBuilder<SymbolMethodInfo>();
         var symbolGetters = ImmutableArray.CreateBuilder<SymbolGetterInfo>();
         var symbolAliases = ImmutableArray.CreateBuilder<SymbolAliasInfo>();
+        var methodAliases = ImmutableArray.CreateBuilder<MethodAliasInfo>();
         var jsValueType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
         var readOnlyListType = context.SemanticModel.Compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
 
-        // Collect class-level symbol aliases
+        // Collect class-level symbol aliases and method aliases
         foreach (var attr in typeSymbol.GetAttributes())
         {
-            if (string.Equals(attr.AttributeClass?.ToDisplayString(),
+            var attrDisplayString = attr.AttributeClass?.ToDisplayString();
+            if (string.Equals(attrDisplayString,
                 "Asynkron.JsEngine.Runtime.Prototypes.JsSymbolAliasAttribute", StringComparison.Ordinal))
             {
                 var symbolName = attr.ConstructorArguments.Length > 0
@@ -75,6 +77,23 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                     var writable = GetNamedBool(attr, "Writable", true);
                     var configurable = GetNamedBool(attr, "Configurable", true);
                     symbolAliases.Add(new SymbolAliasInfo(symbolName, targetProperty, enumerable, writable, configurable));
+                }
+            }
+            else if (string.Equals(attrDisplayString,
+                "Asynkron.JsEngine.Runtime.Prototypes.JsMethodAliasAttribute", StringComparison.Ordinal))
+            {
+                var aliasName = attr.ConstructorArguments.Length > 0
+                    ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                    : string.Empty;
+                var targetProperty = attr.ConstructorArguments.Length > 1
+                    ? attr.ConstructorArguments[1].Value as string ?? string.Empty
+                    : string.Empty;
+                if (!string.IsNullOrWhiteSpace(aliasName) && !string.IsNullOrWhiteSpace(targetProperty))
+                {
+                    var enumerable = GetNamedBool(attr, "Enumerable");
+                    var writable = GetNamedBool(attr, "Writable", true);
+                    var configurable = GetNamedBool(attr, "Configurable", true);
+                    methodAliases.Add(new MethodAliasInfo(aliasName, targetProperty, enumerable, writable, configurable));
                 }
             }
         }
@@ -188,7 +207,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var useArrayInstance = objectKind == PrototypeObjectKind.Array;
         var useFunctionInstance = objectKind == PrototypeObjectKind.Function;
         return new PrototypeInfo(typeSymbol, getters.ToImmutable(), setters.ToImmutable(), methods.ToImmutable(),
-            symbolMethods.ToImmutable(), symbolGetters.ToImmutable(), symbolAliases.ToImmutable(),
+            symbolMethods.ToImmutable(), symbolGetters.ToImmutable(), symbolAliases.ToImmutable(), methodAliases.ToImmutable(),
             toStringTag, useArrayInstance, useFunctionInstance);
     }
 
@@ -556,6 +575,24 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             source.AppendLine("        }");
         }
 
+        // Emit method aliases (e.g., toGMTString -> toUTCString)
+        var methodAliasVarIndex = 0;
+        foreach (var alias in info.MethodAliases)
+        {
+            var varName = $"methodAliasTarget{methodAliasVarIndex++}";
+            source.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).Append("\", out var ").Append(varName).AppendLine("))");
+            source.AppendLine("        {");
+            source.Append("            prototype.DefineProperty(\"").Append(alias.AliasName).AppendLine("\",");
+            source.AppendLine("                new PropertyDescriptor");
+            source.AppendLine("                {");
+            source.Append("                    Value = ").Append(varName).Append(", Writable = ").Append(alias.Writable ? "true" : "false")
+                .Append(", Enumerable = ").Append(alias.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(alias.Configurable ? "true" : "false")
+                .AppendLine();
+            source.AppendLine("                });");
+            source.AppendLine("        }");
+        }
+
         if (!string.IsNullOrEmpty(info.ToStringTag))
         {
             source.AppendLine("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
@@ -749,6 +786,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         ImmutableArray<SymbolMethodInfo> SymbolMethods,
         ImmutableArray<SymbolGetterInfo> SymbolGetters,
         ImmutableArray<SymbolAliasInfo> SymbolAliases,
+        ImmutableArray<MethodAliasInfo> MethodAliases,
         string? ToStringTag,
         bool UseArrayInstance,
         bool UseFunctionInstance);
@@ -769,6 +807,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool Enumerable, bool Configurable, bool IsStatic);
 
     private sealed record SymbolAliasInfo(string SymbolName, string TargetPropertyName,
+        bool Enumerable, bool Writable, bool Configurable);
+
+    private sealed record MethodAliasInfo(string AliasName, string TargetPropertyName,
         bool Enumerable, bool Writable, bool Configurable);
 
     private sealed record ConstructorInfo(INamedTypeSymbol Symbol, INamedTypeSymbol PrototypeType, string LengthLiteral,

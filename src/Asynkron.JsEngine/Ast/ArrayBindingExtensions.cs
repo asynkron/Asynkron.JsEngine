@@ -425,7 +425,7 @@ public static partial class TypedAstEvaluator
 
         if (environment.HasOwnBinding(stateKey))
         {
-            environment.Assign(stateKey, state);
+            environment.AssignJsValue(stateKey, JsValue.FromObjectUnsafe(state));
         }
         else
         {

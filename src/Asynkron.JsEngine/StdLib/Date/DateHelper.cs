@@ -13,10 +13,10 @@ public static class DateHelper
         return DateConstructor.CreateConstructor(realm);
     }
 
-    internal const double MsPerDay = 86400000d;
-    internal const double MsPerHour = 3600000d;
+    private const double MsPerDay = 86400000d;
+    private const double MsPerHour = 3600000d;
     internal const double MsPerMinute = 60000d;
-    internal const double MsPerSecond = 1000d;
+    private const double MsPerSecond = 1000d;
 
     internal static double ComputeDateTimeValue(
         IReadOnlyList<JsValue> args,
@@ -81,7 +81,7 @@ public static class DateHelper
 
         var timeWithinDay = hour * MsPerHour + minute * MsPerMinute + second * MsPerSecond + millisecond;
         var localDate = MakeDate(day, timeWithinDay);
-        var utc = UTCTimeFromLocal(localDate, realm);
+        var utc = UtcTimeFromLocal(localDate, realm);
         return TimeClip(utc);
     }
 
@@ -92,17 +92,20 @@ public static class DateHelper
 
     internal static double RequireDateValue(JsValue thisVal, RealmState realm, out JsObject obj)
     {
-        if (thisVal.IsObject)
+        if (!thisVal.IsObject)
         {
-            var candidate = thisVal.AsObject();
-            if (candidate.GetOwnPropertyDescriptor("_internalDate") is { Value: double timeValue })
-            {
-                obj = candidate;
-                return timeValue;
-            }
+            throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
         }
 
-        throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
+        var candidate = thisVal.AsObject();
+        if (candidate.GetOwnPropertyDescriptor("_internalDate") is not { Value: double timeValue })
+        {
+            throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
+        }
+
+        obj = candidate;
+        return timeValue;
+
     }
 
     internal static JsObject RequireDateObject(JsValue thisVal, RealmState realm)
@@ -162,7 +165,7 @@ public static class DateHelper
         var day = Day(time);
         var newTime = h * MsPerHour + m * MsPerMinute + s * MsPerSecond + ms;
         var newDate = MakeDate(day, newTime);
-        var utc = inputIsUtc ? newDate : UTCTimeFromLocal(newDate, realmState);
+        var utc = inputIsUtc ? newDate : UtcTimeFromLocal(newDate, realmState);
         return TimeClip(utc);
     }
 
@@ -174,7 +177,7 @@ public static class DateHelper
         }
 
         var newDate = MakeDate(day, TimeWithinDay(time));
-        var utc = inputIsUtc ? newDate : UTCTimeFromLocal(newDate, realmState);
+        var utc = inputIsUtc ? newDate : UtcTimeFromLocal(newDate, realmState);
         return TimeClip(utc);
     }
 
@@ -192,11 +195,11 @@ public static class DateHelper
 
         var day = MakeDay(y, m, dt);
         var newDate = MakeDate(day, TimeWithinDay(timeValue));
-        var utc = inputIsUtc ? newDate : UTCTimeFromLocal(newDate, realmState);
+        var utc = inputIsUtc ? newDate : UtcTimeFromLocal(newDate, realmState);
         return TimeClip(utc);
     }
 
-    internal static double Day(double t)
+    private static double Day(double t)
     {
         return Math.Floor(t / MsPerDay);
     }
@@ -212,20 +215,20 @@ public static class DateHelper
         return result;
     }
 
-    internal static bool IsLeapYear(double year)
+    private static bool IsLeapYear(double year)
     {
         var y = (long)Math.Truncate(year);
         return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     }
 
-    internal static double DayFromYear(double year)
+    private static double DayFromYear(double year)
     {
         var y = Math.Truncate(year);
         return 365 * (y - 1970) + Math.Floor((y - 1969) / 4) - Math.Floor((y - 1901) / 100) +
                Math.Floor((y - 1601) / 400);
     }
 
-    internal static double TimeFromYear(double year)
+    private static double TimeFromYear(double year)
     {
         return MsPerDay * DayFromYear(year);
     }
@@ -251,7 +254,7 @@ public static class DateHelper
         return y;
     }
 
-    internal static double DayWithinYear(double t)
+    private static double DayWithinYear(double t)
     {
         var y = YearFromTime(t);
         return Day(t) - DayFromYear(y);
@@ -376,7 +379,7 @@ public static class DateHelper
         return utcTime + GetLocalOffsetMs(utcTime, realmState);
     }
 
-    internal static double UTCTimeFromLocal(double localTime, RealmState realmState)
+    internal static double UtcTimeFromLocal(double localTime, RealmState realmState)
     {
         var guess = localTime - GetLocalOffsetMs(localTime, realmState);
         var offset = GetLocalOffsetMs(guess, realmState);
@@ -389,13 +392,13 @@ public static class DateHelper
         return ConvertToConfiguredLocal(utc, realmState);
     }
 
-    internal static DateTimeOffset ConvertToConfiguredLocal(DateTimeOffset utc, RealmState realmState)
+    private static DateTimeOffset ConvertToConfiguredLocal(DateTimeOffset utc, RealmState realmState)
     {
         var timeZone = ResolveTimeZone(realmState);
         return TimeZoneInfo.ConvertTime(utc, timeZone);
     }
 
-    internal static TimeZoneInfo ResolveTimeZone(RealmState realmState)
+    private static TimeZoneInfo ResolveTimeZone(RealmState realmState)
     {
         return realmState.Options.TimeZone ?? TimeZoneInfo.Utc;
     }
@@ -467,7 +470,7 @@ public static class DateHelper
             return new JsValue("Invalid Date");
         }
 
-        var ctorArgs = new JsValue[] { localesArg, effectiveOptionsArg };
+        var ctorArgs = new[] { localesArg, effectiveOptionsArg };
         var instance = new JsObject();
         if (ctorVal.TryGetObject<IJsPropertyAccessor>(out var ctorAccessor) &&
             ctorAccessor.TryGetProperty("prototype", out var proto) &&
@@ -491,14 +494,7 @@ public static class DateHelper
         if (constructed.IsObject)
         {
             var constructedObj = constructed.AsObject();
-            if (constructedObj is not null || constructedObj is IJsCallable)
-            {
-                formatter = constructed;
-            }
-            else
-            {
-                formatter = new JsValue(instance);
-            }
+            formatter = constructedObj is not null ? constructed : new JsValue(instance);
         }
         else
         {

@@ -21,12 +21,13 @@ public static class ArrayBufferHelper
             {
                 thisVal = objVal;
             }
-            else if (jsVal.IsNullOrUndefined)
-            {
-                throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
-            }
             else
             {
+                if (jsVal.IsNullOrUndefined)
+                {
+                    throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
+                }
+
                 thisVal = jsVal.ObjectValue;
             }
         }

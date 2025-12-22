@@ -134,7 +134,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Register standard library objects
         SetGlobal("console", ConsolePrototype.CreatePrototype(RealmState));
         SetGlobal("Math", MathPrototype.CreatePrototype(RealmState));
-        SetGlobal("Object", ObjectHelper.CreateObjectConstructor(RealmState));
+        SetGlobal("Object", ObjectConstructor.CreateConstructor(RealmState));
 
         // Per ECMAScript spec, the global object's [[Prototype]] is Object.prototype.
         // This ensures that methods like hasOwnProperty are inherited by the global object.
@@ -198,7 +198,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("JSON", JsonPrototype.CreatePrototype(RealmState));
 
         // Register RegExp constructor
-        SetGlobal("RegExp", RegExpHelper.CreateRegExpConstructor(RealmState));
+        SetGlobal("RegExp", RegExpConstructor.CreateConstructor(RealmState));
 
         // Error constructors
         SetGlobal("Error", ErrorHelper.CreateErrorConstructor(RealmState));
@@ -211,7 +211,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("AggregateError", ErrorHelper.CreateErrorConstructor(RealmState, "AggregateError"));
 
         // Register Promise constructor
-        var promiseConstructor = PromiseHelper.CreatePromiseConstructor(RealmState);
+        var promiseConstructor = (IJsCallable)PromiseConstructor.CreateConstructor(RealmState);
         SetGlobal("Promise", promiseConstructor);
         RealmState.PromiseConstructor = promiseConstructor as IJsCallable;
 
@@ -228,7 +228,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("WeakMap", WeakMapConstructor.CreateConstructor(RealmState));
 
         // Minimal Proxy constructor (used by Array.isArray proxy tests)
-        SetGlobal("Proxy", ProxyHelper.CreateProxyConstructor(RealmState));
+        SetGlobal("Proxy", ProxyConstructor.CreateConstructor(RealmState));
 
         // Register WeakSet constructor
         SetGlobal("WeakSet", WeakSetConstructor.CreateConstructor(RealmState));

@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -10,11 +9,6 @@ namespace Asynkron.JsEngine.StdLib;
 /// </summary>
 public static class ObjectHelper
 {
-    public static HostFunction CreateObjectConstructor(RealmState realm)
-    {
-        return ObjectConstructor.CreateConstructor(realm);
-    }
-
     internal static RealmState RequireRealm(RealmState? realm)
     {
         return realm ?? throw new InvalidOperationException("Realm is required for Object built-ins.");
@@ -103,11 +97,11 @@ public static class ObjectHelper
         {
             var valJs = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
             result.SetProperty("value", valJs);
-            result.SetProperty("writable", new JsValue(descriptor.HasWritable ? descriptor.Writable : false));
+            result.SetProperty("writable", new JsValue(descriptor is { HasWritable: true, Writable: true }));
         }
 
-        result.SetProperty("enumerable", new JsValue(descriptor.HasEnumerable ? descriptor.Enumerable : false));
-        result.SetProperty("configurable", new JsValue(descriptor.HasConfigurable ? descriptor.Configurable : false));
+        result.SetProperty("enumerable", new JsValue(descriptor is { HasEnumerable: true, Enumerable: true }));
+        result.SetProperty("configurable", new JsValue(descriptor is { HasConfigurable: true, Configurable: true }));
         return result;
     }
 

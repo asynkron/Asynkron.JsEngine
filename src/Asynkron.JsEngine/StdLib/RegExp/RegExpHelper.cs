@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -8,11 +9,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class RegExpHelper
 {
-    public static HostFunction CreateRegExpConstructor(RealmState realm)
-    {
-        return RegExpConstructor.CreateConstructor(realm);
-    }
-
     internal static JsObject CreateRegExpLiteral(string pattern, string flags, RealmState? realm = null,
         JsObject? existingInstance = null)
     {
@@ -140,7 +136,6 @@ public static class RegExpHelper
         }
 
         if (thisValue.TryGetObject<JsObject>(out var obj) &&
-            obj is not null &&
             obj.TryGetProperty("__regex__", out var internalRegex) &&
             internalRegex.TryGetObject<JsRegExp>(out var stored))
         {
@@ -201,15 +196,16 @@ public static class RegExpHelper
         target.SetProperty("lastIndex", 0d);
     }
 
-    internal static void UpdateRegExpStatics(this RealmState? realm, string input, Match match)
+    internal static void UpdateRegExpStatics(this RealmState? realm, string? input, Match match)
     {
         if (realm is null)
         {
             return;
         }
 
+        input ??= string.Empty;
         var statics = realm.RegExpStatics;
-        statics.Input = input ?? string.Empty;
+        statics.Input = input;
         statics.LastMatch = match.Value;
         statics.LeftContext = input[..match.Index];
         statics.RightContext = input[(match.Index + match.Length)..];
@@ -233,14 +229,14 @@ public static class RegExpHelper
     {
         var inputDescriptor = new PropertyDescriptor
         {
-            Get = new HostFunction((thisValue, _) =>
+            Get = new HostFunction((_, _) =>
             {
-                var statics = EnsureRegExpReceiver(thisValue);
+                var statics = EnsureRegExpReceiver();
                 return new JsValue(statics.Input);
             }, isConstructor: false),
-            Set = new HostFunction((thisValue, args) =>
+            Set = new HostFunction((_, args) =>
             {
-                var statics = EnsureRegExpReceiver(thisValue);
+                var statics = EnsureRegExpReceiver();
                 var value = args.GetArgument(0);
                 statics.Input = JsOps.ToPropertyName(value) ?? string.Empty;
                 return JsValue.Undefined;
@@ -269,7 +265,7 @@ public static class RegExpHelper
         {
             var idx = i;
             var captureDescriptor = MakeAccessor(s => GetCapture(s, idx - 1));
-            constructor.DefineProperty($"${idx}", captureDescriptor);
+            constructor.DefineProperty($"${idx.ToString(CultureInfo.InvariantCulture)}", captureDescriptor);
         }
 
         var multilineDescriptor = new PropertyDescriptor
@@ -285,13 +281,8 @@ public static class RegExpHelper
         constructor.DefineProperty("multiline", multilineDescriptor);
         return;
 
-        RegExpStatics EnsureRegExpReceiver(JsValue thisValue)
+        RegExpStatics EnsureRegExpReceiver()
         {
-            if (!ReferenceEquals(thisValue.ObjectValue, realm.RegExpConstructor))
-            {
-                throw ThrowTypeError("RegExp method called on incompatible receiver", realm: realm);
-            }
-
             return realm.RegExpStatics;
         }
 
@@ -299,9 +290,9 @@ public static class RegExpHelper
         {
             return new PropertyDescriptor
             {
-                Get = new HostFunction((thisValue, _) =>
+                Get = new HostFunction((_, _) =>
                 {
-                    var statics = EnsureRegExpReceiver(thisValue);
+                    var statics = EnsureRegExpReceiver();
                     return new JsValue(getter(statics));
                 }, isConstructor: false),
                 Set = null,

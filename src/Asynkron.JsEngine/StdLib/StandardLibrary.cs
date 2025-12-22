@@ -86,7 +86,7 @@ public static partial class StandardLibrary
             if (!hasCtor && errorValue.TryGetObject<JsObject>(out var jsObj))
             {
                 var realmState = realm ?? context?.RealmState;
-                IJsCallable? ctor = realmState?.ReferenceErrorConstructor ?? context?.RealmState?.ReferenceErrorConstructor;
+                IJsCallable? ctor = realmState?.ReferenceErrorConstructor ?? context?.RealmState.ReferenceErrorConstructor;
                 if (ctor is null)
                 {
                     if (realmState?.Engine?.GlobalObject.TryGetValue("ReferenceError", out var ctorValue) == true &&
@@ -148,38 +148,6 @@ public static partial class StandardLibrary
         }
 
         target.SetProperty(name, JsValue.FromObjectUnsafe(value));
-    }
-
-    internal static void DefineBuiltinFunction(
-        JsObject target,
-        string name,
-        HostFunction function,
-        int length,
-        bool isConstructor = false,
-        bool writable = true,
-        bool enumerable = false,
-        bool configurable = true,
-        bool stripPrototypeWhenNotConstructor = true)
-    {
-        function.IsConstructor = isConstructor;
-        function.DefineProperty("length",
-            new PropertyDescriptor
-            {
-                Value = (double)length, Writable = false, Enumerable = false, Configurable = true
-            });
-        function.DefineProperty("name",
-            new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
-
-        if (!isConstructor && stripPrototypeWhenNotConstructor)
-        {
-            function.PropertiesObject.DeleteOwnProperty("prototype");
-        }
-
-        target.DefineProperty(name,
-            new PropertyDescriptor
-            {
-                Value = function, Writable = writable, Enumerable = enumerable, Configurable = configurable
-            });
     }
 
     internal static JsValue CreateSyntaxError(string message, EvaluationContext? context = null,
@@ -356,7 +324,7 @@ public static partial class StandardLibrary
     private static BigInteger ParseBigIntString(string value, EvaluationContext? context = null,
         RealmState? realmState = null)
     {
-        var text = value?.Trim() ?? string.Empty;
+        var text = value.Trim();
         if (text.Length == 0)
         {
             return BigInteger.Zero;

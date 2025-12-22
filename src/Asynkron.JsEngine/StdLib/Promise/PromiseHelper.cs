@@ -6,11 +6,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class PromiseHelper
 {
-    public static IJsCallable CreatePromiseConstructor(RealmState realm)
-    {
-        return PromiseConstructor.CreateConstructor(realm);
-    }
-
     internal static JsPromise RequirePromiseInstance(JsValue receiver, RealmState realm)
     {
         if (JsPromise.TryGetInternalPromise(receiver, out var promise) && promise is not null)
@@ -49,15 +44,17 @@ public static class PromiseHelper
         var realm = engine.RealmState;
         ApplyPromisePrototype(promise, realm);
 
-        if (!ReferenceEquals(promiseObj, promise.JsObject))
+        if (ReferenceEquals(promiseObj, promise.JsObject))
         {
-            if (realm.PromisePrototype is not null && promiseObj.Prototype is null)
-            {
-                promiseObj.SetPrototype(realm.PromisePrototype);
-            }
-
-            promiseObj.RealmState ??= realm;
-            promiseObj.SetPromiseSlot(promise);
+            return;
         }
+
+        if (realm.PromisePrototype is not null && promiseObj.Prototype is null)
+        {
+            promiseObj.SetPrototype(realm.PromisePrototype);
+        }
+
+        promiseObj.RealmState ??= realm;
+        promiseObj.SetPromiseSlot(promise);
     }
 }

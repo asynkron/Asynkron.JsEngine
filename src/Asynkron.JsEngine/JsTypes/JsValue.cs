@@ -371,7 +371,7 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Gets the object value. Only valid when IsObject is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public JsObject AsObject() => (JsObject)ObjectValue!;
+    public JsObject? AsObject() => (JsObject)ObjectValue!;
 
     /// <summary>Gets the object value as a specific type. Only valid when IsObject is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

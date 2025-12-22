@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Tests;
@@ -21,7 +22,7 @@ internal static class AsyncTestHelpers
             }
 
             var value = args.Count > 1 ? args[1] : JsValue.Undefined;
-            var promiseConstructor = PromiseHelper.CreatePromiseConstructor(engine.RealmState);
+            var promiseConstructor = (IJsCallable)PromiseConstructor.CreateConstructor(engine.RealmState);
             if (!JsValue.FromObjectUnsafe(promiseConstructor).TryGetObject<IJsCallable>(out var promiseCtor))
             {
                 return JsValue.Undefined;

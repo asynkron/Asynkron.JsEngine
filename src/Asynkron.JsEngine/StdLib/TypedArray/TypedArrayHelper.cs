@@ -36,8 +36,10 @@ public static class TypedArrayHelper
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)));
-        constructor.RealmState = realm;
+        constructor = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)))
+        {
+            RealmState = realm
+        };
         constructor.SetInvokeWithContext(
             (args, _, _, newTarget) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget.IsNullish ? (JsValue)constructor : newTarget)));
 
@@ -210,7 +212,7 @@ public static class TypedArrayHelper
             {
                 var byteOffset = args.Count > 1 && args[1].TryGetDouble(out var d1) ? (int)d1 : 0;
 
-                var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out var _);
+                var lengthProvided = args.Count > 2 && args[2].TryGetDouble(out _);
                 var length = lengthProvided
                     ? (int)args[2].ToNumber()
                     : (buffer.ByteLength - byteOffset) / bytesPerElement;
@@ -224,7 +226,7 @@ public static class TypedArrayHelper
             return CreateTargetFromLength(0, newTarget);
         }
 
-        object? TypedArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+        object TypedArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             if (!thisValue.TryGetObject<HostFunction>(out var ctor))
             {
@@ -246,7 +248,7 @@ public static class TypedArrayHelper
             return typed;
         }
 
-        object? TypedArrayFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
+        object TypedArrayFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
         {
             thisValue.TryGetObject<HostFunction>(out var hostFunc);
             var callingEnv = hostFunc?.CallingJsEnvironment;
@@ -409,7 +411,7 @@ public static class TypedArrayHelper
 
             JsValue ApplyMap(int index, JsValue value)
             {
-                return mapFn is null ? value : mapFn.Invoke([value, JsValue.FromNumber((double)index)], mapThis);
+                return mapFn?.Invoke([value, JsValue.FromNumber((double)index)], mapThis) ?? value;
             }
         }
     }

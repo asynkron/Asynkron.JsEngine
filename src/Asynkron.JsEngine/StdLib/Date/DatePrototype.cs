@@ -19,7 +19,7 @@ public sealed partial class DatePrototype
     [JsHostMethod("setTime", Length = 1d)]
     public JsValue SetTime(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var timeValue = RequireDateValue(thisValue, Realm, out var obj);
+        RequireDateValue(thisValue, Realm, out var obj);
         var ms = args.GetArgument(0);
         var clipped = TimeClip(JsOps.ToNumber(ms));
         StoreInternalDateValue(obj, clipped);
@@ -486,7 +486,7 @@ public sealed partial class DatePrototype
         var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, Realm);
         var day = MakeDay(fullYear, MonthFromTime(tLocal), DateFromTime(tLocal));
         var newDate = MakeDate(day, TimeWithinDay(tLocal));
-        var utc = UTCTimeFromLocal(newDate, Realm);
+        var utc = UtcTimeFromLocal(newDate, Realm);
         var clipped = TimeClip(utc);
 
         StoreInternalDateValue(obj, clipped);

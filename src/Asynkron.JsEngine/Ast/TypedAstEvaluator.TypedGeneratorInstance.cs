@@ -374,19 +374,6 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        [Obsolete("Use JsValue version")]
-        private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? /* intentional */ value)
-        {
-            if (environment.TryGetJsValue(symbol, out var jsValue))
-            {
-                value = jsValue.ToObject();
-                return true;
-            }
-
-            value = null;
-            return false;
-        }
-
         private static bool TryGetSymbolValueJsValue(JsEnvironment environment, Symbol symbol, out JsValue value)
         {
             if (environment.TryGetJsValue(symbol, out value))
@@ -449,8 +436,8 @@ public static partial class TypedAstEvaluator
                 for (var i = scopesToRestore.Length - 1; i >= 0; i--)
                 {
                     var slot = scopesToRestore[i];
-                    if (TryGetSymbolValue(environment, slot, out var storedEnvObj) &&
-                        storedEnvObj is JsEnvironment storedWithEnv)
+                    if (TryGetSymbolValueJsValue(environment, slot, out var storedEnvValue) &&
+                        storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
                     {
                         environment = storedWithEnv;
                     }
@@ -605,9 +592,9 @@ public static partial class TypedAstEvaluator
                             case YieldStarInstruction yieldStarInstruction:
                             {
                                 var currentIndex = _programCounter;
-                                if (!TryGetSymbolValue(environment, yieldStarInstruction.StateSlotSymbol,
+                                if (!TryGetSymbolValueJsValue(environment, yieldStarInstruction.StateSlotSymbol,
                                         out var stateValue) ||
-                                    stateValue is not YieldStarState yieldStarState)
+                                    !stateValue.TryGetObject<YieldStarState>(out var yieldStarState))
                                 {
                                     yieldStarState = new YieldStarState();
                                     StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
@@ -977,9 +964,9 @@ public static partial class TypedAstEvaluator
 
                             case IteratorMoveNextInstruction iteratorMoveNextInstruction:
                                 var iteratorIndex = _programCounter;
-                                if (!TryGetSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                if (!TryGetSymbolValueJsValue(environment, iteratorMoveNextInstruction.IteratorSlot,
                                         out var iteratorStateValue) ||
-                                    iteratorStateValue is not IteratorDriverState driverState)
+                                    !iteratorStateValue.TryGetObject<IteratorDriverState>(out var driverState))
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
@@ -1397,8 +1384,8 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Restore the previous environment by getting it from the enclosing scope of the stored with-env
-                                if (TryGetSymbolValue(_executionEnvironment!, leaveWithInstruction.WithScopeSlot, out var storedEnvObj) &&
-                                    storedEnvObj is JsEnvironment storedWithEnv)
+                                if (TryGetSymbolValueJsValue(_executionEnvironment!, leaveWithInstruction.WithScopeSlot, out var storedEnvValue) &&
+                                    storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
                                 {
                                     // The with-environment's Enclosing is the original environment
                                     environment = storedWithEnv.Enclosing ?? environment;
@@ -1411,9 +1398,10 @@ public static partial class TypedAstEvaluator
                             case IteratorCloseInstruction iteratorCloseInstruction:
                             {
                                 // Get the iterator state from the slot
-                                if (TryGetSymbolValue(environment, iteratorCloseInstruction.IteratorSlot,
+                                if (TryGetSymbolValueJsValue(environment, iteratorCloseInstruction.IteratorSlot,
                                         out var iterStateValue) &&
-                                    iterStateValue is IteratorDriverState { IteratorObject: JsObject iteratorObj })
+                                    iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
+                                    iterState.IteratorObject is JsObject iteratorObj)
                                 {
                                     try
                                     {

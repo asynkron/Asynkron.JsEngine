@@ -381,17 +381,16 @@ public static partial class TypedAstEvaluator
 
     private static JsValue CreateRejectedPromise(JsValue reason, JsEnvironment environment)
     {
-        if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
-            promiseCtor is not IJsPropertyAccessor accessor ||
+        if (!environment.TryGetObject<IJsPropertyAccessor>(Symbol.PromiseIdentifier, out var accessor) ||
             !accessor.TryGetProperty("reject", out var rejectValue) ||
-            !rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
+            !rejectValue.TryGetCallable(out var rejectCallable))
         {
             return reason;
         }
 
         try
         {
-            return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor));
+            return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(accessor));
         }
         catch (ThrowSignal signal)
         {
@@ -402,22 +401,21 @@ public static partial class TypedAstEvaluator
     private static JsValue CreateResolvedPromise(JsValue value, JsEnvironment environment)
     {
         var resolveCandidate = JsValue.Undefined;
-        if (!environment.TryGet(Symbol.PromiseIdentifier, out var promiseCtor) ||
-            promiseCtor is not IJsPropertyAccessor accessor ||
+        if (!environment.TryGetObject<IJsPropertyAccessor>(Symbol.PromiseIdentifier, out var accessor) ||
             !accessor.TryGetProperty("resolve", out resolveCandidate) ||
-            !resolveCandidate.TryGetObject<IJsCallable>(out var resolveCallable))
+            !resolveCandidate.TryGetCallable(out var resolveCallable))
         {
             environment.RealmState?.Logger?.LogInformation(
-                "CreateResolvedPromise falling back (promiseCtorType={CtorType}, hasResolve={HasResolve}, resolveCallable={ResolveCallable})",
-                promiseCtor?.GetType().Name ?? "null",
-                promiseCtor is IJsPropertyAccessor a && a.TryGetProperty("resolve", out _),
-                resolveCandidate.TryGetObject<IJsCallable>(out _));
+                "CreateResolvedPromise falling back (hasAccessor={HasAccessor}, hasResolve={HasResolve}, resolveCallable={ResolveCallable})",
+                accessor is not null,
+                accessor?.TryGetProperty("resolve", out _) ?? false,
+                resolveCandidate.TryGetCallable(out _));
             return value;
         }
 
         try
         {
-            return resolveCallable.Invoke([value], JsValue.FromObjectUnsafe(promiseCtor));
+            return resolveCallable.Invoke([value], JsValue.FromObjectUnsafe(accessor));
         }
         catch (ThrowSignal signal)
         {

@@ -10,9 +10,11 @@ namespace Asynkron.JsEngine;
 /// </summary>
 public static class JsValueCache
 {
-    // Cache small integers (0-10239) as boxed doubles - matches Jint's approach
+    // Cache small integers (0-10239) as JsValue - avoids boxing on every access
     // Jint uses 10240 to cover common array indices and iteration counts
     private const int IntegerCacheSize = 10240;
+    private static readonly JsValue[] CachedIntegersJsValue = new JsValue[IntegerCacheSize];
+    // Keep boxed version for legacy API compatibility
     private static readonly object?[] CachedIntegers = new object?[IntegerCacheSize];
 
     // Cache index strings for property access (0-9999) - covers common array indices
@@ -67,9 +69,10 @@ public static class JsValueCache
 
     static JsValueCache()
     {
-        // Pre-cache integers 0-10239
+        // Pre-cache integers 0-10239 as both JsValue and boxed doubles
         for (var i = 0; i < IntegerCacheSize; i++)
         {
+            CachedIntegersJsValue[i] = (JsValue)(double)i;
             CachedIntegers[i] = (double)i;
         }
 
@@ -111,6 +114,20 @@ public static class JsValueCache
     }
 
     /// <summary>
+    /// Gets a cached JsValue for an integer if within cache range, otherwise creates new.
+    /// Avoids boxing entirely.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue GetIntegerJsValue(int value)
+    {
+        if ((uint)value < IntegerCacheSize)
+        {
+            return CachedIntegersJsValue[value];
+        }
+        return (JsValue)(double)value;
+    }
+
+    /// <summary>
     /// Gets a cached boxed double for common values, otherwise boxes fresh.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -135,6 +152,29 @@ public static class JsValueCache
         if (value == -1.0) return BoxedNegativeOne;
 
         return value;
+    }
+
+    /// <summary>
+    /// Gets a cached JsValue for a number if within cache range, otherwise creates new.
+    /// Avoids boxing entirely.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue GetNumberJsValue(double value)
+    {
+        // Check for common integer values first
+        // Note: Must check for negative zero first since -0.0 >= 0 is true
+        if (value is >= 0 and < IntegerCacheSize && value == Math.Truncate(value))
+        {
+            // Preserve negative zero (don't use cache for -0)
+            if (value == 0 && double.IsNegative(value))
+            {
+                return (JsValue)value;
+            }
+            return CachedIntegersJsValue[(int)value];
+        }
+
+        // No need to special-case NaN/Infinity/etc for JsValue since there's no boxing benefit
+        return (JsValue)value;
     }
 
     /// <summary>

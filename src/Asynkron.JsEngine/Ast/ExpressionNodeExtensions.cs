@@ -144,8 +144,8 @@ public static partial class TypedAstEvaluator
                 IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment, context),
                 SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
                 NewExpression newExpression => newExpression.EvaluateNew(environment, context),
-                NewTargetExpression => environment.TryGet(Symbol.NewTarget, out var newTarget)
-                    ? JsValue.FromObjectUnsafe(newTarget)
+                NewTargetExpression => environment.TryGetJsValue(Symbol.NewTarget, out var newTarget)
+                    ? newTarget
                     : JsValue.Undefined,
                 ImportMetaExpression => EvaluateImportMeta(environment, context),
                 ArrayExpression array => array.EvaluateArray(environment, context),
@@ -310,8 +310,7 @@ public static partial class TypedAstEvaluator
                 // a constructor being invoked via 'new'.
                 object? dynamicSuperConstructor = binding.Constructor;
                 if (dynamicSuperConstructor is null &&
-                    environment.TryGet(Symbol.NewTarget, out var newTarget) &&
-                    newTarget is IJsObjectLike activeFunction)
+                    environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
                 {
                     // Get the current [[Prototype]] of the active function (constructor)
                     // This respects Object.setPrototypeOf changes made after class definition
@@ -320,7 +319,7 @@ public static partial class TypedAstEvaluator
                                               ?? activeFunction.Prototype;
                     logger?.LogInformation(
                         "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
-                        newTarget.GetType().Name,
+                        activeFunction.GetType().Name,
                         dynamicSuperConstructor?.GetType().Name ?? "null");
                 }
 
@@ -595,9 +594,9 @@ public static partial class TypedAstEvaluator
     {
         // Try to get the import.meta object from the environment
         // If running in module context, this should be set by the module loader
-        if (environment.TryGet(Symbol.ImportMeta, out var importMeta))
+        if (environment.TryGetJsValue(Symbol.ImportMeta, out var importMeta))
         {
-            return JsValue.FromObjectUnsafe(importMeta);
+            return importMeta;
         }
 
         // Return a basic import.meta object with a url property

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
@@ -2054,64 +2055,13 @@ public sealed class JsEnvironment
         return _simpleCatchParameters?.Contains(name) == true;
     }
 
-    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
+    [Obsolete("Use TryGetJsValue instead to avoid boxing for primitives.")]
     public bool TryGet(Symbol name, out object? /* intentional - public API */ value)
     {
-        var current = this;
-        var hops = 0;
-        const int maxLookupDepth = 10_000;
-
-        while (current is not null && hops++ < maxLookupDepth)
+        // Delegate to TryGetJsValue to avoid code duplication and use the non-boxing path internally
+        if (TryGetJsValue(name, out var jsValue))
         {
-            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
-            if (Equals(name, Symbol.This) && current._hasThisValue)
-            {
-                value = current._thisValue.ToObject();
-                return true;
-            }
-
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
-            {
-                // Check IsUninitialized before reading
-                if (binding.IsUninitialized)
-                {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-                }
-
-                if (current.IsGlobalFunctionScope)
-                {
-                    var globalObject = current.GetRootGlobalObject();
-                    if (globalObject is not null &&
-                        globalObject.TryGetProperty(name.Name, out var globalValue))
-                    {
-                        value = globalValue;
-                        return true;
-                    }
-                }
-
-                value = binding.JsValue.ToObject();
-                return true;
-            }
-
-            if (current._varEnvironmentOverride is not null &&
-                current._varEnvironmentOverride != current &&
-                current._varEnvironmentOverride.TryGet(name, out value))
-            {
-                return true;
-            }
-
-            if (current._withObject is not null && TryGetFromWith(current._withObject, name, out value))
-            {
-                return true;
-            }
-
-            current = current.Enclosing;
-        }
-
-        var rootGlobal = GetRootGlobalObject();
-        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
-        {
-            value = propertyValue;
+            value = jsValue.ToObject();
             return true;
         }
 
@@ -2130,6 +2080,13 @@ public sealed class JsEnvironment
 
         while (current is not null && hops++ < maxLookupDepth)
         {
+            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
+            if (Equals(name, Symbol.This) && current._hasThisValue)
+            {
+                value = current._thisValue;
+                return true;
+            }
+
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
                 // Check IsUninitialized before reading
@@ -2177,6 +2134,20 @@ public sealed class JsEnvironment
         }
 
         value = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get a binding value as a specific object type, avoiding boxing for primitives.
+    /// Combines TryGetJsValue with TryGetObject for cleaner code.
+    /// </summary>
+    public bool TryGetObject<T>(Symbol name,[NotNullWhen(true)] out T? obj) where T : class
+    {
+        if (TryGetJsValue(name, out var value) && value.TryGetObject(out obj))
+        {
+            return true;
+        }
+        obj = null;
         return false;
     }
 

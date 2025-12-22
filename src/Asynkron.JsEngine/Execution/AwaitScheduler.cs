@@ -63,7 +63,7 @@ internal static class AwaitScheduler
         }
 
         return obj.TryGetProperty("then", out var thenValue) &&
-               thenValue.TryGetObject<IJsCallable>(out _);
+               thenValue.TryGetCallable(out _);
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ internal static class AwaitScheduler
         if (candidate.TryGetObject<JsObject>(out var jsObject) &&
             (jsObject.TryGetPromiseSlot(out var slotPromise) ||
              (jsObject.TryGetJsValue(JsPromise.InternalPromiseKey, out var inner) &&
-              inner.TryGetObject<JsPromise>(out slotPromise))) &&
+              inner.TryGetPromise(out slotPromise))) &&
             slotPromise is not null)
         {
             return slotPromise.TryGetSettled(out value, out isRejected);
@@ -91,9 +91,9 @@ internal static class AwaitScheduler
 
         // Fallback for other IJsObjectLike types (JsArray etc.)
         if (candidate.IsObject &&
-            candidate.TryGetObject<IJsObjectLike>(out var obj) &&
+            candidate.TryGetObjectLike(out var obj) &&
             obj.TryGetProperty(JsPromise.InternalPromiseKey, out var fallbackInner) &&
-            fallbackInner.TryGetObject<JsPromise>(out var fallbackPromise))
+            fallbackInner.TryGetPromise(out var fallbackPromise))
         {
             return fallbackPromise.TryGetSettled(out value, out isRejected);
         }
@@ -169,7 +169,7 @@ internal static class AwaitScheduler
         while (resolvedValue.IsObject && IsPromiseLike(resolvedValue))
         {
             // Use IJsObjectLike to handle JsArray etc. that might be promise-like
-            if (!resolvedValue.TryGetObject<IJsObjectLike>(out var promiseObj))
+            if (!resolvedValue.TryGetObjectLike(out var promiseObj))
             {
                 return true; // Not an object, we're done
             }
@@ -189,7 +189,7 @@ internal static class AwaitScheduler
             }
 
             if (!promiseObj.TryGetProperty("then", out var thenValue) ||
-                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
+                !thenValue.TryGetCallable(out var thenCallable))
             {
                 break;
             }
@@ -342,13 +342,13 @@ internal static class AwaitScheduler
         // value must suspend to allow synchronous code after the async function
         // call to execute before the loop continues.
         var promiseCtor = context.RealmState.PromiseConstructor;
-        if (promiseCtor is IJsPropertyAccessor accessor)
+        var promiseCtorValue = JsValue.FromObjectUnsafe(promiseCtor);
+        if (promiseCtorValue.TryGetPropertyAccessor(out var accessor))
         {
             // Use Promise.resolve() to wrap the value
             if (accessor.TryGetProperty("resolve", out var resolveMethod) &&
-                resolveMethod.TryUnwrap(out IJsCallable? resolveCallable))
+                resolveMethod.TryGetCallable(out var resolveCallable))
             {
-                var promiseCtorValue = JsValue.FromObjectUnsafe(promiseCtor);
                 var wrappedPromise = resolveCallable.Invoke([candidate], promiseCtorValue);
                 if (wrappedPromise.TryGetObject<JsObject>(out var promiseObj))
                 {

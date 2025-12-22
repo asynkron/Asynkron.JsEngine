@@ -37,31 +37,35 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
             return JsValue.FromObjectUnsafe(ConstructBuffer(args, effectiveNewTarget));
         });
-
-        var speciesKey = SymbolKeys.Species;
-        var speciesGetter = new HostFunction((thisVal, _) => thisVal, Realm)
-        {
-            IsConstructor = false
-        };
-        AttachBuiltinMetadata(speciesGetter, "get [Symbol.species]", 0d);
-
-        constructor.DefineProperty(speciesKey, new PropertyDescriptor
-        {
-            Get = speciesGetter,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        var isView = new HostFunction(ArrayBufferIsView, Realm) { IsConstructor = false };
-        AttachBuiltinMetadata(isView, "isView", 1d);
-        constructor.DefineProperty("isView", new PropertyDescriptor
-        {
-            Value = isView,
-            Writable = true,
-            Enumerable = false,
-            Configurable = true
-        });
+        // [Symbol.species] is registered via code generation from attribute
     }
+
+    [JsConstructorMethod("isView", Length = 1d)]
+    public static JsValue IsView(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0 || args[0].IsNullOrUndefined)
+        {
+            return JsValue.False;
+        }
+
+        var arg = args[0];
+        if (arg.TryGetObject<TypedArrayBase>(out _) || arg.TryGetObject<JsDataView>(out _))
+        {
+            return JsValue.True;
+        }
+
+        if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+            accessor.TryGetProperty("_internalDataView", out var dv) &&
+            dv.TryGetObject<JsDataView>(out _))
+        {
+            return JsValue.True;
+        }
+
+        return JsValue.False;
+    }
+
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue) => thisValue;
 
     private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget)
     {

@@ -490,6 +490,84 @@ public readonly struct JsValue : IEquatable<JsValue>
         return false;
     }
 
+    /// <summary>
+    /// Tries to get the value as a callable. Uses enum check first to avoid runtime type checks for non-objects.
+    /// This is more efficient than TryGetObject&lt;IJsCallable&gt; in hot paths.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetCallable([NotNullWhen(true)]out IJsCallable? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is IJsCallable callable)
+        {
+            value = callable;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get the value as a property accessor. Uses enum check first to avoid runtime type checks for non-objects.
+    /// This is more efficient than TryGetObject&lt;IJsPropertyAccessor&gt; in hot paths.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetPropertyAccessor([NotNullWhen(true)]out IJsPropertyAccessor? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is IJsPropertyAccessor accessor)
+        {
+            value = accessor;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get the value as an object-like type. Uses enum check first to avoid runtime type checks for non-objects.
+    /// This is more efficient than TryGetObject&lt;IJsObjectLike&gt; in hot paths.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetObjectLike([NotNullWhen(true)]out IJsObjectLike? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is IJsObjectLike objLike)
+        {
+            value = objLike;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get the value as a JsPromise. Uses enum check first to avoid runtime type checks for non-objects.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetPromise([NotNullWhen(true)]out JsPromise? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is JsPromise promise)
+        {
+            value = promise;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get the value as a JsArray. Uses enum check first to avoid runtime type checks for non-objects.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetArray([NotNullWhen(true)]out JsArray? value)
+    {
+        if (Kind == JsValueKind.Object && ObjectValue is JsArray array)
+        {
+            value = array;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
     #endregion
 
     #region Conversion Methods

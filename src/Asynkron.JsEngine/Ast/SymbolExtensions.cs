@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
                 return null;
             }
 
-            if (environment.TryGet(key, out var existing) && existing is DelegatedYieldState state)
+            if (environment.TryGetObject<DelegatedYieldState>(key, out var state))
             {
                 return state;
             }
@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (environment.TryGet(key, out _))
+            if (environment.HasBinding(key))
             {
                 environment.Assign(key, state);
             }
@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (environment.TryGet(key, out _))
+            if (environment.HasBinding(key))
             {
                 environment.Assign(key, null);
             }

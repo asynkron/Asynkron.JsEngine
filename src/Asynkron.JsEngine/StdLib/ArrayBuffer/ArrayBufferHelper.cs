@@ -109,26 +109,4 @@ public static class ArrayBufferHelper
         return callable;
     }
 
-    internal static JsValue ArrayBufferIsView(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
-    {
-        if (args.Count == 0 || args[0].IsNullOrUndefined)
-        {
-            return JsValue.False;
-        }
-
-        var arg = args[0];
-        if (arg.TryGetObject<TypedArrayBase>(out _) || arg.TryGetObject<JsDataView>(out _))
-        {
-            return JsValue.True;
-        }
-
-        if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-            accessor.TryGetProperty("_internalDataView", out var dv) &&
-            dv.TryGetObject<JsDataView>(out _))
-        {
-            return JsValue.True;
-        }
-
-        return JsValue.False;
-    }
 }

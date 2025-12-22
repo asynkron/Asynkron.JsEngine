@@ -31,7 +31,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         constructor.SetInvokeWithContext((args, _, _, newTarget) =>
         {
-            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
+            if (!newTarget.TryGetCallable(out var callable))
             {
                 throw ThrowTypeError("Constructor Promise requires 'new'", realm: Realm);
             }
@@ -46,7 +46,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private object ConstructPromise(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         IJsCallable? executor = null;
-        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out executor) == false)
+        if (args.Count > 0 && args[0].TryGetCallable(out executor) == false)
         {
             executor = null;
         }
@@ -103,7 +103,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         if (value.TryGetObject<JsObject>(out var jsObj) &&
             JsPromise.TryGetInternalPromise(value, out var _) &&
             jsObj.TryGetProperty("constructor", out var ctor) &&
-            ctor.TryGetObject<IJsCallable>(out var ctorCallable) &&
+            ctor.TryGetCallable(out var ctorCallable) &&
             ReferenceEquals(ctorCallable, _constructor ?? ConstructFallback))
         {
             return value;
@@ -124,7 +124,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseAll(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
+        if (args.Count == 0 || !args[0].TryGetArray(out var array))
         {
             return JsValue.Undefined;
         }
@@ -146,7 +146,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
             // thenMethod is already a JsValue from TryGetProperty
             if (rawItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
+                thenMethod.TryGetCallable(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { (JsValue)CreateAllResolve(i), (JsValue)CreateAllReject() };
                 thenCallable.Invoke(thenArgs, rawItem);
@@ -195,7 +195,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseRace(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
+        if (args.Count == 0 || !args[0].TryGetArray(out var array))
         {
             return JsValue.Undefined;
         }
@@ -208,7 +208,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             // Handle case where item is already a boxed JsValue
             // thenMethod is already a JsValue from TryGetProperty
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
+                thenMethod.TryGetCallable(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { (JsValue)CreateRaceResolve(), (JsValue)CreateRaceReject() };
                 thenCallable.Invoke(thenArgs, item);
@@ -260,7 +260,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseAllSettled(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
+        if (args.Count == 0 || !args[0].TryGetArray(out var array))
         {
             return JsValue.Undefined;
         }
@@ -281,7 +281,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             var item = array.Items[i];
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 // thenMethod is already JsValue from TryGetProperty
-                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
+                thenMethod.TryGetCallable(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { (JsValue)CreateResolve(i), (JsValue)CreateReject(i) };
                 thenCallable.Invoke(thenArgs, item);
@@ -345,7 +345,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseAny(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetObject<JsArray>(out var array))
+        if (args.Count == 0 || !args[0].TryGetArray(out var array))
         {
             return JsValue.Undefined;
         }
@@ -367,7 +367,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             var item = array.Items[i];
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 // thenMethod is already JsValue from TryGetProperty
-                thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
+                thenMethod.TryGetCallable(out var thenCallable))
             {
                 var thenArgs = new JsValue[] { (JsValue)CreateResolve(), (JsValue)CreateReject() };
                 thenCallable.Invoke(thenArgs, item);
@@ -433,7 +433,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     {
         if (Realm.Engine?.GlobalObject.TryGetProperty("AggregateError", out var aggregateCtor) == true &&
             // aggregateCtor is already JsValue from TryGetProperty
-            aggregateCtor.TryGetObject<IJsCallable>(out var callable))
+            aggregateCtor.TryGetCallable(out var callable))
         {
             try
             {

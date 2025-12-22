@@ -308,8 +308,7 @@ public static partial class TypedAstEvaluator
                     {
                         JsValue errorValue = new JsValue(ex.Message);
 
-                        if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                            ctor is IJsCallable callable)
+                        if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
                         {
                             try
                             {
@@ -409,8 +408,7 @@ public static partial class TypedAstEvaluator
                         {
                             JsValue errorValue = new JsValue(ex.Message);
 
-                            if (currentIterationEnvironment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                                ctor is IJsCallable callable)
+                            if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
                             {
                                 try
                                 {

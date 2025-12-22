@@ -211,8 +211,7 @@ public static partial class TypedAstEvaluator
         {
             JsValue errorValue = new JsValue(ex.Message);
 
-            if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                ctor is IJsCallable callable)
+            if (environment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
             {
                 try
                 {

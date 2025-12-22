@@ -20,7 +20,7 @@ public sealed partial class FunctionPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
+    private static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
@@ -73,7 +73,7 @@ public sealed partial class FunctionPrototype
         var hasInstanceKey = SymbolKeys.HasInstance;
         var hasInstance = new HostFunction((thisValue, args) =>
         {
-            if (!thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            if (!thisValue.TryGetObject<IJsPropertyAccessor>(out _))
             {
                 throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", realm: Realm);
             }
@@ -84,7 +84,7 @@ public sealed partial class FunctionPrototype
                 return new JsValue(false);
             }
 
-            if (!JsOps.TryGetPropertyValue(accessor, "prototype", out var protoVal) ||
+            if (!JsOps.TryGetPropertyValueJsValue(thisValue, "prototype", out var protoVal) ||
                 !JsValue.FromObjectUnsafe(protoVal).TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
             {
                 throw ThrowTypeError("Function has non-object prototype in instanceof check", realm: Realm);

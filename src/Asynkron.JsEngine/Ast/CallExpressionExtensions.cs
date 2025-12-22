@@ -414,9 +414,9 @@ public static partial class TypedAstEvaluator
             var callResult = JsValue.Undefined;
             var newTargetForCall = JsValue.Undefined;
             if (expression.Callee is SuperExpression &&
-                environment.TryGet(Symbol.NewTarget, out var inheritedNewTarget))
+                environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget))
             {
-                newTargetForCall = JsValue.FromObjectUnsafe(inheritedNewTarget);
+                newTargetForCall = inheritedNewTarget;
             }
 
             SuperBinding? superBindingForCall = null;
@@ -517,8 +517,8 @@ public static partial class TypedAstEvaluator
                     if (thisInitializationEnvironment is not null)
                     {
                         var alreadyInitialized = thisInitializationValue.IsUndefined
-                            ? (thisInitializationEnvironment.TryGet(Symbol.ThisInitialized, out var initValue)
-                                ? JsValue.FromObjectUnsafe(initValue)
+                            ? (thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue)
+                                ? initValue
                                 : JsValue.Undefined)
                             : thisInitializationValue;
 
@@ -541,8 +541,10 @@ public static partial class TypedAstEvaluator
                     string beforeType;
                     try
                     {
-                        targetEnvironment.TryGet(Symbol.This, out var existingThis);
-                        beforeType = existingThis?.GetType().Name ?? "null";
+                        targetEnvironment.TryGetJsValue(Symbol.This, out var existingThis);
+                        beforeType = existingThis.Kind == JsValueKind.Object
+                            ? existingThis.ObjectValue?.GetType().Name ?? "null"
+                            : existingThis.Kind.ToString();
                     }
                     catch (Exception ex)
                     {
@@ -555,9 +557,11 @@ public static partial class TypedAstEvaluator
                     targetEnvironment.Assign(Symbol.This, thisAfterSuper);
                     try
                     {
-                        targetEnvironment.TryGet(Symbol.This, out var afterThis);
+                        targetEnvironment.TryGetJsValue(Symbol.This, out var afterThis);
                         context.RealmState?.Logger?.LogInformation("Super assigned this now type={Type}",
-                            afterThis?.GetType().Name ?? "null");
+                            afterThis.Kind == JsValueKind.Object
+                                ? afterThis.ObjectValue?.GetType().Name ?? "null"
+                                : afterThis.Kind.ToString());
                     }
                     catch (Exception ex)
                     {
@@ -565,8 +569,7 @@ public static partial class TypedAstEvaluator
                             ex.GetType().Name);
                     }
 
-                    if (targetEnvironment.TryGet(Symbol.Super, out var superBinding) &&
-                        superBinding is SuperBinding binding)
+                    if (targetEnvironment.TryGetObject<SuperBinding>(Symbol.Super, out var binding))
                     {
                         var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                         var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;

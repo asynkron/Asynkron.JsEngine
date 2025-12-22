@@ -36,9 +36,9 @@ public static partial class TypedAstEvaluator
         // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
         initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, isConst: true, isLexical: true,
             blocksFunctionScopeOverride: true);
-        if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
+        if (environment.TryGetJsValue(Symbol.Arguments, out var argumentsValue))
         {
-            initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsValue), isLexical: false);
+            initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexical: false);
         }
 
         superBinding = ResolveStaticInitializationSuperBinding(constructorAccessor);

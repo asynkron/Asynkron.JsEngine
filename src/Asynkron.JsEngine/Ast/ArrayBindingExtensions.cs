@@ -12,8 +12,7 @@ public static partial class TypedAstEvaluator
         {
             var stateKey = GetArrayPatternStateKey(binding);
             ArrayPatternState? resumeState = null;
-            if (stateKey is not null && environment.TryGet(stateKey, out var existing) &&
-                existing is ArrayPatternState savedState)
+            if (stateKey is not null && environment.TryGetObject<ArrayPatternState>(stateKey, out var savedState))
             {
                 resumeState = savedState;
             }
@@ -378,7 +377,7 @@ public static partial class TypedAstEvaluator
                 finally
                 {
                     // Mark the iterator as closed so CloseActiveArrayPatternIterators doesn't try again
-                    if (stateKey is not null && environment.TryGet(stateKey, out var stateObj) && stateObj is ArrayPatternState state)
+                    if (stateKey is not null && environment.TryGetObject<ArrayPatternState>(stateKey, out var state))
                     {
                         state.IteratorDone = true;
                         state.Iterator = null;
@@ -410,7 +409,7 @@ public static partial class TypedAstEvaluator
         JsArray? restArray,
         bool hasPendingElement)
     {
-        var state = environment.TryGet(stateKey, out var existing) && existing is ArrayPatternState existingState
+        var state = environment.TryGetObject<ArrayPatternState>(stateKey, out var existingState)
             ? existingState
             : new ArrayPatternState();
 

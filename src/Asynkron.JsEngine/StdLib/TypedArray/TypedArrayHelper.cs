@@ -374,8 +374,7 @@ public static class TypedArrayHelper
             IJsCallable? ResolveTypeErrorCtor(JsEnvironment? env)
             {
                 if (env is not null &&
-                    env.TryGet(Symbol.TypeErrorIdentifier, out var typeErrorVal) &&
-                    typeErrorVal is IJsCallable typeErrorFromEnv)
+                    env.TryGetObject<IJsCallable>(Symbol.TypeErrorIdentifier, out var typeErrorFromEnv))
                 {
                     return typeErrorFromEnv;
                 }

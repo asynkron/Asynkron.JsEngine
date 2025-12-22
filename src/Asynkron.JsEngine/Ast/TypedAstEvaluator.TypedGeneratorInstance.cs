@@ -349,7 +349,7 @@ public static partial class TypedAstEvaluator
 
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
-            if (environment.TryGet(symbol, out _))
+            if (environment.HasBinding(symbol))
             {
                 environment.Assign(symbol, value);
             }
@@ -363,7 +363,7 @@ public static partial class TypedAstEvaluator
 
         private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
-            if (environment.TryGet(symbol, out _))
+            if (environment.HasBinding(symbol))
             {
                 environment.AssignJsValue(symbol, value);
             }
@@ -373,15 +373,27 @@ public static partial class TypedAstEvaluator
             }
         }
 
+        [Obsolete("Use JsValue version")]
         private static bool TryGetSymbolValue(JsEnvironment environment, Symbol symbol, out object? /* intentional */ value)
         {
-            if (environment.TryGet(symbol, out var existing))
+            if (environment.TryGetJsValue(symbol, out var jsValue))
             {
-                value = existing;
+                value = jsValue.ToObject();
                 return true;
             }
 
             value = null;
+            return false;
+        }
+
+        private static bool TryGetSymbolValueJsValue(JsEnvironment environment, Symbol symbol, out JsValue value)
+        {
+            if (environment.TryGetJsValue(symbol, out value))
+            {
+                return true;
+            }
+
+            value = JsValue.Undefined;
             return false;
         }
 
@@ -457,7 +469,7 @@ public static partial class TypedAstEvaluator
                 // EvaluateAwaitInGenerator can retrieve it when re-evaluated.
                 if (kind == ResumePayloadKind.Value || isThrow)
                 {
-                    if (environment.TryGet(awaitKey, out var stateObj) && stateObj is AwaitState state)
+                    if (environment.TryGetObject<AwaitState>(awaitKey, out var state))
                     {
                         state.HasResult = true;
                         state.IsThrow = isThrow;
@@ -467,7 +479,7 @@ public static partial class TypedAstEvaluator
                     else
                     {
                         var newState = new AwaitState { HasResult = true, IsThrow = isThrow, Result = value };
-                        if (environment.TryGet(awaitKey, out _))
+                        if (environment.HasBinding(awaitKey))
                         {
                             environment.Assign(awaitKey, newState);
                         }
@@ -1572,8 +1584,8 @@ public static partial class TypedAstEvaluator
             // side-effecting expressions after the promise has resolved.
             var awaitKey = expression.GetAwaitStateKey();
             if (awaitKey is not null &&
-                environment.TryGet(awaitKey, out var stateObj) &&
-                stateObj is AwaitState { HasResult: true } state)
+                environment.TryGetObject<AwaitState>(awaitKey, out var state) &&
+                state.HasResult)
             {
                 // Await has already completed; reuse the resolved value once
                 // for this resume, then clear the flag so future iterations
@@ -1604,7 +1616,7 @@ public static partial class TypedAstEvaluator
             {
                 var existingState = new AwaitState();
 
-                if (environment.TryGet(awaitKey, out _))
+                if (environment.HasBinding(awaitKey))
                 {
                     environment.Assign(awaitKey, existingState);
                 }
@@ -1746,7 +1758,7 @@ public static partial class TypedAstEvaluator
         private void PushTryFrame(EnterTryInstruction instruction, JsEnvironment environment)
         {
             var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
-            if (instruction.CatchSlotSymbol is { } slot && !environment.TryGet(slot, out _))
+            if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);
             }
@@ -1785,7 +1797,7 @@ public static partial class TypedAstEvaluator
                     frame.CatchUsed = true;
                     if (frame.CatchSlotSymbol is { } slot)
                     {
-                        if (environment.TryGet(slot, out _))
+                        if (environment.HasBinding(slot))
                         {
                             environment.Assign(slot, value);
                         }
@@ -1882,7 +1894,10 @@ public static partial class TypedAstEvaluator
                 // Scan bindings in this environment
                 foreach (var symbol in env.GetBindingSymbols())
                 {
-                    if (symbol.Name?.StartsWith(prefix, StringComparison.Ordinal) == true && env.TryGet(symbol, out var value) && value is not null && TryGetActiveIteratorFromState(value, out var iterator))
+                    if (symbol.Name?.StartsWith(prefix, StringComparison.Ordinal) == true &&
+                        env.TryGetJsValue(symbol, out var jsValue) &&
+                        !jsValue.IsNullOrUndefined &&
+                        TryGetActiveIteratorFromStateJsValue(jsValue, out var iterator))
                     {
                         results.Add((symbol, iterator));
                     }
@@ -1923,6 +1938,16 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
+            iterator = null!;
+            return false;
+        }
+
+        private static bool TryGetActiveIteratorFromStateJsValue(JsValue jsValue, out IJsObjectLike iterator)
+        {
+            if (jsValue.TryGetObject<object>(out var state) && state is not null)
+            {
+                return TryGetActiveIteratorFromState(state, out iterator);
+            }
             iterator = null!;
             return false;
         }

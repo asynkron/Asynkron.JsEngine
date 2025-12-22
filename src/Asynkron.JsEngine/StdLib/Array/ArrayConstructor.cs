@@ -26,6 +26,9 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         return JsValue.FromObjectUnsafe(ArrayOf(thisValue, args, realm));
     }
 
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue) => thisValue;
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var array = AllocateArrayInstance(thisValue);
@@ -63,11 +66,10 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             return JsValue.FromObjectUnsafe(array);
         });
 
-        // isArray and of are registered via code generation from [JsConstructorMethod] attributes
+        // isArray, of, and [Symbol.species] are registered via code generation from attributes
         // from and fromAsync need special handling (capture self for mapper environment propagation)
         AttachFrom(constructor);
         AttachFromAsync(constructor);
-        AttachSpeciesGetter(constructor);
     }
 
     private JsArray AllocateArrayInstance(JsValue thisValue)
@@ -178,35 +180,6 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             new PropertyDescriptor
             {
                 Value = arrayFromAsync, Writable = true, Enumerable = false, Configurable = true
-            });
-    }
-
-    private void AttachSpeciesGetter(HostFunction constructor)
-    {
-        var speciesGetter = new HostFunction((thisValue, _) => thisValue, Realm, isConstructor: false);
-        speciesGetter.DefineProperty("name",
-            new PropertyDescriptor
-            {
-                Value = "get [Symbol.species]",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-        speciesGetter.DefineProperty("length",
-            new PropertyDescriptor
-            {
-                Value = 0d,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
-
-        constructor.DefineProperty(StandardLibrary.SymbolSpeciesKey,
-            new PropertyDescriptor
-            {
-                Get = speciesGetter,
-                Enumerable = false,
-                Configurable = true
             });
     }
 }

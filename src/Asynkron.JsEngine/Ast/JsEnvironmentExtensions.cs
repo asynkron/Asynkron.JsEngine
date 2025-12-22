@@ -10,8 +10,7 @@ public static partial class TypedAstEvaluator
     {
         private YieldTracker GetYieldTracker()
         {
-            if (!environment.TryGet(Symbol.YieldTrackerSymbol, out var tracker) ||
-                tracker is not YieldTracker yieldTracker)
+            if (!environment.TryGetObject<YieldTracker>(Symbol.YieldTrackerSymbol, out var yieldTracker))
             {
                 throw new InvalidOperationException("'yield' can only be used inside a generator function.");
             }
@@ -21,8 +20,7 @@ public static partial class TypedAstEvaluator
 
         private ResumePayload GetResumePayload(int yieldIndex)
         {
-            if (!environment.TryGet(Symbol.YieldResumeContextSymbol, out var contextValue) ||
-                contextValue is not YieldResumeContext resumeContext)
+            if (!environment.TryGetObject<YieldResumeContext>(Symbol.YieldResumeContextSymbol, out var resumeContext))
             {
                 return ResumePayload.Empty;
             }
@@ -32,14 +30,12 @@ public static partial class TypedAstEvaluator
 
         private bool IsGeneratorContext()
         {
-            return environment.TryGet(Symbol.YieldResumeContextSymbol, out var contextValue) &&
-                   contextValue is YieldResumeContext;
+            return environment.TryGetObject<YieldResumeContext>(Symbol.YieldResumeContextSymbol, out _);
         }
 
         private GeneratorPendingCompletion GetGeneratorPendingCompletion()
         {
-            if (environment.TryGet(Symbol.GeneratorPendingCompletionSymbol, out var existing) &&
-                existing is GeneratorPendingCompletion pending)
+            if (environment.TryGetObject<GeneratorPendingCompletion>(Symbol.GeneratorPendingCompletionSymbol, out var pending))
             {
                 return pending;
             }
@@ -66,8 +62,7 @@ public static partial class TypedAstEvaluator
             var logger = environment.RealmState?.Logger;
             try
             {
-                if (environment.TryGet(Symbol.Super, out var existing) &&
-                    existing is SuperBinding binding)
+                if (environment.TryGetObject<SuperBinding>(Symbol.Super, out var binding))
                 {
                     logger?.LogInformation("SuperBinding: reuse existing protoNull={ProtoNull} thisInit={ThisInit}",
                         binding.Prototype is null,
@@ -100,18 +95,16 @@ public static partial class TypedAstEvaluator
 
             // Fall back to a best-effort binding so evaluation order (property/key/value)
             // can proceed before any prototype-based errors are raised.
-            object? thisValueObj = null;
+            JsValue thisValue = JsValue.Undefined;
             try
             {
-                environment.TryGet(Symbol.This, out thisValueObj);
+                environment.TryGetJsValue(Symbol.This, out thisValue);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                          StringComparison.Ordinal))
             {
                 logger?.LogInformation("SuperBinding: fallback with uninitialized 'this'");
             }
-
-            var thisValue = JsValue.FromObjectUnsafe(thisValueObj);
             IJsPropertyAccessor? prototypeGuess = null;
             if (thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
@@ -134,10 +127,10 @@ public static partial class TypedAstEvaluator
         {
             var logger = environment.RealmState?.Logger;
             binding = null!;
-            object? thisValueObj;
+            JsValue thisValue;
             try
             {
-                if (!environment.TryGet(Symbol.This, out thisValueObj))
+                if (!environment.TryGetJsValue(Symbol.This, out thisValue))
                 {
                     logger?.LogInformation("SuperBinding: no 'this' binding available");
                     return false;
@@ -150,7 +143,6 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            var thisValue = JsValue.FromObjectUnsafe(thisValueObj);
             if (!thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
                 logger?.LogInformation("SuperBinding: 'this' is not object-like type={Type}",
@@ -195,8 +187,8 @@ public static partial class TypedAstEvaluator
             {
                 environment.Assign(Symbol.ThisInitialized, initialized);
                 if (initialized &&
-                    environment.TryGet(Symbol.Super, out var superBinding) &&
-                    superBinding is SuperBinding { IsThisInitialized: false } binding)
+                    environment.TryGetObject<SuperBinding>(Symbol.Super, out var binding) &&
+                    !binding.IsThisInitialized)
                 {
                     logger?.LogInformation("SuperBinding: bump thisInit -> true env={Env}",
                         environment.GetHashCode());

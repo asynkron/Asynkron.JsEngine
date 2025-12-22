@@ -15,8 +15,7 @@ public static partial class TypedAstEvaluator
             // carries a back-reference to the active generator instance so we can surface
             // pending promises instead of blocking. In that case the generator instance
             // is responsible for evaluating the awaited expression and managing resume.
-            if (environment.TryGet(Symbol.GeneratorInstanceSymbol, out var instanceObj) &&
-                instanceObj is TypedGeneratorInstance generator)
+            if (environment.TryGetObject<TypedGeneratorInstance>(Symbol.GeneratorInstanceSymbol, out var generator))
             {
                 // EvaluateAwaitInGenerator returns JsValue to avoid boxing in async paths.
                 var result = generator.EvaluateAwaitInGenerator(expression, environment, context);

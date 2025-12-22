@@ -168,11 +168,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         if (isDirectEval)
         {
-            var hasSuperBinding = CallingJsEnvironment?.TryGet(Symbol.Super, out _) == true;
-            // TryGet returns object?, and Symbol.NewTarget is stored as Symbol.Undefined when absent
-            // We need to compare with Symbol.Undefined, not JsValue.Undefined
-            var hasNewTarget = CallingJsEnvironment?.TryGet(Symbol.NewTarget, out var newTarget) == true &&
-                               !ReferenceEquals(newTarget, Symbol.Undefined);
+            var hasSuperBinding = CallingJsEnvironment?.HasBinding(Symbol.Super) == true;
+            // TryGetJsValue returns JsValue, and Symbol.NewTarget is stored as JsValue.Undefined when absent
+            var hasNewTarget = CallingJsEnvironment?.TryGetJsValue(Symbol.NewTarget, out var newTarget) == true &&
+                               !newTarget.IsUndefined;
 
             if (!hasSuperBinding && containsSuperReferenceTopLevel)
             {

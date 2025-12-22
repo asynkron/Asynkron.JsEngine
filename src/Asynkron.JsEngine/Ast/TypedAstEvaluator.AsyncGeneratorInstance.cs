@@ -67,8 +67,7 @@ public static partial class TypedAstEvaluator
         {
             // Look up the global Promise constructor from the closure environment.
             IJsCallable? promiseCtor = null;
-            if (closure.TryGet(Symbol.PromiseIdentifier, out var promiseCtorObj) &&
-                promiseCtorObj is IJsCallable promiseFromEnv)
+            if (closure.TryGetObject<IJsCallable>(Symbol.PromiseIdentifier, out var promiseFromEnv))
             {
                 promiseCtor = promiseFromEnv;
             }

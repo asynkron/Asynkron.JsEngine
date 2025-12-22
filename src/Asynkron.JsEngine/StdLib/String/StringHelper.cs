@@ -985,31 +985,31 @@ public static class StringHelper
             return new JsValue($"<a href=\"{EscapeAttr(url)}\">{value}</a>");
         }
 
-        JsValue Bold(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Bold(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<b>{value}</b>");
         }
 
-        JsValue Italics(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Italics(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<i>{value}</i>");
         }
 
-        JsValue Fixed(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Fixed(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<tt>{value}</tt>");
         }
 
-        JsValue Blink(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Blink(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<blink>{value}</blink>");
         }
 
-        JsValue Big(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Big(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<big>{value}</big>");
@@ -1029,25 +1029,25 @@ public static class StringHelper
             return new JsValue($"<font size=\"{EscapeAttr(size)}\">{value}</font>");
         }
 
-        JsValue Small(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Small(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<small>{value}</small>");
         }
 
-        JsValue Strike(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Strike(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<strike>{value}</strike>");
         }
 
-        JsValue Sub(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Sub(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<sub>{value}</sub>");
         }
 
-        JsValue Sup(JsValue thisValue, IReadOnlyList<JsValue> args)
+        JsValue Sup(JsValue thisValue, IReadOnlyList<JsValue> _)
         {
             var value = ResolveString(thisValue);
             return new JsValue($"<sup>{value}</sup>");

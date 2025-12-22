@@ -36,16 +36,11 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             var effectiveNewTarget = newTarget.TryGetObject<IJsCallable>(out var callable) ? callable : target;
             return JsValue.FromObjectUnsafe(ConstructBuffer(args, effectiveNewTarget));
         });
-
-        var speciesKey = SymbolKeys.Species;
-        constructor.DefineProperty(speciesKey,
-            new PropertyDescriptor
-            {
-                Get = new HostFunction((thisVal, _) => thisVal),
-                Enumerable = false,
-                Configurable = true
-            });
+        // [Symbol.species] is registered via code generation from attribute
     }
+
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue) => thisValue;
 
     private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget)
     {

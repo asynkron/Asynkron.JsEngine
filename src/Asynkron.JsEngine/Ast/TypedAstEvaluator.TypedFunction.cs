@@ -133,9 +133,9 @@ public static partial class TypedAstEvaluator
             {
                 try
                 {
-                    if (_closure.TryGet(Symbol.This, out var capturedThis))
+                    if (_closure.TryGetJsValue(Symbol.This, out var capturedThis))
                     {
-                        _lexicalThis = JsValue.FromObjectUnsafe(capturedThis);
+                        _lexicalThis = capturedThis;
                     }
                     else
                     {
@@ -764,13 +764,12 @@ public static partial class TypedAstEvaluator
                 }
 
                 var hasCopiedInitialization = false;
-                if (_closure.TryGet(Symbol.ThisInitialized, out var closureThisInitialized))
+                if (_closure.TryGetJsValue(Symbol.ThisInitialized, out var closureThisInitialized))
                 {
                     functionEnvironment.SetThisInitializationStatus(JsOps.ToBoolean(closureThisInitialized));
                     hasCopiedInitialization = true;
                 }
-                else if (_closure.TryGet(Symbol.Super, out var closureSuperStatus) &&
-                         closureSuperStatus is SuperBinding closureSuperBinding)
+                else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var closureSuperBinding))
                 {
                     functionEnvironment.SetThisInitializationStatus(closureSuperBinding.IsThisInitialized);
                     hasCopiedInitialization = true;
@@ -781,8 +780,7 @@ public static partial class TypedAstEvaluator
                 {
                     lexicalSuperBinding = new SuperBinding(_superConstructor, _superPrototype, thisValue, true);
                 }
-                else if (_closure.TryGet(Symbol.Super, out var inheritedSuper) &&
-                         inheritedSuper is SuperBinding inheritedSuperBinding)
+                else if (_closure.TryGetObject<SuperBinding>(Symbol.Super, out var inheritedSuperBinding))
                 {
                     lexicalSuperBinding = inheritedSuperBinding;
                 }
@@ -1028,7 +1026,7 @@ public static partial class TypedAstEvaluator
                     if (_hasFunctionNameEnvironment &&
                         _function.Name is { } hoistedName &&
                         ContainsVarDeclaration(_function, hoistedName) &&
-                        !functionEnvironment.TryGet(hoistedName, out _))
+                        !functionEnvironment.HasBinding(hoistedName))
                     {
                         functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false,
                             context: context);
@@ -1077,12 +1075,12 @@ public static partial class TypedAstEvaluator
 
                             try
                             {
-                                if (functionEnvironment.TryGet(Symbol.This, out var currentThis))
+                                if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThis))
                                 {
                                     _realmState.Logger?.LogInformation(
                                         "Class constructor returning this={This}",
-                                        DescribeValue(currentThis));
-                                    return JsValue.FromObjectUnsafe(currentThis);
+                                        DescribeValue(currentThis.ToObject()));
+                                    return currentThis;
                                 }
                             }
                             catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -1117,19 +1115,20 @@ public static partial class TypedAstEvaluator
 
                             try
                             {
-                                if (functionEnvironment.TryGet(Symbol.This, out var currentThis) &&
-                                    !ReferenceEquals(currentThis, JsEnvironment.Uninitialized))
+                                if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThisValue) &&
+                                    currentThisValue.ObjectValue is not null &&
+                                    !ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized))
                                 {
                                     _realmState.Logger?.LogInformation(
                                         "Class constructor returning bound this instead of non-object return value");
-                                    return JsValue.FromObjectUnsafe(currentThis);
+                                    return currentThisValue;
                                 }
 
                                 // Per ES spec 9.2.2 [[Construct]] step 15:
                                 // If return value is undefined, call GetThisBinding() which
                                 // throws ReferenceError if `this` is uninitialized (super() not called)
                                 if (_isDerivedClassConstructor &&
-                                    (ReferenceEquals(currentThis, JsEnvironment.Uninitialized) ||
+                                    (ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized) ||
                                      value.IsUndefined))
                                 {
                                     var errorObject = StandardLibrary.CreateReferenceError(
@@ -1405,8 +1404,7 @@ public static partial class TypedAstEvaluator
         private SuperBinding? ResolveInstanceFieldSuperBinding(JsEnvironment constructorEnvironment,
             IJsObjectLike instance)
         {
-            if (constructorEnvironment.TryGet(Symbol.Super, out var existingBinding) &&
-                existingBinding is SuperBinding binding)
+            if (constructorEnvironment.TryGetObject<SuperBinding>(Symbol.Super, out var binding))
             {
                 return binding;
             }
@@ -1467,16 +1465,16 @@ public static partial class TypedAstEvaluator
                 }
 
                 //TODO: does this do a double lookup for Symbol.NewTarget ?
-                if (environment.TryGet(Symbol.NewTarget, out var _))
+                if (environment.HasBinding(Symbol.NewTarget))
                 {
                     // Class field initializers execute outside of any function body; shadow new.target with undefined.
                     initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
-                if (environment.TryGet(Symbol.Arguments, out var argumentsValue))
+                if (environment.TryGetJsValue(Symbol.Arguments, out var argumentsValue))
                 {
-                    initEnv.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsValue), isLexical: false);
+                    initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexical: false);
                 }
 
                 var propertyName = field.Name;

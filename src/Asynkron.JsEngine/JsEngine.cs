@@ -1645,7 +1645,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         if (entry.ImportMeta is { } existing)
         {
-            if (!entry.Environment.TryGet(Symbol.ImportMeta, out _))
+            if (!entry.Environment.HasBinding(Symbol.ImportMeta))
             {
                 entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)existing, isConst: true, isLexical: true,
                     blocksFunctionScopeOverride: false);

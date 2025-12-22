@@ -183,8 +183,7 @@ public static partial class TypedAstEvaluator
             // If a ReferenceError constructor is available, use it to
             // create a proper JS error instance so user code can catch
             // and inspect it.
-            if (environment.TryGet(Symbol.ReferenceErrorIdentifier, out var ctor) &&
-                ctor is IJsCallable callable)
+            if (environment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
             {
                 errorValue = callable.Invoke([(JsValue)ex.Message], JsValue.Undefined);
             }

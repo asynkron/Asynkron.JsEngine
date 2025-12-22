@@ -108,19 +108,4 @@ public static partial class TypedAstEvaluator
             contextAware?.CallingContext = null;
         }
     }
-
-    /// <summary>
-    /// Invokes a callable and returns the result as object?.
-    /// This is for backward compatibility - prefer InvokeCallableJsValue when possible.
-    /// </summary>
-    [Obsolete("Use InvokeCallableJsValue to avoid boxing. Only use this when pattern matching on result type is required.")]
-    internal static object? InvokeCallable(
-        IJsCallable callable,
-        IReadOnlyList<JsValue> arguments,
-        JsValue thisValue,
-        EvaluationContext? callingContext,
-        JsEnvironment? callingEnvironment = null)
-    {
-        return InvokeCallableJsValue(callable, arguments, thisValue, callingContext, callingEnvironment).ToObject();
-    }
 }

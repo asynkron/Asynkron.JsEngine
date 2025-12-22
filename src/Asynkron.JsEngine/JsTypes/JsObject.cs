@@ -1753,12 +1753,13 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         {
                             try
                             {
-                                value = TypedAstEvaluator.InvokeCallable(
+                                var result = TypedAstEvaluator.InvokeCallableJsValue(
                                     desc.Get,
                                     [],
                                     JsValue.FromObjectUnsafe(receiver ?? this),
                                     context,
                                     ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                                value = result.IsObject ? result.ObjectValue : result.ToObject();
                             }
                             catch (ThrowSignal signal)
                             {
@@ -1865,12 +1866,13 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 try
                 {
-                    value = TypedAstEvaluator.InvokeCallable(
+                    var result = TypedAstEvaluator.InvokeCallableJsValue(
                         virtualDescriptor.Get,
                         [],
                         JsValue.FromObjectUnsafe(receiver ?? this),
                         context,
                         ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                    value = result.IsObject ? result.ObjectValue : result.ToObject();
                 }
                 catch (ThrowSignal signal)
                 {
@@ -1897,12 +1899,13 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 {
                     try
                     {
-                        value = TypedAstEvaluator.InvokeCallable(
+                        var result = TypedAstEvaluator.InvokeCallableJsValue(
                             descriptor.Get,
                             [],
                             JsValue.FromObjectUnsafe(receiver ?? this),
                             context,
                             ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                        value = result.IsObject ? result.ObjectValue : result.ToObject();
                     }
                     catch (ThrowSignal signal)
                     {

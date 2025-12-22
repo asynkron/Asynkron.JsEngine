@@ -474,6 +474,34 @@ public static partial class StandardLibrary
         target.DefineProperty(propertyKey, descriptor);
     }
 
+    /// <summary>
+    /// JsValue overload to avoid boxing. Prefer this over the object? overload.
+    /// </summary>
+    internal static void CreateDataPropertyOrThrowJsValue(IJsObjectLike target, string propertyKey, JsValue value,
+        RealmState? realm, string methodName)
+    {
+        var descriptor = new PropertyDescriptor
+        {
+            JsValue = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+
+        if (target is IPropertyDefinitionHost definitionHost)
+        {
+            var defined = definitionHost.TryDefineProperty(propertyKey, descriptor);
+            if (!defined)
+            {
+                throw ThrowTypeError($"{methodName} could not define property '{propertyKey}'", realm: realm);
+            }
+
+            return;
+        }
+
+        target.DefineProperty(propertyKey, descriptor);
+    }
+
     internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out JsValue value)
     {
         return TryGetExistingElement(accessor, ToIndexString(index), out value);

@@ -415,7 +415,7 @@ internal static class JsOps
             {
                 try
                 {
-                    var result = TypedAstEvaluator.InvokeCallable(
+                    var result = TypedAstEvaluator.InvokeCallableJsValue(
                         toPrimFn,
                         [new JsValue("number")],
                         JsValue.FromObjectUnsafe(accessor),
@@ -426,10 +426,9 @@ internal static class JsOps
                         return false;
                     }
 
-                    if ((result is not IJsPropertyAccessor || result is TypedAstSymbol or Symbol) &&
-                        result is not JsObject)
+                    if (IsPrimitiveValue(result))
                     {
-                        primitive = result;
+                        primitive = result.IsObject ? result.ObjectValue : result.ToObject();
                         return true;
                     }
                 }
@@ -446,12 +445,11 @@ internal static class JsOps
         if (valueOfExists)
         {
             attempted = true;
-            if (TryInvokePropertyMethod(accessor, "valueOf", out var valueOfResult, context))
+            if (TryInvokePropertyMethodJsValue(accessor, "valueOf", out var valueOfResult, context))
             {
-                if ((valueOfResult is not IJsPropertyAccessor || valueOfResult is TypedAstSymbol or Symbol) &&
-                    valueOfResult is not JsObject)
+                if (IsPrimitiveValue(valueOfResult))
                 {
-                    primitive = valueOfResult;
+                    primitive = valueOfResult.IsObject ? valueOfResult.ObjectValue : valueOfResult.ToObject();
                     return true;
                 }
             }
@@ -468,13 +466,12 @@ internal static class JsOps
         if (toStringExists)
         {
             attempted = true;
-            toStringAttempted = TryInvokePropertyMethod(accessor, "toString", out var toStringResult, context);
+            toStringAttempted = TryInvokePropertyMethodJsValue(accessor, "toString", out var toStringResult, context);
             if (toStringAttempted)
             {
-                if ((toStringResult is not IJsPropertyAccessor || toStringResult is TypedAstSymbol or Symbol) &&
-                    toStringResult is not JsObject)
+                if (IsPrimitiveValue(toStringResult))
                 {
-                    primitive = toStringResult;
+                    primitive = toStringResult.IsObject ? toStringResult.ObjectValue : toStringResult.ToObject();
                     return true;
                 }
             }
@@ -574,7 +571,7 @@ internal static class JsOps
                         ToPrimitiveHint.String => HintString,
                         _ => HintDefault
                     };
-                    var result = TypedAstEvaluator.InvokeCallable(
+                    var result = TypedAstEvaluator.InvokeCallableJsValue(
                         toPrimFn,
                         [new JsValue(hintString)],
                         JsValue.FromObjectUnsafe(accessor),
@@ -585,8 +582,7 @@ internal static class JsOps
                         return value;
                     }
 
-                    if (result is JsObject ||
-                        result is IJsPropertyAccessor { } and not TypedAstSymbol)
+                    if (!IsPrimitiveValue(result))
                     {
                         var signal =
                             StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
@@ -599,7 +595,7 @@ internal static class JsOps
                         return value;
                     }
 
-                    return result;
+                    return result.IsObject ? result.ObjectValue : result.ToObject();
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {
@@ -620,7 +616,7 @@ internal static class JsOps
                 return value;
             }
 
-            if (!TryInvokePropertyMethod(accessor, methodName, out var result, context))
+            if (!TryInvokePropertyMethodJsValue(accessor, methodName, out var result, context))
             {
                 continue;
             }
@@ -630,10 +626,9 @@ internal static class JsOps
                 return value;
             }
 
-            if (result is not JsObject &&
-                (result is not IJsPropertyAccessor || result is TypedAstSymbol))
+            if (IsPrimitiveValue(result))
             {
-                return result;
+                return result.IsObject ? result.ObjectValue : result.ToObject();
             }
         }
 
@@ -1526,10 +1521,10 @@ internal static class JsOps
         return $"{sign}{mantissa}e{expStr}";
     }
 
-    private static bool TryInvokePropertyMethod(IJsPropertyAccessor accessor, string methodName, out object? result,
+    private static bool TryInvokePropertyMethodJsValue(IJsPropertyAccessor accessor, string methodName, out JsValue result,
         EvaluationContext? context)
     {
-        result = null;
+        result = JsValue.Undefined;
         if (!accessor.TryGetProperty(methodName, out var method) || !method.TryGetObject<IJsCallable>(out var callable))
         {
             return false;
@@ -1537,7 +1532,7 @@ internal static class JsOps
 
         try
         {
-            result = TypedAstEvaluator.InvokeCallable(callable, [], JsValue.FromObjectUnsafe(accessor), context,
+            result = TypedAstEvaluator.InvokeCallableJsValue(callable, [], JsValue.FromObjectUnsafe(accessor), context,
                 accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
             return context?.IsThrow != true;
         }
@@ -1551,6 +1546,22 @@ internal static class JsOps
 
             throw;
         }
+    }
+
+    /// <summary>
+    /// Checks if a JsValue represents a primitive value (not an object that needs ToPrimitive conversion).
+    /// Primitives are: undefined, null, boolean, number, string, symbol, bigint.
+    /// Objects wrapped as JsValue with ObjectValue being Symbol or TypedAstSymbol are also considered primitives.
+    /// </summary>
+    private static bool IsPrimitiveValue(JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined or JsValueKind.Null or JsValueKind.Boolean or
+            JsValueKind.Number or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt => true,
+            JsValueKind.Object => value.ObjectValue is TypedAstSymbol or Symbol,
+            _ => false
+        };
     }
 
     private static object CreateTypeError(string message, EvaluationContext? context)

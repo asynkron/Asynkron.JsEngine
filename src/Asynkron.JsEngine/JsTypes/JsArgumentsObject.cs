@@ -102,7 +102,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _backing.DefinePropertyDirect(iteratorKey,
                 new PropertyDescriptor
                 {
-                    Value = iteratorValue, Writable = true, Enumerable = false, Configurable = true
+                    JsValue = iteratorValue, Writable = true, Enumerable = false, Configurable = true
                 });
         }
 
@@ -568,21 +568,21 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         return clone;
     }
 
-    private static bool TryGetArrayIterator(RealmState realmState, string iteratorKey, out object? iteratorValue)
+    private static bool TryGetArrayIterator(RealmState realmState, string iteratorKey, out JsValue iteratorValue)
     {
-        iteratorValue = null;
+        iteratorValue = JsValue.Undefined;
 
         if (realmState.ArrayPrototype is IJsPropertyAccessor arrayPrototype &&
             arrayPrototype.TryGetProperty(iteratorKey, out var protoIterator))
         {
-            iteratorValue = protoIterator.ToObject();
+            iteratorValue = protoIterator;
             return true;
         }
 
         var temp = new JsArray(realmState);
         if (temp.TryGetProperty(iteratorKey, out var tmpIterator))
         {
-            iteratorValue = tmpIterator.ToObject();
+            iteratorValue = tmpIterator;
             return true;
         }
 

@@ -299,26 +299,36 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static bool TryAwaitPromiseLike(object? candidate, RealmState? realm, Action<object?> onFulfilled,
+    private static bool TryAwaitPromiseLike(object? candidate, Action<object?> onFulfilled,
         Action<object?> onRejected)
     {
         var jsCandidate = candidate is JsValue value ? value : JsValue.FromObjectUnsafe(candidate);
+        return TryAwaitPromiseLikeJsValue(jsCandidate,
+            resolved => onFulfilled(resolved.ToObject()),
+            rejected => onRejected(rejected.ToObject()));
+    }
 
+    /// <summary>
+    /// JsValue overload to avoid boxing in callbacks. Prefer this over the object? overload.
+    /// </summary>
+    internal static bool TryAwaitPromiseLikeJsValue(JsValue candidate, Action<JsValue> onFulfilled,
+        Action<JsValue> onRejected)
+    {
         // Handle internal JsPromise instances (both raw and wrapped)
-        if (jsCandidate.ObjectValue is JsPromise directPromise)
+        if (candidate.ObjectValue is JsPromise directPromise)
         {
             AttachHandlers(directPromise);
             return true;
         }
 
-        if (JsPromise.TryGetInternalPromise(jsCandidate, out var wrappedPromise) && wrappedPromise is not null)
+        if (JsPromise.TryGetInternalPromise(candidate, out var wrappedPromise) && wrappedPromise is not null)
         {
             AttachHandlers(wrappedPromise);
             return true;
         }
 
         // Handle generic thenables (objects with a callable "then")
-        if (jsCandidate.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+        if (candidate.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("then", out var thenVal) &&
             thenVal.TryGetObject<IJsCallable>(out var thenCallable))
         {
@@ -328,12 +338,12 @@ public static partial class StandardLibrary
                     [
                         (JsValue)new HostFunction(args =>
                         {
-                            onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                            onFulfilled(args.Count > 0 ? args[0] : JsValue.Undefined);
                             return JsValue.Undefined;
                         }, isConstructor: false),
                         (JsValue)new HostFunction(args =>
                         {
-                            onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                            onRejected(args.Count > 0 ? args[0] : JsValue.Undefined);
                             return JsValue.Undefined;
                         }, isConstructor: false)
                     ],
@@ -342,7 +352,7 @@ public static partial class StandardLibrary
             }
             catch (ThrowSignal signal)
             {
-                onRejected(signal.ThrownValue.ToObject());
+                onRejected(signal.ThrownValue);
                 return true;
             }
         }
@@ -353,12 +363,12 @@ public static partial class StandardLibrary
         {
             var resolveFn = new HostFunction(args =>
             {
-                onFulfilled(args.Count > 0 ? args[0].ToObject() : null);
+                onFulfilled(args.Count > 0 ? args[0] : JsValue.Undefined);
                 return JsValue.Undefined;
             }, isConstructor: false);
             var rejectFn = new HostFunction(args =>
             {
-                onRejected(args.Count > 0 ? args[0].ToObject() : null);
+                onRejected(args.Count > 0 ? args[0] : JsValue.Undefined);
                 return JsValue.Undefined;
             }, isConstructor: false);
 
@@ -460,7 +470,7 @@ public static partial class StandardLibrary
                     return;
                 }
 
-                var shouldContinue = HandleIteratorStep(step.ToObject());
+                var shouldContinue = HandleIteratorStepJsValue(step);
                 if (!shouldContinue)
                 {
                     return;
@@ -468,29 +478,29 @@ public static partial class StandardLibrary
             }
         }
 
-        private bool HandleIteratorStep(object? stepCandidate)
+        private bool HandleIteratorStepJsValue(JsValue stepCandidate)
         {
             if (_settled)
             {
                 return false;
             }
 
-            if (_awaitIteratorResult && TryAwaitPromiseLike(stepCandidate, realm,
+            if (_awaitIteratorResult && TryAwaitPromiseLikeJsValue(stepCandidate,
                     resolved =>
                     {
-                        if (HandleIteratorStep(resolved))
+                        if (HandleIteratorStepJsValue(resolved))
                         {
                             ProcessIteratorStep();
                         }
                     },
-                    RejectWithClose))
+                    RejectWithCloseJsValue))
             {
                 return false;
             }
 
-            if (stepCandidate is not IJsPropertyAccessor stepAccessor)
+            if (!stepCandidate.TryGetObject<IJsPropertyAccessor>(out var stepAccessor))
             {
-                RejectWithClose(CreateTypeError("Array.fromAsync iterator result is not an object", null, realm));
+                RejectWithCloseJsValue(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync iterator result is not an object", null, realm)));
                 return false;
             }
 
@@ -503,29 +513,29 @@ public static partial class StandardLibrary
 
             if (_index >= MaxConcreteArrayLength)
             {
-                RejectWithClose(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
+                RejectWithCloseJsValue(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm)));
                 return false;
             }
 
             // entryValue is already a JsValue from TryGetProperty
             var value = stepAccessor.TryGetProperty("value", out var entryValue) ? entryValue : JsValue.Undefined;
-            if (TryAwaitPromiseLike(value, realm,
+            if (TryAwaitPromiseLikeJsValue(value,
                     resolved =>
                     {
-                        if (HandleIteratorValue(resolved))
+                        if (HandleIteratorValueJsValue(resolved))
                         {
                             ProcessIteratorStep();
                         }
                     },
-                    RejectWithClose))
+                    RejectWithCloseJsValue))
             {
                 return false;
             }
 
-            return HandleIteratorValue(value);
+            return HandleIteratorValueJsValue(value);
         }
 
-        private bool HandleIteratorValue(object? value)
+        private bool HandleIteratorValueJsValue(JsValue value)
         {
             if (_settled)
             {
@@ -537,34 +547,35 @@ public static partial class StandardLibrary
                 JsValue mapperResult;
                 try
                 {
+                    // InvokeArrayFromMapper handles JsValue by checking if the value is already a boxed JsValue
                     mapperResult = InvokeArrayFromMapper(mapper, host, thisArg, value, _index);
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectWithClose(signal.ThrownValue);
+                    RejectWithCloseJsValue(signal.ThrownValue);
                     return false;
                 }
 
-                if (TryAwaitPromiseLike(mapperResult, realm,
+                if (TryAwaitPromiseLikeJsValue(mapperResult,
                         resolved =>
                         {
-                            if (StoreIteratorValue(resolved))
+                            if (StoreIteratorValueJsValue(resolved))
                             {
                                 ProcessIteratorStep();
                             }
                         },
-                        RejectWithClose))
+                        RejectWithCloseJsValue))
                 {
                     return false;
                 }
 
-                return StoreIteratorValue(mapperResult);
+                return StoreIteratorValueJsValue(mapperResult);
             }
 
-            return StoreIteratorValue(value);
+            return StoreIteratorValueJsValue(value);
         }
 
-        private bool StoreIteratorValue(object? value)
+        private bool StoreIteratorValueJsValue(JsValue value)
         {
             if (_settled)
             {
@@ -573,11 +584,11 @@ public static partial class StandardLibrary
 
             try
             {
-                CreateDataPropertyOrThrow(result, ToIndexString(_index), value, realm, methodName);
+                CreateDataPropertyOrThrowJsValue(result, ToIndexString(_index), value, realm, methodName);
             }
             catch (ThrowSignal signal)
             {
-                RejectWithClose(signal.ThrownValue);
+                RejectWithCloseJsValue(signal.ThrownValue);
                 return false;
             }
 
@@ -611,7 +622,7 @@ public static partial class StandardLibrary
 
                 var key = ToIndexString(_index);
                 var value = GetElementOrUndefined(_arrayLike, key);
-                if (TryAwaitPromiseLike(value, realm,
+                if (TryAwaitPromiseLike(value,
                         resolved =>
                         {
                             if (HandleArrayLikeValue(key, resolved))
@@ -653,26 +664,31 @@ public static partial class StandardLibrary
                     return false;
                 }
 
-                if (TryAwaitPromiseLike(mapperResult, realm,
+                if (TryAwaitPromiseLikeJsValue(mapperResult,
                         mapped =>
                         {
-                            if (CommitArrayLikeValue(key, mapped))
+                            if (CommitArrayLikeValueJsValue(key, mapped))
                             {
                                 ProcessArrayLike();
                             }
                         },
-                        RejectFailure))
+                        RejectFailureJsValue))
                 {
                     return false;
                 }
 
-                finalValue = mapperResult;
+                return CommitArrayLikeValueJsValue(key, mapperResult);
             }
 
             return CommitArrayLikeValue(key, finalValue);
         }
 
         private bool CommitArrayLikeValue(string key, object? finalValue)
+        {
+            return CommitArrayLikeValueJsValue(key, JsValue.FromObjectUnsafe(finalValue));
+        }
+
+        private bool CommitArrayLikeValueJsValue(string key, JsValue finalValue)
         {
             if (_settled)
             {
@@ -681,11 +697,11 @@ public static partial class StandardLibrary
 
             try
             {
-                CreateDataPropertyOrThrow(result, key, finalValue, realm, methodName);
+                CreateDataPropertyOrThrowJsValue(result, key, finalValue, realm, methodName);
             }
             catch (ThrowSignal signal)
             {
-                RejectFailure(signal.ThrownValue);
+                RejectFailureJsValue(signal.ThrownValue);
                 return false;
             }
 
@@ -695,10 +711,15 @@ public static partial class StandardLibrary
 
         private void RejectSignal(ThrowSignal signal)
         {
-            RejectFailure(signal.ThrownValue);
+            RejectFailureJsValue(signal.ThrownValue);
         }
 
         private void RejectFailure(object? reason)
+        {
+            RejectFailureJsValue(JsValue.FromObjectUnsafe(reason));
+        }
+
+        private void RejectFailureJsValue(JsValue reason)
         {
             if (_settled)
             {
@@ -706,10 +727,10 @@ public static partial class StandardLibrary
             }
 
             _settled = true;
-            promise.Reject(JsValue.FromObjectUnsafe(reason));
+            promise.Reject(reason);
         }
 
-        private void RejectWithClose(object? reason)
+        private void RejectWithCloseJsValue(JsValue reason)
         {
             if (_iterator is not null)
             {
@@ -723,7 +744,7 @@ public static partial class StandardLibrary
                 }
             }
 
-            RejectFailure(reason);
+            RejectFailureJsValue(reason);
         }
 
         private void ResolveSuccess()

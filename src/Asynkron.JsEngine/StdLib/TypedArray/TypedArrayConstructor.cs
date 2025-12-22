@@ -25,7 +25,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
 
         constructor.DisallowConstruct = true;
         constructor.ConstructErrorMessage = "TypedArray is not a constructor";
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+        constructor.SetInvokeWithContext((_, _, _, newTarget) =>
         {
             if (!newTarget.IsUndefined)
             {

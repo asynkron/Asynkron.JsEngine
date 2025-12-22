@@ -19,8 +19,10 @@ public static partial class TypedAstEvaluator
         private readonly bool _isStrict;
         private readonly string _propertyName;
         private readonly PrivateNameScope? _privateScope;
-        private readonly object? _target;
+        private readonly JsValue _targetJsValue;
+        private readonly bool _hasJsValue;
 
+        [Obsolete("Use JsValue overload to avoid boxing when target is JsValue")]
         private PropertyHandle(
             object? target,
             string propertyName,
@@ -29,7 +31,8 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             bool isStrict)
         {
-            _target = target;
+            _targetJsValue = JsValue.FromObjectUnsafe(target);
+            _hasJsValue = false;
             _propertyName = propertyName;
             _isPrivate = isPrivate;
             _privateScope = privateScope;
@@ -37,6 +40,29 @@ public static partial class TypedAstEvaluator
             _isStrict = isStrict;
         }
 
+        private PropertyHandle(
+            JsValue target,
+            string propertyName,
+            bool isPrivate,
+            PrivateNameScope? privateScope,
+            EvaluationContext context,
+            bool isStrict)
+        {
+            _targetJsValue = target;
+            _hasJsValue = true;
+            _propertyName = propertyName;
+            _isPrivate = isPrivate;
+            _privateScope = privateScope;
+            _context = context;
+            _isStrict = isStrict;
+        }
+
+        /// <summary>
+        /// Gets the target as object? for compatibility with code that still needs object?.
+        /// </summary>
+        private object? Target => _targetJsValue.IsNullOrUndefined ? null : _targetJsValue.ObjectValue;
+
+        [Obsolete("Use JsValue overload to avoid boxing when target is JsValue")]
         public static PropertyHandle Resolve(
             object? target,
             string propertyName,
@@ -55,6 +81,28 @@ public static partial class TypedAstEvaluator
             return new PropertyHandle(target, resolvedName, isPrivate, privateScope, context, isStrict);
         }
 
+        /// <summary>
+        /// JsValue overload - avoids boxing when the target is already a JsValue.
+        /// </summary>
+        public static PropertyHandle Resolve(
+            JsValue target,
+            string propertyName,
+            EvaluationContext context,
+            bool isStrict,
+            bool allowPrivate = true)
+        {
+            if (context.ShouldStopEvaluation)
+            {
+                return new PropertyHandle(target, propertyName, false, null, context, isStrict);
+            }
+
+            var (resolvedName, isPrivate, privateScope) = allowPrivate
+                ? ResolvePrivate(propertyName, context)
+                : (propertyName, false, (PrivateNameScope?)null);
+            return new PropertyHandle(target, resolvedName, isPrivate, privateScope, context, isStrict);
+        }
+
+        [Obsolete("Use JsValue overload to avoid boxing when target is JsValue")]
         public static PropertyHandle Resolve(
             object? target,
             JsValue propertyValue,
@@ -66,44 +114,18 @@ public static partial class TypedAstEvaluator
             return Resolve(target, propertyName, context, isStrict, allowPrivate);
         }
 
-        public object? GetValue()
+        /// <summary>
+        /// JsValue overload - avoids boxing when both target and property are JsValue.
+        /// </summary>
+        public static PropertyHandle Resolve(
+            JsValue target,
+            JsValue propertyValue,
+            EvaluationContext context,
+            bool isStrict,
+            bool allowPrivate = true)
         {
-            if (_context.ShouldStopEvaluation)
-            {
-                return Symbol.Undefined;
-            }
-
-            EnsurePrivateBrand();
-
-            if (IsNullish(_target))
-            {
-                var errorMessage = _propertyName.Length > 0
-                    ? $"Cannot read property '{_propertyName}' of null or undefined"
-                    : "Cannot read properties of null or undefined";
-                var error = StandardLibrary.CreateTypeError(
-                    errorMessage,
-                    _context,
-                    _context.RealmState);
-                _context.SetThrow(JsValue.FromObjectUnsafe(error));
-                return Symbol.Undefined;
-            }
-
-            if (TryGetPropertyValue(_target, _propertyName, out var value, _context))
-            {
-                return value;
-            }
-
-            if (_context.ShouldStopEvaluation)
-            {
-                return Symbol.Undefined;
-            }
-
-            if (_isPrivate)
-            {
-                throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);
-            }
-
-            return Symbol.Undefined;
+            var propertyName = JsOps.GetRequiredPropertyName(propertyValue, context);
+            return Resolve(target, propertyName, context, isStrict, allowPrivate);
         }
 
         public JsValue GetJsValue()
@@ -115,7 +137,7 @@ public static partial class TypedAstEvaluator
 
             EnsurePrivateBrand();
 
-            if (IsNullish(_target))
+            if (_targetJsValue.IsNullOrUndefined)
             {
                 var errorMessage = _propertyName.Length > 0
                     ? $"Cannot read property '{_propertyName}' of null or undefined"
@@ -128,9 +150,10 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            if (TryGetPropertyValue(_target, _propertyName, out var value, _context))
+            // Use JsValue overload - returns JsValue directly, no conversion needed
+            if (JsOps.TryGetPropertyValue(_targetJsValue, _propertyName, out var jsValue, _context))
             {
-                return value is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(value);
+                return jsValue;
             }
 
             if (_context.ShouldStopEvaluation)
@@ -146,11 +169,6 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        public void SetValue(object? value)
-        {
-            SetValue(JsValue.FromObjectUnsafe(value));
-        }
-
         public void SetValue(JsValue value)
         {
             if (_context.ShouldStopEvaluation)
@@ -159,7 +177,7 @@ public static partial class TypedAstEvaluator
             }
 
             EnsurePrivateBrand();
-            AssignPropertyValueWithNullCheck(_target, _propertyName, value, _context, _isStrict);
+            AssignPropertyValueWithNullCheck(Target, _propertyName, value, _context, _isStrict);
         }
 
         public bool Delete()
@@ -171,13 +189,13 @@ public static partial class TypedAstEvaluator
 
             EnsurePrivateBrand();
 
-            if (IsNullish(_target))
+            if (_targetJsValue.IsNullOrUndefined)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot delete property on null or undefined", _context,
                     _context.RealmState);
             }
 
-            var deleted = JsOps.DeletePropertyValue(_target, _propertyName, _context);
+            var deleted = JsOps.DeletePropertyValue(Target, _propertyName, _context);
             if (!deleted && _isStrict)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot delete property", _context, _context.RealmState);
@@ -194,7 +212,9 @@ public static partial class TypedAstEvaluator
             }
 
             EnsurePrivateBrand();
-            return TryGetPropertyValue(_target, _propertyName, out _, _context);
+
+            // Use JsValue overload for consistency
+            return JsOps.TryGetPropertyValue(_targetJsValue, _propertyName, out _, _context);
         }
 
         private void EnsurePrivateBrand()
@@ -209,12 +229,13 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);
             }
 
-            var hasBrand = _target is IPrivateBrandHolder brandHolder &&
+            var target = Target;
+            var hasBrand = target is IPrivateBrandHolder brandHolder &&
                            brandHolder.HasPrivateBrand(_privateScope.BrandToken);
 
             _context.RealmState.Logger?.LogInformation(
                 "Private member access targetType={TargetType} prop={PropertyName} hasBrand={HasBrand}",
-                _target?.GetType().Name ?? "null",
+                target?.GetType().Name ?? "null",
                 _propertyName,
                 hasBrand);
 

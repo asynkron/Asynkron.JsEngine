@@ -706,7 +706,6 @@ public static partial class TypedAstEvaluator
             using var privateScope = PrivateNameScope is not null
                 ? context.EnterPrivateNameScope(PrivateNameScope)
                 : null;
-            PendingClassFieldInitialization pendingFieldInitialization = default;
             var hasPendingFieldInitialization = false;
 
             if (!IsArrowFunction)
@@ -928,7 +927,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (_isDerivedClassConstructor)
                     {
-                        pendingFieldInitialization = new PendingClassFieldInitialization(this, functionEnvironment);
+                        var pendingFieldInitialization = new PendingClassFieldInitialization(this, functionEnvironment);
                         context.PushClassFieldInitializer(pendingFieldInitialization);
                         hasPendingFieldInitialization = true;
                     }

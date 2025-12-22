@@ -32,7 +32,7 @@ public static partial class TypedAstEvaluator
             // Only objects can be constructors - extract ObjectValue directly
             var baseValue = baseJsValue.Kind == JsValueKind.Object ? baseJsValue.ObjectValue : null;
 
-            if (!JsOps.IsConstructor(baseValue))
+            if (!JsOps.IsConstructor(JsValue.FromObjectUnsafe(baseValue)))
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError(
                     "Class extends value is not a constructor or null", context, context.RealmState));
@@ -429,14 +429,14 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
-                    if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
+                    if (JsOps.TryGetPropertyValue(targetJs, propertyName, out var directValue, context))
                     {
                         if (context.ShouldStopEvaluation)
                         {
                             return (JsValue.Undefined, JsValue.Undefined, true);
                         }
 
-                        return (JsValue.FromObjectUnsafe(directValue), targetJs, false);
+                        return (directValue, targetJs, false);
                     }
 
                     if (context.ShouldStopEvaluation)

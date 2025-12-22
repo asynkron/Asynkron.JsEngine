@@ -19,7 +19,7 @@ public static partial class StandardLibrary
         var len = args.Count;
         IJsObjectLike result;
 
-        if (thisValue.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(callable))
+        if (thisValue.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
             if (constructorRealm is null)

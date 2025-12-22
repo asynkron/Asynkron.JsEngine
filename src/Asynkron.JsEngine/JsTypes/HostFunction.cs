@@ -269,7 +269,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     var target = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.SliceFrom(1);
-                    var targetIsConstructor = JsOps.IsConstructor(target);
+                    var targetIsConstructor = JsOps.IsConstructor(JsValue.FromObjectUnsafe(target));
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
                     return (JsValue)CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
                 }, isConstructor: false);

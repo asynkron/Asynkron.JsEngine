@@ -428,7 +428,7 @@ public static partial class TypedAstEvaluator
                 // Per ES spec 12.3.5.1 SuperCall:
                 // After ArgumentListEvaluation, check if the super constructor is actually a constructor.
                 // If IsConstructor(func) is false, throw a TypeError exception.
-                if (!JsOps.IsConstructor(callable))
+                if (!JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
                 {
                     var error = StandardLibrary.CreateTypeError(
                         "Super constructor is not a constructor",

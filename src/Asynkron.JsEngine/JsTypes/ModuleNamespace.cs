@@ -253,7 +253,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         var writable = descriptor.HasWritable ? descriptor.Writable : currentWritable;
         var enumerable = descriptor.HasEnumerable ? descriptor.Enumerable : currentEnumerable;
         var configurable = descriptor.HasConfigurable ? descriptor.Configurable : currentConfigurable;
-        var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.Value, value);
+        var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.JsValue, JsValue.FromObjectUnsafe(value));
 
         // Return true only if no change is requested
         if (writable != currentWritable || enumerable != currentEnumerable || configurable != currentConfigurable ||

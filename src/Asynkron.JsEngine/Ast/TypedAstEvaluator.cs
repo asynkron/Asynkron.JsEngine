@@ -910,6 +910,24 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// JsValue overload for TryGetPropertyValue - avoids boxing.
+    /// </summary>
+    private static bool TryGetPropertyValueJsValue(JsValue target, JsValue propertyKey, out JsValue value,
+        EvaluationContext? context = null)
+    {
+        return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out value, context);
+    }
+
+    /// <summary>
+    /// JsValue overload for AssignPropertyValue - avoids boxing.
+    /// </summary>
+    private static void AssignPropertyValueJsValue(JsValue target, JsValue propertyKey, JsValue value,
+        EvaluationContext? context = null)
+    {
+        JsOps.AssignPropertyValueJsValue(target, propertyKey, value, context);
+    }
+
+    /// <summary>
     /// JsValue overload for 'in' operator - avoids boxing.
     /// </summary>
     private static bool InOperatorJsValue(JsValue property, JsValue target, EvaluationContext context)

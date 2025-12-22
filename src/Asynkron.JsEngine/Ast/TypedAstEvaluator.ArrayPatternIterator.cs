@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
             }
 
-            var done = JsOps.TryGetPropertyValue(result, "done", out var doneValue, context) &&
+            var done = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(result), "done", out var doneValue, context) &&
                        JsOps.ToBoolean(doneValue);
 
             if (done)
@@ -32,8 +32,8 @@ public static partial class TypedAstEvaluator
                 return (JsValue.Undefined, true);
             }
 
-            var value = JsOps.TryGetPropertyValue(result, "value", out var yielded, context)
-                ? JsValue.FromObjectUnsafe(yielded)
+            var value = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(result), "value", out var yieldedValue, context)
+                ? yieldedValue
                 : JsValue.Undefined;
 
             return (value, false);

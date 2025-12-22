@@ -437,7 +437,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                     return false;
                 }
 
-                if (candidate.HasValue && !JsOps.StrictEquals(candidate.Value, current.Value))
+                if (candidate.HasValue && !JsOps.StrictEquals(candidate.JsValue, current.JsValue))
                 {
                     return false;
                 }

@@ -8,12 +8,12 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static bool IsTruthy(object? value)
+    internal static bool IsTruthy(JsValue value)
     {
         return JsOps.IsTruthy(value);
     }
 
-    internal static bool AreStrictlyEqual(object? left, object? right)
+    internal static bool AreStrictlyEqual(JsValue left, JsValue right)
     {
         return JsOps.StrictEquals(left, right);
     }
@@ -138,7 +138,7 @@ public static partial class StandardLibrary
         return truncated > MaxArrayLength ? MaxArrayLength : truncated;
     }
 
-    internal static double ToLengthOrZero(object? value, EvaluationContext? context = null)
+    internal static double ToLengthOrZero(JsValue value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumberWithContext(value, context);
         if (context?.IsThrow == true)
@@ -172,27 +172,6 @@ public static partial class StandardLibrary
             {
                 throw new ThrowSignal(context.FlowValue);
             }
-        }
-
-        if (double.IsNaN(number) || number == 0)
-        {
-            return 0;
-        }
-
-        if (double.IsPositiveInfinity(number) || double.IsNegativeInfinity(number))
-        {
-            return number;
-        }
-
-        return Math.Sign(number) * Math.Floor(Math.Abs(number));
-    }
-
-    internal static double ToIntegerOrInfinity(object? value, EvaluationContext? context = null)
-    {
-        var number = JsOps.ToNumberWithContext(value, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
         }
 
         if (double.IsNaN(number) || number == 0)
@@ -298,9 +277,9 @@ public static partial class StandardLibrary
         return false;
     }
 
-    internal static bool SameValueZero(object? x, object? y)
+    internal static bool SameValueZero(JsValue x, JsValue y)
     {
-        if (x is double.NaN && y is double.NaN)
+        if (x.IsNumber && y.IsNumber && double.IsNaN(x.AsDouble()) && double.IsNaN(y.AsDouble()))
         {
             return true;
         }

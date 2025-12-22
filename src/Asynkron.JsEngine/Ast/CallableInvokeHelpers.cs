@@ -10,7 +10,7 @@ public static partial class TypedAstEvaluator
     /// This overload avoids array allocation for the common single-argument case.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue InvokeCallableSingleArg(
+    private static JsValue InvokeCallableSingleArg(
         IJsCallable callable,
         JsValue argument,
         JsValue thisValue,
@@ -25,7 +25,7 @@ public static partial class TypedAstEvaluator
     /// Generic overload that avoids boxing for struct argument lists like SingleValueArgs.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue InvokeCallableJsValueGeneric<TArgs>(
+    private static JsValue InvokeCallableJsValueGeneric<TArgs>(
         IJsCallable callable,
         TArgs arguments,
         JsValue thisValue,

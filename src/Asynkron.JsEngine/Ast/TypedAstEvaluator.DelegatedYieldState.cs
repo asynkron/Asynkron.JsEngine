@@ -176,7 +176,8 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Use JsOps for context-aware property access to propagate getter errors
-                var gotDone = JsOps.TryGetPropertyValue(nextResult, "done", out var doneValue, context);
+                var nextResultJsValue = JsValue.FromObjectUnsafe(nextResult);
+                var gotDone = JsOps.TryGetPropertyValue(nextResultJsValue, "done", out var doneValue, context);
                 if (gotDone && context?.IsThrow == true)
                 {
                     // Getter threw - return as delegated completion to be handled by generator's try/catch
@@ -189,16 +190,13 @@ public static partial class TypedAstEvaluator
                 JsValue value;
                 if (done)
                 {
-                    var gotValue = JsOps.TryGetPropertyValue(nextResult, "value", out var yielded, context);
+                    var gotValue = JsOps.TryGetPropertyValue(nextResultJsValue, "value", out var yielded, context);
                     if (gotValue && context?.IsThrow == true)
                     {
                         // Getter threw - return as delegated completion to be handled by generator's try/catch
                         return (context.FlowValue, true, true, true, null);
                     }
-                    // yielded might be a boxed JsValue from TryGetPropertyValue
-                    value = gotValue
-                        ? (yielded is JsValue yjs ? yjs : JsValue.FromObjectUnsafe(yielded))
-                        : JsValue.Undefined;
+                    value = gotValue ? yielded : JsValue.Undefined;
                 }
                 else
                 {

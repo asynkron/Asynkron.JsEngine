@@ -81,7 +81,7 @@ public static partial class StandardLibrary
             return CreateDefaultArray();
         }
 
-        if (!constructor.TryGetObject<IJsCallable>(out var callable) || !JsOps.IsConstructor(callable))
+        if (!constructor.TryGetObject<IJsCallable>(out var callable) || !JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
         {
             throw ThrowTypeError("Array species constructor must be a constructor", realm: realm);
         }
@@ -128,7 +128,7 @@ public static partial class StandardLibrary
     internal static IJsObjectLike CreateArrayFromResult(JsValue constructorCandidate, RealmState? realm, long length,
         bool passLengthToConstructor, string methodName)
     {
-        if (constructorCandidate.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(callable))
+        if (constructorCandidate.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
             if (constructorRealm is null)

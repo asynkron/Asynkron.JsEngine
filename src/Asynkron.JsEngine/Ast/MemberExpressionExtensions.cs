@@ -74,18 +74,6 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            // Extract the value for property access - primitives need boxing for prototype chain lookup
-            var target = targetJs.Kind switch
-            {
-                JsValueKind.Boolean => (object?)(targetJs.NumberValue != 0),
-                JsValueKind.Number => targetJs.NumberValue,
-                JsValueKind.String => targetJs.ObjectValue,
-                JsValueKind.Symbol => targetJs.ObjectValue,
-                JsValueKind.BigInt => targetJs.ObjectValue,
-                JsValueKind.Object => targetJs.ObjectValue,
-                _ => targetJs.ObjectValue
-            };
-
             // Fast path: for non-computed member access with literal string property,
             // skip expression evaluation and use the property name directly
             string? propertyName;
@@ -115,22 +103,22 @@ public static partial class TypedAstEvaluator
 
             if (expression.IsComputed || !propertyName.IsPrivateName())
             {
-                if (JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context))
+                if (JsOps.TryGetPropertyValue(targetJs, propertyName, out var directValue, context))
                 {
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
                     }
 
-                    // Handle case where value is already a boxed JsValue
-                    return directValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(directValue);
+                    return directValue;
                 }
 
                 return JsValue.Undefined;
             }
 
+            // Use JsValue overload of PropertyHandle.Resolve
             var handle = PropertyHandle.Resolve(
-                target,
+                targetJs,
                 propertyName,
                 context,
                 context.CurrentScope.IsStrict,

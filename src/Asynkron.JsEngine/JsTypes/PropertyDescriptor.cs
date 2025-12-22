@@ -7,8 +7,6 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class PropertyDescriptor
 {
-    private bool _configurable = true;
-    private bool _enumerable = true;
     private IJsCallable? _get;
     private IJsCallable? _set;
     private JsValue _jsValue;
@@ -52,23 +50,23 @@ public sealed class PropertyDescriptor
 
     public bool Enumerable
     {
-        get => _enumerable;
+        get;
         set
         {
-            _enumerable = value;
+            field = value;
             HasEnumerable = true;
         }
-    }
+    } = true;
 
     public bool Configurable
     {
-        get => _configurable;
+        get;
         set
         {
-            _configurable = value;
+            field = value;
             HasConfigurable = true;
         }
-    }
+    } = true;
 
     public bool HasValue { get; set; }
     public bool HasWritable { get; set; }

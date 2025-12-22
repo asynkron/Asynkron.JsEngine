@@ -54,15 +54,16 @@ public static partial class TypedAstEvaluator
                 }
 
                 usedKeys.Add(propertyName);
-                var hasProperty = JsOps.TryGetPropertyValue(obj, propertyName, out var val, context);
+                var hasProperty = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(obj), propertyName, out var propertyValueJs, context);
                 if (context.ShouldStopEvaluation)
                 {
                     throw new ThrowSignal(context.FlowValue);
                 }
 
-                var propertyValueJs = hasProperty
-                    ? (val is null ? JsValue.Null : JsValue.FromObjectUnsafe(val))
-                    : JsValue.Undefined;
+                if (!hasProperty)
+                {
+                    propertyValueJs = JsValue.Undefined;
+                }
 
                 var usedDefault = false;
                 if (propertyValueJs.IsUndefined && property.DefaultValue is not null)
@@ -120,9 +121,9 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                if (JsOps.TryGetPropertyValue(obj, key, out var restValue, context))
+                if (JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(obj), key, out var restValue, context))
                 {
-                    restObject.SetProperty(key, JsValue.FromObjectUnsafe(restValue));
+                    restObject.SetProperty(key, restValue);
                 }
                 else if (context.ShouldStopEvaluation)
                 {

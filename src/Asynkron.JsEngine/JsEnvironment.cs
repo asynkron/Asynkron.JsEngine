@@ -740,6 +740,8 @@ public sealed class JsEnvironment
         }
     }
 
+
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     public object? Get(Symbol name)
     {
         var current = this;
@@ -1552,6 +1554,7 @@ public sealed class JsEnvironment
         }
     }
 
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     private static object? ReadResolvedBindingValue(JsEnvironment bindingEnvironment, ref Binding binding, Symbol name)
     {
         // Check IsUninitialized before reading
@@ -1722,6 +1725,7 @@ public sealed class JsEnvironment
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     internal static void AssignUnresolvable(Symbol name, object? value, bool isStrictContext, EvaluationContext context, JsEnvironment? environment = null)
     {
         var realm = environment?.RealmState ?? environment?.Enclosing?.RealmState ?? context.RealmState;
@@ -2050,6 +2054,7 @@ public sealed class JsEnvironment
         return _simpleCatchParameters?.Contains(name) == true;
     }
 
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     public bool TryGet(Symbol name, out object? /* intentional - public API */ value)
     {
         var current = this;
@@ -2215,6 +2220,7 @@ public sealed class JsEnvironment
         return false;
     }
 
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     public void Assign(Symbol name, object? /* intentional - public API */ value)
     {
         // Remember if we're in strict mode at the call site
@@ -2484,6 +2490,7 @@ public sealed class JsEnvironment
                JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked);
     }
 
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     private static bool TryGetFromWith(IJsObjectLike target, Symbol name, out object? value)
     {
         if (TryGetFromWithJsValue(target, name, out var jsValue))
@@ -2701,6 +2708,7 @@ public sealed class JsEnvironment
         return true;
     }
 
+    [Obsolete("Use DefineJsValue instead to avoid boxing for primitives.")]
     internal void AddBindingObserver(Symbol symbol, Action<object?> observer)
     {
         _bindingObservers ??= new Dictionary<Symbol, List<Action<object?>>>(ReferenceEqualityComparer<Symbol>.Instance);
@@ -2775,6 +2783,7 @@ public sealed class JsEnvironment
     ///     Gets all variables from this environment and all enclosing environments.
     ///     Used for debugging purposes.
     /// </summary>
+    /// Only for debugging..
     public Dictionary<string, object?> GetAllVariables()
     {
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);

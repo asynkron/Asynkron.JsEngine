@@ -685,76 +685,138 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         // Slow path: full property lookup with descriptors, virtual providers, etc.
-        if (TryGetPropertyInternal(name, out var objValue))
-        {
-            // Handle case where objValue is already a boxed JsValue
-            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);
-            return true;
-        }
-
-        value = JsValue.Undefined;
-        return false;
+        // Use JsValue version to avoid boxing
+        return TryGetPropertyInternalJsValue(name, out value);
     }
 
     public virtual bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        // Pass receiver directly (will be boxed) - better than ToObject() which loses type info
-        if (TryGetPropertyInternal(name, receiver, out var objValue))
+        // Use JsValue version to avoid boxing
+        return TryGetPropertyJsValue(name, receiver, 0, null, out value);
+    }
+
+    /// <summary>
+    /// JsValue version of TryGetPropertyInternal that avoids boxing.
+    /// </summary>
+    private bool TryGetPropertyInternalJsValue(string name, out JsValue value)
+    {
+        // Private slots need special handling - go through slow path
+        if (name.IsPrivateSlotName())
         {
-            // Handle case where objValue is already a boxed JsValue
-            value = objValue is JsValue jsVal ? jsVal : JsValue.FromObjectUnsafe(objValue);
+            return TryGetPropertyJsValue(name, JsValue.FromObjectUnsafe(this), 0, null, out value);
+        }
+
+        // Fast path: check own property first without allocating HashSet
+        if (TryGetOwnPropertyJsValue(name, JsValue.FromObjectUnsafe(this), null, out value))
+            return true;
+
+        // Fast path: no prototype chain to walk
+        if (Prototype is null && PrototypeAccessor is null)
+        {
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        // Slow path: need depth-limited prototype chain traversal
+        return TryGetPropertyJsValue(name, JsValue.FromObjectUnsafe(this), 0, null, out value);
+    }
+
+    /// <summary>
+    /// JsValue version of prototype chain traversal that avoids boxing.
+    /// </summary>
+    private bool TryGetPropertyJsValue(string name, JsValue receiver, int depth,
+        EvaluationContext? context, out JsValue value)
+    {
+        const int maxDepth = 100;
+
+        if (depth >= maxDepth)
+        {
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        if (name.IsPrivateSlotName())
+        {
+            if (_state is { } state && state.PrivateFields.TryGetValue(name, out var slot))
+            {
+                switch (slot)
+                {
+                    case PropertyDescriptor desc:
+                        if (desc.IsAccessorDescriptor)
+                        {
+                            if (desc.Get != null)
+                            {
+                                try
+                                {
+                                    value = TypedAstEvaluator.InvokeCallableJsValue(
+                                        desc.Get,
+                                        [],
+                                        receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                                        context,
+                                        ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
+                                }
+                                catch (ThrowSignal signal)
+                                {
+                                    if (context is not null)
+                                    {
+                                        context.SetThrow(signal.ThrownValue);
+                                        value = signal.ThrownValue;
+                                        return true;
+                                    }
+
+                                    throw;
+                                }
+
+                                return true;
+                            }
+
+                            throw StandardLibrary.ThrowTypeError(
+                                "Private accessor does not have a getter",
+                                realm: ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null));
+                        }
+
+                        value = desc.HasValue ? desc.JsValue : JsValue.Undefined;
+                        return true;
+                    default:
+                        value = JsValue.FromObjectUnsafe(slot);
+                        return true;
+                }
+            }
+
+            if (Prototype is JsObject protoWithPrivate)
+            {
+                return protoWithPrivate.TryGetPropertyJsValue(name, receiver, depth + 1, context, out value);
+            }
+
+            throw StandardLibrary.ThrowTypeError(
+                $"Cannot read private field {name}",
+                realm: ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null));
+        }
+
+        if (TryGetOwnPropertyJsValue(name, receiver, context, out value))
+        {
+            return true;
+        }
+
+        var prototype = ResolvePrototypeAccessor();
+        if (prototype is null)
+        {
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        if (prototype is JsObject jsProto)
+        {
+            return jsProto.TryGetPropertyJsValue(name, receiver, depth + 1, context, out value);
+        }
+
+        if (prototype.TryGetProperty(name, receiver, out value))
+        {
             return true;
         }
 
         value = JsValue.Undefined;
         return false;
-    }
-
-    // Internal implementation that uses object? for backward compatibility
-    private bool TryGetPropertyInternal(string name, out object? value)
-    {
-        // Private slots need special handling - go through slow path
-        if (name.IsPrivateSlotName())
-        {
-            return TryGetProperty(name, this, 0, null, out value);
-        }
-
-        // Fast path: check own property first without allocating HashSet
-        if (TryGetOwnProperty(name, this, null, out value))
-            return true;
-
-        // Fast path: no prototype chain to walk
-        if (Prototype is null && PrototypeAccessor is null)
-        {
-            value = null;
-            return false;
-        }
-
-        // Slow path: need depth-limited prototype chain traversal
-        return TryGetProperty(name, this, 0, null, out value);
-    }
-
-    private bool TryGetPropertyInternal(string name, object? receiver, out object? value)
-    {
-        // Private slots need special handling - go through slow path
-        if (name.IsPrivateSlotName())
-        {
-            return TryGetProperty(name, receiver, 0, null, out value);
-        }
-
-        // Fast path: check own property first without allocating HashSet
-        if (TryGetOwnProperty(name, receiver ?? this, null, out value))
-            return true;
-
-        // Fast path: no prototype chain to walk
-        if (Prototype is null && PrototypeAccessor is null)
-        {
-            value = null;
-            return false;
-        }
-
-        // Slow path: need depth-limited prototype chain traversal
-        return TryGetProperty(name, receiver, 0, null, out value);
     }
 
     public IEnumerable<string> GetOwnPropertyNames()
@@ -1941,6 +2003,105 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         value = null;
+        return false;
+    }
+
+    /// <summary>
+    /// JsValue version of TryGetOwnProperty that avoids boxing for primitives.
+    /// </summary>
+    private bool TryGetOwnPropertyJsValue(string name, JsValue receiver, EvaluationContext? context, out JsValue value)
+    {
+        if (_virtualPropertyProvider is not null &&
+            (_state is null || !_state.Descriptors.ContainsKey(name)) &&
+            !ContainsKey(name) &&
+            _virtualPropertyProvider.TryGetOwnProperty(name, out var virtualValue, out var virtualDescriptor))
+        {
+            if (virtualDescriptor?.IsAccessorDescriptor != true)
+            {
+                value = JsValue.FromObjectUnsafe(virtualValue);
+                return true;
+            }
+
+            if (virtualDescriptor.Get != null)
+            {
+                try
+                {
+                    value = TypedAstEvaluator.InvokeCallableJsValue(
+                        virtualDescriptor.Get,
+                        [],
+                        receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                        context,
+                        ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
+                }
+                catch (ThrowSignal signal)
+                {
+                    if (context is not null)
+                    {
+                        context.SetThrow(signal.ThrownValue);
+                        value = signal.ThrownValue;
+                        return true;
+                    }
+
+                    throw;
+                }
+            }
+            else
+            {
+                value = JsValue.Undefined;
+            }
+
+            return true;
+        }
+
+        if (_state is not null && _state.Descriptors.TryGetValue(name, out var descriptor))
+        {
+            if (descriptor.IsAccessorDescriptor)
+            {
+                if (descriptor.Get != null)
+                {
+                    try
+                    {
+                        value = TypedAstEvaluator.InvokeCallableJsValue(
+                            descriptor.Get,
+                            [],
+                            receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                            context,
+                            ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        if (context is not null)
+                        {
+                            context.SetThrow(signal.ThrownValue);
+                            value = signal.ThrownValue;
+                            return true;
+                        }
+
+                        throw;
+                    }
+
+                    return true;
+                }
+
+                value = JsValue.Undefined;
+                return true;
+            }
+
+            if (TryGetJsValue(name, out value))
+            {
+                return true;
+            }
+
+            value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
+            return true;
+        }
+
+        if (TryGetJsValue(name, out value))
+        {
+            return true;
+        }
+
+        value = JsValue.Undefined;
         return false;
     }
 

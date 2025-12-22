@@ -8,13 +8,13 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Object")]
-public sealed partial class ObjectPrototype : JsPrototype
+public sealed partial class ObjectPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    private static JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
+    private static JsValue ToString(JsValue thisValue)
     {
         var tagKey = SymbolKeys.ToStringTag;
-        if (thisValue.TryGetObject<JsObject>(out var obj) && obj is not null)
+        if (thisValue.TryGetObject<JsObject>(out var obj))
         {
             if (obj.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)
             {
@@ -22,7 +22,7 @@ public sealed partial class ObjectPrototype : JsPrototype
                 return $"[object {tagString}]";
             }
         }
-        else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
+        else if (thisValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             if (accessor.TryGetProperty(tagKey, out var tagValue) && !tagValue.IsUndefined)
             {
@@ -52,11 +52,11 @@ public sealed partial class ObjectPrototype : JsPrototype
         {
             tag = "Boolean";
         }
-        else if (thisValue.TryGetObject<JsArray>(out var _))
+        else if (thisValue.TryGetObject<JsArray>(out _))
         {
             tag = "Array";
         }
-        else if (thisValue.TryGetObject<IJsCallable>(out var __))
+        else if (thisValue.TryGetObject<IJsCallable>(out _))
         {
             tag = "Function";
         }
@@ -119,7 +119,7 @@ public sealed partial class ObjectPrototype : JsPrototype
             return new JsValue(false);
         }
 
-        if (!thisValue.TryGetObject<IJsObjectLike>(out var accessor) || accessor is null)
+        if (!thisValue.TryGetObject<IJsObjectLike>(out var accessor))
         {
             return new JsValue(false);
         }
@@ -215,12 +215,12 @@ public sealed partial class ObjectPrototype : JsPrototype
 
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
-            return new JsValue(false);
+            return JsValue.False;
         }
 
         if (!args[0].TryGetObject<IJsObjectLike>(out var objectLike))
         {
-            return new JsValue(false);
+            return JsValue.False;
         }
 
         var cursor = objectLike as object;
@@ -228,43 +228,48 @@ public sealed partial class ObjectPrototype : JsPrototype
         {
             if (thisValue.TryGetObject<object>(out var thisObj) && ReferenceEquals(proto, thisObj))
             {
-                return new JsValue(true);
+                return JsValue.True;
             }
 
             cursor = proto;
         }
 
-        return new JsValue(false);
+        return JsValue.False;
 
         static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
         {
             prototype = null;
 
-            if (candidate is IJsObjectLike { Prototype: { } protoObj })
+            switch (candidate)
             {
-                prototype = protoObj;
-                return true;
-            }
-
-            if (candidate is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
-            {
-                prototype = protoAccessor as IJsObjectLike;
-                if (prototype is not null)
-                {
+                case IJsObjectLike { Prototype: { } protoObj }:
+                    prototype = protoObj;
                     return true;
+                case IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor }:
+                {
+                    prototype = protoAccessor as IJsObjectLike;
+                    if (prototype is not null)
+                    {
+                        return true;
+                    }
+
+                    break;
                 }
             }
 
-            if (candidate is JsObject jsObj && jsObj.TryGetProperty("__proto__", out var protoProp))
+            if (candidate is not JsObject jsObj || !jsObj.TryGetProperty("__proto__", out var protoProp))
             {
-                if (protoProp.TryGetObject<IJsObjectLike>(out var protoFromProp))
-                {
-                    prototype = protoFromProp;
-                    return true;
-                }
+                return false;
             }
 
-            return false;
+            if (!protoProp.TryGetObject<IJsObjectLike>(out var protoFromProp))
+            {
+                return false;
+            }
+
+            prototype = protoFromProp;
+            return true;
+
         }
     }
 
@@ -283,39 +288,13 @@ public sealed partial class ObjectPrototype : JsPrototype
             {
                 Realm.ErrorPrototype.SetPrototype(objectProto);
             }
-
-            var protoGetter = new HostFunction(GetProto, Realm, isConstructor: false);
-            protoGetter.TryDefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = "get __proto__",
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true
-                });
-            var protoSetter = new HostFunction(SetProto, Realm, isConstructor: false);
-            protoSetter.TryDefineProperty("name",
-                new PropertyDescriptor
-                {
-                    Value = "set __proto__",
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true
-                });
-
-            objectProto.DefineProperty("__proto__", new PropertyDescriptor
-            {
-                Get = protoGetter,
-                Set = protoSetter,
-                Enumerable = false,
-                Configurable = true
-            });
+            // __proto__ getter/setter is registered via code generation from attributes
         }
     }
 
-    private JsValue GetProto(JsValue thisValue, IReadOnlyList<JsValue> args)
+    [JsHostGetter("__proto__", DisplayName = "get __proto__")]
+    private JsValue GetProto(JsValue thisValue)
     {
-        _ = args;
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
             throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: Realm);
@@ -335,6 +314,7 @@ public sealed partial class ObjectPrototype : JsPrototype
         return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
     }
 
+    [JsHostSetter("__proto__", DisplayName = "set __proto__")]
     private JsValue SetProto(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var newProto = args.GetArgument(0);

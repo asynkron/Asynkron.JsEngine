@@ -137,7 +137,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("assign", Length = 2d)]
-    public static JsValue Assign(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Assign(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || !args[0].TryGetObject<IJsPropertyAccessor>(out var targetAccessor))
         {
@@ -190,7 +190,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("hasOwn", Length = 2d)]
-    public static JsValue HasOwn(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue HasOwn(IReadOnlyList<JsValue> args)
     {
         if (args.Count < 2)
         {
@@ -243,7 +243,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("seal", Length = 1d)]
-    public static JsValue Seal(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Seal(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -260,7 +260,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("isFrozen", Length = 1d)]
-    public static JsValue IsFrozen(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue IsFrozen(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -282,7 +282,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("isSealed", Length = 1d)]
-    public static JsValue IsSealed(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue IsSealed(IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -298,7 +298,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("is", Length = 2d)]
-    public static JsValue Is(IReadOnlyList<JsValue> args, RealmState? realm)
+    public static JsValue Is(IReadOnlyList<JsValue> args)
     {
         return new JsValue(JsOps.SameValue(args.GetArgument(0), args.GetArgument(1)));
     }
@@ -629,7 +629,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             var target = _constructor ?? constructor;
             if (newTarget.TryGetObject<IJsCallable>(out var newTargetCallable))
             {
-                return JsValue.FromObjectUnsafe(ConstructCore(args, newTargetCallable!, null));
+                return JsValue.FromObjectUnsafe(ConstructCore(args, newTargetCallable, null));
             }
             return JsValue.FromObjectUnsafe(ConstructCore(args, target, null));
         });
@@ -654,7 +654,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
         if (value.TryGetBigInt(out var bigInt))
         {
-            return CreateBigIntWrapper(bigInt!, realm: Realm);
+            return CreateBigIntWrapper(bigInt, realm: Realm);
         }
         if (value.TryGetBoolean(out var boolValue))
         {
@@ -662,7 +662,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
         if (value.TryGetString(out var strValue))
         {
-            return StringHelper.CreateStringWrapper(strValue!, realm: Realm);
+            return StringHelper.CreateStringWrapper(strValue, realm: Realm);
         }
         if (value.TryGetDouble(out var numValue))
         {
@@ -670,7 +670,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            return accessor!;
+            return accessor;
         }
 
         return CreateBlank(newTarget, existing);
@@ -681,7 +681,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var targetCtor = _constructor ?? newTarget;
         var obj = existing ?? PrepareThisObject(JsValue.Undefined, assignPrototype: false);
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        if (proto is not null && obj.Prototype is null)
+        if (obj.Prototype is null)
         {
             obj.SetPrototype(proto);
         }
@@ -698,10 +698,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
+        instance.SetPrototype(proto);
     }
 
     private void AttachPrototypeShortcut(HostFunction constructor)

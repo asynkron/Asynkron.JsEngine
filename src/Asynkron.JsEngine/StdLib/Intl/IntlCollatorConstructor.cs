@@ -63,12 +63,11 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             : "variant";
         var sensitivity = IntlOptionHelpers.GetStringOption(options, "sensitivity", Realm, "Collator",
             ["base", "accent", "case", "variant"], sensitivityDefault);
-        var ignorePunctuation = IntlOptionHelpers.GetBooleanOption(options, "ignorePunctuation", Realm,
-            "Collator", false) ?? false;
+        var ignorePunctuation = IntlOptionHelpers.GetBooleanOption(options, "ignorePunctuation", false) ?? false;
         var localeMatcher = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "Collator",
             ["lookup", "best fit"], "best fit");
 
-        numeric = IntlOptionHelpers.GetBooleanOption(options, "numeric", Realm, "Collator", numeric) ?? numeric;
+        numeric = IntlOptionHelpers.GetBooleanOption(options, "numeric", numeric) ?? numeric;
         caseFirst = IntlOptionHelpers.GetStringOption(options, "caseFirst", Realm, "Collator",
             ["upper", "lower", "false"], caseFirst);
         var collationOption = ResolveCollationOption(options);

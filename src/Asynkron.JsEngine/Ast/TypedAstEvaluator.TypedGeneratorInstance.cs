@@ -363,6 +363,7 @@ public static partial class TypedAstEvaluator
 
         private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
+            //TODO: fix duplicate lookup
             if (environment.HasBinding(symbol))
             {
                 environment.AssignJsValue(symbol, value);

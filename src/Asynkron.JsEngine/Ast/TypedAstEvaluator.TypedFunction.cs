@@ -1028,7 +1028,7 @@ public static partial class TypedAstEvaluator
                         ContainsVarDeclaration(_function, hoistedName) &&
                         !functionEnvironment.HasBinding(hoistedName))
                     {
-                        functionEnvironment.DefineFunctionScoped(hoistedName, Symbol.Undefined, false,
+                        functionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false,
                             context: context);
                     }
 

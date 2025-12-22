@@ -29,17 +29,16 @@ public sealed partial class SymbolPrototype
         return symbol.Description != null ? new JsValue(symbol.Description) : JsValue.Undefined;
     }
 
+    [JsSymbolMethod("toPrimitive", Length = 0d)]
+    public JsValue ToPrimitive(JsValue thisValue)
+    {
+        var symbol = RequireSymbolReceiver(thisValue, Realm);
+        return new JsValue(JsValueKind.Symbol, 0.0, symbol);
+    }
+
     protected override void ConfigurePrototype()
     {
-        var toPrimitiveKey = SymbolKeys.ToPrimitive;
-        Prototype.SetProperty(toPrimitiveKey,
-            new HostFunction((thisValue, _) =>
-            {
-                var symbol = RequireSymbolReceiver(thisValue, Realm);
-                return new JsValue(JsValueKind.Symbol, 0.0, symbol);
-            }, Realm, isConstructor: false));
-
-        var toStringTagKey = SymbolKeys.ToStringTag;
-        Prototype.SetProperty(toStringTagKey, "Symbol");
+        // [Symbol.toPrimitive] is registered via code generation from attribute
+        // [Symbol.toStringTag] is registered via ToStringTag attribute on the class
     }
 }

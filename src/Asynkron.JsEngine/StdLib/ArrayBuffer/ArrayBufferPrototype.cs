@@ -199,14 +199,7 @@ public sealed partial class ArrayBufferPrototype
         }
 
         Realm.ArrayBufferPrototype ??= Prototype as JsObject;
-
-        if (Prototype is JsObject proto)
-        {
-            DefineAccessor(proto, "byteLength", ByteLength, enumerable: false);
-            DefineAccessor(proto, "maxByteLength", MaxByteLength, enumerable: false);
-            DefineAccessor(proto, "resizable", Resizable, enumerable: false);
-            DefineAccessor(proto, "detached", Detached, enumerable: false);
-        }
+        // Getters are registered via code generation from [JsHostGetter] attributes
     }
 
     private void EnsureNotShared(JsArrayBuffer buffer)
@@ -223,36 +216,5 @@ public sealed partial class ArrayBufferPrototype
         {
             throw ThrowTypeError($"{methodName} called on a detached ArrayBuffer", realm: Realm);
         }
-    }
-
-    private void DefineAccessor(JsObject target, string name, Func<JsValue, JsValue> getter, bool enumerable)
-    {
-        var getterFn = new HostFunction((thisVal, _) => getter(thisVal), Realm)
-        {
-            IsConstructor = false
-        };
-
-        getterFn.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = $"get {name}",
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        getterFn.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 0d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-
-        target.DefineProperty(name, new PropertyDescriptor
-        {
-            Get = getterFn,
-            Enumerable = enumerable,
-            Configurable = true
-        });
     }
 }

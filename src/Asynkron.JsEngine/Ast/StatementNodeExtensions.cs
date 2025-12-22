@@ -220,7 +220,7 @@ public static partial class TypedAstEvaluator
                                 skipInternalNameBinding: true);
                             environment.DefineFunctionScoped(
                                 functionDeclaration.Name,
-                                functionValue,
+                                JsValue.FromObjectUnsafe(functionValue),
                                 true,
                                 true,
                                 context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -10,153 +9,154 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("TypedArray", ToStringTag = "TypedArray")]
+[JsSymbolAlias("iterator", "values", Writable = false)]
 public sealed partial class TypedArrayPrototype
 {
     [JsHostMethod("reduce", Length = 1d)]
-    public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduce", false);
     }
 
     [JsHostMethod("reduceRight", Length = 1d)]
-    public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ReduceImpl(thisValue, args, "%TypedArray%.prototype.reduceRight", true);
     }
 
     [JsHostMethod("map", Length = 1d)]
-    public JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return MapImpl(thisValue, args);
     }
 
     [JsHostMethod("filter", Length = 1d)]
-    public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return FilterImpl(thisValue, args);
     }
 
     [JsHostMethod("every", Length = 1d)]
-    public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return EveryImpl(thisValue, args);
     }
 
     [JsHostMethod("find", Length = 1d)]
-    public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return FindImpl(thisValue, args);
     }
 
     [JsHostMethod("findIndex", Length = 1d)]
-    public JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return FindIndexImpl(thisValue, args);
     }
 
     [JsHostMethod("findLast", Length = 1d)]
-    public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return FindLastImpl(thisValue, args);
     }
 
     [JsHostMethod("findLastIndex", Length = 1d)]
-    public JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return FindLastIndexImpl(thisValue, args);
     }
 
     [JsHostMethod("forEach", Length = 1d)]
-    public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ForEachImpl(thisValue, args);
     }
 
     [JsHostMethod("fill", Length = 1d)]
-    public JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return FillImpl(thisValue, args);
     }
 
     [JsHostMethod("copyWithin", Length = 2d)]
-    public JsValue CopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue CopyWithin(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return CopyWithinImpl(thisValue, args);
     }
 
     [JsHostMethod("reverse", Length = 0d)]
-    public JsValue Reverse(JsValue thisValue)
+    private JsValue Reverse(JsValue thisValue)
     {
         return ReverseImpl(thisValue);
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
-    public JsValue ToReversed(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ToReversed(JsValue thisValue)
     {
         return ToReversedImpl(thisValue);
     }
 
     [JsHostMethod("toSorted", Length = 1d)]
-    public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ToSortedImpl(thisValue, args);
     }
 
     [JsHostMethod("toSpliced", Length = 2d)]
-    public JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return ToSplicedImpl(thisValue, args);
     }
 
     [JsHostMethod("with", Length = 2d)]
-    public JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return WithImpl(thisValue, args);
     }
 
     [JsHostMethod("indexOf", Length = 1d)]
-    public JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.indexOf");
         return JsValue.FromObjectUnsafe(TypedArrayBase.IndexOfInternal(typedArray, args));
     }
 
     [JsHostMethod("lastIndexOf", Length = 1d)]
-    public JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.lastIndexOf");
         return JsValue.FromObjectUnsafe(TypedArrayBase.LastIndexOfInternal(typedArray, args));
     }
 
     [JsHostMethod("includes", Length = 1d)]
-    public JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.includes");
         return JsValue.FromObjectUnsafe(TypedArrayBase.IncludesInternal(typedArray, args));
     }
 
     [JsHostMethod("some", Length = 1d)]
-    public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return JsValue.FromObjectUnsafe(SomeLike(thisValue, args.ToList(), Realm, "%TypedArray%.prototype.some"));
     }
 
     [JsHostMethod("values", Length = 0d)]
-    public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
+    private JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.values");
         return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), Realm));
     }
 
     [JsHostMethod("keys", Length = 0d)]
-    public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
+    private JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.keys");
         return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => new JsValue((double)idx), Realm));
     }
 
     [JsHostMethod("entries", Length = 0d)]
-    public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
+    private JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.entries");
         return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(
@@ -175,18 +175,7 @@ public sealed partial class TypedArrayPrototype
     {
         Realm.TypedArrayPrototype ??= Prototype as JsObject;
 
-        // Set up Symbol.iterator to point to values
-        if (Prototype.TryGetProperty("values", out var valuesMethod))
-        {
-            Prototype.DefineProperty(SymbolKeys.Iterator,
-                new PropertyDescriptor
-                {
-                    Value = valuesMethod,
-                    Writable = false,
-                    Enumerable = false,
-                    Configurable = true
-                });
-        }
+        // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
     }
 
     #region Private Implementation Methods

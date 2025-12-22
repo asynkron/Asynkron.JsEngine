@@ -5,6 +5,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Set", ToStringTag = "Set")]
+[JsSymbolAlias("iterator", "values")]
 public sealed partial class SetPrototype
 {
     private enum SetIterationKind
@@ -94,18 +95,7 @@ public sealed partial class SetPrototype
 
         Realm.SetPrototype ??= Prototype as JsObject;
 
-        var iteratorKey = SymbolKeys.Iterator;
-        if (Prototype.TryGetProperty("values", out var values))
-        {
-            Prototype.DefineProperty(iteratorKey,
-                new PropertyDescriptor
-                {
-                    Value = values,
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-        }
+        // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
     }
 
     private JsSet RequireSet(JsValue receiver)

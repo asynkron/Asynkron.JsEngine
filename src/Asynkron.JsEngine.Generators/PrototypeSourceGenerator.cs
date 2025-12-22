@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -48,9 +49,35 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         }
 
         var getters = ImmutableArray.CreateBuilder<GetterInfo>();
+        var setters = ImmutableArray.CreateBuilder<SetterInfo>();
         var methods = ImmutableArray.CreateBuilder<MethodInfo>();
+        var symbolMethods = ImmutableArray.CreateBuilder<SymbolMethodInfo>();
+        var symbolGetters = ImmutableArray.CreateBuilder<SymbolGetterInfo>();
+        var symbolAliases = ImmutableArray.CreateBuilder<SymbolAliasInfo>();
         var jsValueType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
         var readOnlyListType = context.SemanticModel.Compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
+
+        // Collect class-level symbol aliases
+        foreach (var attr in typeSymbol.GetAttributes())
+        {
+            if (string.Equals(attr.AttributeClass?.ToDisplayString(),
+                "Asynkron.JsEngine.Runtime.Prototypes.JsSymbolAliasAttribute", StringComparison.Ordinal))
+            {
+                var symbolName = attr.ConstructorArguments.Length > 0
+                    ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                    : string.Empty;
+                var targetProperty = attr.ConstructorArguments.Length > 1
+                    ? attr.ConstructorArguments[1].Value as string ?? string.Empty
+                    : string.Empty;
+                if (!string.IsNullOrWhiteSpace(symbolName) && !string.IsNullOrWhiteSpace(targetProperty))
+                {
+                    var enumerable = GetNamedBool(attr, "Enumerable");
+                    var writable = GetNamedBool(attr, "Writable", true);
+                    var configurable = GetNamedBool(attr, "Configurable", true);
+                    symbolAliases.Add(new SymbolAliasInfo(symbolName, targetProperty, enumerable, writable, configurable));
+                }
+            }
+        }
 
         foreach (var member in typeSymbol.GetMembers().OfType<IMethodSymbol>())
         {
@@ -76,6 +103,23 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                         getters.Add(new GetterInfo(member, propertyName, displayName, enumerable, configurable, member.IsStatic));
                         break;
                     }
+                    case "Asynkron.JsEngine.Runtime.Prototypes.JsHostSetterAttribute":
+                    {
+                        var propertyName = attr.ConstructorArguments.Length > 0
+                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                            : string.Empty;
+                        if (string.IsNullOrWhiteSpace(propertyName))
+                        {
+                            continue;
+                        }
+
+                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"set {propertyName}";
+                        var enumerable = GetNamedBool(attr, "Enumerable");
+                        var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
+
+                        setters.Add(new SetterInfo(member, propertyName, displayName, enumerable, configurable, member.IsStatic));
+                        break;
+                    }
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsHostMethodAttribute":
                     {
                         var propertyName = attr.ConstructorArguments.Length > 0
@@ -97,6 +141,44 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                             configurable, writable, signature, member.IsStatic));
                         break;
                     }
+                    case "Asynkron.JsEngine.Runtime.Prototypes.JsSymbolMethodAttribute":
+                    {
+                        var symbolName = attr.ConstructorArguments.Length > 0
+                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                            : string.Empty;
+                        if (string.IsNullOrWhiteSpace(symbolName))
+                        {
+                            continue;
+                        }
+
+                        var lengthLiteral = GetNamedDouble(attr, "Length");
+                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"[Symbol.{symbolName}]";
+                        var enumerable = GetNamedBool(attr, "Enumerable");
+                        var configurable = GetNamedBool(attr, "Configurable", true);
+                        var writable = GetNamedBool(attr, "Writable", true);
+
+                        var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
+                        symbolMethods.Add(new SymbolMethodInfo(member, symbolName, displayName, lengthLiteral, enumerable,
+                            configurable, writable, signature, member.IsStatic));
+                        break;
+                    }
+                    case "Asynkron.JsEngine.Runtime.Prototypes.JsSymbolGetterAttribute":
+                    {
+                        var symbolName = attr.ConstructorArguments.Length > 0
+                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                            : string.Empty;
+                        if (string.IsNullOrWhiteSpace(symbolName))
+                        {
+                            continue;
+                        }
+
+                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"get [Symbol.{symbolName}]";
+                        var enumerable = GetNamedBool(attr, "Enumerable");
+                        var configurable = GetNamedBool(attr, "Configurable", true);
+
+                        symbolGetters.Add(new SymbolGetterInfo(member, symbolName, displayName, enumerable, configurable, member.IsStatic));
+                        break;
+                    }
                 }
             }
         }
@@ -105,8 +187,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var objectKind = TryGetPrototypeObjectKind(prototypeAttr);
         var useArrayInstance = objectKind == PrototypeObjectKind.Array;
         var useFunctionInstance = objectKind == PrototypeObjectKind.Function;
-        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), methods.ToImmutable(), toStringTag,
-            useArrayInstance, useFunctionInstance);
+        return new PrototypeInfo(typeSymbol, getters.ToImmutable(), setters.ToImmutable(), methods.ToImmutable(),
+            symbolMethods.ToImmutable(), symbolGetters.ToImmutable(), symbolAliases.ToImmutable(),
+            toStringTag, useArrayInstance, useFunctionInstance);
     }
 
     private static ConstructorInfo? TransformConstructor(GeneratorSyntaxContext context)
@@ -284,24 +367,68 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.Append("        var typed = new ").Append(info.Symbol.Name)
             .AppendLine("(prototype, realm);");
 
-        foreach (var getter in info.Getters)
+        // Group getters and setters by property name to emit combined accessor properties
+        var gettersByProp = info.Getters.ToDictionary(g => g.PropertyName);
+        var settersByProp = info.Setters.ToDictionary(s => s.PropertyName);
+        var allAccessorProps = gettersByProp.Keys.Union(settersByProp.Keys).ToList();
+
+        foreach (var propName in allAccessorProps)
         {
-            var getterVar = $"getter_{Sanitize(getter.PropertyName)}";
-            var getterTarget = getter.IsStatic ? info.Symbol.Name : "typed";
-            source.Append("        var ").Append(getterVar)
-                .Append(" = new HostFunction((thisValue, _) => ").Append(getterTarget).Append(".")
-                .Append(getter.MethodSymbol.Name)
-                .AppendLine("(thisValue), realm, isConstructor: false);");
-            source.Append("        ").Append(getterVar)
-                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
-                .Append(getter.DisplayName.Replace("\"", "\\\""))
-                .Append("\", Writable = false, Enumerable = false, Configurable = true });")
-                .AppendLine();
-            source.Append("        prototype.DefineProperty(\"").Append(getter.PropertyName)
-                .Append("\", new PropertyDescriptor { Get = ").Append(getterVar)
-                .Append(", Enumerable = ").Append(getter.Enumerable ? "true" : "false")
-                .Append(", Configurable = ").Append(getter.Configurable ? "true" : "false")
-                .Append(" });").AppendLine();
+            var hasGetter = gettersByProp.TryGetValue(propName, out var getter);
+            var hasSetter = settersByProp.TryGetValue(propName, out var setter);
+            var sanitizedProp = Sanitize(propName);
+            var getterVar = $"getter_{sanitizedProp}";
+            var setterVar = $"setter_{sanitizedProp}";
+
+            // Emit getter function if exists
+            if (hasGetter)
+            {
+                var getterTarget = getter!.IsStatic ? info.Symbol.Name : "typed";
+                source.Append("        var ").Append(getterVar)
+                    .Append(" = new HostFunction((thisValue, _) => ").Append(getterTarget).Append(".")
+                    .Append(getter.MethodSymbol.Name)
+                    .AppendLine("(thisValue), realm, isConstructor: false);");
+                source.Append("        ").Append(getterVar)
+                    .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                    .Append(getter.DisplayName.Replace("\"", "\\\""))
+                    .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            }
+
+            // Emit setter function if exists
+            if (hasSetter)
+            {
+                var setterTarget = setter!.IsStatic ? info.Symbol.Name : "typed";
+                source.Append("        var ").Append(setterVar)
+                    .Append(" = new HostFunction((thisValue, args) => ").Append(setterTarget).Append(".")
+                    .Append(setter.MethodSymbol.Name)
+                    .AppendLine("(thisValue, args), realm, isConstructor: false);");
+                source.Append("        ").Append(setterVar)
+                    .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                    .Append(setter.DisplayName.Replace("\"", "\\\""))
+                    .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            }
+
+            // Determine enumerable/configurable from getter if present, else from setter
+            var enumerable = hasGetter ? getter!.Enumerable : setter!.Enumerable;
+            var configurable = hasGetter ? getter!.Configurable : setter!.Configurable;
+
+            // Emit combined property descriptor
+            source.Append("        prototype.DefineProperty(\"").Append(propName).Append("\", new PropertyDescriptor { ");
+            if (hasGetter)
+            {
+                source.Append("Get = ").Append(getterVar);
+                if (hasSetter)
+                {
+                    source.Append(", Set = ").Append(setterVar);
+                }
+            }
+            else if (hasSetter)
+            {
+                source.Append("Set = ").Append(setterVar);
+            }
+            source.Append(", Enumerable = ").Append(enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(configurable ? "true" : "false")
+                .AppendLine(" });");
         }
 
         foreach (var method in info.Methods)
@@ -347,6 +474,86 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(", Enumerable = ").Append(method.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(method.Configurable ? "true" : "false")
                 .AppendLine(" });");
+        }
+
+        // Emit symbol-keyed methods
+        foreach (var symMethod in info.SymbolMethods)
+        {
+            var methodVar = $"symbolMethod_{Sanitize(symMethod.SymbolName)}";
+            source.Append("        var ").Append(methodVar).Append(" = new HostFunction(");
+
+            var target = symMethod.IsStatic ? info.Symbol.Name : "typed";
+
+            switch (symMethod.Signature)
+            {
+                case HostMethodSignature.NoArgs:
+                    source.Append("(_, _) => ").Append(target).Append(".").Append(symMethod.MethodSymbol.Name)
+                        .AppendLine("(), realm, isConstructor: false);");
+                    break;
+                case HostMethodSignature.ArgsOnly:
+                    source.Append("args => ").Append(target).Append(".").Append(symMethod.MethodSymbol.Name)
+                        .AppendLine("(args), realm, isConstructor: false);");
+                    break;
+                case HostMethodSignature.ThisOnly:
+                    source.Append("(thisValue, _) => ").Append(target).Append(".").Append(symMethod.MethodSymbol.Name)
+                        .AppendLine("(thisValue), realm, isConstructor: false);");
+                    break;
+                default:
+                    source.Append("(thisValue, args) => ").Append(target).Append(".").Append(symMethod.MethodSymbol.Name)
+                        .AppendLine("(thisValue, args), realm, isConstructor: false);");
+                    break;
+            }
+            source.Append("        ").Append(methodVar)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = ")
+                .Append(symMethod.LengthLiteral).Append("d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            source.Append("        ").Append(methodVar)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(symMethod.DisplayName.Replace("\"", "\\\""))
+                .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
+            source.Append("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.")
+                .Append(symMethod.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Value = ").Append(methodVar)
+                .Append(", Writable = ").Append(symMethod.Writable ? "true" : "false")
+                .Append(", Enumerable = ").Append(symMethod.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(symMethod.Configurable ? "true" : "false")
+                .AppendLine(" });");
+        }
+
+        // Emit symbol-keyed getters
+        foreach (var symGetter in info.SymbolGetters)
+        {
+            var getterVar = $"symbolGetter_{Sanitize(symGetter.SymbolName)}";
+            var target = symGetter.IsStatic ? info.Symbol.Name : "typed";
+            source.Append("        var ").Append(getterVar)
+                .Append(" = new HostFunction((thisValue, _) => ").Append(target).Append(".")
+                .Append(symGetter.MethodSymbol.Name)
+                .AppendLine("(thisValue), realm, isConstructor: false);");
+            source.Append("        ").Append(getterVar)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(symGetter.DisplayName.Replace("\"", "\\\""))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            source.Append("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.")
+                .Append(symGetter.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ").Append(getterVar)
+                .Append(", Enumerable = ").Append(symGetter.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(symGetter.Configurable ? "true" : "false")
+                .AppendLine(" });");
+        }
+
+        // Emit symbol aliases (e.g., [Symbol.iterator] -> values)
+        foreach (var alias in info.SymbolAliases)
+        {
+            source.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).AppendLine("\", out var aliasTarget))");
+            source.AppendLine("        {");
+            source.Append("            prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.")
+                .Append(alias.SymbolName).AppendLine("\").GetHashCode()}\",");
+            source.AppendLine("                new PropertyDescriptor");
+            source.AppendLine("                {");
+            source.Append("                    Value = aliasTarget, Writable = ").Append(alias.Writable ? "true" : "false")
+                .Append(", Enumerable = ").Append(alias.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(alias.Configurable ? "true" : "false")
+                .AppendLine();
+            source.AppendLine("                });");
+            source.AppendLine("        }");
         }
 
         if (!string.IsNullOrEmpty(info.ToStringTag))
@@ -537,7 +744,11 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private sealed record PrototypeInfo(
         INamedTypeSymbol Symbol,
         ImmutableArray<GetterInfo> Getters,
+        ImmutableArray<SetterInfo> Setters,
         ImmutableArray<MethodInfo> Methods,
+        ImmutableArray<SymbolMethodInfo> SymbolMethods,
+        ImmutableArray<SymbolGetterInfo> SymbolGetters,
+        ImmutableArray<SymbolAliasInfo> SymbolAliases,
         string? ToStringTag,
         bool UseArrayInstance,
         bool UseFunctionInstance);
@@ -545,8 +756,20 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private sealed record GetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
         bool Configurable, bool IsStatic);
 
+    private sealed record SetterInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName, bool Enumerable,
+        bool Configurable, bool IsStatic);
+
     private sealed record MethodInfo(IMethodSymbol MethodSymbol, string PropertyName, string DisplayName,
         string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, HostMethodSignature Signature, bool IsStatic);
+
+    private sealed record SymbolMethodInfo(IMethodSymbol MethodSymbol, string SymbolName, string DisplayName,
+        string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, HostMethodSignature Signature, bool IsStatic);
+
+    private sealed record SymbolGetterInfo(IMethodSymbol MethodSymbol, string SymbolName, string DisplayName,
+        bool Enumerable, bool Configurable, bool IsStatic);
+
+    private sealed record SymbolAliasInfo(string SymbolName, string TargetPropertyName,
+        bool Enumerable, bool Writable, bool Configurable);
 
     private sealed record ConstructorInfo(INamedTypeSymbol Symbol, INamedTypeSymbol PrototypeType, string LengthLiteral,
         string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods);

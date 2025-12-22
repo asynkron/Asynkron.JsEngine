@@ -8,6 +8,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Array", ToStringTag = "Array", ObjectKind = PrototypeObjectKind.Array)]
+[JsSymbolAlias("iterator", "values")]
 public sealed partial class ArrayPrototype
 {
     protected override void ConfigurePrototype()
@@ -24,19 +25,7 @@ public sealed partial class ArrayPrototype
                 Configurable = false
             });
 
-        var iteratorKey = SymbolKeys.Iterator;
-        if (Prototype.TryGetProperty("values", out var valuesFunction))
-        {
-            Prototype.DefineProperty(iteratorKey,
-                new PropertyDescriptor
-                {
-                    Value = valuesFunction,
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-        }
-
+        // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
         DefineUnscopables();
     }
 

@@ -518,7 +518,7 @@ public sealed class JsEnvironment
 
     public void DefineFunctionScoped(
         Symbol name,
-        object? value,
+        JsValue value,
         bool hasInitializer,
         bool isFunctionDeclaration = false,
         bool? globalFunctionConfigurable = null,
@@ -532,7 +532,7 @@ public sealed class JsEnvironment
         var isGlobalScope = scope.IsGlobalFunctionScope;
         JsObject? globalThis = null;
         PropertyDescriptor? existingDescriptor = null;
-        object? existingGlobalValue = null;
+        JsValue existingGlobalValue = JsValue.Undefined;
         var hasLooseGlobalValue = false;
         var allowDelete = canDelete || context is { ExecutionKind: ExecutionKind.Eval } && !isGlobalScope;
         if (isGlobalScope)
@@ -545,14 +545,14 @@ public sealed class JsEnvironment
                 {
                     if (globalThis.TryGetProperty(name.Name, out var jsValue))
                     {
-                        existingGlobalValue = jsValue.ToObject();
+                        existingGlobalValue = jsValue;
                     }
                 }
                 else if (globalThis.TryGetValue(name.Name, out var looseValue))
                 {
                     // Use TryGetValue instead of TryGetProperty to avoid invoking
                     // inherited accessors like Object.prototype.__proto__
-                    existingGlobalValue = looseValue;
+                    existingGlobalValue = JsValue.FromObjectUnsafe(looseValue);
                     hasLooseGlobalValue = true;
                 }
             }
@@ -636,10 +636,10 @@ public sealed class JsEnvironment
                 return;
             }
 
-            existing.JsValue = JsValue.FromObjectUnsafe(value);
+            existing.JsValue = value;
             if (isGlobalScope && globalThis is not null)
             {
-                globalThis.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
+                globalThis.SetProperty(name.Name, value);
             }
 
             return;
@@ -673,7 +673,7 @@ public sealed class JsEnvironment
                         name.Name,
                         new PropertyDescriptor
                         {
-                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
+                            JsValue = initialValue, Writable = true, Enumerable = true, Configurable = configurable
                         }))
                 {
                     throw StandardLibrary.ThrowTypeError(
@@ -688,7 +688,7 @@ public sealed class JsEnvironment
                         name.Name,
                         new PropertyDescriptor
                         {
-                            Value = initialValue, Writable = true, Enumerable = true, Configurable = configurable
+                            JsValue = initialValue, Writable = true, Enumerable = true, Configurable = configurable
                         }))
                 {
                     throw StandardLibrary.ThrowTypeError(
@@ -704,7 +704,7 @@ public sealed class JsEnvironment
                         name.Name,
                         new PropertyDescriptor
                         {
-                            Value = initialValue
+                            JsValue = initialValue
                         }))
                 {
                     throw StandardLibrary.ThrowTypeError(
@@ -723,7 +723,7 @@ public sealed class JsEnvironment
                     name.Name,
                     new PropertyDescriptor
                     {
-                        Value = initialValue,
+                        JsValue = initialValue,
                         Writable = true,
                         Enumerable = true,
                         Configurable = varBindingConfigurable
@@ -737,7 +737,7 @@ public sealed class JsEnvironment
         }
         else
         {
-            globalThis.SetProperty(name.Name, JsValue.FromObjectUnsafe(initialValue));
+            globalThis.SetProperty(name.Name, initialValue);
         }
     }
 
@@ -2911,29 +2911,6 @@ public sealed class JsEnvironment
         private readonly object? _specialBinding; // Only used when HasSpecialBinding flag is set
         private BindingFlags _flags;
 
-        public Binding(
-            object? value,
-            bool isConst,
-            bool isGlobalConstant,
-            bool isLexical,
-            bool blocksFunctionScopeOverride,
-            bool canDelete,
-            bool isImmutableBinding = false)
-        {
-            _jsValue = JsValue.FromObjectUnsafe(value);
-            _specialBinding = null;
-            _flags = BindingFlags.None;
-            if (isConst) _flags |= BindingFlags.IsConst;
-            if (isGlobalConstant) _flags |= BindingFlags.IsGlobalConstant;
-            if (isLexical) _flags |= BindingFlags.IsLexical;
-            if (blocksFunctionScopeOverride) _flags |= BindingFlags.BlocksFunctionScopeOverride;
-            if (canDelete) _flags |= BindingFlags.CanDelete;
-            if (isImmutableBinding) _flags |= BindingFlags.IsImmutableBinding;
-        }
-
-        /// <summary>
-        /// Constructor that takes JsValue directly, avoiding boxing for primitives.
-        /// </summary>
         public Binding(
             JsValue value,
             bool isConst,

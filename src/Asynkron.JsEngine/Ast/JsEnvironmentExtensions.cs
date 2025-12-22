@@ -41,7 +41,7 @@ public static partial class TypedAstEvaluator
             }
 
             var created = new GeneratorPendingCompletion();
-            environment.DefineFunctionScoped(Symbol.GeneratorPendingCompletionSymbol, created, true);
+            environment.DefineFunctionScoped(Symbol.GeneratorPendingCompletionSymbol, JsValue.FromObjectUnsafe(created), true);
             return created;
         }
 
@@ -54,7 +54,7 @@ public static partial class TypedAstEvaluator
             }
 
             var allowDelete = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
-            environment.DefineFunctionScoped(name, Symbol.Undefined, false, context: context, canDelete: allowDelete);
+            environment.DefineFunctionScoped(name, JsValue.Undefined, false, context: context, canDelete: allowDelete);
         }
 
         internal SuperBinding ExpectSuperBinding(EvaluationContext context)

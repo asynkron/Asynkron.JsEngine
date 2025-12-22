@@ -38,6 +38,40 @@ public sealed partial class FunctionPrototype
         return target.Invoke(callArgs, thisArg);
     }
 
+    [JsSymbolMethod("hasInstance", Length = 1d, Writable = false, Configurable = false)]
+    private JsValue HasInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        if (!thisValue.TryGetObject<IJsPropertyAccessor>(out _))
+        {
+            throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", realm: Realm);
+        }
+
+        var candidate = args.GetArgument(0);
+        if (!candidate.TryGetObject<JsObject>(out _) && !candidate.TryGetObject<IJsObjectLike>(out _))
+        {
+            return new JsValue(false);
+        }
+
+        if (!JsOps.TryGetPropertyValueJsValue(thisValue, "prototype", out var protoVal) ||
+            !JsValue.FromObjectUnsafe(protoVal).TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
+        {
+            throw ThrowTypeError("Function has non-object prototype in instanceof check", realm: Realm);
+        }
+
+        var cursor = JsOps.GetPrototypePointer(candidate);
+        while (cursor is not null)
+        {
+            if (ReferenceEquals(cursor, prototypeObject))
+            {
+                return new JsValue(true);
+            }
+
+            cursor = JsOps.GetPrototypePointer(cursor);
+        }
+
+        return new JsValue(false);
+    }
+
     protected override void ConfigurePrototype()
     {
         // Seed the intrinsic prototype slot before any RealmState-based prototype resolution runs.
@@ -49,7 +83,7 @@ public sealed partial class FunctionPrototype
         }
 
         AttachArgumentsPoison();
-        AttachHasInstance();
+        // [Symbol.hasInstance] is registered via code generation from attribute
     }
 
     private void AttachArgumentsPoison()
@@ -66,56 +100,5 @@ public sealed partial class FunctionPrototype
         };
         Prototype.DefineProperty("caller", poisonDescriptor);
         Prototype.DefineProperty("arguments", poisonDescriptor);
-    }
-
-    private void AttachHasInstance()
-    {
-        var hasInstanceKey = SymbolKeys.HasInstance;
-        var hasInstance = new HostFunction((thisValue, args) =>
-        {
-            if (!thisValue.TryGetObject<IJsPropertyAccessor>(out _))
-            {
-                throw ThrowTypeError("Function.prototype[@@hasInstance] called on non-object", realm: Realm);
-            }
-
-            var candidate = args.GetArgument(0);
-            if (!candidate.TryGetObject<JsObject>(out _) && !candidate.TryGetObject<IJsObjectLike>(out _))
-            {
-                return new JsValue(false);
-            }
-
-            if (!JsOps.TryGetPropertyValueJsValue(thisValue, "prototype", out var protoVal) ||
-                !JsValue.FromObjectUnsafe(protoVal).TryGetObject<IJsPropertyAccessor>(out var prototypeObject))
-            {
-                throw ThrowTypeError("Function has non-object prototype in instanceof check", realm: Realm);
-            }
-
-            var cursor = JsOps.GetPrototypePointer(candidate);
-            while (cursor is not null)
-            {
-                if (ReferenceEquals(cursor, prototypeObject))
-                {
-                    return new JsValue(true);
-                }
-
-                cursor = JsOps.GetPrototypePointer(cursor);
-            }
-
-            return new JsValue(false);
-        }, Realm, isConstructor: false);
-
-        hasInstance.DefineProperty("name",
-            new PropertyDescriptor
-            {
-                Value = "[Symbol.hasInstance]", Writable = false, Enumerable = false, Configurable = true
-            });
-        hasInstance.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-
-        Prototype.DefineProperty(hasInstanceKey,
-            new PropertyDescriptor
-            {
-                Value = hasInstance, Writable = false, Enumerable = false, Configurable = false
-            });
     }
 }

@@ -79,8 +79,6 @@ internal static class IntlOptionHelpers
     public static bool? GetBooleanOption(
         IJsPropertyAccessor? options,
         string property,
-        RealmState realm,
-        string typeName,
         bool? defaultValue = null)
     {
         if (options is null || !options.TryGetProperty(property, out var value) ||

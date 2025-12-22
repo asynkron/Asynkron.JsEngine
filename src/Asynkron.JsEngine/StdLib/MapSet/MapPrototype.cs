@@ -6,6 +6,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Map", ToStringTag = "Map")]
+[JsSymbolAlias("iterator", "entries")]
 public sealed partial class MapPrototype
 {
     private enum MapIterationKind
@@ -102,18 +103,7 @@ public sealed partial class MapPrototype
 
         Realm.MapPrototype ??= Prototype as JsObject;
 
-        var iteratorKey = SymbolKeys.Iterator;
-        if (Prototype.TryGetProperty("entries", out var entries))
-        {
-            Prototype.DefineProperty(iteratorKey,
-                new PropertyDescriptor
-                {
-                    Value = entries,
-                    Writable = true,
-                    Enumerable = false,
-                    Configurable = true
-                });
-        }
+        // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
     }
 
     private JsMap RequireMap(JsValue receiver)

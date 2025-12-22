@@ -16,7 +16,7 @@ public static partial class TypedAstEvaluator
 
             // Reuse the same binding machinery as variable declarations so nested
             // destructuring assignments behave consistently.
-            expression.Target.AssignBindingTargetJsValue(assignedValueJs, environment, context);
+            expression.Target.AssignBindingTarget(assignedValueJs, environment, context);
             return assignedValueJs;
         }
     }

@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 internal readonly struct AssignmentReference
 {
-    private enum ReferenceKind : byte
+    private enum ReferenceKind
     {
         DeclarativeBinding,   // Most common - cached identifier binding
         GlobalBinding,        // Global object property

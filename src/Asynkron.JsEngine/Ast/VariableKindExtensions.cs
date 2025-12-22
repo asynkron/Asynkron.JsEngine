@@ -103,7 +103,7 @@ public static partial class TypedAstEvaluator
 
             // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true
             var allowNameInference = declarator.Initializer is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer);
-            declarator.Target.ApplyBindingTargetJsValue(valueJs, environment, context, mode,
+            declarator.Target.ApplyBindingTarget(valueJs, environment, context, mode,
                 declarator.Initializer is not null, allowNameInference);
         }
     }

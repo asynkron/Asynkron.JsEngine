@@ -7,10 +7,10 @@ public static partial class TypedAstEvaluator
 {
     extension(ObjectBinding binding)
     {
-        private void BindObjectPattern(object? /* intentional */ value, JsEnvironment environment,
+        private void BindObjectPattern(JsValue value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
         {
-            var obj = ToObjectForDestructuring(value, context);
+            var obj = ToObjectForDestructuringJsValue(value, context);
 
             var usedKeys = new HashSet<string>(StringComparer.Ordinal);
 
@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    property.Target.ApplyBindingTargetJsValue(propertyValueJs, environment, context, mode,
+                    property.Target.ApplyBindingTarget(propertyValueJs, environment, context, mode,
                         allowNameInference: false, skipBlockedBindingLookup: skipBlockedLookup);
                 }
             }
@@ -131,7 +131,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            binding.RestElement.ApplyBindingTargetJsValue(JsValue.FromObjectUnsafe(restObject), environment, context, mode, allowNameInference: false);
+            binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restObject), environment, context, mode, allowNameInference: false);
         }
     }
 }

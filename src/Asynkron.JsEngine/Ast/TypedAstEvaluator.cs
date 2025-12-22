@@ -429,7 +429,7 @@ public static partial class TypedAstEvaluator
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
     private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
     {
-        if (!TryGetIteratorForDestructuringJsValue(value, context, out var iterator, out var enumerator))
+        if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
         {
             if (context.ShouldStopEvaluation)
             {
@@ -916,104 +916,76 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
-    private static bool TryGetIteratorForDestructuring(object? value, EvaluationContext context,
+    private static bool TryGetIteratorForDestructuring(JsValue jsValue, EvaluationContext context,
         out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
     {
         iterator = null;
         enumerator = null;
 
-        if (value is TypedArrayBase typedArray)
-        {
-            if (typedArray.IsDetachedOrOutOfBounds())
-            {
-                throw typedArray.CreateOutOfBoundsTypeError();
-            }
-
-            enumerator = EnumerateTypedArrayValues(typedArray);
-            return true;
-        }
-
-        var iteratorTarget = value as IJsPropertyAccessor;
-        var thisArg = value;
-        if (iteratorTarget is null && value is not null && !ReferenceEquals(value, Symbol.Undefined))
-        {
-            iteratorTarget = ToObjectForDestructuring(value, context);
-            thisArg = iteratorTarget;
-        }
-
-        if (iteratorTarget is not null)
-        {
-            var gotIterator = TryGetIteratorFromProtocols(iteratorTarget, context, out var iteratorCandidate);
-            if (context.ShouldStopEvaluation)
-            {
-                iterator = null;
-                enumerator = null;
-                return false;
-            }
-
-            if (gotIterator && iteratorCandidate is not null)
-            {
-                iterator = iteratorCandidate;
-                return true;
-            }
-
-            // Fallback: treat objects with a callable `next` as iterators even if
-            // @@iterator is missing so generator objects still participate in
-            // destructuring when their symbol lookup fails.
-            if (!iteratorTarget.TryGetProperty("next", out var nextVal) || !nextVal.TryGetObject<IJsCallable>(out _))
-            {
-                return false;
-            }
-
-            iterator = thisArg as IJsObjectLike;
-            return iterator is not null;
-        }
-
-        switch (value)
-        {
-            case string s:
-                enumerator = EnumerateStringCharacters(s);
-                return true;
-            case IEnumerable<JsValue> enumerable:
-                enumerator = enumerable.GetEnumerator();
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// JsValue overload - avoids boxing when caller has JsValue.
-    /// </summary>
-    private static bool TryGetIteratorForDestructuringJsValue(JsValue jsValue, EvaluationContext context,
-        out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
-    {
-        // Fast path for objects
-        if (jsValue.Kind == JsValueKind.Object)
-        {
-            return TryGetIteratorForDestructuring(jsValue.ObjectValue, context, out iterator, out enumerator);
-        }
-
         // Fast path for strings
         if (jsValue is { Kind: JsValueKind.String, ObjectValue: string s })
         {
-            iterator = null;
             enumerator = EnumerateStringCharacters(s);
             return true;
         }
 
-        // For other primitives, extract and delegate
-        var value = jsValue.Kind switch
+        // Handle objects (including TypedArrays)
+        if (jsValue.Kind == JsValueKind.Object)
         {
-            JsValueKind.Boolean => (object?)(jsValue.NumberValue != 0),
-            JsValueKind.Number => jsValue.NumberValue,
-            _ => jsValue.ObjectValue
-        };
+            var objValue = jsValue.ObjectValue;
 
-        return TryGetIteratorForDestructuring(value, context, out iterator, out enumerator);
+            // Fast path for TypedArray
+            if (objValue is TypedArrayBase typedArray)
+            {
+                if (typedArray.IsDetachedOrOutOfBounds())
+                {
+                    throw typedArray.CreateOutOfBoundsTypeError();
+                }
+                enumerator = EnumerateTypedArrayValues(typedArray);
+                return true;
+            }
+
+            // Try iterator protocol on property accessor (must be before IEnumerable fallback
+            // because JsArray implements IEnumerable<JsValue> but needs iterator protocol for
+            // tests that modify Array.prototype[Symbol.iterator])
+            if (objValue is IJsPropertyAccessor propertyAccessor)
+            {
+                var gotIterator = TryGetIteratorFromProtocols(propertyAccessor, context, out var iteratorCandidate);
+                if (context.ShouldStopEvaluation)
+                {
+                    return false;
+                }
+
+                if (gotIterator && iteratorCandidate is not null)
+                {
+                    iterator = iteratorCandidate;
+                    return true;
+                }
+
+                // Fallback: treat objects with a callable `next` as iterators even if
+                // @@iterator is missing so generator objects still participate in
+                // destructuring when their symbol lookup fails.
+                if (propertyAccessor.TryGetProperty("next", out var nextVal) && nextVal.TryGetObject<IJsCallable>(out _))
+                {
+                    iterator = objValue as IJsObjectLike;
+                    return iterator is not null;
+                }
+            }
+
+            // Fallback for non-JS IEnumerable<JsValue> (e.g., host-provided collections)
+            // This must be AFTER the iterator protocol check because JsArray implements IEnumerable
+            if (objValue is IEnumerable<JsValue> enumerable and not IJsPropertyAccessor)
+            {
+                enumerator = enumerable.GetEnumerator();
+                return true;
+            }
+
+            return false;
+        }
+
+        // For primitives (numbers, booleans), they cannot be directly iterated
+        return false;
     }
 
     [MustDisposeResource]
@@ -1107,6 +1079,7 @@ public static partial class TypedAstEvaluator
         return obj;
     }
 
+    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)
     {
         var realm = context.RealmState;

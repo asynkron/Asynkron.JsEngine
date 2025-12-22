@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(IdentifierBinding identifier)
     {
-        private void ApplyIdentifierBinding(object? /* intentional */ value,
+        private void ApplyIdentifierBinding(JsValue value,
             JsEnvironment environment,
             EvaluationContext context,
             BindingMode mode,
@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
             bool allowNameInference,
             bool skipBlockedBindingLookup = false)
         {
-            if (allowNameInference && value is IFunctionNameTarget nameTarget)
+            if (allowNameInference && value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
                 nameTarget.EnsureHasName(identifier.Name.Name);
             }
@@ -26,19 +26,16 @@ public static partial class TypedAstEvaluator
                     $"Cannot reassign constant '{identifier.Name.Name}'.", context, context.RealmState));
             }
 
-            // Handle case where value is already a boxed JsValue
-            var jsValue = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-
             switch (mode)
             {
                 case BindingMode.Assign:
-                    environment.AssignJsValue(identifier.Name, jsValue);
+                    environment.AssignJsValue(identifier.Name, value);
                     break;
                 case BindingMode.DefineLet:
-                    environment.DefineJsValue(identifier.Name, jsValue, isLexical: true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, value, isLexical: true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineConst:
-                    environment.DefineJsValue(identifier.Name, jsValue, true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, value, true, blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineVar:
                 {
@@ -64,20 +61,20 @@ public static partial class TypedAstEvaluator
                     {
                         environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
                         var functionScope = environment.GetFunctionScope();
-                        functionScope.AssignJsValue(identifier.Name, jsValue);
+                        functionScope.AssignJsValue(identifier.Name, value);
 
                         break;
                     }
 
                     var assignedBlockedBinding = skipBlockedBindingLookup
                         ? false
-                        : environment.TryAssignBlockedBindingJsValue(identifier.Name, jsValue);
+                        : environment.TryAssignBlockedBindingJsValue(identifier.Name, value);
 
                     environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
 
                     if (!assignedBlockedBinding)
                     {
-                        environment.AssignJsValue(identifier.Name, jsValue);
+                        environment.AssignJsValue(identifier.Name, value);
                     }
 
                     break;
@@ -90,11 +87,11 @@ public static partial class TypedAstEvaluator
                     // created (defensive).
                     if (environment.HasBinding(identifier.Name))
                     {
-                        environment.AssignJsValue(identifier.Name, jsValue);
+                        environment.AssignJsValue(identifier.Name, value);
                     }
                     else
                     {
-                        environment.DefineJsValue(identifier.Name, jsValue, isLexical: false);
+                        environment.DefineJsValue(identifier.Name, value, isLexical: false);
                     }
 
                     break;

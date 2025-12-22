@@ -154,7 +154,7 @@ public static partial class TypedAstEvaluator
                             description: "for-each-iteration")
                 : loopEnvironment;
 
-                statement.Target.AssignLoopBindingJsValue(value, iterationEnvironment, environment, context,
+                statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
                 statement.DeclarationKind);
 
                 IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);

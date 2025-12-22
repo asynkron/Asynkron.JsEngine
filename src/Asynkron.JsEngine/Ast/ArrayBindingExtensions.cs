@@ -7,7 +7,7 @@ public static partial class TypedAstEvaluator
 {
     extension(ArrayBinding binding)
     {
-        private void BindArrayPattern(object? /* intentional */ value, JsEnvironment environment,
+        private void BindArrayPattern(JsValue value, JsEnvironment environment,
             EvaluationContext context, BindingMode mode)
         {
             var stateKey = GetArrayPatternStateKey(binding);
@@ -184,8 +184,8 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        // ApplyBindingTarget handles boxed JsValue via pattern matching
-                        element.Target.ApplyBindingTarget(elementValue, environment, context, mode,
+                        // FromObjectUnsafe handles boxed JsValue correctly
+                        element.Target.ApplyBindingTarget(JsValue.FromObjectUnsafe(elementValue), environment, context, mode,
                             allowNameInference: false);
                     }
 
@@ -301,7 +301,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        binding.RestElement.ApplyBindingTargetJsValue(JsValue.FromObjectUnsafe(restArray), environment, context, mode,
+                        binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restArray), environment, context, mode,
                             allowNameInference: false);
                     }
                 }

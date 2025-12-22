@@ -6,7 +6,7 @@ public static partial class TypedAstEvaluator
 {
     extension(BindingTarget target)
     {
-        private void AssignLoopBinding(object? /* intentional */ value, JsEnvironment loopEnvironment,
+        private void AssignLoopBinding(JsValue value, JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
         {
             if (declarationKind is null)
@@ -25,32 +25,6 @@ public static partial class TypedAstEvaluator
                 case VariableKind.Using:
                 case VariableKind.AwaitUsing:
                     target.DefineBindingTarget(value, loopEnvironment, context,
-                        declarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-        }
-
-        private void AssignLoopBindingJsValue(JsValue value, JsEnvironment loopEnvironment,
-            JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
-        {
-            if (declarationKind is null)
-            {
-                target.AssignBindingTargetJsValue(value, outerEnvironment, context);
-                return;
-            }
-
-            switch (declarationKind)
-            {
-                case VariableKind.Var:
-                    target.DefineOrAssignVarJsValue(value, loopEnvironment, context);
-                    break;
-                case VariableKind.Let:
-                case VariableKind.Const:
-                case VariableKind.Using:
-                case VariableKind.AwaitUsing:
-                    target.DefineBindingTargetJsValue(value, loopEnvironment, context,
                         declarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing);
                     break;
                 default:
@@ -133,57 +107,26 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void AssignBindingTarget(object? /* intentional */ value, JsEnvironment environment,
+        private void AssignBindingTarget(JsValue value, JsEnvironment environment,
             EvaluationContext context)
         {
             target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
         }
 
-        private void AssignBindingTargetJsValue(JsValue value, JsEnvironment environment,
-            EvaluationContext context)
-        {
-            target.ApplyBindingTarget(value, environment, context, BindingMode.Assign);
-        }
-
-        private void DefineBindingTarget(object? /* intentional */ value, JsEnvironment environment,
+        private void DefineBindingTarget(JsValue value, JsEnvironment environment,
             EvaluationContext context, bool isConst)
         {
             target.ApplyBindingTarget(value, environment, context,
                 isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
         }
 
-        private void DefineBindingTargetJsValue(JsValue value, JsEnvironment environment,
-            EvaluationContext context, bool isConst)
-        {
-            target.ApplyBindingTarget(value, environment, context,
-                isConst ? BindingMode.DefineConst : BindingMode.DefineLet);
-        }
-
-        private void DefineOrAssignVar(object? /* intentional */ value, JsEnvironment environment,
+        private void DefineOrAssignVar(JsValue value, JsEnvironment environment,
             EvaluationContext context)
         {
             target.ApplyBindingTarget(value, environment, context, BindingMode.DefineVar);
         }
 
-        private void DefineOrAssignVarJsValue(JsValue value, JsEnvironment environment,
-            EvaluationContext context)
-        {
-            target.ApplyBindingTarget(value, environment, context, BindingMode.DefineVar);
-        }
-
-        private void ApplyBindingTargetJsValue(JsValue value,
-            JsEnvironment environment,
-            EvaluationContext context,
-            BindingMode mode,
-            bool hasInitializer = true,
-            bool allowNameInference = true,
-            bool skipBlockedBindingLookup = false)
-        {
-            target.ApplyBindingTarget(value, environment, context, mode, hasInitializer,
-                allowNameInference, skipBlockedBindingLookup);
-        }
-
-        private void ApplyBindingTarget(object? /* intentional */ value,
+        private void ApplyBindingTarget(JsValue value,
             JsEnvironment environment,
             EvaluationContext context,
             BindingMode mode,
@@ -219,9 +162,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    // value might be a boxed JsValue, handle it appropriately
-                    var valueJs = value is JsValue vjs ? vjs : JsValue.FromObjectUnsafe(value);
-                    reference.SetValue(valueJs);
+                    reference.SetValue(value);
                     break;
                 }
                 default:

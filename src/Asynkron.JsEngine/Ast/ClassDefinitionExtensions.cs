@@ -136,7 +136,7 @@ public static partial class TypedAstEvaluator
             // so that static blocks can reference the class name
             if (classScopeEnvironment is not null && className is not null)
             {
-                classScopeEnvironment.TryAssignBlockedBinding(className, constructorAccessor);
+                classScopeEnvironment.TryAssignBlockedBinding(className, JsValue.FromObjectUnsafe(constructorAccessor));
             }
 
             InitializeStaticElements(definition, resolvedFields, constructorAccessor, evaluationEnvironment, context,

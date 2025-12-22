@@ -457,8 +457,8 @@ public static partial class TypedAstEvaluator
                 {
                     try
                     {
-                        var withValue = JsEnvironment.GetWithBindingValue(withBinding);
-                        return (JsValue.FromObjectUnsafe(withValue), JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
+                        var withValue = JsEnvironment.GetWithBindingValueJsValue(withBinding);
+                        return (withValue, JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
                     {
@@ -573,12 +573,12 @@ public static partial class TypedAstEvaluator
             // If so, read `this` from the original owning environment, not the arrow's local copy.
             // This ensures that after super() updates the constructor's `this`, subsequent
             // reads of `this` inside the arrow function see the updated value.
-            if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
-                lexicalEnvValue is JsEnvironment lexicalThisEnv)
+            if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
+                lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
             {
-                return JsValue.FromObjectUnsafe(lexicalThisEnv.Get(Symbol.This));
+                return lexicalThisEnv.GetJsValue(Symbol.This);
             }
-            return JsValue.FromObjectUnsafe(environment.Get(Symbol.This));
+            return environment.GetJsValue(Symbol.This);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                      StringComparison.Ordinal))

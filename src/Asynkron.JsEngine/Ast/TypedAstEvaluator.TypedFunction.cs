@@ -756,7 +756,7 @@ public static partial class TypedAstEvaluator
                 // This is needed for super() calls in arrow functions - super() must update
                 // the original constructor's `this` binding, not the arrow function's local copy.
                 if (_lexicalThisEnvironment is not null &&
-                    _lexicalThisEnvironment.TryFindBinding(Symbol.This, allowUninitialized: true,
+                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true,
                         out var originalThisEnv, out _))
                 {
                     functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,

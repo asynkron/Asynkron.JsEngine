@@ -804,6 +804,74 @@ public sealed class JsEnvironment
         throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
     }
 
+    /// <summary>
+    /// Gets a binding value as JsValue, avoiding boxing for primitives.
+    /// Throws ReferenceError if binding doesn't exist or is uninitialized.
+    /// </summary>
+    public JsValue GetJsValue(Symbol name)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            // Fast path for 'this' in slot-only environments (InvokeSimpleFast)
+            if (Equals(name, Symbol.This) && current._hasThisValue)
+            {
+                return current._thisValue;
+            }
+
+            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            {
+                if (binding.IsUninitialized)
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                if (!current.IsGlobalFunctionScope ||
+                    binding.IsLexical)
+                {
+                    return binding.JsValue;
+                }
+
+                var globalObject = current.GetRootGlobalObject();
+                if (globalObject is not null &&
+                    globalObject.TryGetProperty(name.Name, out var globalValue))
+                {
+                    return globalValue;
+                }
+
+                return binding.JsValue;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current)
+            {
+                return current._varEnvironmentOverride.GetJsValue(name);
+            }
+
+            if (current._withObject is not null && TryGetFromWithJsValue(current._withObject, name, out var withValue))
+            {
+                return withValue;
+            }
+
+            current = current.Enclosing;
+        }
+
+        if (!IsGlobalFunctionScope)
+        {
+            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        }
+
+        var rootGlobal = GetRootGlobalObject();
+        if (rootGlobal is not null && rootGlobal.TryGetProperty(name.Name, out var propertyValue))
+        {
+            return propertyValue;
+        }
+
+        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+    }
+
     internal bool IsConstBinding(Symbol name)
     {
         if (_values is not null && _values.TryGetValue(name, out var binding))
@@ -875,7 +943,7 @@ public sealed class JsEnvironment
         return _values?.Keys ?? [];
     }
 
-    internal bool TryAssignBlockedBinding(Symbol name, object? /* intentional */ value)
+    internal bool TryAssignBlockedBinding(Symbol name, JsValue value)
     {
         var current = this;
         var passedFunctionBoundary = false;
@@ -896,7 +964,7 @@ public sealed class JsEnvironment
                 ref var binding = ref current._values.GetValueRefOrNullRef(name);
                 if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
                 {
-                    binding.JsValue = JsValue.FromObjectUnsafe(value);
+                    binding.JsValue = value;
                     current.NotifyBindingObservers(name, value);
                     if (!current.IsGlobalFunctionScope)
                     {
@@ -904,7 +972,7 @@ public sealed class JsEnvironment
                     }
 
                     var globalObject = current.GetRootGlobalObject();
-                    globalObject?.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
+                    globalObject?.SetProperty(name.Name, value);
 
                     return true;
                 }
@@ -1082,7 +1150,7 @@ public sealed class JsEnvironment
 
         if (TryResolveWithBinding(name, context, out var withBinding))
         {
-            return JsValue.FromObjectUnsafe(GetWithBindingValue(withBinding));
+            return GetWithBindingValueJsValue(withBinding);
         }
 
         if (TryLocateBinding(name, out var bindingEnvironment, out _))
@@ -1094,7 +1162,7 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            return JsValue.FromObjectUnsafe(GetWithBindingValue(globalBinding));
+            return GetWithBindingValueJsValue(globalBinding);
         }
 
         // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
@@ -1126,7 +1194,7 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            return JsValue.FromObjectUnsafe(GetWithBindingValue(globalBinding));
+            return GetWithBindingValueJsValue(globalBinding);
         }
 
         // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
@@ -1185,7 +1253,7 @@ public sealed class JsEnvironment
         // Fast path: skip TryResolveWithBinding when AllowIdentifierCache is true (no with/eval in scope)
         if (!context.AllowIdentifierCache && TryResolveWithBinding(name, context, out var withBinding))
         {
-            value = JsValue.FromObjectUnsafe(GetWithBindingValue(withBinding));
+            value = GetWithBindingValueJsValue(withBinding);
             return true;
         }
 
@@ -1199,7 +1267,7 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            value = JsValue.FromObjectUnsafe(GetWithBindingValue(globalBinding));
+            value = GetWithBindingValueJsValue(globalBinding);
             return true;
         }
 
@@ -1355,10 +1423,9 @@ public sealed class JsEnvironment
                     context.RealmState));
             }
 
-            var objValue = value.ToObject();
-            if (!TrySetWithBindingValue(withBinding, objValue, context.RealmState))
+            if (!TrySetWithBindingValueJsValue(withBinding, value, context.RealmState))
             {
-                Assign(name, objValue);
+                AssignJsValue(name, value);
             }
             return;
         }
@@ -1373,11 +1440,11 @@ public sealed class JsEnvironment
 
         if (TryResolveGlobalObjectBinding(name, context, out var globalBinding))
         {
-            TrySetWithBindingValue(globalBinding, value.ToObject(), context.RealmState);
+            TrySetWithBindingValueJsValue(globalBinding, value, context.RealmState);
             return;
         }
 
-        AssignUnresolvable(name, value.ToObject(), isStrictContext, context, this);
+        AssignUnresolvableJsValue(name, value, isStrictContext, context, this);
     }
 
     private static bool IsStrictRestrictedName(Symbol name)
@@ -2108,48 +2175,6 @@ public sealed class JsEnvironment
         return false;
     }
 
-    internal bool TryFindBinding(Symbol name, out JsEnvironment environment, out object? value)
-    {
-        return TryFindBinding(name, false, out environment, out value);
-    }
-
-    internal bool TryFindBinding(Symbol name, bool allowUninitialized, out JsEnvironment environment,
-        out object? value)
-    {
-        var current = this;
-        var hops = 0;
-        const int maxLookupDepth = 10_000;
-
-        while (current is not null && hops++ < maxLookupDepth)
-        {
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
-            {
-                // Check IsUninitialized before reading
-                if (binding.IsUninitialized && !allowUninitialized)
-                {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-                }
-
-                environment = current;
-                value = binding.JsValue.ToObject();
-                return true;
-            }
-
-            if (current._varEnvironmentOverride is not null &&
-                current._varEnvironmentOverride != current &&
-                current._varEnvironmentOverride.TryFindBinding(name, allowUninitialized, out environment, out value))
-            {
-                return true;
-            }
-
-            current = current.Enclosing;
-        }
-
-        environment = null!;
-        value = null;
-        return false;
-    }
-
     /// <summary>
     /// JsValue version of TryFindBinding that avoids boxing. Returns JsValue.Uninitialized
     /// for uninitialized bindings when allowUninitialized is true.
@@ -2194,12 +2219,11 @@ public sealed class JsEnvironment
     {
         // Remember if we're in strict mode at the call site
         var isStrictContext = IsStrict;
-        AssignInternal(name, value, isStrictContext);
+        AssignInternal(name, JsValue.FromObjectUnsafe(value), isStrictContext);
     }
 
     /// <summary>
-    /// JsValue overload that boxes to object? for downstream compatibility.
-    /// The internal AssignInternal handles boxed JsValue efficiently.
+    /// JsValue overload that avoids boxing.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AssignJsValue(Symbol name, JsValue value)
@@ -2208,7 +2232,7 @@ public sealed class JsEnvironment
         AssignInternal(name, value, isStrictContext);
     }
 
-    private void AssignInternal(Symbol name, object? /* intentional */ value, bool isStrictContext)
+    private void AssignInternal(Symbol name, JsValue value, bool isStrictContext)
     {
         var current = this;
         var hops = 0;
@@ -2255,12 +2279,11 @@ public sealed class JsEnvironment
 
                     if (!binding.IsGlobalConstant)
                     {
-                        var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-                        binding.JsValue = jsVal;
-                        current.TrySetSlot(name, jsVal);
+                        binding.JsValue = value;
+                        current.TrySetSlot(name, value);
                         if (!binding.IsLexical)
                         {
-                            globalObject?.SetProperty(name.Name, jsVal);
+                            globalObject?.SetProperty(name.Name, value);
                         }
 
                         current.NotifyBindingObservers(name, value);
@@ -2292,12 +2315,12 @@ public sealed class JsEnvironment
             {
                 if (current._withObject is JsObject withObject)
                 {
-                    AssignmentReferenceResolver.AssignObjectProperty(withObject, name.Name, JsValue.FromObjectUnsafe(value), isStrictContext, null,
+                    AssignmentReferenceResolver.AssignObjectProperty(withObject, name.Name, value, isStrictContext, null,
                         realm);
                 }
                 else
                 {
-                    current._withObject.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
+                    current._withObject.SetProperty(name.Name, value);
                 }
 
                 return;
@@ -2308,7 +2331,7 @@ public sealed class JsEnvironment
                 // Reached the global scope without finding the variable
                 if (globalObject?.GetOwnPropertyDescriptor(name.Name) is not null)
                 {
-                    AssignmentReferenceResolver.AssignObjectProperty(globalObject, name.Name, JsValue.FromObjectUnsafe(value), isStrictContext, null,
+                    AssignmentReferenceResolver.AssignObjectProperty(globalObject, name.Name, value, isStrictContext, null,
                         realm);
                     return;
                 }
@@ -2331,8 +2354,8 @@ public sealed class JsEnvironment
                 }
 
                 // Non-strict mode: Create the variable in the global scope (this environment)
-                current.DefineJsValue(name, JsValue.FromObjectUnsafe(value));
-                globalObject?.SetProperty(name.Name, JsValue.FromObjectUnsafe(value));
+                current.DefineJsValue(name, value);
+                globalObject?.SetProperty(name.Name, value);
                 return;
             }
 
@@ -2463,26 +2486,38 @@ public sealed class JsEnvironment
 
     private static bool TryGetFromWith(IJsObjectLike target, Symbol name, out object? value)
     {
+        if (TryGetFromWithJsValue(target, name, out var jsValue))
+        {
+            value = jsValue.ToObject();
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryGetFromWithJsValue(IJsObjectLike target, Symbol name, out JsValue value)
+    {
         var propertyName = name.Name;
         if (string.IsNullOrEmpty(propertyName) || !HasProperty(target, propertyName) || IsBlockedByUnscopables(target, propertyName, out _))
         {
-            value = null;
+            value = JsValue.Undefined;
             return false;
         }
 
         if (target.TryGetProperty(propertyName, out var propertyValue))
         {
-            value = propertyValue.ToObject();
+            value = propertyValue;
             return true;
         }
 
         if (target.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var receiverValue))
         {
-            value = receiverValue.ToObject();
+            value = receiverValue;
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
@@ -2601,28 +2636,6 @@ public sealed class JsEnvironment
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static object? GetWithBindingValue(in ObjectEnvironmentBinding binding)
-    {
-        var propertyName = binding.PropertyName;
-        if (HasProperty(binding.BindingObject, propertyName))
-        {
-            return JsOps.TryGetPropertyValue(binding.BindingObject, propertyName, out var value)
-                ? value
-                : Symbol.Undefined;
-        }
-
-        if (!binding.IsStrictReference)
-        {
-            return Symbol.Undefined;
-        }
-
-        var realm = (binding.BindingObject as JsObject)?.RealmState;
-        throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
-            realm: realm);
-
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static JsValue GetWithBindingValueJsValue(in ObjectEnvironmentBinding binding)
     {
         var propertyName = binding.PropertyName;
@@ -2641,51 +2654,6 @@ public sealed class JsEnvironment
         var realm = (binding.BindingObject as JsObject)?.RealmState;
         throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
             realm: realm);
-    }
-
-    internal static bool TrySetWithBindingValue(in ObjectEnvironmentBinding binding, object? value,
-        RealmState? realm = null)
-    {
-        var propertyName = binding.PropertyName;
-        var bindingObject = binding.BindingObject;
-        var stillExists = HasProperty(bindingObject, propertyName);
-        if (!stillExists && binding is { AllowMissingAssignment: false, IsStrictReference: true })
-        {
-            realm ??= (bindingObject as JsObject)?.RealmState;
-            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {propertyName} is not defined",
-                realm: realm);
-        }
-
-        if (bindingObject is JsObject jsObject)
-        {
-            AssignmentReferenceResolver.AssignObjectProperty(
-                jsObject,
-                propertyName,
-                JsValue.FromObjectUnsafe(value),
-                binding.IsStrictReference,
-                null,
-                realm ?? jsObject.RealmState,
-                bindingObject);
-            return true;
-        }
-
-        JsOps.AssignPropertyValueByName(bindingObject, propertyName, value);
-        if (bindingObject is not IPropertyDefinitionHost definitionHost)
-        {
-            return true;
-        }
-
-        var ownDescriptor = bindingObject.GetOwnPropertyDescriptor(propertyName);
-        if (ownDescriptor?.IsDataDescriptor != true)
-        {
-            return true;
-        }
-
-        var descriptorClone = ownDescriptor.Clone();
-        descriptorClone.Value = value;
-        definitionHost.TryDefineProperty(propertyName, descriptorClone);
-
-        return true;
     }
 
     internal static bool TrySetWithBindingValueJsValue(in ObjectEnvironmentBinding binding, JsValue value,
@@ -2745,16 +2713,18 @@ public sealed class JsEnvironment
         list.Add(observer);
     }
 
-    private void NotifyBindingObservers(Symbol symbol, object? value)
+    private void NotifyBindingObservers(Symbol symbol, JsValue value)
     {
         if (_bindingObservers is null || !_bindingObservers.TryGetValue(symbol, out var observers))
         {
             return;
         }
 
+        // Convert to object? for observer callbacks (public API uses object?)
+        var objValue = value.ToObject();
         foreach (var observer in observers)
         {
-            observer(value);
+            observer(objValue);
         }
     }
 
@@ -3028,18 +2998,17 @@ public sealed class JsEnvironment
 
         /// <summary>
         /// Gets or sets the value as JsValue directly, avoiding boxing for primitives.
-        /// For special bindings, this still converts through object?.
         /// </summary>
         public JsValue JsValue
         {
             readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
-                ? JsValue.FromObjectUnsafe(((ISpecialBinding)_specialBinding!).GetValue())
+                ? ((ISpecialBinding)_specialBinding!).GetJsValue()
                 : _jsValue;
             set
             {
                 if ((_flags & BindingFlags.HasSpecialBinding) != 0)
                 {
-                    ((ISpecialBinding)_specialBinding!).SetValue(value.ToObject());
+                    ((ISpecialBinding)_specialBinding!).SetJsValue(value);
                 }
                 else
                 {
@@ -3115,28 +3084,28 @@ public sealed class JsEnvironment
     /// </summary>
     private interface ISpecialBinding
     {
-        object? GetValue();
-        void SetValue(object? value);
+        JsValue GetJsValue();
+        void SetJsValue(JsValue value);
         bool IsConst { get; }
     }
 
     private sealed class AsyncExportBinding(JsPromise promise, bool isConst) : ISpecialBinding
     {
         private bool _resolved;
-        private object? _resolvedValue;
+        private JsValue _resolvedValue;
 
-        public object? GetValue() => _resolved ? _resolvedValue : promise.JsObject;
+        public JsValue GetJsValue() => _resolved ? _resolvedValue : JsValue.FromObjectUnsafe(promise.JsObject);
 
-        public void SetValue(object? value)
+        public void SetJsValue(JsValue value)
         {
-            if (ReferenceEquals(value, Uninitialized) || _resolved)
+            if (value.IsUninitialized || _resolved)
             {
                 return;
             }
 
             _resolved = true;
             _resolvedValue = value;
-            promise.Resolve(JsValue.FromObjectUnsafe(value));
+            promise.Resolve(value);
         }
 
         public bool IsConst { get; } = isConst;
@@ -3151,9 +3120,9 @@ public sealed class JsEnvironment
         private JsEnvironment SourceEnvironment { get; } = sourceEnvironment;
         private Symbol BindingName { get; } = bindingName;
 
-        public object? GetValue() => SourceEnvironment.Get(BindingName);
+        public JsValue GetJsValue() => SourceEnvironment.GetJsValue(BindingName);
 
-        public void SetValue(object? value) =>
+        public void SetJsValue(JsValue value) =>
             throw new InvalidOperationException("TypeError: Cannot assign to import binding");
 
         public bool IsConst => true;

@@ -456,32 +456,32 @@ public static partial class TypedAstEvaluator
                 // First check if we're in an arrow function that has captured a lexical this environment.
                 // Arrow functions store a reference to the original constructor's environment so super()
                 // can update the correct `this` binding.
-                if (environment.TryFindBinding(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
-                    lexicalEnvValue is JsEnvironment lexicalThisEnv)
+                if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
+                    lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
                 {
                     thisInitializationEnvironment = lexicalThisEnv;
-                    if (lexicalThisEnv.TryGet(Symbol.ThisInitialized, out var lexicalInitValue))
+                    if (lexicalThisEnv.TryGetJsValue(Symbol.ThisInitialized, out var lexicalInitValue))
                     {
-                        thisInitializationValue = JsValue.FromObjectUnsafe(lexicalInitValue);
+                        thisInitializationValue = lexicalInitValue;
                     }
                 }
                 // Otherwise, prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
                 // marker is defined alongside it for derived constructors.
-                else if (environment.TryFindBinding(Symbol.This, allowUninitialized: true, out var thisEnv, out _))
+                else if (environment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out var thisEnv, out _))
                 {
                     thisInitializationEnvironment = thisEnv;
-                    if (thisEnv.TryGet(Symbol.ThisInitialized, out var initValue))
+                    if (thisEnv.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
                     {
-                        thisInitializationValue = JsValue.FromObjectUnsafe(initValue);
+                        thisInitializationValue = initValue;
                     }
                 }
 
                 if (thisInitializationEnvironment is null &&
-                    environment.TryFindBinding(Symbol.ThisInitialized, allowUninitialized: true, out var foundEnv,
+                    environment.TryFindBindingJsValue(Symbol.ThisInitialized, allowUninitialized: true, out var foundEnv,
                         out var foundValue))
                 {
                     thisInitializationEnvironment = foundEnv;
-                    thisInitializationValue = JsValue.FromObjectUnsafe(foundValue);
+                    thisInitializationValue = foundValue;
                 }
             }
 

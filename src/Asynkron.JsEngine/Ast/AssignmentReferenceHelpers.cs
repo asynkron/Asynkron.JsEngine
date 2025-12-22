@@ -253,7 +253,7 @@ public static partial class TypedAstEvaluator
             {
                 if (ownDescriptor.Set is not null)
                 {
-                    InvokeCallable(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
+                    InvokeCallableJsValue(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
                     return true;
                 }
                 // Accessor with only getter - [[Set]] returns false
@@ -298,7 +298,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (inheritedDescriptor.Set is not null)
                     {
-                        InvokeCallable(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
+                        InvokeCallableJsValue(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
                         return true;
                     }
                     // Accessor with only getter - [[Set]] returns false

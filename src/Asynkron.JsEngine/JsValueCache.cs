@@ -44,12 +44,12 @@ public static class JsValueCache
     public static readonly object BoxedFalse = false;
 
     // Cached boxed numbers
-    public static readonly object BoxedZero;
-    public static readonly object BoxedOne;
-    public static readonly object BoxedNegativeOne;
-    public static readonly object BoxedNaN;
-    public static readonly object BoxedPositiveInfinity;
-    public static readonly object BoxedNegativeInfinity;
+    public static readonly object BoxedZero = 0.0;
+    public static readonly object BoxedOne = 1.0;
+    public static readonly object BoxedNegativeOne = -1.0;
+    public static readonly object BoxedNaN = double.NaN;
+    public static readonly object BoxedPositiveInfinity = double.PositiveInfinity;
+    public static readonly object BoxedNegativeInfinity = double.NegativeInfinity;
 
     // Argument array pools - 15 cached arrays per size (matches Jint's approach)
     // Most function calls have 0-3 arguments, so we optimize heavily for these cases
@@ -78,14 +78,6 @@ public static class JsValueCache
         {
             CachedIndexStrings[i] = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
-
-        // Cache special numbers
-        BoxedZero = 0.0;
-        BoxedOne = 1.0;
-        BoxedNegativeOne = -1.0;
-        BoxedNaN = double.NaN;
-        BoxedPositiveInfinity = double.PositiveInfinity;
-        BoxedNegativeInfinity = double.NegativeInfinity;
 
         // Pre-intern well-known strings
         InternedStrings[EmptyString] = EmptyString;

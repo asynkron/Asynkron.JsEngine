@@ -13,7 +13,7 @@ internal sealed class IntlNumberFormatInternalSlots
     public string? Unit { get; init; }
     public string UnitDisplay { get; init; } = "short";
     public int MinimumIntegerDigits { get; init; } = 1;
-    public int MinimumFractionDigits { get; init; } = 0;
+    public int MinimumFractionDigits { get; init; }
     public int MaximumFractionDigits { get; init; } = 3;
     public int? MinimumSignificantDigits { get; init; }
     public int? MaximumSignificantDigits { get; init; }

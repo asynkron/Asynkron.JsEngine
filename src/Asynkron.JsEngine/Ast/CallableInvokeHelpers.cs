@@ -113,6 +113,7 @@ public static partial class TypedAstEvaluator
     /// Invokes a callable and returns the result as object?.
     /// This is for backward compatibility - prefer InvokeCallableJsValue when possible.
     /// </summary>
+    [Obsolete("Use InvokeCallableJsValue to avoid boxing. Only use this when pattern matching on result type is required.")]
     internal static object? InvokeCallable(
         IJsCallable callable,
         IReadOnlyList<JsValue> arguments,

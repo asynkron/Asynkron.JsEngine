@@ -577,11 +577,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     {
         // '#' has already been consumed
         StringBuilder? builder = null;
-        var containsEscape = false;
 
         if (Peek() == '\\')
         {
-            containsEscape = true;
             builder = new StringBuilder();
             builder.Append('#');
             builder.Append(ReadIdentifierEscape());
@@ -601,7 +599,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         {
             if (Peek() == '\\')
             {
-                containsEscape = true;
                 if (builder is null)
                 {
                     builder = new StringBuilder(_current - _start + 16);

@@ -13,9 +13,9 @@ internal static class JsOps
     internal const double NegativeZero = -0.0d;
 
     // Cached hint strings for ToPrimitive (used when calling [Symbol.toPrimitive])
-    private static readonly string HintDefault = "default";
-    private static readonly string HintNumber = "number";
-    private static readonly string HintString = "string";
+    private const string HintDefault = "default";
+    private const string HintNumber = "number";
+    private const string HintString = "string";
 
     // Static arrays for ToPrimitive to avoid allocation on every call
     private static readonly string[] StringHintMethods = ["toString", "valueOf"];
@@ -2358,7 +2358,7 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallable(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
+                        TypedAstEvaluator.InvokeCallableJsValue(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
                         return true;
                     }
 
@@ -2400,7 +2400,7 @@ internal static class JsOps
                                 return true;
                             }
 
-                            TypedAstEvaluator.InvokeCallable(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
+                            TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
                             return true;
                         }
 

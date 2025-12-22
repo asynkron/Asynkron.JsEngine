@@ -6,10 +6,7 @@ internal static class ArgumentListExtensions
 {
     public static JsValue GetArgument(this IReadOnlyList<JsValue> args, int index)
     {
-        if (index < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(index));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
 
         return index < args.Count ? args[index] : JsValue.Undefined;
     }

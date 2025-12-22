@@ -717,27 +717,27 @@ public static partial class TypedAstEvaluator
             }
 
             // Bind `this`.
-            var boundThis = thisValue.ToObject();
             if (IsArrowFunction)
             {
-                var lexicalThis = _lexicalThis.ToObject();
-                var lexicalThisInitialized = !ReferenceEquals(lexicalThis, JsEnvironment.Uninitialized);
+                var lexicalThis = _lexicalThis;
+                var lexicalThisInitialized = !lexicalThis.IsUninitialized;
                 if (_lexicalThisEnvironment is not null)
                 {
-                    try
+                    // Try to get the this binding from the lexical environment, allowing uninitialized
+                    if (_lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out _, out var envThis))
                     {
-                        lexicalThis = _lexicalThisEnvironment.Get(Symbol.This);
-                        lexicalThisInitialized = !ReferenceEquals(lexicalThis, JsEnvironment.Uninitialized);
+                        lexicalThis = envThis;
+                        lexicalThisInitialized = !lexicalThis.IsUninitialized;
                     }
-                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                 StringComparison.Ordinal))
+                    else
                     {
-                        lexicalThis = JsEnvironment.Uninitialized;
+                        // Binding not found - treat as uninitialized
+                        lexicalThis = JsValue.Uninitialized;
                         lexicalThisInitialized = false;
                     }
                 }
 
-                boundThis = lexicalThis ?? Symbol.Undefined;
+                var boundThis = lexicalThisInitialized ? lexicalThis : JsValue.Undefined;
                 if (lexicalThisInitialized)
                 {
                     context.MarkThisInitialized();
@@ -746,7 +746,7 @@ public static partial class TypedAstEvaluator
                 {
                     context.MarkThisUninitialized();
                 }
-                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(boundThis));
+                functionEnvironment.DefineJsValue(Symbol.This, boundThis);
 
                 // Store a reference to the original environment that owns the `this` binding.
                 // This is needed for super() calls in arrow functions - super() must update
@@ -797,6 +797,9 @@ public static partial class TypedAstEvaluator
             }
             else
             {
+                // Non-arrow function - use object? for boundThis due to pattern matching needs
+                object? boundThis = thisValue.ToObject();
+
                 if (_isClassConstructor &&
                     ReferenceEquals(boundThis, Symbol.Undefined) &&
                     !newTarget.IsUndefined)

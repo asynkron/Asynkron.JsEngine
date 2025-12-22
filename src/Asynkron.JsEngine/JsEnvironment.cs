@@ -2104,6 +2104,46 @@ public sealed class JsEnvironment
         return false;
     }
 
+    /// <summary>
+    /// JsValue version of TryFindBinding that avoids boxing. Returns JsValue.Uninitialized
+    /// for uninitialized bindings when allowUninitialized is true.
+    /// </summary>
+    internal bool TryFindBindingJsValue(Symbol name, bool allowUninitialized, out JsEnvironment environment,
+        out JsValue value)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            {
+                if (binding.IsUninitialized && !allowUninitialized)
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                environment = current;
+                value = binding.JsValue;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                current._varEnvironmentOverride.TryFindBindingJsValue(name, allowUninitialized, out environment, out value))
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        environment = null!;
+        value = JsValue.Undefined;
+        return false;
+    }
+
     public void Assign(Symbol name, object? /* intentional - public API */ value)
     {
         // Remember if we're in strict mode at the call site

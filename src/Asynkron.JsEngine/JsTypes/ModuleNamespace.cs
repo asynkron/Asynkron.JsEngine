@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.JsTypes;
 
 internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 {
-    private readonly Func<string, object?> _bindingLookup;
+    private readonly Func<string, JsValue> _bindingLookup;
     private readonly ImmutableArray<string> _exportNames;
     private readonly RealmState _realmState;
 
@@ -16,13 +16,11 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
     private readonly TypedAstSymbol _toStringTagSymbol = Symbols.ToStringTag;
     private readonly Action? _ensureEvaluated;
     private readonly bool _isDeferred;
-    private readonly object _uninitializedMarker;
 
     internal ModuleNamespace(
         IEnumerable<string> exportNames,
-        Func<string, object?> bindingLookup,
+        Func<string, JsValue> bindingLookup,
         RealmState realmState,
-        object uninitializedMarker,
         bool isDeferred,
         Action? ensureEvaluated)
     {
@@ -30,7 +28,6 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         _bindingLookup = bindingLookup ?? throw new ArgumentNullException(nameof(bindingLookup));
         _exportNames = exportNames?.OrderBy(n => n, StringComparer.Ordinal).ToImmutableArray()
                        ?? throw new ArgumentNullException(nameof(exportNames));
-        _uninitializedMarker = uninitializedMarker ?? throw new ArgumentNullException(nameof(uninitializedMarker));
         _isDeferred = isDeferred;
         _ensureEvaluated = ensureEvaluated;
     }
@@ -67,7 +64,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         {
             if (_exportNames.Contains(name, StringComparer.Ordinal))
             {
-                value = JsValue.FromObjectUnsafe(_bindingLookup(name));
+                value = _bindingLookup(name);
                 return true;
             }
 
@@ -80,7 +77,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         {
             var lookedUp = _bindingLookup(name);
             EnsureInitialized(name, lookedUp);
-            value = JsValue.FromObjectUnsafe(lookedUp);
+            value = lookedUp;
             return true;
         }
 
@@ -106,7 +103,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         {
             return new PropertyDescriptor
             {
-                Value = "Module", Writable = false, Enumerable = false, Configurable = false
+                JsValue = "Module", Writable = false, Enumerable = false, Configurable = false
             };
         }
 
@@ -117,7 +114,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
                 var lookedUp = _bindingLookup(name);
                 return new PropertyDescriptor
                 {
-                    Value = lookedUp, Writable = true, Enumerable = true, Configurable = false
+                    JsValue = lookedUp, Writable = true, Enumerable = true, Configurable = false
                 };
             }
 
@@ -131,7 +128,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             EnsureInitialized(name, lookedUp);
             return new PropertyDescriptor
             {
-                Value = lookedUp, Writable = true, Enumerable = true, Configurable = false
+                JsValue = lookedUp, Writable = true, Enumerable = true, Configurable = false
             };
         }
 
@@ -253,7 +250,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         var writable = descriptor.HasWritable ? descriptor.Writable : currentWritable;
         var enumerable = descriptor.HasEnumerable ? descriptor.Enumerable : currentEnumerable;
         var configurable = descriptor.HasConfigurable ? descriptor.Configurable : currentConfigurable;
-        var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.JsValue, JsValue.FromObjectUnsafe(value));
+        var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.JsValue, value);
 
         // Return true only if no change is requested
         if (writable != currentWritable || enumerable != currentEnumerable || configurable != currentConfigurable ||
@@ -360,9 +357,9 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
     }
 
-    private void EnsureInitialized(string name, object? value)
+    private void EnsureInitialized(string name, JsValue value)
     {
-        if (ReferenceEquals(value, _uninitializedMarker))
+        if (value.IsUninitialized)
         {
             throw StandardLibrary.ThrowReferenceError($"Cannot access '{name}' before initialization",
                 realm: _realmState);

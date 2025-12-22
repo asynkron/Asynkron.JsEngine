@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ArrayHelper;
 using static Asynkron.JsEngine.StdLib.PromiseHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -19,7 +23,8 @@ public static partial class StandardLibrary
         var len = args.Count;
         IJsObjectLike result;
 
-        if (thisValue.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
+        if (thisValue.TryGetObject<IJsCallable>(out var callable) &&
+            JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
             if (constructorRealm is null)
@@ -107,6 +112,7 @@ public static partial class StandardLibrary
             {
                 throw ThrowRangeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
             }
+
             if (k >= dynamicLength)
             {
                 break;
@@ -129,6 +135,7 @@ public static partial class StandardLibrary
                 // Handle case where value is already a boxed JsValue
                 mapped = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
             }
+
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
             k++;
         }
@@ -230,11 +237,13 @@ public static partial class StandardLibrary
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
         }
+
         // nextVal is already a JsValue from TryGetProperty
         if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
         {
             throw ThrowTypeError("Array.from iterator does not expose a callable next()", realm: realm);
         }
+
         long k = 0;
 
         while (true)
@@ -400,12 +409,12 @@ public static partial class StandardLibrary
         object? thisArg,
         string methodName)
     {
+        private IJsPropertyAccessor? _arrayLike;
+        private bool _awaitIteratorResult;
         private long _index;
-        private bool _settled;
         private IJsPropertyAccessor? _iterator;
         private IJsCallable? _nextFn;
-        private bool _awaitIteratorResult;
-        private IJsPropertyAccessor? _arrayLike;
+        private bool _settled;
 
         public void StartIterator(object? items, IJsCallable iteratorMethod, bool awaitIteratorResult)
         {
@@ -435,6 +444,7 @@ public static partial class StandardLibrary
                     realm));
                 return;
             }
+
             // nextVal is already a JsValue from TryGetProperty
             if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
             {
@@ -500,7 +510,9 @@ public static partial class StandardLibrary
 
             if (!stepCandidate.TryGetObject<IJsPropertyAccessor>(out var stepAccessor))
             {
-                RejectWithCloseJsValue(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync iterator result is not an object", null, realm)));
+                RejectWithCloseJsValue(
+                    JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync iterator result is not an object", null,
+                        realm)));
                 return false;
             }
 
@@ -513,7 +525,9 @@ public static partial class StandardLibrary
 
             if (_index >= MaxConcreteArrayLength)
             {
-                RejectWithCloseJsValue(JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm)));
+                RejectWithCloseJsValue(
+                    JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null,
+                        realm)));
                 return false;
             }
 

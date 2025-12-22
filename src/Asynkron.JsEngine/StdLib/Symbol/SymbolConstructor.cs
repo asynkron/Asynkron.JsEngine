@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -47,7 +51,9 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     {
         Realm.SymbolPrototype ??= Prototype as JsObject;
 
-        constructor.SetInvokeWithContext((args, _, _, newTarget) => newTarget.IsUndefined ? CreateSymbolValue(args) : throw ThrowTypeError("Symbol is not a constructor", realm: Realm));
+        constructor.SetInvokeWithContext((args, _, _, newTarget) => newTarget.IsUndefined
+            ? CreateSymbolValue(args)
+            : throw ThrowTypeError("Symbol is not a constructor", realm: Realm));
 
         // Static methods are now registered via code generation from [JsConstructorMethod] attributes
         AttachWellKnownSymbols(constructor);

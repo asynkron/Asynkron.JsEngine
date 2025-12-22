@@ -1,9 +1,13 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ObjectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -210,6 +214,7 @@ public sealed partial class ObjectPrototype
             {
                 error = new InvalidOperationException("Object.prototype.isPrototypeOf called on null or undefined");
             }
+
             throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
         }
 
@@ -269,7 +274,6 @@ public sealed partial class ObjectPrototype
 
             prototype = protoFromProp;
             return true;
-
         }
     }
 
@@ -330,6 +334,7 @@ public sealed partial class ObjectPrototype
             {
                 return JsValue.Undefined;
             }
+
             protoToSet = protoAccessor;
         }
 

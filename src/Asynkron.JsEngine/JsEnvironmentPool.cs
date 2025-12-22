@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Parser;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 

@@ -1,7 +1,11 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Parser;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -140,7 +144,8 @@ internal static class GeneratorYieldLowerer
             return changed ? builder.ToImmutable() : statements;
         }
 
-        private bool TryRewriteClassExpressionUsage(StatementNode statement, out ImmutableArray<StatementNode> replacement)
+        private bool TryRewriteClassExpressionUsage(StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
         {
             replacement = default;
 
@@ -225,7 +230,8 @@ internal static class GeneratorYieldLowerer
             return false;
         }
 
-        private bool TryRewriteObjectLiteralUsage(StatementNode statement, out ImmutableArray<StatementNode> replacement)
+        private bool TryRewriteObjectLiteralUsage(StatementNode statement,
+            out ImmutableArray<StatementNode> replacement)
         {
             replacement = default;
 
@@ -416,7 +422,8 @@ internal static class GeneratorYieldLowerer
             if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
             {
                 var extendsChanged = false;
-                rewrittenExtends = RewriteExpressionForComplexYields(definition.Extends, prefixStatements, ref extendsChanged);
+                rewrittenExtends =
+                    RewriteExpressionForComplexYields(definition.Extends, prefixStatements, ref extendsChanged);
                 changed |= extendsChanged;
             }
 
@@ -427,7 +434,8 @@ internal static class GeneratorYieldLowerer
                     AstShapeAnalyzer.ContainsYield(member.ComputedName))
                 {
                     var memberChanged = false;
-                    var rewrittenName = RewriteExpressionForComplexYields(member.ComputedName, prefixStatements, ref memberChanged);
+                    var rewrittenName =
+                        RewriteExpressionForComplexYields(member.ComputedName, prefixStatements, ref memberChanged);
                     members[i] = member with { ComputedName = rewrittenName };
                     changed |= memberChanged;
                 }
@@ -440,7 +448,8 @@ internal static class GeneratorYieldLowerer
                     AstShapeAnalyzer.ContainsYield(field.ComputedName))
                 {
                     var fieldChanged = false;
-                    var rewrittenName = RewriteExpressionForComplexYields(field.ComputedName, prefixStatements, ref fieldChanged);
+                    var rewrittenName =
+                        RewriteExpressionForComplexYields(field.ComputedName, prefixStatements, ref fieldChanged);
                     fields[i] = field with { ComputedName = rewrittenName };
                     changed |= fieldChanged;
                 }
@@ -454,9 +463,7 @@ internal static class GeneratorYieldLowerer
 
             rewritten = definition with
             {
-                Extends = rewrittenExtends,
-                Members = members.ToImmutable(),
-                Fields = fields.ToImmutable()
+                Extends = rewrittenExtends, Members = members.ToImmutable(), Fields = fields.ToImmutable()
             };
             return true;
         }
@@ -525,8 +532,10 @@ internal static class GeneratorYieldLowerer
                 case BinaryExpression binaryExpression:
                 {
                     var left = RewriteExpressionForComplexYields(binaryExpression.Left, prefixStatements, ref changed);
-                    var right = RewriteExpressionForComplexYields(binaryExpression.Right, prefixStatements, ref changed);
-                    if (!ReferenceEquals(left, binaryExpression.Left) || !ReferenceEquals(right, binaryExpression.Right))
+                    var right = RewriteExpressionForComplexYields(binaryExpression.Right, prefixStatements,
+                        ref changed);
+                    if (!ReferenceEquals(left, binaryExpression.Left) ||
+                        !ReferenceEquals(right, binaryExpression.Right))
                     {
                         return binaryExpression with { Left = left, Right = right };
                     }
@@ -607,10 +616,7 @@ internal static class GeneratorYieldLowerer
                         !ReferenceEquals(index, indexAssignmentExpression.Index) ||
                         !ReferenceEquals(value, indexAssignmentExpression.Value))
                     {
-                        return indexAssignmentExpression with
-                        {
-                            Target = target, Index = index, Value = value
-                        };
+                        return indexAssignmentExpression with { Target = target, Index = index, Value = value };
                     }
 
                     return indexAssignmentExpression;
@@ -678,7 +684,8 @@ internal static class GeneratorYieldLowerer
 
                 case SequenceExpression sequenceExpression:
                 {
-                    var left = RewriteExpressionForComplexYields(sequenceExpression.Left, prefixStatements, ref changed);
+                    var left = RewriteExpressionForComplexYields(sequenceExpression.Left, prefixStatements,
+                        ref changed);
                     var right =
                         RewriteExpressionForComplexYields(sequenceExpression.Right, prefixStatements, ref changed);
                     if (!ReferenceEquals(left, sequenceExpression.Left) ||
@@ -917,7 +924,10 @@ internal static class GeneratorYieldLowerer
         private bool TryRewriteYieldingDeclaration(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
-            if (statement is not VariableDeclaration { Declarators: [{ Initializer: YieldExpression yieldExpression } declarator] } declaration)
+            if (statement is not VariableDeclaration
+                {
+                    Declarators: [{ Initializer: YieldExpression yieldExpression } declarator]
+                } declaration)
             {
                 replacement = default;
                 return false;
@@ -983,7 +993,10 @@ internal static class GeneratorYieldLowerer
 
             var declarator = declaration.Declarators[0];
             if (declarator.Target is not IdentifierBinding ||
-                declarator.Initializer is not BinaryExpression { Left: YieldExpression leftYield, Right: YieldExpression rightYield } binary)
+                declarator.Initializer is not BinaryExpression
+                {
+                    Left: YieldExpression leftYield, Right: YieldExpression rightYield
+                } binary)
             {
                 replacement = default;
                 return false;

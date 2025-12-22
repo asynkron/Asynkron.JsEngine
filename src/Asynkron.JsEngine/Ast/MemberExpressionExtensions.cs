@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -122,7 +126,7 @@ public static partial class TypedAstEvaluator
                 propertyName,
                 context,
                 context.CurrentScope.IsStrict,
-                allowPrivate: !expression.IsComputed);
+                !expression.IsComputed);
             var value = handle.GetJsValue();
             if (context.ShouldStopEvaluation)
             {

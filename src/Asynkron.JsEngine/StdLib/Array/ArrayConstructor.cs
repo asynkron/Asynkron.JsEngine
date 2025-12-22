@@ -1,3 +1,5 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -5,6 +7,8 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ArrayHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -17,7 +21,8 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     [JsConstructorMethod("isArray", Length = 1d)]
     public static JsValue IsArray(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        return new JsValue(ArrayIsArray(args.GetArgument(0), realm ?? throw new InvalidOperationException("Realm required")));
+        return new JsValue(ArrayIsArray(args.GetArgument(0),
+            realm ?? throw new InvalidOperationException("Realm required")));
     }
 
     [JsConstructorMethod("of", Length = 0d)]
@@ -27,7 +32,10 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     }
 
     [JsConstructorSymbolGetter("species")]
-    public static JsValue GetSpecies(JsValue thisValue) => thisValue;
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -53,6 +61,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             {
                 newTargetCallable = targetCtor;
             }
+
             var proto = ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
                         Prototype;
             var instanceRealm = ResolveInstanceRealm(proto, newTargetCallable);
@@ -120,17 +129,17 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             var lengthNumber = JsOps.ToNumber(args[0]);
             if (double.IsNaN(lengthNumber) || double.IsInfinity(lengthNumber) || lengthNumber < 0)
             {
-                throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
+                throw ThrowRangeError("Invalid array length", realm: Realm);
             }
 
             if (Math.Floor(lengthNumber) != lengthNumber)
             {
-                throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
+                throw ThrowRangeError("Invalid array length", realm: Realm);
             }
 
-            if (lengthNumber > ArrayHelper.MaxConcreteArrayLength)
+            if (lengthNumber > MaxConcreteArrayLength)
             {
-                throw StandardLibrary.ThrowRangeError("Invalid array length", realm: Realm);
+                throw ThrowRangeError("Invalid array length", realm: Realm);
             }
 
             array.SetProperty("length", lengthNumber);
@@ -140,7 +149,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         array.SetProperty("length", (double)args.Count);
         for (var i = 0; i < args.Count; i++)
         {
-            array.SetProperty(StandardLibrary.ToIndexString(i), args[i]);
+            array.SetProperty(ToIndexString(i), args[i]);
         }
     }
 
@@ -154,16 +163,13 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         HostFunction arrayFrom = null!;
         arrayFrom = new HostFunction((thisValue, args) =>
         {
-            var result = StandardLibrary.ArrayFrom(arrayFrom, thisValue, args, Realm);
+            var result = ArrayFrom(arrayFrom, thisValue, args, Realm);
             return JsValue.FromObjectUnsafe(result);
-        }, Realm, isConstructor: false);
-        StandardLibrary.AttachBuiltinMetadata(arrayFrom, "from", 1d);
+        }, Realm, false);
+        AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
         constructor.DefineProperty("from",
-            new PropertyDescriptor
-            {
-                Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true
-            });
+            new PropertyDescriptor { Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true });
     }
 
     private void AttachFromAsync(HostFunction constructor)
@@ -171,10 +177,10 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         HostFunction arrayFromAsync = null!;
         arrayFromAsync = new HostFunction((thisValue, args) =>
         {
-            var result = StandardLibrary.ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
+            var result = ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
             return JsValue.FromObjectUnsafe(result);
-        }, Realm, isConstructor: false);
-        StandardLibrary.AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
+        }, Realm, false);
+        AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");
         constructor.DefineProperty("fromAsync",
             new PropertyDescriptor

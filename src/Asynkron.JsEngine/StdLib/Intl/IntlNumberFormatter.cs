@@ -1,6 +1,10 @@
+#region
+
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -21,14 +25,14 @@ internal static class IntlNumberFormatter
         {
             var symbol = slots.Culture.NumberFormat.NaNSymbol;
             return IntlNumberFormatResult.FromParts(symbol,
-                [new("nan", symbol)]);
+                [new NumberFormatPart("nan", symbol)]);
         }
 
         if (double.IsPositiveInfinity(value))
         {
             var symbol = slots.Culture.NumberFormat.PositiveInfinitySymbol;
             return IntlNumberFormatResult.FromParts(symbol,
-                [new("infinity", symbol)]);
+                [new NumberFormatPart("infinity", symbol)]);
         }
 
         if (double.IsNegativeInfinity(value))
@@ -38,8 +42,8 @@ internal static class IntlNumberFormatter
             var formatted = slots.Culture.NumberFormat.NegativeInfinitySymbol;
             return IntlNumberFormatResult.FromParts(formatted,
             [
-                new("minusSign", minus),
-                new("infinity", infinity)
+                new NumberFormatPart("minusSign", minus),
+                new NumberFormatPart("infinity", infinity)
             ]);
         }
 
@@ -75,10 +79,10 @@ internal static class IntlNumberFormatter
 
         var result = slots.Notation switch
         {
-            "scientific" => FormatScientificNotation(quantity, slots, scientific: true),
-            "engineering" => FormatScientificNotation(quantity, slots, scientific: false),
+            "scientific" => FormatScientificNotation(quantity, slots, true),
+            "engineering" => FormatScientificNotation(quantity, slots, false),
             _ => IntlNumberFormatResult.FromLiteral(
-                FormatDecimal(quantity, slots, slots.UseGrouping, trimTrailingZeros: false).Formatted)
+                FormatDecimal(quantity, slots, slots.UseGrouping, false).Formatted)
         };
 
         if (wasNegative)
@@ -184,9 +188,7 @@ internal static class IntlNumberFormatter
         {
             var zeroParts = new List<NumberFormatPart>
             {
-                new("integer", "0"),
-                new("exponentSeparator", "E"),
-                new("exponentInteger", "0")
+                new("integer", "0"), new("exponentSeparator", "E"), new("exponentInteger", "0")
             };
             return IntlNumberFormatResult.FromParts("0E0", zeroParts);
         }
@@ -209,7 +211,7 @@ internal static class IntlNumberFormatter
         var intDigits = decimalPos - exponent;
         if (intDigits <= 0)
         {
-            var adjustment = (int)Math.Ceiling((-intDigits) / 3d);
+            var adjustment = (int)Math.Ceiling(-intDigits / 3d);
             exponent -= adjustment * 3;
             intDigits += adjustment * 3;
         }
@@ -226,15 +228,13 @@ internal static class IntlNumberFormatter
 
         var mantissaQuantity = new DecimalQuantity
         {
-            Coefficient = adjustedCoefficient,
-            Scale = adjustedScale,
-            IsNegative = false
+            Coefficient = adjustedCoefficient, Scale = adjustedScale, IsNegative = false
         };
 
         ApplyMaximumFractionDigits(mantissaQuantity, slots.MaximumFractionDigits);
 
-        var mantissa = FormatDecimal(mantissaQuantity, slots, useGrouping: false, trimTrailingZeros: true,
-            minimumIntegerOverride: Math.Max(1, intDigits));
+        var mantissa = FormatDecimal(mantissaQuantity, slots, false, true,
+            Math.Max(1, intDigits));
 
         var parts = new List<NumberFormatPart>();
         AppendMantissaParts(parts, mantissa);
@@ -306,7 +306,7 @@ internal static class IntlNumberFormatter
 
         var quotient = dividend / divisor;
         var remainder = dividend % divisor;
-        if ((remainder != 0) && ((remainder < 0) ^ (divisor < 0)))
+        if (remainder != 0 && (remainder < 0) ^ (divisor < 0))
         {
             quotient--;
         }
@@ -359,6 +359,7 @@ internal static class IntlNumberFormatter
             {
                 quantity.Scale = minDigits - 1;
             }
+
             return;
         }
 
@@ -548,6 +549,11 @@ internal static class IntlNumberFormatter
         return BigInteger.Pow(10, exponent);
     }
 
+    private static bool IsNegative(double value)
+    {
+        return BitConverter.DoubleToInt64Bits(value) < 0;
+    }
+
     private sealed class DecimalQuantity
     {
         public required BigInteger Coefficient { get; set; }
@@ -556,24 +562,14 @@ internal static class IntlNumberFormatter
 
         public static DecimalQuantity FromBigInteger(BigInteger value)
         {
-            return new DecimalQuantity
-            {
-                Coefficient = BigInteger.Abs(value),
-                Scale = 0,
-                IsNegative = value.Sign < 0
-            };
+            return new DecimalQuantity { Coefficient = BigInteger.Abs(value), Scale = 0, IsNegative = value.Sign < 0 };
         }
 
         public static DecimalQuantity FromDouble(double value)
         {
             if (value == 0d)
             {
-                return new DecimalQuantity
-                {
-                    Coefficient = BigInteger.Zero,
-                    Scale = 0,
-                    IsNegative = IsNegative(value)
-                };
+                return new DecimalQuantity { Coefficient = BigInteger.Zero, Scale = 0, IsNegative = IsNegative(value) };
             }
 
             var isNegative = IsNegative(value);
@@ -603,31 +599,19 @@ internal static class IntlNumberFormatter
             var coefficient = BigInteger.Parse(raw, CultureInfo.InvariantCulture);
             if (coefficient.IsZero)
             {
-                return new DecimalQuantity
-                {
-                    Coefficient = BigInteger.Zero,
-                    Scale = 0,
-                    IsNegative = false
-                };
+                return new DecimalQuantity { Coefficient = BigInteger.Zero, Scale = 0, IsNegative = false };
             }
 
             var exponentAdjustment = exponent - fractionLength;
             if (exponentAdjustment >= 0)
             {
                 coefficient *= Pow10(exponentAdjustment);
-                return new DecimalQuantity
-                {
-                    Coefficient = coefficient,
-                    Scale = 0,
-                    IsNegative = isNegative
-                };
+                return new DecimalQuantity { Coefficient = coefficient, Scale = 0, IsNegative = isNegative };
             }
 
             return new DecimalQuantity
             {
-                Coefficient = coefficient,
-                Scale = -exponentAdjustment,
-                IsNegative = isNegative
+                Coefficient = coefficient, Scale = -exponentAdjustment, IsNegative = isNegative
             };
         }
 
@@ -635,12 +619,7 @@ internal static class IntlNumberFormatter
         {
             if (value == 0m)
             {
-                return new DecimalQuantity
-                {
-                    Coefficient = BigInteger.Zero,
-                    Scale = 0,
-                    IsNegative = false
-                };
+                return new DecimalQuantity { Coefficient = BigInteger.Zero, Scale = 0, IsNegative = false };
             }
 
             var bits = decimal.GetBits(decimal.Abs(value));
@@ -651,18 +630,8 @@ internal static class IntlNumberFormatter
             var low = (uint)bits[0];
             var coefficient = ((BigInteger)high << 64) | ((BigInteger)mid << 32) | low;
 
-            return new DecimalQuantity
-            {
-                Coefficient = coefficient,
-                Scale = scale,
-                IsNegative = isNegative
-            };
+            return new DecimalQuantity { Coefficient = coefficient, Scale = scale, IsNegative = isNegative };
         }
-    }
-
-    private static bool IsNegative(double value)
-    {
-        return BitConverter.DoubleToInt64Bits(value) < 0;
     }
 
     private sealed class DecimalFormatResult

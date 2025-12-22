@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -16,6 +20,7 @@ internal static class ClassMemberEmitter
             {
                 throw StandardLibrary.ThrowTypeError("Cannot redefine constructor prototype via static member");
             }
+
             if (member.Kind == ClassMemberKind.Method)
             {
                 member.DefineMethod(propertyName, callable, constructorAccessor, prototype);

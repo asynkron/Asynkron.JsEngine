@@ -1,3 +1,5 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -8,11 +10,18 @@ using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using static Asynkron.JsEngine.StdLib.SymbolHelper;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Object", PrototypeType = typeof(ObjectPrototype), Length = 1d, DisplayName = "Object")]
-public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Object constructor not initialized");
     // Static methods registered via code generation
 
     [JsConstructorMethod("keys", Length = 1d)]
@@ -594,7 +603,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.FromObjectUnsafe(symbols);
         }
 
-        foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+        foreach (var key in obj.GetOwnPropertyKeysInOrder(true, true))
         {
             if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
             {
@@ -604,8 +613,6 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         return JsValue.FromObjectUnsafe(symbols);
     }
-
-    private HostFunction? _constructor;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -631,6 +638,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             {
                 return JsValue.FromObjectUnsafe(ConstructCore(args, newTargetCallable, null));
             }
+
             return JsValue.FromObjectUnsafe(ConstructCore(args, target, null));
         });
 
@@ -652,22 +660,27 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             return CreateSymbolWrapper(typedSym, realm: Realm);
         }
+
         if (value.TryGetBigInt(out var bigInt))
         {
             return CreateBigIntWrapper(bigInt, realm: Realm);
         }
+
         if (value.TryGetBoolean(out var boolValue))
         {
             return BooleanHelper.CreateBooleanWrapper(boolValue, realm: Realm);
         }
+
         if (value.TryGetString(out var strValue))
         {
             return StringHelper.CreateStringWrapper(strValue, realm: Realm);
         }
+
         if (value.TryGetDouble(out var numValue))
         {
             return NumberHelper.CreateNumberWrapper(numValue, realm: Realm);
         }
+
         if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return accessor;
@@ -679,7 +692,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     private JsObject CreateBlank(IJsCallable newTarget, JsObject? existing)
     {
         var targetCtor = _constructor ?? newTarget;
-        var obj = existing ?? PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var obj = existing ?? PrepareThisObject(JsValue.Undefined, false);
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         if (obj.Prototype is null)
         {
@@ -708,7 +721,4 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             constructor.SetProperty("hasOwnProperty", hasOwn);
         }
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Object constructor not initialized");
 }

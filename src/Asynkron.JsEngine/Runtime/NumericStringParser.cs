@@ -1,5 +1,9 @@
+#region
+
 using System.Globalization;
 using System.Numerics;
+
+#endregion
 
 namespace Asynkron.JsEngine.Runtime;
 
@@ -30,7 +34,8 @@ internal static class NumericStringParser
             return double.NaN;
         }
 
-        if (string.Equals(trimmed, "Infinity", StringComparison.Ordinal) || string.Equals(trimmed, "+Infinity", StringComparison.Ordinal))
+        if (string.Equals(trimmed, "Infinity", StringComparison.Ordinal) ||
+            string.Equals(trimmed, "+Infinity", StringComparison.Ordinal))
         {
             return double.PositiveInfinity;
         }

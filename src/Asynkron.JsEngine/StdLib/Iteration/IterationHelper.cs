@@ -1,9 +1,13 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using static Asynkron.JsEngine.StdLib.PromiseHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using JsEngineInstance = Asynkron.JsEngine.JsEngine;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -69,7 +73,8 @@ public static class IterationHelper
             static bool TryInvokeSymbolIterator(JsObject target, TypedAstSymbol symbol, out JsObject? iterator)
             {
                 var propertyName = TypedAstSymbol.PropertyKey(symbol);
-                if (target.TryGetProperty(propertyName, out var method) && method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
+                if (target.TryGetProperty(propertyName, out var method) &&
+                    method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
                 {
                     var result = callable.Invoke([], new JsValue(target));
                     if (result.TryGetObject(out var iteratorObj) && iteratorObj is not null)
@@ -87,7 +92,7 @@ public static class IterationHelper
             {
                 var iteratorObj = new JsObject();
                 var index = 0;
-                var nextFunc = new HostFunction((_) =>
+                var nextFunc = new HostFunction(_ =>
                 {
                     var result = new JsObject();
                     if (index < str.Length)
@@ -97,7 +102,8 @@ public static class IterationHelper
                         // Surrogate pairs should be returned as a single string.
                         var first = str[index];
                         string value;
-                        if (char.IsHighSurrogate(first) && index + 1 < str.Length && char.IsLowSurrogate(str[index + 1]))
+                        if (char.IsHighSurrogate(first) && index + 1 < str.Length &&
+                            char.IsLowSurrogate(str[index + 1]))
                         {
                             // High surrogate followed by low surrogate - return both as single string
                             value = str.Substring(index, 2);
@@ -145,6 +151,7 @@ public static class IterationHelper
                         {
                             value = JsValue.Undefined;
                         }
+
                         result.SetProperty("value", value);
                         result.SetProperty("done", false);
                         index++;
@@ -186,7 +193,8 @@ public static class IterationHelper
             }
 
             // Call iterator.next()
-            if (!iterator.TryGetProperty("next", out var nextMethod) || !nextMethod.TryGetObject<IJsCallable>(out var nextCallable) || nextCallable is null)
+            if (!iterator.TryGetProperty("next", out var nextMethod) ||
+                !nextMethod.TryGetObject<IJsCallable>(out var nextCallable) || nextCallable is null)
             {
                 throw new InvalidOperationException("Iterator must have a 'next' method");
             }

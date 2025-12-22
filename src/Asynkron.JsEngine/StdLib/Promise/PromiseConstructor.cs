@@ -1,3 +1,5 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -5,12 +7,18 @@ using static Asynkron.JsEngine.StdLib.PromiseHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Promise", PrototypeType = typeof(PromisePrototype), Length = 1d, DisplayName = "Promise")]
-public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Promise constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -46,7 +54,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private object ConstructPromise(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         IJsCallable? executor = null;
-        if (args.Count > 0 && args[0].TryGetCallable(out executor) == false)
+        if (args.Count > 0 && !args[0].TryGetCallable(out executor))
         {
             executor = null;
         }
@@ -63,17 +71,17 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             promise.Resolve(resolveArgs.GetArgument(0));
             return JsValue.Undefined;
-        }, Realm, isConstructor: false);
+        }, Realm, false);
 
         var reject = new HostFunction((_, rejectArgs) =>
         {
             promise.Reject(rejectArgs.GetArgument(0));
             return JsValue.Undefined;
-        }, Realm, isConstructor: false);
+        }, Realm, false);
 
         try
         {
-            var executorArgs = new JsValue[] { (JsValue)resolve, (JsValue)reject };
+            var executorArgs = new[] { (JsValue)resolve, (JsValue)reject };
             executor.Invoke(executorArgs, JsValue.Undefined);
         }
         catch (Exception ex)
@@ -148,7 +156,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             if (rawItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod.TryGetCallable(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { (JsValue)CreateAllResolve(i), (JsValue)CreateAllReject() };
+                var thenArgs = new[] { (JsValue)CreateAllResolve(i), (JsValue)CreateAllReject() };
                 thenCallable.Invoke(thenArgs, rawItem);
             }
             else
@@ -166,7 +174,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateAllResolve(int index)
         {
-            return new HostFunction(Resolve, Realm, isConstructor: false);
+            return new HostFunction(Resolve, Realm, false);
 
             JsValue Resolve(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
@@ -183,7 +191,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateAllReject()
         {
-            return new HostFunction(Reject, Realm, isConstructor: false);
+            return new HostFunction(Reject, Realm, false);
 
             JsValue Reject(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
@@ -210,7 +218,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
                 thenMethod.TryGetCallable(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { (JsValue)CreateRaceResolve(), (JsValue)CreateRaceReject() };
+                var thenArgs = new[] { (JsValue)CreateRaceResolve(), (JsValue)CreateRaceReject() };
                 thenCallable.Invoke(thenArgs, item);
             }
             else if (!settled)
@@ -224,7 +232,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateRaceResolve()
         {
-            return new HostFunction(Resolve, Realm, isConstructor: false);
+            return new HostFunction(Resolve, Realm, false);
 
             JsValue Resolve(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
@@ -242,7 +250,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateRaceReject()
         {
-            return new HostFunction(Reject, Realm, isConstructor: false);
+            return new HostFunction(Reject, Realm, false);
 
             JsValue Reject(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
@@ -283,12 +291,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 // thenMethod is already JsValue from TryGetProperty
                 thenMethod.TryGetCallable(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { (JsValue)CreateResolve(i), (JsValue)CreateReject(i) };
+                var thenArgs = new[] { (JsValue)CreateResolve(i), (JsValue)CreateReject(i) };
                 thenCallable.Invoke(thenArgs, item);
             }
             else
             {
-                Resolve(i, item, isRejected: false);
+                Resolve(i, item, false);
             }
         }
 
@@ -296,22 +304,22 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateResolve(int index)
         {
-            return new HostFunction(ResolveWrapper, Realm, isConstructor: false);
+            return new HostFunction(ResolveWrapper, Realm, false);
 
             JsValue ResolveWrapper(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
-                Resolve(index, resolveArgs.GetArgument(0), isRejected: false);
+                Resolve(index, resolveArgs.GetArgument(0), false);
                 return JsValue.Undefined;
             }
         }
 
         HostFunction CreateReject(int index)
         {
-            return new HostFunction(RejectWrapper, Realm, isConstructor: false);
+            return new HostFunction(RejectWrapper, Realm, false);
 
             JsValue RejectWrapper(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
-                Resolve(index, rejectArgs.GetArgument(0), isRejected: true);
+                Resolve(index, rejectArgs.GetArgument(0), true);
                 return JsValue.Undefined;
             }
         }
@@ -369,7 +377,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 // thenMethod is already JsValue from TryGetProperty
                 thenMethod.TryGetCallable(out var thenCallable))
             {
-                var thenArgs = new JsValue[] { (JsValue)CreateResolve(), (JsValue)CreateReject() };
+                var thenArgs = new[] { (JsValue)CreateResolve(), (JsValue)CreateReject() };
                 thenCallable.Invoke(thenArgs, item);
             }
             else
@@ -382,7 +390,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateResolve()
         {
-            return new HostFunction(ResolveWrapper, Realm, isConstructor: false);
+            return new HostFunction(ResolveWrapper, Realm, false);
 
             JsValue ResolveWrapper(JsValue __, IReadOnlyList<JsValue> resolveArgs)
             {
@@ -393,7 +401,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         HostFunction CreateReject()
         {
-            return new HostFunction(RejectWrapper, Realm, isConstructor: false);
+            return new HostFunction(RejectWrapper, Realm, false);
 
             JsValue RejectWrapper(JsValue __, IReadOnlyList<JsValue> rejectArgs)
             {
@@ -437,7 +445,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                var args = new JsValue[] { JsValue.FromObjectUnsafe(rejectionErrors), new JsValue("All promises were rejected") };
+                var args = new[]
+                {
+                    JsValue.FromObjectUnsafe(rejectionErrors), new JsValue("All promises were rejected")
+                };
                 var result = callable.Invoke(args, JsValue.Undefined);
                 return result.IsNullish ? rejectionErrors : (object?)result.AsObject() ?? rejectionErrors;
             }
@@ -449,7 +460,4 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         return rejectionErrors;
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Promise constructor not initialized");
 }

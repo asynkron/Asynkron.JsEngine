@@ -1,9 +1,13 @@
+#region
+
 using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -19,10 +23,16 @@ internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
     public bool IsValid => Environment is not null && SlotIndex >= 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public JsValue Read() => Environment.GetSlotRef(SlotIndex);
+    public JsValue Read()
+    {
+        return Environment.GetSlotRef(SlotIndex);
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Write(JsValue value) => Environment.GetSlotRef(SlotIndex) = value;
+    public void Write(JsValue value)
+    {
+        Environment.GetSlotRef(SlotIndex) = value;
+    }
 }
 
 /// <summary>
@@ -30,10 +40,10 @@ internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
 /// </summary>
 internal enum FastLoopComparison
 {
-    LessThan,           // i < limit (ascending)
-    LessThanOrEqual,    // i <= limit (ascending)
-    GreaterThan,        // i > limit (descending)
-    GreaterThanOrEqual  // i >= limit (descending)
+    LessThan, // i < limit (ascending)
+    LessThanOrEqual, // i <= limit (ascending)
+    GreaterThan, // i > limit (descending)
+    GreaterThanOrEqual // i >= limit (descending)
 }
 
 /// <summary>
@@ -41,9 +51,9 @@ internal enum FastLoopComparison
 /// </summary>
 internal enum FastLoopOperation
 {
-    Add,      // s += i
+    Add, // s += i
     Subtract, // s -= i
-    Multiply  // s *= i
+    Multiply // s *= i
 }
 
 public static partial class TypedAstEvaluator
@@ -113,7 +123,8 @@ public static partial class TypedAstEvaluator
                 {
                     if (plan.PerIterationBindings.IsDefaultOrEmpty)
                     {
-                        logger.LogInformation("Loop iteration {Iteration}: (no per-iteration bindings)", iterationIndex);
+                        logger.LogInformation("Loop iteration {Iteration}: (no per-iteration bindings)",
+                            iterationIndex);
                     }
                     else
                     {
@@ -132,7 +143,7 @@ public static partial class TypedAstEvaluator
                             iterationIndex,
                             string.Join(", ", parts.AsSpan(0, partCount).ToArray()));
 
-                        ArrayPool<string>.Shared.Return(parts, clearArray: true);
+                        ArrayPool<string>.Shared.Return(parts, true);
                     }
                 }
 
@@ -262,16 +273,16 @@ public static partial class TypedAstEvaluator
             var newIterationEnvironment = plan.AllowIterationEnvironmentPooling
                 ? JsEnvironmentPool.Rent(
                     outerEnvironment,
-                    isFunctionScope: false,
-                    isStrict: false,
-                    creatingSource: null,
-                    description: "for-iteration")
+                    false,
+                    false,
+                    null,
+                    "for-iteration")
                 : new JsEnvironment(
                     outerEnvironment,
-                    isFunctionScope: false,
-                    isStrict: false,
-                    creatingSource: null,
-                    description: "for-iteration");
+                    false,
+                    false,
+                    null,
+                    "for-iteration");
 
             if (iterationSlotCount >= 0)
             {
@@ -304,11 +315,12 @@ public static partial class TypedAstEvaluator
                         currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                               StringComparison.Ordinal))
+                                                                   StringComparison.Ordinal))
                     {
-                        JsValue errorValue = new JsValue(ex.Message);
+                        var errorValue = new JsValue(ex.Message);
 
-                        if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
+                        if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier,
+                                out var callable))
                         {
                             try
                             {
@@ -330,13 +342,10 @@ public static partial class TypedAstEvaluator
                 newIterationEnvironment.DefineJsValue(
                     bindingName,
                     currentValue,
-                    isConst: isConstBinding,
-                    isGlobalConstant: false,
-                    isLexical: true,
-                    blocksFunctionScopeOverride: false,
-                    canDelete: false);
+                    isConstBinding);
 
-                if (iterationSlotCount >= 0 && newIterationEnvironment.ScopeId == iterationScopeId && !iterationSlotIndices.IsDefaultOrEmpty)
+                if (iterationSlotCount >= 0 && newIterationEnvironment.ScopeId == iterationScopeId &&
+                    !iterationSlotIndices.IsDefaultOrEmpty)
                 {
                     var targetSlot = sourceSlotIndex;
                     if (targetSlot >= 0 && newIterationEnvironment.HasSlots)
@@ -404,11 +413,12 @@ public static partial class TypedAstEvaluator
                             currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                         }
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                                   StringComparison.Ordinal))
+                                                                       StringComparison.Ordinal))
                         {
-                            JsValue errorValue = new JsValue(ex.Message);
+                            var errorValue = new JsValue(ex.Message);
 
-                            if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
+                            if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier,
+                                    out var callable))
                             {
                                 try
                                 {
@@ -433,12 +443,10 @@ public static partial class TypedAstEvaluator
                 // but keep the enclosing/scope metadata intact.
                 currentIterationEnvironment.Reset(
                     outerEnvironment,
-                    isFunctionScope: false,
-                    isStrict: false,
-                    creatingSource: null,
-                    description: "for-iteration",
-                    isParameterEnvironment: false,
-                    isBodyEnvironment: false);
+                    false,
+                    false,
+                    null,
+                    "for-iteration");
 
                 if (plan.IterationSlotCount >= 0)
                 {
@@ -461,11 +469,7 @@ public static partial class TypedAstEvaluator
                     currentIterationEnvironment.DefineJsValue(
                         bindingName,
                         valueSpan[i],
-                        isConst: constFlagSpan[i],
-                        isGlobalConstant: false,
-                        isLexical: true,
-                        blocksFunctionScopeOverride: false,
-                        canDelete: false);
+                        constFlagSpan[i]);
 
                     if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
                         !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
@@ -477,11 +481,11 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                ArrayPool<JsValue>.Shared.Return(rentedValues, clearArray: true);
+                ArrayPool<JsValue>.Shared.Return(rentedValues, true);
 
                 if (rentedConstFlags is not null)
                 {
-                    ArrayPool<bool>.Shared.Return(rentedConstFlags, clearArray: true);
+                    ArrayPool<bool>.Shared.Return(rentedConstFlags, true);
                 }
 
                 return currentIterationEnvironment;
@@ -542,6 +546,7 @@ public static partial class TypedAstEvaluator
                 {
                     _ = statement.EvaluateStatementJsValue(environment, context);
                 }
+
                 if (context.ShouldStopEvaluation)
                 {
                     return false;
@@ -558,7 +563,9 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            if (LoopPlan.StatementsContainDynamicScope(plan.LeadingStatements) || LoopPlan.StatementsContainDynamicScope(plan.ConditionPrologue) || LoopPlan.StatementsContainDynamicScope(plan.PostIteration))
+            if (LoopPlan.StatementsContainDynamicScope(plan.LeadingStatements) ||
+                LoopPlan.StatementsContainDynamicScope(plan.ConditionPrologue) ||
+                LoopPlan.StatementsContainDynamicScope(plan.PostIteration))
             {
                 return true;
             }
@@ -645,7 +652,11 @@ public static partial class TypedAstEvaluator
             }
 
             // Pattern: identifier <op> literal
-            if (condBinary is { Left: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } leftId, Right: LiteralExpression { Value.IsNumber: true } rightLit })
+            if (condBinary is
+                {
+                    Left: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } leftId,
+                    Right: LiteralExpression { Value.IsNumber: true } rightLit
+                })
             {
                 loopVarId = leftId;
                 limit = rightLit.Value.NumberValue;
@@ -661,7 +672,11 @@ public static partial class TypedAstEvaluator
             }
 
             // Pattern: literal <op> identifier (reversed)
-            if (condBinary is { Right: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } rightId, Left: LiteralExpression { Value.IsNumber: true } leftLit })
+            if (condBinary is
+                {
+                    Right: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } rightId,
+                    Left: LiteralExpression { Value.IsNumber: true } leftLit
+                })
             {
                 loopVarId = rightId;
                 limit = leftLit.Value.NumberValue;
@@ -723,12 +738,14 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
+            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId,
+                    out var accumSlotIndex, out var operation))
             {
                 return false;
             }
 
-            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId,
+                accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>
@@ -763,7 +780,8 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId, out var accumSlotIndex, out var operation))
+            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId,
+                    out var accumSlotIndex, out var operation))
             {
                 return false;
             }
@@ -789,7 +807,8 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId,
+                accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>
@@ -913,7 +932,6 @@ public static partial class TypedAstEvaluator
                     accumRef = new JsValue(newAccum);
                     lastValue = accumRef;
                     loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
-
                 } while (LoopPlan.CheckCondition(loopVarRef.NumberValue, limit, comparison));
             }
             else

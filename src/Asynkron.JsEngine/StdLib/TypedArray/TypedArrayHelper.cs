@@ -1,10 +1,14 @@
+#region
+
 using System.Globalization;
-using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -36,12 +40,14 @@ public static class TypedArrayHelper
         var prototype = new JsObject();
 
         HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)))
+        constructor = new HostFunction((thisValue, args) =>
+            JsValue.FromObjectUnsafe(ConstructTypedArray(args, thisValue.IsNullish ? (JsValue)constructor : thisValue)))
         {
             RealmState = realm
         };
-        constructor.SetInvokeWithContext(
-            (args, _, _, newTarget) => JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget.IsNullish ? (JsValue)constructor : newTarget)));
+        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+            JsValue.FromObjectUnsafe(ConstructTypedArray(args,
+                newTarget.IsNullish ? (JsValue)constructor : newTarget)));
 
         constructor.SetProperty("BYTES_PER_ELEMENT", JsValue.FromNumber((double)bytesPerElement));
         prototype.SetPrototype(realm.ObjectPrototype);
@@ -50,10 +56,7 @@ public static class TypedArrayHelper
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {
-                Value = constructorName,
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
+                Value = constructorName, Writable = false, Enumerable = false, Configurable = true
             });
         constructor.DefineProperty("name",
             new PropertyDescriptor
@@ -63,7 +66,9 @@ public static class TypedArrayHelper
         constructor.DefineProperty("of",
             new PropertyDescriptor
             {
-                Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayOf(thisValue, args)), isConstructor: false),
+                Value = new HostFunction(
+                    (thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayOf(thisValue, args)),
+                    isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -71,7 +76,9 @@ public static class TypedArrayHelper
         constructor.DefineProperty("from",
             new PropertyDescriptor
             {
-                Value = new HostFunction((thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayFrom(thisValue, args)), isConstructor: false),
+                Value = new HostFunction(
+                    (thisValue, args) => JsValue.FromObjectUnsafe(TypedArrayFrom(thisValue, args)),
+                    isConstructor: false),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -177,7 +184,8 @@ public static class TypedArrayHelper
                     srcTypedArray.IsLengthTracking,
                     srcTypedArray.Buffer.Resizable);
                 var ta = CreateTargetFromLength(length, newTarget);
-                realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}", ta.Length,
+                realm.Logger?.LogInformation("TypedArray ctor target length={Length} newTarget={NewTargetType}",
+                    ta.Length,
                     newTarget.GetType().Name);
                 if (length == 0)
                 {
@@ -201,6 +209,7 @@ public static class TypedArrayHelper
                     {
                         realm.Logger?.LogInformation("TypedArray ctor copy [{Index}]={Value}", i, value);
                     }
+
                     ta.SetValue(i, value);
                 }
 
@@ -264,7 +273,8 @@ public static class TypedArrayHelper
                 {
                     if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
                     {
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("mapfn is not callable", callingEnv)));
+                        throw new ThrowSignal(
+                            JsValue.FromObjectUnsafe(WrapTypeError("mapfn is not callable", callingEnv)));
                     }
 
                     mapFn = callableMap;
@@ -309,19 +319,23 @@ public static class TypedArrayHelper
             {
                 if (!methodVal.TryGetObject<IJsCallable>(out var callableIterator))
                 {
-                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator method is not callable", callingEnv)));
+                    throw new ThrowSignal(
+                        JsValue.FromObjectUnsafe(WrapTypeError("Iterator method is not callable", callingEnv)));
                 }
 
                 var iteratorObj = callableIterator.Invoke([], source);
                 if (!iteratorObj.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
                 {
-                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator method did not return an object", callingEnv)));
+                    throw new ThrowSignal(
+                        JsValue.FromObjectUnsafe(WrapTypeError("Iterator method did not return an object",
+                            callingEnv)));
                 }
 
                 if (!iteratorAccessor.TryGetProperty("next", out var nextVal) ||
                     !nextVal.TryGetObject<IJsCallable>(out var nextCallable))
                 {
-                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result does not expose next", callingEnv)));
+                    throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result does not expose next",
+                        callingEnv)));
                 }
 
                 var collected = new List<JsValue>();
@@ -330,7 +344,8 @@ public static class TypedArrayHelper
                     var nextResult = nextCallable.Invoke([], iteratorObj);
                     if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var nextResultAccessor))
                     {
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result is not an object", callingEnv)));
+                        throw new ThrowSignal(JsValue.FromObjectUnsafe(WrapTypeError("Iterator result is not an object",
+                            callingEnv)));
                     }
 
                     var done = nextResultAccessor.TryGetProperty("done", out var doneVal) &&

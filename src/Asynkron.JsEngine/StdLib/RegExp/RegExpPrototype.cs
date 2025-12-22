@@ -1,3 +1,5 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -5,6 +7,8 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.RegExpHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -267,7 +271,9 @@ public sealed partial class RegExpPrototype : JsPrototype
 
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) : string.Empty;
         var limitValue = args.GetArgument(1);
-        var forcedFlags = resolved.Flags.Contains('g', StringComparison.Ordinal) ? resolved.Flags : resolved.Flags + "g";
+        var forcedFlags = resolved.Flags.Contains('g', StringComparison.Ordinal)
+            ? resolved.Flags
+            : resolved.Flags + "g";
         var splitter = new JsRegExp(resolved.Pattern, forcedFlags, Realm);
         splitter.SetProperty("lastIndex", 0d);
 

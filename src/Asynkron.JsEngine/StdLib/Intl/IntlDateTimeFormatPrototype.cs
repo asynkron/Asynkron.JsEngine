@@ -1,7 +1,11 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -95,7 +99,6 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         instance = obj;
         return slots;
-
     }
 
     private static JsObject CreateRangePart(string type, string value)
@@ -108,27 +111,17 @@ public sealed partial class IntlDateTimeFormatPrototype
 
     private HostFunction CreateBoundFormatFunction(Func<JsValue, JsValue> formatter)
     {
-        var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
+        var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, false);
         DefineFormatFunctionMetadata(function);
         return function;
     }
 
     private static void DefineFormatFunctionMetadata(HostFunction function)
     {
-        function.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = 1d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        function.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = string.Empty,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        function.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        function.DefineProperty("name",
+            new PropertyDescriptor { Value = string.Empty, Writable = false, Enumerable = false, Configurable = true });
     }
 
     private static JsValue FormatInternal(JsValue value, DateTimeFormatInternalSlots slots)
@@ -176,5 +169,4 @@ public sealed partial class IntlDateTimeFormatPrototype
             return double.NaN;
         }
     }
-
 }

@@ -1,9 +1,13 @@
+#region
+
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -166,7 +170,11 @@ public static partial class NumberHelper
     private static string FormatExponentialForJs(string netExponential)
     {
         var eIndex = netExponential.IndexOf('e', StringComparison.Ordinal);
-        if (eIndex < 0) return netExponential;
+        if (eIndex < 0)
+        {
+            return netExponential;
+        }
+
         var mantissa = netExponential[..(eIndex + 1)];
         var exponent = netExponential[(eIndex + 1)..];
         var sign = "";
@@ -177,7 +185,11 @@ public static partial class NumberHelper
         }
 
         exponent = exponent.TrimStart('0');
-        if (exponent.Length == 0) exponent = "0";
+        if (exponent.Length == 0)
+        {
+            exponent = "0";
+        }
+
         return mantissa + sign + exponent;
     }
 
@@ -306,7 +318,8 @@ public static partial class NumberHelper
         }
 
         // BigInt and Symbol are not valid indices
-        if (numeric.Kind == JsValueKind.BigInt || numeric.TryGetObject<Symbol>(out _) || numeric.TryGetObject<TypedAstSymbol>(out _))
+        if (numeric.Kind == JsValueKind.BigInt || numeric.TryGetObject<Symbol>(out _) ||
+            numeric.TryGetObject<TypedAstSymbol>(out _))
         {
             throw ThrowTypeError("Index must be a non-negative integer", context, realm);
         }
@@ -315,7 +328,8 @@ public static partial class NumberHelper
         return ToIndexFromNumber(numberValue, MaxLength, context, realm);
     }
 
-    private static int ToIndexFromNumber(double numberValue, double maxLength, EvaluationContext? context, RealmState? realm)
+    private static int ToIndexFromNumber(double numberValue, double maxLength, EvaluationContext? context,
+        RealmState? realm)
     {
         var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
             ? 0d
@@ -394,6 +408,7 @@ public static partial class NumberHelper
         return NumberConstructor.CreateConstructor(realm);
     }
 
-    [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?",RegexOptions.Compiled | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 5000)]
+    [GeneratedRegex(@"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?", RegexOptions.Compiled | RegexOptions.ExplicitCapture,
+        5000)]
     internal static partial Regex FloatRegex();
 }

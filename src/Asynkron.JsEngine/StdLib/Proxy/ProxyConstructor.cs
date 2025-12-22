@@ -1,13 +1,18 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Proxy", PrototypeType = typeof(ProxyPrototype), Length = 2d, DisplayName = "Proxy")]
-public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -32,17 +37,18 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
             });
 
         // Marker to make class heritage resolution reject Proxy as a base.
-        constructor.DefineProperty("__proxyHasNoPrototype__", new PropertyDescriptor
-        {
-            Value = true,
-            Writable = false,
-            Enumerable = false,
-            Configurable = false,
-            HasValue = true,
-            HasWritable = true,
-            HasEnumerable = true,
-            HasConfigurable = true
-        });
+        constructor.DefineProperty("__proxyHasNoPrototype__",
+            new PropertyDescriptor
+            {
+                Value = true,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = true,
+                HasConfigurable = true
+            });
     }
 
     [JsConstructorMethod("revocable", Length = 2d)]

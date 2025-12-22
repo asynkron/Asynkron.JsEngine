@@ -1,19 +1,26 @@
+#region
+
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal static class IntlUtilities
 {
+    private const long MaxArrayLikeLength = 9007199254740991L;
+
     private static readonly string[] CalendarValues =
     [
         "buddhist", "chinese", "coptic", "dangi", "ethioaa", "ethiopic", "gregory", "hebrew", "indian",
         "islamic", "islamic-civil", "islamic-rgsa", "islamic-tbla", "islamic-umalqura", "iso8601", "japanese",
         "persian", "roc"
     ];
+
     private static readonly HashSet<string> CalendarSet = new(CalendarValues, StringComparer.Ordinal);
     private static readonly Lazy<string[]> CurrencyValues = new(BuildSupportedCurrencies);
 
@@ -29,6 +36,7 @@ internal static class IntlUtilities
         "segment", "shrd", "sind", "sinh", "sora", "sund", "sunu", "takr", "talu", "taml", "tamldec", "tnsa",
         "telu", "thai", "tirh", "tibt", "traditio", "vaii", "wara", "wcho"
     ];
+
     private static readonly HashSet<string> NumberingSystemSet = new(NumberingSystemValues, StringComparer.Ordinal);
 
     private static readonly string[] UnitValues =
@@ -39,21 +47,38 @@ internal static class IntlUtilities
         "milliliter", "millimeter", "millisecond", "minute", "month", "nanosecond", "ounce", "percent",
         "petabyte", "pound", "second", "stone", "terabit", "terabyte", "week", "yard", "year"
     ];
+
     private static readonly HashSet<string> UnitSet = new(UnitValues, StringComparer.Ordinal);
     private static readonly string[] EmptyValues = [];
+
     private static readonly Lazy<HashSet<string>> CurrencySet =
         new(() => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
+
     private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
     private static readonly RealmState CanonicalizationRealm = new() { Options = JsEngineOptions.Default };
     private static readonly Lazy<HashSet<string>> AvailableLocales = new(BuildAvailableLocales);
     private static readonly Lazy<string> DefaultLocale = new(DetermineDefaultLocale);
 
+    private static readonly Regex LanguageTagRegex = new(
+        @"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex DuplicateSingletonRegex = new(
+        @"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex DuplicateVariantRegex = new(
+        @"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex TransformKeyRegex = new(
+        @"^[a-z][0-9]$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     static IntlUtilities()
     {
         Array.Sort(NumberingSystemValues, StringComparer.Ordinal);
     }
-
-    private const long MaxArrayLikeLength = 9007199254740991L;
 
     /// <summary>
     /// JsValue overload that avoids boxing.
@@ -168,22 +193,6 @@ internal static class IntlUtilities
         var truncated = Math.Floor(number);
         return truncated > MaxArrayLikeLength ? MaxArrayLikeLength : (long)truncated;
     }
-
-    private static readonly Regex LanguageTagRegex = new(
-        @"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex DuplicateSingletonRegex = new(
-        @"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex DuplicateVariantRegex = new(
-        @"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex TransformKeyRegex = new(
-        @"^[a-z][0-9]$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static string CanonicalizeLocale(string locale, RealmState realm)
     {
@@ -427,10 +436,7 @@ internal static class IntlUtilities
     {
         var zones = new SortedSet<string>(StringComparer.Ordinal) { "UTC" };
         var members = new HashSet<string>(StringComparer.Ordinal) { "UTC" };
-        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["UTC"] = "UTC"
-        };
+        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["UTC"] = "UTC" };
 
         try
         {
@@ -491,14 +497,6 @@ internal static class IntlUtilities
         }
 
         return id.Replace(' ', '_');
-    }
-
-    private sealed class TimeZoneRegistry(IReadOnlyList<string> values, HashSet<string> members,
-        Dictionary<string, string> lookup)
-    {
-        public IReadOnlyList<string> Values { get; } = values;
-        public HashSet<string> Members { get; } = members;
-        public Dictionary<string, string> Lookup { get; } = lookup;
     }
 
     private static bool IsStructurallyValidLanguageTag(string locale)
@@ -1188,5 +1186,15 @@ internal static class IntlUtilities
         }
 
         return StandardLibrary.JsValueToString(candidate, realm);
+    }
+
+    private sealed class TimeZoneRegistry(
+        IReadOnlyList<string> values,
+        HashSet<string> members,
+        Dictionary<string, string> lookup)
+    {
+        public IReadOnlyList<string> Values { get; } = values;
+        public HashSet<string> Members { get; } = members;
+        public Dictionary<string, string> Lookup { get; } = lookup;
     }
 }

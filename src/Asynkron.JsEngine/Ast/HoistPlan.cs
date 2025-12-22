@@ -1,6 +1,9 @@
-using System.Collections.Generic;
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -9,21 +12,6 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 internal sealed class HoistPlan
 {
-    internal HashSet<Symbol> LexicalNames { get; }
-    internal Dictionary<Symbol, bool> LexicalDeclarationKinds { get; }
-    internal HashSet<Symbol> CatchParameterNames { get; }
-    internal HashSet<Symbol> SimpleCatchParameterNames { get; }
-    internal ImmutableArray<Symbol> LexicalTemplate { get; }
-    internal ImmutableArray<Symbol> CatchParameterTemplate { get; }
-    internal ImmutableArray<Symbol> SimpleCatchParameterTemplate { get; }
-    internal ImmutableArray<Symbol> BodyLexicalTemplate { get; }
-    internal bool HasFunctionDeclarations { get; }
-    internal bool NeedsEnvironment =>
-        HasFunctionDeclarations ||
-        LexicalNames.Count > 0 ||
-        CatchParameterNames.Count > 0 ||
-        SimpleCatchParameterNames.Count > 0;
-
     private HoistPlan(
         HashSet<Symbol> lexicalNames,
         Dictionary<Symbol, bool> lexicalDeclarationKinds,
@@ -45,6 +33,22 @@ internal sealed class HoistPlan
         SimpleCatchParameterTemplate = simpleCatchParameterTemplate;
         BodyLexicalTemplate = bodyLexicalTemplate;
     }
+
+    internal HashSet<Symbol> LexicalNames { get; }
+    internal Dictionary<Symbol, bool> LexicalDeclarationKinds { get; }
+    internal HashSet<Symbol> CatchParameterNames { get; }
+    internal HashSet<Symbol> SimpleCatchParameterNames { get; }
+    internal ImmutableArray<Symbol> LexicalTemplate { get; }
+    internal ImmutableArray<Symbol> CatchParameterTemplate { get; }
+    internal ImmutableArray<Symbol> SimpleCatchParameterTemplate { get; }
+    internal ImmutableArray<Symbol> BodyLexicalTemplate { get; }
+    internal bool HasFunctionDeclarations { get; }
+
+    internal bool NeedsEnvironment =>
+        HasFunctionDeclarations ||
+        LexicalNames.Count > 0 ||
+        CatchParameterNames.Count > 0 ||
+        SimpleCatchParameterNames.Count > 0;
 
     internal static HoistPlan Build(BlockStatement block)
     {
@@ -87,6 +91,7 @@ internal sealed class HoistPlan
                     bodyLexicalNames.Add(name);
                 }
             }
+
             bodyLexicalTemplate = bodyLexicalNames.Count == 0
                 ? ImmutableArray<Symbol>.Empty
                 : ImmutableArray.CreateRange(bodyLexicalNames);
@@ -119,17 +124,20 @@ internal sealed class HoistPlan
                     {
                         CollectLexical(inner, names, lexicalKindMap, ref hasFunctionDeclarations);
                     }
+
                     break;
 
                 case VariableDeclaration
                 {
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } letDecl:
-                    var isConstDecl = letDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    var isConstDecl =
+                        letDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                     foreach (var declarator in letDecl.Declarators)
                     {
                         CollectBindingSymbols(declarator.Target, names, lexicalKindMap, isConstDecl);
                     }
+
                     break;
 
                 case ClassDeclaration classDeclaration:
@@ -150,6 +158,7 @@ internal sealed class HoistPlan
                         statement = elseBranch;
                         continue;
                     }
+
                     break;
 
                 case WhileStatement whileStatement:
@@ -167,10 +176,12 @@ internal sealed class HoistPlan
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration
                         {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing
                         } decl)
                     {
-                        var isConstInitializer = decl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        var isConstInitializer =
+                            decl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in decl.Declarators)
                         {
                             CollectBindingSymbols(declarator.Target, names, lexicalKindMap, isConstInitializer);
@@ -182,6 +193,7 @@ internal sealed class HoistPlan
                         statement = forStatement.Body;
                         continue;
                     }
+
                     break;
 
                 case ForEachStatement forEachStatement:
@@ -201,6 +213,7 @@ internal sealed class HoistPlan
                     {
                         CollectLexical(switchCase.Body, names, lexicalKindMap, ref hasFunctionDeclarations);
                     }
+
                     break;
 
                 case TryStatement tryStatement:
@@ -209,7 +222,7 @@ internal sealed class HoistPlan
                     {
                         if (catchClause.Binding is not null)
                         {
-                            CollectBindingSymbols(catchClause.Binding, names, lexicalKindMap, isConst: true);
+                            CollectBindingSymbols(catchClause.Binding, names, lexicalKindMap, true);
                         }
 
                         CollectLexical(catchClause.Body, names, lexicalKindMap, ref hasFunctionDeclarations);
@@ -243,6 +256,7 @@ internal sealed class HoistPlan
                     {
                         CollectCatchNames(inner, names);
                     }
+
                     break;
 
                 case IfStatement ifStatement:
@@ -252,6 +266,7 @@ internal sealed class HoistPlan
                         statement = elseBranch;
                         continue;
                     }
+
                     break;
 
                 case WhileStatement whileStatement:
@@ -272,6 +287,7 @@ internal sealed class HoistPlan
                         statement = forStatement.Body;
                         continue;
                     }
+
                     break;
 
                 case ForEachStatement forEachStatement:
@@ -283,6 +299,7 @@ internal sealed class HoistPlan
                     {
                         CollectCatchNames(switchCase.Body, names);
                     }
+
                     break;
 
                 case TryStatement tryStatement:
@@ -302,6 +319,7 @@ internal sealed class HoistPlan
                         statement = finallyBlock;
                         continue;
                     }
+
                     break;
             }
 
@@ -320,6 +338,7 @@ internal sealed class HoistPlan
                     {
                         CollectSimpleCatchNames(inner, names);
                     }
+
                     break;
 
                 case IfStatement ifStatement:
@@ -329,6 +348,7 @@ internal sealed class HoistPlan
                         statement = elseBranch;
                         continue;
                     }
+
                     break;
 
                 case WhileStatement whileStatement:
@@ -349,6 +369,7 @@ internal sealed class HoistPlan
                         statement = forStatement.Body;
                         continue;
                     }
+
                     break;
 
                 case ForEachStatement forEachStatement:
@@ -360,6 +381,7 @@ internal sealed class HoistPlan
                     {
                         CollectSimpleCatchNames(switchCase.Body, names);
                     }
+
                     break;
 
                 case TryStatement tryStatement:
@@ -379,6 +401,7 @@ internal sealed class HoistPlan
                         statement = finallyBlock;
                         continue;
                     }
+
                     break;
             }
 
@@ -386,7 +409,8 @@ internal sealed class HoistPlan
         }
     }
 
-    private static void CollectBindingSymbols(BindingTarget target, HashSet<Symbol> names, Dictionary<Symbol, bool> lexicalKindMap, bool isConst)
+    private static void CollectBindingSymbols(BindingTarget target, HashSet<Symbol> names,
+        Dictionary<Symbol, bool> lexicalKindMap, bool isConst)
     {
         while (true)
         {

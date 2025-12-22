@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -34,6 +38,7 @@ public static partial class TypedAstEvaluator
             {
                 displayName = displayName[..atIndex];
             }
+
             if (field.Initializer is not null)
             {
                 using var handle = privateScopeFactory?.Invoke();
@@ -51,17 +56,15 @@ public static partial class TypedAstEvaluator
 
             var descriptor = new PropertyDescriptor
             {
-                JsValue = valueJs,
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
+                JsValue = valueJs, Writable = true, Enumerable = true, Configurable = true
             };
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost)
             {
                 if (!definitionHost.TryDefineProperty(propertyName, descriptor))
                 {
-                    throw StandardLibrary.ThrowTypeError("Cannot define static class field", context, context.RealmState);
+                    throw StandardLibrary.ThrowTypeError("Cannot define static class field", context,
+                        context.RealmState);
                 }
             }
             else if (constructorAccessor is IJsObjectLike objectLike)
@@ -81,13 +84,13 @@ public static partial class TypedAstEvaluator
             switch (value.ObjectValue)
             {
                 case TypedFunction typedFunction:
-                    typedFunction.EnsureHasName(displayName, overwriteExisting: true);
+                    typedFunction.EnsureHasName(displayName, true);
                     break;
                 case TypedGeneratorFactory generatorFactory:
-                    generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                    generatorFactory.EnsureHasName(displayName, true);
                     break;
                 case AsyncGeneratorFactory asyncGeneratorFactory:
-                    asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                    asyncGeneratorFactory.EnsureHasName(displayName, true);
                     break;
             }
         }

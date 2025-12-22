@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

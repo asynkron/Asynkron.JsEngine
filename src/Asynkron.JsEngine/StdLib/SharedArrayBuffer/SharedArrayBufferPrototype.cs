@@ -1,9 +1,13 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ArrayBufferHelper;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -97,7 +101,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         JsArrayBuffer targetBuffer;
         if (ReferenceEquals(speciesConstructor, Realm.SharedArrayBufferConstructor))
         {
-            var created = new JsArrayBuffer(newLen, null, Realm, isShared: true);
+            var created = new JsArrayBuffer(newLen, null, Realm, true);
             created.SetPrototype(Realm.SharedArrayBufferPrototype);
             newBuffer = created;
             targetBuffer = created;

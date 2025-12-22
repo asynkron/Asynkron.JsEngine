@@ -1,4 +1,8 @@
+#region
+
 using System.Buffers.Binary;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -466,7 +470,7 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     private HostFunction CreateMethod(Func<JsDataView, IReadOnlyList<JsValue>, JsValue> implementation)
     {
-        return new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> args) =>
+        return new HostFunction((thisValue, args) =>
         {
             var target = ResolveThis(thisValue, this);
             return implementation(target, args);

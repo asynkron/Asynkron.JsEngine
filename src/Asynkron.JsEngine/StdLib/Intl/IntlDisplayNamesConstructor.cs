@@ -1,8 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.IntlHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -19,12 +22,12 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
         var localesArg = args.GetArgument(0);
         var optionsArg = args.GetArgument(1);
 
-        var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = ResolveIntlLocales(localesArg, Realm);
 
         var options = NormalizeOptions(optionsArg);
         var localeMatcher = ReadStringOption(options, "localeMatcher", ["lookup", "best fit"], "best fit");
         var style = ReadStringOption(options, "style", ["long", "short", "narrow"], "long");
-        var type = ReadStringOption(options, "type", SupportedTypes, null, requireValue: true);
+        var type = ReadStringOption(options, "type", SupportedTypes, null, true);
         var fallback = ReadStringOption(options, "fallback", ["code", "none"], "code");
         var languageDisplay = ReadStringOption(options, "languageDisplay", ["dialect", "standard"], "dialect");
 
@@ -65,7 +68,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
 
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
-        var result = IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
         return JsValue.FromObjectUnsafe(result);
     }
 
@@ -77,6 +80,7 @@ public sealed partial class IntlDisplayNamesConstructor(IJsObjectLike prototype,
     private string ReadStringOption(IJsPropertyAccessor? options, string propertyName, IReadOnlyList<string>? allowed,
         string? defaultValue, bool requireValue = false)
     {
-        return IntlOptionHelpers.GetStringOption(options, propertyName, Realm, "DisplayNames", allowed, defaultValue, requireValue);
+        return IntlOptionHelpers.GetStringOption(options, propertyName, Realm, "DisplayNames", allowed, defaultValue,
+            requireValue);
     }
 }

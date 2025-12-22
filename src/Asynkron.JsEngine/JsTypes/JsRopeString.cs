@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using System.Text;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -16,18 +20,17 @@ public sealed class JsRopeString
 
     // Maximum tree depth before we force flattening to avoid stack overflow
     private const int MaxDepth = 32;
-
-    private readonly object _left;   // string or JsRopeString
-    private readonly object _right;  // string or JsRopeString
-    private readonly int _length;
     private readonly int _depth;
+
+    private readonly object _left; // string or JsRopeString
+    private readonly object _right; // string or JsRopeString
     private string? _cached;
 
     private JsRopeString(object left, object right, int length, int depth)
     {
         _left = left;
         _right = right;
-        _length = length;
+        Length = length;
         _depth = depth;
     }
 
@@ -37,7 +40,7 @@ public sealed class JsRopeString
     public int Length
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _length;
+        get;
     }
 
     /// <summary>
@@ -86,7 +89,7 @@ public sealed class JsRopeString
     [MethodImpl(MethodImplOptions.NoInlining)]
     private string FlattenSlow()
     {
-        var sb = new StringBuilder(_length);
+        var sb = new StringBuilder(Length);
         AppendTo(sb);
         _cached = sb.ToString();
         return _cached;
@@ -118,6 +121,7 @@ public sealed class JsRopeString
                         stack.Push(rope._right);
                         stack.Push(rope._left);
                     }
+
                     break;
             }
         }
@@ -129,7 +133,7 @@ public sealed class JsRopeString
         return value switch
         {
             string s => s.Length,
-            JsRopeString rope => rope._length,
+            JsRopeString rope => rope.Length,
             _ => 0
         };
     }
@@ -158,5 +162,8 @@ public sealed class JsRopeString
         };
     }
 
-    public override string ToString() => Flatten();
+    public override string ToString()
+    {
+        return Flatten();
+    }
 }

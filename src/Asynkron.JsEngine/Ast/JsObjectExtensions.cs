@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -35,7 +39,8 @@ public static partial class TypedAstEvaluator
             // Use context-aware property access to propagate getter errors
             if (!iterator.TryGetProperty("next", out var nextValue))
             {
-                throw StandardLibrary.ThrowTypeError("Iterator must expose a 'next' method.", context, context?.RealmState);
+                throw StandardLibrary.ThrowTypeError("Iterator must expose a 'next' method.", context,
+                    context?.RealmState);
             }
 
             // Check if the getter threw an error
@@ -87,8 +92,8 @@ public static partial class TypedAstEvaluator
             var thisValue = JsValue.FromObjectUnsafe(iterator);
             // Use InvokeCallableSingleArg to avoid array allocation for single-arg case
             result = hasArgument
-                ? InvokeCallableSingleArg(callable, argument, thisValue, context, null)
-                : InvokeCallableJsValue(callable, Array.Empty<JsValue>(), thisValue, context, null);
+                ? InvokeCallableSingleArg(callable, argument, thisValue, context)
+                : InvokeCallableJsValue(callable, Array.Empty<JsValue>(), thisValue, context);
 
             // Check if the method threw an error
             if (context.IsThrow)
@@ -146,6 +151,7 @@ public static partial class TypedAstEvaluator
                     context.RestoreSignal(savedSignal);
                     return;
                 }
+
                 throw;
             }
 

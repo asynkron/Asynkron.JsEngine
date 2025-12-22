@@ -1,5 +1,9 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -9,91 +13,9 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public sealed class ScopeAnalyzer
 {
-    /// <summary>
-    /// Information about a scope collected during analysis.
-    /// </summary>
-    public sealed class ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope, int scopeId)
-    {
-        public ScopeInfo? Parent { get; } = parent;
-        public bool IsFunctionScope { get; } = isFunctionScope;
-        public bool IsBlockScope { get; } = isBlockScope;
-        public bool HasEval { get; set; }
-        public bool HasWith { get; set; }
-        public bool IsDynamic => HasEval || HasWith || (Parent?.IsDynamic ?? false);
-
-        /// <summary>
-        /// True if any inner functions capture variables from this scope.
-        /// When true, environment reuse optimization is disabled for this function.
-        /// </summary>
-        public bool HasClosures { get; set; }
-
-        /// <summary>
-        /// Unique ID for this scope, used to match variables to their declaring scope at runtime.
-        /// </summary>
-        public int ScopeId { get; } = scopeId;
-
-        private readonly Dictionary<Symbol, int> _variables = new(ReferenceEqualityComparer<Symbol>.Instance);
-        private HashSet<Symbol>? _immutableBindings;
-        private int _nextSlot;
-
-        /// <summary>
-        /// The number of slots allocated in this scope.
-        /// </summary>
-        public int SlotCount => _nextSlot;
-
-        /// <summary>
-        /// Declares a variable in this scope and assigns it a slot index.
-        /// </summary>
-        public int DeclareVariable(Symbol name)
-        {
-            if (_variables.TryGetValue(name, out var existingSlot))
-            {
-                return existingSlot; // Already declared (e.g., var hoisting)
-            }
-
-            var slot = _nextSlot++;
-            _variables[name] = slot;
-            return slot;
-        }
-
-        /// <summary>
-        /// Declares an immutable variable in this scope (e.g., named function expression name).
-        /// </summary>
-        public int DeclareImmutableVariable(Symbol name)
-        {
-            var slot = DeclareVariable(name);
-            _immutableBindings ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            _immutableBindings.Add(name);
-            return slot;
-        }
-
-        /// <summary>
-        /// Checks if a variable is an immutable binding.
-        /// </summary>
-        public bool IsImmutable(Symbol name) => _immutableBindings?.Contains(name) ?? false;
-
-        /// <summary>
-        /// Gets the slot index for a variable declared in this scope.
-        /// Returns -1 if not found in this scope.
-        /// </summary>
-        public int GetSlot(Symbol name)
-        {
-            return _variables.TryGetValue(name, out var slot) ? slot : -1;
-        }
-
-        /// <summary>
-        /// Checks if a variable is declared in this scope.
-        /// </summary>
-        public bool HasVariable(Symbol name) => _variables.ContainsKey(name);
-
-        /// <summary>
-        /// Gets all variable names declared in this scope.
-        /// </summary>
-        public IEnumerable<Symbol> GetVariables() => _variables.Keys;
-    }
+    private ScopeInfo? _currentFunctionScope;
 
     private ScopeInfo? _currentScope;
-    private ScopeInfo? _currentFunctionScope;
     private int _nextScopeId;
 
     /// <summary>
@@ -102,7 +24,7 @@ public sealed class ScopeAnalyzer
     public ProgramNode Analyze(ProgramNode program)
     {
         // Start with global/module scope (ScopeId 0 is reserved for global)
-        _currentScope = new ScopeInfo(null, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
+        _currentScope = new ScopeInfo(null, true, false, _nextScopeId++);
 
         // First pass: collect all variable declarations
         CollectDeclarations(program);
@@ -138,14 +60,14 @@ public sealed class ScopeAnalyzer
         var scopeParent = originalParentScope;
         if (function.Name is not null && !isDeclaration)
         {
-            functionNameScope = new ScopeInfo(originalParentScope, isFunctionScope: false, isBlockScope: false, scopeId: _nextScopeId++);
+            functionNameScope = new ScopeInfo(originalParentScope, false, false, _nextScopeId++);
             functionNameScope.DeclareImmutableVariable(function.Name);
             functionNameScopeId = functionNameScope.ScopeId;
             scopeParent = functionNameScope; // Parameter scope's parent is the function name scope
         }
 
         // Create the parameter/function body scope
-        _currentScope = new ScopeInfo(scopeParent, isFunctionScope: true, isBlockScope: false, scopeId: _nextScopeId++);
+        _currentScope = new ScopeInfo(scopeParent, true, false, _nextScopeId++);
         _currentFunctionScope = _currentScope;
 
         // Declare parameters
@@ -155,6 +77,7 @@ public sealed class ScopeAnalyzer
             {
                 _currentScope.DeclareVariable(param.Name);
             }
+
             // Handle destructuring patterns
             if (param.Pattern is not null)
             {
@@ -221,6 +144,96 @@ public sealed class ScopeAnalyzer
         }
 
         return hasChanges ? builder.ToImmutable() : parameters;
+    }
+
+    /// <summary>
+    /// Information about a scope collected during analysis.
+    /// </summary>
+    public sealed class ScopeInfo(ScopeInfo? parent, bool isFunctionScope, bool isBlockScope, int scopeId)
+    {
+        private readonly Dictionary<Symbol, int> _variables = new(ReferenceEqualityComparer<Symbol>.Instance);
+        private HashSet<Symbol>? _immutableBindings;
+        public ScopeInfo? Parent { get; } = parent;
+        public bool IsFunctionScope { get; } = isFunctionScope;
+        public bool IsBlockScope { get; } = isBlockScope;
+        public bool HasEval { get; set; }
+        public bool HasWith { get; set; }
+        public bool IsDynamic => HasEval || HasWith || (Parent?.IsDynamic ?? false);
+
+        /// <summary>
+        /// True if any inner functions capture variables from this scope.
+        /// When true, environment reuse optimization is disabled for this function.
+        /// </summary>
+        public bool HasClosures { get; set; }
+
+        /// <summary>
+        /// Unique ID for this scope, used to match variables to their declaring scope at runtime.
+        /// </summary>
+        public int ScopeId { get; } = scopeId;
+
+        /// <summary>
+        /// The number of slots allocated in this scope.
+        /// </summary>
+        public int SlotCount { get; private set; }
+
+        /// <summary>
+        /// Declares a variable in this scope and assigns it a slot index.
+        /// </summary>
+        public int DeclareVariable(Symbol name)
+        {
+            if (_variables.TryGetValue(name, out var existingSlot))
+            {
+                return existingSlot; // Already declared (e.g., var hoisting)
+            }
+
+            var slot = SlotCount++;
+            _variables[name] = slot;
+            return slot;
+        }
+
+        /// <summary>
+        /// Declares an immutable variable in this scope (e.g., named function expression name).
+        /// </summary>
+        public int DeclareImmutableVariable(Symbol name)
+        {
+            var slot = DeclareVariable(name);
+            _immutableBindings ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            _immutableBindings.Add(name);
+            return slot;
+        }
+
+        /// <summary>
+        /// Checks if a variable is an immutable binding.
+        /// </summary>
+        public bool IsImmutable(Symbol name)
+        {
+            return _immutableBindings?.Contains(name) ?? false;
+        }
+
+        /// <summary>
+        /// Gets the slot index for a variable declared in this scope.
+        /// Returns -1 if not found in this scope.
+        /// </summary>
+        public int GetSlot(Symbol name)
+        {
+            return _variables.TryGetValue(name, out var slot) ? slot : -1;
+        }
+
+        /// <summary>
+        /// Checks if a variable is declared in this scope.
+        /// </summary>
+        public bool HasVariable(Symbol name)
+        {
+            return _variables.ContainsKey(name);
+        }
+
+        /// <summary>
+        /// Gets all variable names declared in this scope.
+        /// </summary>
+        public IEnumerable<Symbol> GetVariables()
+        {
+            return _variables.Keys;
+        }
     }
 
     #region Declaration Collection
@@ -351,6 +364,7 @@ public sealed class ScopeAnalyzer
                 {
                     CollectBindingDeclarations(declarator.Target);
                 }
+
                 break;
 
             case ClassDeclaration classDecl:
@@ -425,11 +439,13 @@ public sealed class ScopeAnalyzer
                             CollectBindingSlotIndices(element.Target, scope, indices);
                         }
                     }
+
                     if (arrayBinding.RestElement is not null)
                     {
                         target = arrayBinding.RestElement;
                         continue;
                     }
+
                     break;
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
@@ -439,11 +455,13 @@ public sealed class ScopeAnalyzer
                             CollectBindingSlotIndices(prop.Target, scope, indices);
                         }
                     }
+
                     if (objectBinding.RestElement is not null)
                     {
                         target = objectBinding.RestElement;
                         continue;
                     }
+
                     break;
             }
 
@@ -468,11 +486,13 @@ public sealed class ScopeAnalyzer
                             CollectBindingNamesInOrder(element.Target, names);
                         }
                     }
+
                     if (arrayBinding.RestElement is not null)
                     {
                         target = arrayBinding.RestElement;
                         continue;
                     }
+
                     break;
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
@@ -482,11 +502,13 @@ public sealed class ScopeAnalyzer
                             CollectBindingNamesInOrder(prop.Target, names);
                         }
                     }
+
                     if (objectBinding.RestElement is not null)
                     {
                         target = objectBinding.RestElement;
                         continue;
                     }
+
                     break;
             }
 
@@ -520,8 +542,10 @@ public sealed class ScopeAnalyzer
                     {
                         parentScope.HasClosures = true;
                     }
+
                     parentScope = parentScope.Parent;
                 }
+
                 return (-1, -1, -1, false);
             }
 
@@ -582,6 +606,7 @@ public sealed class ScopeAnalyzer
         {
             builder.Add(ResolveStatement(statement));
         }
+
         return builder.MoveToImmutable();
     }
 
@@ -589,10 +614,7 @@ public sealed class ScopeAnalyzer
     {
         return statement switch
         {
-            ExpressionStatement exprStmt => exprStmt with
-            {
-                Expression = ResolveExpression(exprStmt.Expression)
-            },
+            ExpressionStatement exprStmt => exprStmt with { Expression = ResolveExpression(exprStmt.Expression) },
 
             VariableDeclaration varDecl => ResolveVariableDeclaration(varDecl),
 
@@ -607,14 +629,12 @@ public sealed class ScopeAnalyzer
 
             WhileStatement whileStmt => whileStmt with
             {
-                Condition = ResolveExpression(whileStmt.Condition),
-                Body = ResolveStatement(whileStmt.Body)
+                Condition = ResolveExpression(whileStmt.Condition), Body = ResolveStatement(whileStmt.Body)
             },
 
             DoWhileStatement doWhileStmt => doWhileStmt with
             {
-                Body = ResolveStatement(doWhileStmt.Body),
-                Condition = ResolveExpression(doWhileStmt.Condition)
+                Body = ResolveStatement(doWhileStmt.Body), Condition = ResolveExpression(doWhileStmt.Condition)
             },
 
             ForStatement forStmt => ResolveForStatement(forStmt),
@@ -623,31 +643,21 @@ public sealed class ScopeAnalyzer
 
             ReturnStatement returnStmt => ResolveReturnStatement(returnStmt),
 
-            ThrowStatement throwStmt => throwStmt with
-            {
-                Expression = ResolveExpression(throwStmt.Expression)
-            },
+            ThrowStatement throwStmt => throwStmt with { Expression = ResolveExpression(throwStmt.Expression) },
 
             TryStatement tryStmt => ResolveTryStatement(tryStmt),
 
             SwitchStatement switchStmt => ResolveSwitchStatement(switchStmt),
 
-            FunctionDeclaration funcDecl => funcDecl with
-            {
-                Function = AnalyzeFunction(funcDecl.Function, isDeclaration: true)
-            },
+            FunctionDeclaration funcDecl => funcDecl with { Function = AnalyzeFunction(funcDecl.Function, true) },
 
             ClassDeclaration classDecl => ResolveClassDeclaration(classDecl),
 
-            LabeledStatement labeledStmt => labeledStmt with
-            {
-                Statement = ResolveStatement(labeledStmt.Statement)
-            },
+            LabeledStatement labeledStmt => labeledStmt with { Statement = ResolveStatement(labeledStmt.Statement) },
 
             WithStatement withStmt => withStmt with
             {
-                Object = ResolveExpression(withStmt.Object),
-                Body = ResolveStatement(withStmt.Body)
+                Object = ResolveExpression(withStmt.Object), Body = ResolveStatement(withStmt.Body)
             },
 
             // Statements that don't contain expressions to resolve
@@ -661,7 +671,7 @@ public sealed class ScopeAnalyzer
     {
         // Create block scope for let/const
         var parentScope = _currentScope;
-        _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
+        _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
 
         // Collect block-scoped declarations
         foreach (var stmt in block.Statements)
@@ -678,10 +688,7 @@ public sealed class ScopeAnalyzer
         _currentScope = parentScope;
         return block with
         {
-            Statements = resolvedStatements,
-            ScopeId = scopeId,
-            SlotCount = slotCount,
-            SlotMap = slotMap
+            Statements = resolvedStatements, ScopeId = scopeId, SlotCount = slotCount, SlotMap = slotMap
         };
     }
 
@@ -702,10 +709,16 @@ public sealed class ScopeAnalyzer
 
         // Check if we have a binary expression with exactly 2 direct call expressions
         // In this case, we can use argument pre-evaluation to enable environment reuse for ALL calls
-        if (returnStmt.Expression is BinaryExpression { Operator: not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing), Left: CallExpression
+        if (returnStmt.Expression is BinaryExpression
             {
-                Arguments: [{ IsSpread: false }]
-            } leftCall, Right: CallExpression { Arguments: [{ IsSpread: false }] } rightCall } binary)
+                Operator: not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr
+                or BinaryOperator.NullishCoalescing),
+                Left: CallExpression
+                {
+                    Arguments: [{ IsSpread: false }]
+                } leftCall,
+                Right: CallExpression { Arguments: [{ IsSpread: false }] } rightCall
+            } binary)
         {
             // Mark both calls for environment reuse and set the pre-evaluation flag
             var resolvedLeftCall = ResolveCallExpression(leftCall) with { CanReuseCallerEnvironment = true };
@@ -716,10 +729,16 @@ public sealed class ScopeAnalyzer
 
         // Check if we have call * identifier pattern (e.g., return __func(arg-1) * arg)
         // Pre-evaluate the identifier before the call to preserve its value
-        if (returnStmt.Expression is BinaryExpression { Operator: not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing), Left: CallExpression
+        if (returnStmt.Expression is BinaryExpression
             {
-                Arguments: [{ IsSpread: false }]
-            } callLeft, Right: IdentifierExpression idRight } binaryCallId)
+                Operator: not (BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr
+                or BinaryOperator.NullishCoalescing),
+                Left: CallExpression
+                {
+                    Arguments: [{ IsSpread: false }]
+                } callLeft,
+                Right: IdentifierExpression idRight
+            } binaryCallId)
         {
             var resolvedCall = ResolveCallExpression(callLeft) with { CanReuseCallerEnvironment = true };
             var resolvedId = ResolveIdentifierExpression(idRight);
@@ -753,16 +772,14 @@ public sealed class ScopeAnalyzer
             var resolvedTest = ResolveExpression(cond.Test);
             var resolvedConsequent = ResolveReturnExpressionWithReuse(cond.Consequent);
             var resolvedAlternate = ResolveReturnExpressionWithReuse(cond.Alternate);
-            return cond with
-            {
-                Test = resolvedTest,
-                Consequent = resolvedConsequent,
-                Alternate = resolvedAlternate
-            };
+            return cond with { Test = resolvedTest, Consequent = resolvedConsequent, Alternate = resolvedAlternate };
         }
 
         // For logical expressions (&&, ||, ??), the right side could be a tail call
-        if (expression is BinaryExpression { Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing } logical)
+        if (expression is BinaryExpression
+            {
+                Operator: BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing
+            } logical)
         {
             var resolvedLeft = ResolveExpression(logical.Left);
             var resolvedRight = ResolveReturnExpressionWithReuse(logical.Right);
@@ -857,14 +874,10 @@ public sealed class ScopeAnalyzer
 
             BinaryExpression binary => binary with
             {
-                Left = MarkCallsForReuse(binary.Left),
-                Right = MarkCallsForReuse(binary.Right)
+                Left = MarkCallsForReuse(binary.Left), Right = MarkCallsForReuse(binary.Right)
             },
 
-            UnaryExpression unary => unary with
-            {
-                Operand = MarkCallsForReuse(unary.Operand)
-            },
+            UnaryExpression unary => unary with { Operand = MarkCallsForReuse(unary.Operand) },
 
             ConditionalExpression cond => cond with
             {
@@ -906,7 +919,7 @@ public sealed class ScopeAnalyzer
         var parentScope = _currentScope;
         if (needsScope)
         {
-            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
+            _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
 
             // Collect the loop variable declaration
             if (forStmt.Initializer is VariableDeclaration initDecl)
@@ -973,7 +986,7 @@ public sealed class ScopeAnalyzer
         var parentScope = _currentScope;
         if (needsScope)
         {
-            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
+            _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
             CollectBindingDeclarations(forEachStmt.Target);
 
             perIterationScopeId = _currentScope.ScopeId;
@@ -987,8 +1000,7 @@ public sealed class ScopeAnalyzer
 
         var resolved = forEachStmt with
         {
-            Iterable = ResolveExpression(forEachStmt.Iterable),
-            Body = ResolveStatement(forEachStmt.Body)
+            Iterable = ResolveExpression(forEachStmt.Iterable), Body = ResolveStatement(forEachStmt.Body)
         };
 
         if (needsScope)
@@ -1013,7 +1025,7 @@ public sealed class ScopeAnalyzer
         if (tryStmt.Catch is not null)
         {
             var parentScope = _currentScope;
-            _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
+            _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
 
             if (tryStmt.Catch.Binding is not null)
             {
@@ -1028,18 +1040,13 @@ public sealed class ScopeAnalyzer
 
         var resolvedFinally = tryStmt.Finally is not null ? ResolveBlockStatement(tryStmt.Finally) : null;
 
-        return tryStmt with
-        {
-            TryBlock = resolvedTry,
-            Catch = resolvedCatch,
-            Finally = resolvedFinally
-        };
+        return tryStmt with { TryBlock = resolvedTry, Catch = resolvedCatch, Finally = resolvedFinally };
     }
 
     private SwitchStatement ResolveSwitchStatement(SwitchStatement switchStmt)
     {
         var parentScope = _currentScope;
-        _currentScope = new ScopeInfo(parentScope, isFunctionScope: false, isBlockScope: true, scopeId: _nextScopeId++);
+        _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
 
         // Collect declarations from all cases
         foreach (var switchCase in switchStmt.Cases)
@@ -1062,8 +1069,7 @@ public sealed class ScopeAnalyzer
 
         return switchStmt with
         {
-            Discriminant = ResolveExpression(switchStmt.Discriminant),
-            Cases = resolvedCases.MoveToImmutable()
+            Discriminant = ResolveExpression(switchStmt.Discriminant), Cases = resolvedCases.MoveToImmutable()
         };
     }
 
@@ -1094,14 +1100,10 @@ public sealed class ScopeAnalyzer
 
             BinaryExpression binary => binary with
             {
-                Left = ResolveExpression(binary.Left),
-                Right = ResolveExpression(binary.Right)
+                Left = ResolveExpression(binary.Left), Right = ResolveExpression(binary.Right)
             },
 
-            UnaryExpression unary => unary with
-            {
-                Operand = ResolveExpression(unary.Operand)
-            },
+            UnaryExpression unary => unary with { Operand = ResolveExpression(unary.Operand) },
 
             CallExpression call => ResolveCallExpression(call),
 
@@ -1124,10 +1126,7 @@ public sealed class ScopeAnalyzer
                 Alternate = ResolveExpression(cond.Alternate)
             },
 
-            ArrayExpression array => array with
-            {
-                Elements = ResolveArrayElements(array.Elements)
-            },
+            ArrayExpression array => array with { Elements = ResolveArrayElements(array.Elements) },
 
             ObjectExpression obj => ResolveObjectExpression(obj),
 
@@ -1137,18 +1136,14 @@ public sealed class ScopeAnalyzer
 
             SequenceExpression seq => seq with
             {
-                Left = ResolveExpression(seq.Left),
-                Right = ResolveExpression(seq.Right)
+                Left = ResolveExpression(seq.Left), Right = ResolveExpression(seq.Right)
             },
 
             TemplateLiteralExpression template => ResolveTemplateLiteral(template),
 
             TaggedTemplateExpression tagged => ResolveTaggedTemplate(tagged),
 
-            AwaitExpression awaitExpr => awaitExpr with
-            {
-                Expression = ResolveExpression(awaitExpr.Expression)
-            },
+            AwaitExpression awaitExpr => awaitExpr with { Expression = ResolveExpression(awaitExpr.Expression) },
 
             YieldExpression yieldExpr => yieldExpr with
             {
@@ -1169,10 +1164,7 @@ public sealed class ScopeAnalyzer
                 Value = ResolveExpression(indexAssign.Value)
             },
 
-            DestructuringAssignmentExpression destruct => destruct with
-            {
-                Value = ResolveExpression(destruct.Value)
-            },
+            DestructuringAssignmentExpression destruct => destruct with { Value = ResolveExpression(destruct.Value) },
 
             // Literals and other expressions that don't need resolution
             LiteralExpression or ThisExpression or SuperExpression
@@ -1220,11 +1212,7 @@ public sealed class ScopeAnalyzer
             _currentScope!.HasEval = true;
         }
 
-        return call with
-        {
-            Callee = ResolveExpression(call.Callee),
-            Arguments = ResolveCallArguments(call.Arguments)
-        };
+        return call with { Callee = ResolveExpression(call.Callee), Arguments = ResolveCallArguments(call.Arguments) };
     }
 
     private ImmutableArray<CallArgument> ResolveCallArguments(ImmutableArray<CallArgument> arguments)
@@ -1234,6 +1222,7 @@ public sealed class ScopeAnalyzer
         {
             builder.Add(arg with { Expression = ResolveExpression(arg.Expression) });
         }
+
         return builder.MoveToImmutable();
     }
 
@@ -1247,6 +1236,7 @@ public sealed class ScopeAnalyzer
                 Expression = element.Expression is not null ? ResolveExpression(element.Expression) : null
             });
         }
+
         return builder.MoveToImmutable();
     }
 
@@ -1262,6 +1252,7 @@ public sealed class ScopeAnalyzer
             };
             builder.Add(resolvedMember);
         }
+
         return obj with { Members = builder.MoveToImmutable() };
     }
 
@@ -1280,6 +1271,7 @@ public sealed class ScopeAnalyzer
         {
             builder.Add(ResolveExpression(expr));
         }
+
         return tagged with { Tag = resolvedTag, Expressions = builder.MoveToImmutable() };
     }
 
@@ -1293,6 +1285,7 @@ public sealed class ScopeAnalyzer
                 Expression = part.Expression is not null ? ResolveExpression(part.Expression) : null
             });
         }
+
         return template with { Parts = builder.MoveToImmutable() };
     }
 

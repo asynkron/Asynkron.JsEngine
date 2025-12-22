@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -16,8 +20,19 @@ public sealed partial class IntlDisplayNamesPrototype
 
     private static readonly HashSet<string> DateTimeFieldValues = new(StringComparer.Ordinal)
     {
-        "era", "year", "quarter", "month", "weekOfYear", "weekday", "day",
-        "dayPeriod", "hour", "minute", "second", "relative", "timeZoneName"
+        "era",
+        "year",
+        "quarter",
+        "month",
+        "weekOfYear",
+        "weekday",
+        "day",
+        "dayPeriod",
+        "hour",
+        "minute",
+        "second",
+        "relative",
+        "timeZoneName"
     };
 
     internal static void InitializeInternalSlots(JsObject instance, string locale, string style, string type,
@@ -41,8 +56,11 @@ public sealed partial class IntlDisplayNamesPrototype
         }
 
         var codeInput = JsValueToString(args[0], Realm);
-        var type = instance.TryGetProperty(TypeSlot, out var typeValue) && typeValue.TryGetString(out var str) ? str : "language";
-        var fallback = instance.TryGetProperty(FallbackSlot, out var fallbackValue) && fallbackValue.TryGetString(out var fb)
+        var type = instance.TryGetProperty(TypeSlot, out var typeValue) && typeValue.TryGetString(out var str)
+            ? str
+            : "language";
+        var fallback = instance.TryGetProperty(FallbackSlot, out var fallbackValue) &&
+                       fallbackValue.TryGetString(out var fb)
             ? fb
             : "code";
 
@@ -51,6 +69,7 @@ public sealed partial class IntlDisplayNamesPrototype
         {
             return new JsValue(canonical);
         }
+
         return fallback == "none" ? JsValue.Undefined : new JsValue(codeInput);
     }
 
@@ -60,19 +79,29 @@ public sealed partial class IntlDisplayNamesPrototype
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
         const string operation = "Intl.DisplayNames.prototype.resolvedOptions";
-        var localeValue = instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr) ? localeStr : "en";
+        var localeValue = instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr)
+            ? localeStr
+            : "en";
         CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
 
-        var styleValue = instance.TryGetProperty(StyleSlot, out var style) && style.TryGetString(out var styleStr) ? styleStr : "long";
+        var styleValue = instance.TryGetProperty(StyleSlot, out var style) && style.TryGetString(out var styleStr)
+            ? styleStr
+            : "long";
         CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
 
-        var typeValue = instance.TryGetProperty(TypeSlot, out var type) && type.TryGetString(out var typeStr) ? typeStr : "language";
+        var typeValue = instance.TryGetProperty(TypeSlot, out var type) && type.TryGetString(out var typeStr)
+            ? typeStr
+            : "language";
         CreateDataPropertyOrThrow(obj, "type", typeValue, Realm, operation);
 
-        var fallbackValue = instance.TryGetProperty(FallbackSlot, out var fallback) && fallback.TryGetString(out var fallbackStr) ? fallbackStr : "code";
+        var fallbackValue =
+            instance.TryGetProperty(FallbackSlot, out var fallback) && fallback.TryGetString(out var fallbackStr)
+                ? fallbackStr
+                : "code";
         CreateDataPropertyOrThrow(obj, "fallback", fallbackValue, Realm, operation);
 
-        var languageDisplayValue = instance.TryGetProperty(LanguageDisplaySlot, out var languageDisplay) && languageDisplay.TryGetString(out var languageDisplayStr)
+        var languageDisplayValue = instance.TryGetProperty(LanguageDisplaySlot, out var languageDisplay) &&
+                                   languageDisplay.TryGetString(out var languageDisplayStr)
             ? languageDisplayStr
             : "dialect";
         CreateDataPropertyOrThrow(obj, "languageDisplay", languageDisplayValue, Realm, operation);

@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -44,8 +48,10 @@ public static class ArrayBufferHelper
             {
                 return internalBuffer;
             }
+
             // Handle case where value is boxed JsValue struct
-            if (descriptor?.Value is JsValue bufJsVal && bufJsVal.TryGetObject<JsArrayBuffer>(out var bufferFromJsValue))
+            if (descriptor?.Value is JsValue bufJsVal &&
+                bufJsVal.TryGetObject<JsArrayBuffer>(out var bufferFromJsValue))
             {
                 return bufferFromJsValue;
             }
@@ -61,7 +67,8 @@ public static class ArrayBufferHelper
         throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
     }
 
-    internal static IJsCallable ArrayBufferSpeciesCreate(object? thisVal, RealmState realm, HostFunction defaultConstructor)
+    internal static IJsCallable ArrayBufferSpeciesCreate(object? thisVal, RealmState realm,
+        HostFunction defaultConstructor)
     {
         // Handle boxed JsValue struct first - unwrap to get the underlying object
         if (thisVal is JsValue jsVal)
@@ -109,5 +116,4 @@ public static class ArrayBufferHelper
 
         return callable;
     }
-
 }

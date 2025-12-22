@@ -1,4 +1,5 @@
-using System.Globalization;
+#region
+
 using System.Text;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
@@ -8,6 +9,8 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.JsonHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using static Asynkron.JsEngine.StdLib.StringHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -311,6 +314,7 @@ public sealed partial class StringPrototype
             {
                 chars[i] = value[i].ToString();
             }
+
             return JsValue.FromObjectUnsafe(CreateArrayFromStrings(chars, Realm));
         }
 
@@ -914,7 +918,7 @@ public sealed partial class StringPrototype
         var index = 0;
         var iterator = new JsObject();
 
-        iterator.SetHostedProperty("next", new HostFunction(Next, Realm, isConstructor: false));
+        iterator.SetHostedProperty("next", new HostFunction(Next, Realm, false));
 
         return new JsValue(iterator);
 
@@ -935,6 +939,7 @@ public sealed partial class StringPrototype
                     currentValue = first.ToString();
                     index++;
                 }
+
                 result.SetProperty("value", currentValue);
                 result.SetProperty("done", false);
             }

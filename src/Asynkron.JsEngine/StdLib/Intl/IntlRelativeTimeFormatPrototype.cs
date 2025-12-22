@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -30,8 +34,10 @@ public sealed partial class IntlRelativeTimeFormatPrototype
             return new JsValue("NaN");
         }
 
-        var unit = args.Count > 1 ? JsValueToString(args[1], Realm) : throw ThrowTypeError(
-            "Intl.RelativeTimeFormat format requires a unit argument", realm: Realm);
+        var unit = args.Count > 1
+            ? JsValueToString(args[1], Realm)
+            : throw ThrowTypeError(
+                "Intl.RelativeTimeFormat format requires a unit argument", realm: Realm);
         return new JsValue($"{value} {unit}");
     }
 
@@ -53,15 +59,22 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         var instance = ValidateReceiver(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
         obj.SetProperty("locale",
-            instance.TryGetProperty("__locale__", out var locale) && locale.TryGetString(out var localeStr) ? localeStr : "en");
+            instance.TryGetProperty("__locale__", out var locale) && locale.TryGetString(out var localeStr)
+                ? localeStr
+                : "en");
         obj.SetProperty("numberingSystem",
-            instance.TryGetProperty("__numberingSystem__", out var numberingSystem) && numberingSystem.TryGetString(out var numSysStr)
+            instance.TryGetProperty("__numberingSystem__", out var numberingSystem) &&
+            numberingSystem.TryGetString(out var numSysStr)
                 ? numSysStr
                 : "latn");
         obj.SetProperty("numeric",
-            instance.TryGetProperty("__numeric__", out var numeric) && numeric.TryGetString(out var numericStr) ? numericStr : "always");
+            instance.TryGetProperty("__numeric__", out var numeric) && numeric.TryGetString(out var numericStr)
+                ? numericStr
+                : "always");
         obj.SetProperty("style",
-            instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr) ? styleStr : "long");
+            instance.TryGetProperty("__style__", out var style) && style.TryGetString(out var styleStr)
+                ? styleStr
+                : "long");
         return new JsValue(obj);
     }
 

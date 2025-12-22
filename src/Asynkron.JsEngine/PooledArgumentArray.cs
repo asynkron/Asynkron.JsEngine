@@ -1,4 +1,9 @@
+#region
+
+using System.Collections;
 using System.Runtime.CompilerServices;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -42,5 +47,8 @@ public readonly struct PooledArgumentArray(object?[] array, int length) : IDispo
         }
     }
 
-    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 }

@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -52,7 +56,6 @@ public static partial class TypedAstEvaluator
 
                 context.SetReturn(payloadValueJs);
                 return payloadValueJs;
-
             }
 
             var yieldedValueJs = expression.Expression is null
@@ -79,22 +82,22 @@ public static partial class TypedAstEvaluator
             var stateKey = expression.GetDelegatedStateKey();
             var state = stateKey.GetDelegatedState(environment);
 
-                if (state is null)
+            if (state is null)
+            {
+                var iterableJs = expression.Expression.EvaluateExpression(environment, context);
+                if (context.ShouldStopEvaluation)
                 {
-                    var iterableJs = expression.Expression.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return iterableJs;
-                    }
-
-                    state = CreateDelegatedState(iterableJs, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return context.FlowValue;
-                    }
-
-                    stateKey.StoreDelegatedState(environment, state);
+                    return iterableJs;
                 }
+
+                state = CreateDelegatedState(iterableJs, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return context.FlowValue;
+                }
+
+                stateKey.StoreDelegatedState(environment, state);
+            }
 
             var tracker = environment.GetYieldTracker();
             var pendingSend = JsValue.Undefined;
@@ -202,7 +205,6 @@ public static partial class TypedAstEvaluator
                         pendingReturn = true;
                         // Consume because we're passing a value to the inner iterator
                         state.ConsumeCachedResult();
-                        continue;
                     }
 
                     // Normal resume with .next(value) - for non-generator iterators like arrays,
@@ -234,6 +236,5 @@ public static partial class TypedAstEvaluator
             var key = $"__yield_delegate_{expression.Source.StartPosition}_{expression.Source.EndPosition}";
             return Symbol.Intern(key);
         }
-
     }
 }

@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -28,7 +32,9 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         var supportedLocalesOf = new HostFunction(
-            (_, args) => JsValue.FromObjectUnsafe(IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
+            (_, args) =>
+                JsValue.FromObjectUnsafe(
+                    IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",
@@ -77,6 +83,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
             throw StandardLibrary.ThrowTypeError(
                 "Intl.RelativeTimeFormat numberingSystem option must be a string", realm: Realm);
         }
+
         if (!IntlUtilities.TryNormalizeNumberingSystem(numberingSystem, out var canonical))
         {
             throw StandardLibrary.ThrowRangeError(
@@ -100,6 +107,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
             throw StandardLibrary.ThrowTypeError(
                 $"Intl.RelativeTimeFormat {propertyName} option must be a string", realm: Realm);
         }
+
         if (!allowed.Contains(strValue, StringComparer.Ordinal))
         {
             throw StandardLibrary.ThrowRangeError(

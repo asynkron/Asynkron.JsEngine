@@ -1,15 +1,23 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("WeakSet", PrototypeType = typeof(WeakSetPrototype), Length = 0d, DisplayName = "WeakSet")]
-public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("WeakSet constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -18,7 +26,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
             return JsValue.FromObjectUnsafe(ConstructWeakSet(args, _constructor ?? ConstructFallback));
         }
 
-        throw StandardLibrary.ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
+        throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -31,7 +39,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         {
             if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
-                throw StandardLibrary.ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
+                throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
@@ -73,7 +81,4 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
             }
         }
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("WeakSet constructor not initialized");
 }

@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -57,7 +61,9 @@ public sealed partial class IntlDurationFormatPrototype
         obj.SetProperty("nanoseconds", "auto");
         obj.SetProperty("nanosecondsDisplay", "auto");
         obj.SetProperty("locale",
-            instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr) ? localeStr : "en");
+            instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr)
+                ? localeStr
+                : "en");
         return new JsValue(obj);
     }
 

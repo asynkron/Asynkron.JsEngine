@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -24,6 +28,7 @@ internal static class GeneratorIrBuilder
         {
             GeneratorIrDiagnostics.ReportResult(function, succeeded, failureReason);
         }
+
         return succeeded;
     }
 }

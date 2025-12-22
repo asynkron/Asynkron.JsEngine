@@ -1,10 +1,15 @@
+#region
+
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-using System.Runtime.CompilerServices;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -14,41 +19,41 @@ public static partial class TypedAstEvaluator
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider
     {
+        private static readonly ConcurrentBag<HashSet<Symbol>> SymbolSetPool = [];
+        private readonly bool _allowIdentifierCache;
+        private readonly bool _argumentsObjectNeeded;
+        private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
+        private readonly bool _canPoolInvocationEnvironment;
+        private readonly ImmutableArray<Symbol> _catchParameterTemplate;
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
+        private readonly string _functionDescription;
+        private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _hasHoistableDeclarations;
-        private readonly JsEnvironment? _lexicalThisEnvironment;
+        private readonly bool _hasParameterExpressions;
+        private readonly bool _isStrict;
+        private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly JsValue _lexicalThis;
+        private readonly JsEnvironment? _lexicalThisEnvironment;
+        private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
         private readonly JsObject _properties = new();
-        private readonly RealmState _realmState;
-        private readonly bool _isStrict;
-        private readonly bool _wasAsyncFunction;
-        private readonly bool _hasFunctionNameEnvironment;
-        private readonly bool _hasParameterExpressions;
-        private readonly bool _allowIdentifierCache;
-        private readonly bool _usesArguments;
-        private readonly bool _argumentsObjectNeeded;
-        private readonly bool _canPoolInvocationEnvironment;
-        private readonly string _functionDescription;
-        private readonly ImmutableArray<Symbol> _parameterNames;
-        private readonly ImmutableArray<Symbol> _lexicalTemplate;
-        private readonly ImmutableArray<Symbol> _catchParameterTemplate;
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
-        private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
-        private static readonly System.Collections.Concurrent.ConcurrentBag<HashSet<Symbol>> SymbolSetPool = [];
-        private bool _isConstructorEnabled;
-        private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
-        private JsObject? _prototypeObject;
-        private IJsObjectLike? _homeObject;
-        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
-        private bool _isClassConstructor;
-        private bool _isDerivedClassConstructor;
-        private IJsEnvironmentAwareCallable? _superConstructor;
-        private IJsPropertyAccessor? _superPrototype;
+        private readonly bool _usesArguments;
+
+        private readonly bool _wasAsyncFunction;
+
         // Precomputed fast path eligibility - combines all conditions except newTarget.IsUndefined
         // Updated when setters are called that could invalidate fast path
         private bool _canUseFastPathBase;
+        private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
+        private IJsObjectLike? _homeObject;
+        private ImmutableArray<ClassField> _instanceFields = ImmutableArray<ClassField>.Empty;
+        private bool _isConstructorEnabled;
+        private bool _isDerivedClassConstructor;
+        private JsObject? _prototypeObject;
+        private IJsEnvironmentAwareCallable? _superConstructor;
+        private IJsPropertyAccessor? _superPrototype;
 
         public TypedFunction(
             FunctionExpression function,
@@ -66,8 +71,8 @@ public static partial class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
-            _realmState = realmState;
-            _properties.RealmState = _realmState;
+            RealmState = realmState;
+            _properties.RealmState = RealmState;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             IsAsyncFunction = function.IsAsync;
             _wasAsyncFunction = function.WasAsync;
@@ -110,7 +115,8 @@ public static partial class TypedAstEvaluator
             // Cache the function description to avoid string allocation per call
             _functionDescription = function.Name is { } funcName ? $"function {funcName.Name}" : "anonymous function";
 
-            var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache().ParameterNames;
+            var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
+                .ParameterNames;
             _parameterNames = parameterNames;
             _lexicalTemplate = hoistPlan.LexicalTemplate;
             _catchParameterTemplate = hoistPlan.CatchParameterTemplate;
@@ -127,7 +133,8 @@ public static partial class TypedAstEvaluator
             var argumentsInBodyLexicalNames = bodyLexicalNames.Contains(Symbol.Arguments) &&
                                               !hoistPlan.SimpleCatchParameterNames.Contains(Symbol.Arguments);
             var canSkipArgumentsForBodyDeclaration = !_hasParameterExpressions && argumentsInBodyLexicalNames;
-            _argumentsObjectNeeded = !IsArrowFunction && !argumentsIsParameterName && !canSkipArgumentsForBodyDeclaration;
+            _argumentsObjectNeeded =
+                !IsArrowFunction && !argumentsIsParameterName && !canSkipArgumentsForBodyDeclaration;
 
             if (IsArrowFunction)
             {
@@ -143,7 +150,7 @@ public static partial class TypedAstEvaluator
                     }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                             StringComparison.Ordinal))
+                                                               StringComparison.Ordinal))
                 {
                     _lexicalThis = JsValue.Uninitialized;
                     _lexicalThisEnvironment = _closure;
@@ -152,9 +159,9 @@ public static partial class TypedAstEvaluator
 
             var paramCount = function.Parameters.GetExpectedParameterCount();
             var functionNameValue = _function.Name?.Name ?? string.Empty;
-            if (_realmState.FunctionPrototype is not null)
+            if (RealmState.FunctionPrototype is not null)
             {
-                _properties.SetPrototype(_realmState.FunctionPrototype);
+                _properties.SetPrototype(RealmState.FunctionPrototype);
             }
 
             // Functions expose a prototype objeßct, so instances created via `new` can inherit from it.
@@ -164,11 +171,11 @@ public static partial class TypedAstEvaluator
             if (!IsArrowFunction && !IsAsyncFunction && !_wasAsyncFunction && _isConstructorEnabled)
             {
                 var functionPrototype = new JsObject();
-                functionPrototype.RealmState = _realmState;
+                functionPrototype.RealmState = RealmState;
                 functionPrototype.Origin = string.IsNullOrEmpty(functionNameValue)
                     ? "anonymous function prototype"
                     : $"prototype of {functionNameValue}";
-                functionPrototype.SetPrototype(_realmState.ObjectPrototype);
+                functionPrototype.SetPrototype(RealmState.ObjectPrototype);
                 functionPrototype.DefinePropertyDirect("constructor",
                     new PropertyDescriptor
                     {
@@ -230,65 +237,26 @@ public static partial class TypedAstEvaluator
 
         public bool IsAsyncFunction { get; }
 
-        internal bool IsClassConstructor => _isClassConstructor;
+        internal bool IsClassConstructor { get; private set; }
+
+        internal bool IsDerivedClassConstructor => IsClassConstructor && _isDerivedClassConstructor;
+
+        public bool IsAsyncLike => IsAsyncFunction || _wasAsyncFunction;
+
+        public PrivateNameScope? PrivateNameScope { get; private set; }
+
         // Async functions are never constructors per ES spec 15.8.3
         // Use IsAsyncLike to catch both IsAsyncFunction and _wasAsyncFunction (CPS-transformed async)
         public bool DisallowConstruct => !_isConstructorEnabled || IsAsyncLike;
 
-        internal bool IsDerivedClassConstructor => _isClassConstructor && _isDerivedClassConstructor;
-
-        public bool IsAsyncLike => IsAsyncFunction || _wasAsyncFunction;
-        public PrivateNameScope? PrivateNameScope { get; private set; }
-
         public bool IsArrowFunction { get; }
-        public RealmState RealmState => _realmState;
+        public RealmState RealmState { get; }
 
         public bool IsExtensible => _properties.IsExtensible;
 
         public void PreventExtensions()
         {
             _properties.PreventExtensions();
-        }
-
-        /// <summary>
-        /// Coerces 'this' value for non-strict mode function calls.
-        /// In non-strict mode, primitives are boxed to objects and null/undefined become globalThis.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue CoerceThisValueForNonStrict(JsValue thisValue)
-        {
-            // Null/undefined → globalThis
-            if (thisValue.IsNullish)
-            {
-                return _realmState.Engine is { GlobalObject: { } globalObj }
-                    ? (JsValue)globalObj
-                    : JsValue.Undefined;
-            }
-
-            // Primitives → boxed objects
-            if (thisValue.IsNumber)
-            {
-                return JsValue.FromObjectUnsafe(NumberHelper.CreateNumberWrapper(thisValue.AsDouble(), realm: _realmState));
-            }
-            if (thisValue.IsString)
-            {
-                return JsValue.FromObjectUnsafe(StringHelper.CreateStringWrapper(thisValue.AsString(), realm: _realmState));
-            }
-            if (thisValue.IsBoolean)
-            {
-                return JsValue.FromObjectUnsafe(BooleanHelper.CreateBooleanWrapper(thisValue.AsBoolean(), realm: _realmState));
-            }
-            if (thisValue.IsBigInt)
-            {
-                return JsValue.FromObjectUnsafe(BigIntHelper.CreateBigIntWrapper(thisValue.AsBigInt(), realm: _realmState));
-            }
-            if (thisValue.IsSymbol && thisValue.TryUnwrap<TypedAstSymbol>(out var typedSymbol))
-            {
-                return JsValue.FromObjectUnsafe(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: _realmState));
-            }
-
-            // Already an object
-            return thisValue;
         }
 
         public void EnsureHasName(string name, bool overwriteExisting = false)
@@ -336,13 +304,6 @@ public static partial class TypedAstEvaluator
                 });
         }
 
-        // Ensure constructor [[OwnPropertyKeys]] start with length/name/prototype as required by
-        // ClassDefinitionEvaluation (ECMA-262 16.5.6.6, steps 31-33).
-        internal void SeedIntrinsicConstructorKeys()
-        {
-            _properties.SeedIntrinsicConstructorKeys();
-        }
-
         public JsEnvironment? CallingJsEnvironment { get; set; }
 
         public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
@@ -356,8 +317,6 @@ public static partial class TypedAstEvaluator
         public bool IsFrozen => _properties.IsFrozen;
 
         public IEnumerable<string> Keys => _properties.Keys;
-
-        IJsPropertyAccessor? IPrototypeAccessorProvider.PrototypeAccessor => _properties.PrototypeAccessor;
 
         public void DefineProperty(string name, PropertyDescriptor descriptor)
         {
@@ -390,7 +349,8 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value))
+            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                    out value))
             {
                 return true;
             }
@@ -424,12 +384,14 @@ public static partial class TypedAstEvaluator
                             {
                                 jsValues[i] = items[i];
                             }
+
                             argList = jsValues;
                         }
                         else
                         {
                             argList = ArgumentSlice.Empty;
                         }
+
                         return callable.Invoke(argList, thisArg);
                     }, isConstructor: false);
                     return true;
@@ -440,8 +402,9 @@ public static partial class TypedAstEvaluator
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
                         var targetIsConstructor = JsOps.IsConstructor(callable);
-                        return (JsValue)HostFunction.CreateBoundFunction(callable, boundThis, boundArgs, targetIsConstructor,
-                            _realmState);
+                        return (JsValue)HostFunction.CreateBoundFunction(callable, boundThis, boundArgs,
+                            targetIsConstructor,
+                            RealmState);
                     }, isConstructor: false);
                     return true;
             }
@@ -483,6 +446,12 @@ public static partial class TypedAstEvaluator
             return _properties.GetOwnPropertyNames();
         }
 
+        public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true,
+            bool includeNonEnumerable = true)
+        {
+            return _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
+        }
+
         public void AddPrivateBrand(object brand)
         {
             _privateBrands.Add(brand);
@@ -496,6 +465,64 @@ public static partial class TypedAstEvaluator
         public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
         {
             return _properties.TryDefineProperty(name, descriptor);
+        }
+
+        IJsPropertyAccessor? IPrototypeAccessorProvider.PrototypeAccessor => _properties.PrototypeAccessor;
+
+        /// <summary>
+        /// Coerces 'this' value for non-strict mode function calls.
+        /// In non-strict mode, primitives are boxed to objects and null/undefined become globalThis.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue CoerceThisValueForNonStrict(JsValue thisValue)
+        {
+            // Null/undefined → globalThis
+            if (thisValue.IsNullish)
+            {
+                return RealmState.Engine is { GlobalObject: { } globalObj }
+                    ? (JsValue)globalObj
+                    : JsValue.Undefined;
+            }
+
+            // Primitives → boxed objects
+            if (thisValue.IsNumber)
+            {
+                return JsValue.FromObjectUnsafe(NumberHelper.CreateNumberWrapper(thisValue.AsDouble(),
+                    realm: RealmState));
+            }
+
+            if (thisValue.IsString)
+            {
+                return JsValue.FromObjectUnsafe(StringHelper.CreateStringWrapper(thisValue.AsString(),
+                    realm: RealmState));
+            }
+
+            if (thisValue.IsBoolean)
+            {
+                return JsValue.FromObjectUnsafe(
+                    BooleanHelper.CreateBooleanWrapper(thisValue.AsBoolean(), realm: RealmState));
+            }
+
+            if (thisValue.IsBigInt)
+            {
+                return JsValue.FromObjectUnsafe(BigIntHelper.CreateBigIntWrapper(thisValue.AsBigInt(),
+                    realm: RealmState));
+            }
+
+            if (thisValue.IsSymbol && thisValue.TryUnwrap<TypedAstSymbol>(out var typedSymbol))
+            {
+                return JsValue.FromObjectUnsafe(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: RealmState));
+            }
+
+            // Already an object
+            return thisValue;
+        }
+
+        // Ensure constructor [[OwnPropertyKeys]] start with length/name/prototype as required by
+        // ClassDefinitionEvaluation (ECMA-262 16.5.6.6, steps 31-33).
+        internal void SeedIntrinsicConstructorKeys()
+        {
+            _properties.SeedIntrinsicConstructorKeys();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -528,6 +555,7 @@ public static partial class TypedAstEvaluator
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
+
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -546,6 +574,7 @@ public static partial class TypedAstEvaluator
             {
                 return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
+
             return InvokeWithContextSlow([arg0], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -563,6 +592,7 @@ public static partial class TypedAstEvaluator
             {
                 return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
             }
+
             return InvokeWithContextSlow([arg0, arg1], thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -573,15 +603,14 @@ public static partial class TypedAstEvaluator
             EvaluationContext? callingContext,
             JsValue newTarget)
         {
-
-            var context = _realmState.RentContext(pushScope: false);
+            var context = RealmState.RentContext(pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
-            _realmState.Logger?.LogInformation(
+            RealmState.Logger?.LogInformation(
                 "InvokeWithContext enter func={Function} isAsync={IsAsync} wasAsync={WasAsync}",
                 _function.Name?.Name ?? "<anonymous>",
                 IsAsyncFunction,
                 _wasAsyncFunction);
-            if (_realmState.Logger is { } entryLogger && _isClassConstructor)
+            if (RealmState.Logger is { } entryLogger && IsClassConstructor)
             {
                 entryLogger.LogInformation(
                     "ctor entry func={Function} receiver={Receiver} newTarget={NewTarget}",
@@ -590,7 +619,7 @@ public static partial class TypedAstEvaluator
                     DescribeValueJsValue(newTarget));
             }
 
-            if (_realmState.Logger is { } logger && _isStrict && !thisValue.IsUndefined)
+            if (RealmState.Logger is { } logger && _isStrict && !thisValue.IsUndefined)
             {
                 logger.LogInformation("TypedFunction strict received thisValue type={Type}",
                     thisValue.Kind);
@@ -602,20 +631,20 @@ public static partial class TypedAstEvaluator
                 context.MaxCallDepth = callingContext.MaxCallDepth;
             }
 
-            if (_isClassConstructor && newTarget.IsUndefined)
+            if (IsClassConstructor && newTarget.IsUndefined)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",
                     callingContext ?? context,
-                    _realmState);
+                    RealmState);
                 throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
             }
 
             // Async functions use the generator IR executor for non-blocking await
             // This routes async functions through TypedGeneratorInstance with _asyncStepMode=true
-            if (IsAsyncFunction && !_isClassConstructor)
+            if (IsAsyncFunction && !IsClassConstructor)
             {
-                _realmState.ReturnContext(context);
+                RealmState.ReturnContext(context);
                 try
                 {
                     var executor = new AsyncFunctionExecutor(
@@ -624,7 +653,7 @@ public static partial class TypedAstEvaluator
                         arguments,
                         thisValue,
                         this,
-                        _realmState,
+                        RealmState,
                         _isStrict,
                         _hasFunctionNameEnvironment,
                         _homeObject,
@@ -726,7 +755,7 @@ public static partial class TypedAstEvaluator
                 if (_lexicalThisEnvironment is not null)
                 {
                     // Try to get the this binding from the lexical environment, allowing uninitialized
-                    if (_lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out _,
+                    if (_lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _,
                             out var envThis))
                     {
                         lexicalThis = envThis;
@@ -756,11 +785,11 @@ public static partial class TypedAstEvaluator
                 // This is needed for super() calls in arrow functions - super() must update
                 // the original constructor's `this` binding, not the arrow function's local copy.
                 if (_lexicalThisEnvironment is not null &&
-                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true,
+                    _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true,
                         out var originalThisEnv, out _))
                 {
                     functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
-                        JsValue.FromObjectUnsafe(originalThisEnv), false, isLexical: true);
+                        JsValue.FromObjectUnsafe(originalThisEnv));
                 }
 
                 var hasCopiedInitialization = false;
@@ -792,7 +821,7 @@ public static partial class TypedAstEvaluator
                         lexicalSuperBinding.Prototype is null,
                         lexicalSuperBinding.IsThisInitialized);
                     functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(lexicalSuperBinding),
-                        false, isLexical: true,
+                        isLexical: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
@@ -805,23 +834,23 @@ public static partial class TypedAstEvaluator
                 // Non-arrow function - use object? for boundThis due to pattern matching needs
                 var boundThis = thisValue.ToObject();
 
-                if (_isClassConstructor &&
+                if (IsClassConstructor &&
                     ReferenceEquals(boundThis, Symbol.Undefined) &&
                     !newTarget.IsUndefined)
                 {
-                    var constructedThis = new JsObject { RealmState = _realmState };
+                    var constructedThis = new JsObject { RealmState = RealmState };
                     if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
                         JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
                         protoVal is IJsPropertyAccessor protoAccessor)
                     {
                         constructedThis.SetPrototype(protoAccessor);
                     }
-                    else if (_realmState.ObjectPrototype is { } defaultProto)
+                    else if (RealmState.ObjectPrototype is { } defaultProto)
                     {
                         constructedThis.SetPrototype(defaultProto);
                     }
 
-                    _realmState.Logger?.LogInformation(
+                    RealmState.Logger?.LogInformation(
                         "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
                         _function.Name?.Name ?? "<anonymous>",
                         DescribeValue(constructedThis),
@@ -835,7 +864,7 @@ public static partial class TypedAstEvaluator
                 {
                     if (thisValue.IsNullish)
                     {
-                        boundThis = _realmState.Engine is { GlobalObject: { } globalObj }
+                        boundThis = RealmState.Engine is { GlobalObject: { } globalObj }
                             ? globalObj
                             : Symbol.Undefined;
                     }
@@ -863,7 +892,7 @@ public static partial class TypedAstEvaluator
                     initialThisValue = boundThis;
                     if (!_isStrict && initialThisValue is null)
                     {
-                        initialThisValue = new JsObject { RealmState = _realmState };
+                        initialThisValue = new JsObject { RealmState = RealmState };
                     }
 
                     boundThis = initialThisValue;
@@ -872,9 +901,9 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.SetThisInitializationStatus(initialThisInitialized);
                 functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(initialThisValue));
 
-                if (_isClassConstructor && initialThisValue is JsObject ctorThis)
+                if (IsClassConstructor && initialThisValue is JsObject ctorThis)
                 {
-                    _realmState.Logger?.LogInformation(
+                    RealmState.Logger?.LogInformation(
                         "ctor: bound this func={Function} this={This} proto={Proto} initialized={Initialized}",
                         _function.Name?.Name ?? "<anonymous>",
                         DescribeValue(ctorThis),
@@ -903,7 +932,7 @@ public static partial class TypedAstEvaluator
                 if (_homeObject is not null || _superConstructor is not null || prototypeForSuper is not null)
                 {
                     var runtimeSuperConstructor = _superConstructor;
-                    if (_isClassConstructor)
+                    if (IsClassConstructor)
                     {
                         var runtimeCtorPrototype =
                             (this as IPrototypeAccessorProvider)?.PrototypeAccessor ?? Prototype;
@@ -919,14 +948,14 @@ public static partial class TypedAstEvaluator
                     functionEnvironment.RealmState?.Logger?.LogInformation(
                         "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
                         functionEnvironment.GetHashCode(),
-                        _isClassConstructor,
+                        IsClassConstructor,
                         _isDerivedClassConstructor,
                         prototypeForSuper is null,
                         initialThisInitialized);
                     functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(binding));
                 }
 
-                if (_isClassConstructor && boundThis is JsObject thisInstance)
+                if (IsClassConstructor && boundThis is JsObject thisInstance)
                 {
                     if (_isDerivedClassConstructor)
                     {
@@ -947,7 +976,6 @@ public static partial class TypedAstEvaluator
                             var thrownDuringInitialization = context.FlowValue;
                             callingContext?.SetThrow(thrownDuringInitialization);
                             return thrownDuringInitialization;
-
                         }
                     }
                 }
@@ -960,7 +988,7 @@ public static partial class TypedAstEvaluator
                 if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject = _function.CreateArgumentsObject(arguments, parameterEnvironment, _realmState,
+                    var argumentsObject = _function.CreateArgumentsObject(arguments, parameterEnvironment, RealmState,
                         this,
                         _isStrict);
                     parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
@@ -975,7 +1003,7 @@ public static partial class TypedAstEvaluator
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
-                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(this), isConst: true,
+                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(this), true,
                         isLexical: true, blocksFunctionScopeOverride: true);
                 }
 
@@ -1012,7 +1040,6 @@ public static partial class TypedAstEvaluator
 
                         callingContext.SetThrow(thrownDuringBinding);
                         return thrownDuringBinding;
-
                     }
 
                     if (_hasHoistableDeclarations)
@@ -1038,7 +1065,7 @@ public static partial class TypedAstEvaluator
                     if (context.IsThrow)
                     {
                         var thrown = context.FlowValue;
-                        _realmState.Logger?.LogInformation(
+                        RealmState.Logger?.LogInformation(
                             "InvokeWithContext propagating throw kind={ThrowKind} callerHasContext={HasCaller} func={FunctionName}",
                             thrown.Kind,
                             callingContext is not null,
@@ -1059,7 +1086,6 @@ public static partial class TypedAstEvaluator
 
                         callingContext.SetThrow(thrown);
                         return thrown;
-
                     }
 
                     // Use IsAsyncLike so CPS-transformed async functions (WasAsync=true, IsAsync=false)
@@ -1068,7 +1094,7 @@ public static partial class TypedAstEvaluator
                     {
                         if (!context.IsReturn)
                         {
-                            if (!_isClassConstructor)
+                            if (!IsClassConstructor)
                             {
                                 return JsValue.Undefined;
                             }
@@ -1077,7 +1103,7 @@ public static partial class TypedAstEvaluator
                             {
                                 if (functionEnvironment.TryGetJsValue(Symbol.This, out var currentThis))
                                 {
-                                    _realmState.Logger?.LogInformation(
+                                    RealmState.Logger?.LogInformation(
                                         "Class constructor returning this={This}",
                                         DescribeValue(currentThis.ToObject()));
                                     return currentThis;
@@ -1098,7 +1124,7 @@ public static partial class TypedAstEvaluator
 
                         var value = context.FlowValue;
                         context.ClearReturn();
-                        if (_isClassConstructor &&
+                        if (IsClassConstructor &&
                             !value.TryGetObject<JsObject>(out _) &&
                             !value.TryGetObject<IJsObjectLike>(out _))
                         {
@@ -1110,7 +1136,7 @@ public static partial class TypedAstEvaluator
                                 throw StandardLibrary.ThrowTypeError(
                                     "Derived constructors may only return object or undefined",
                                     context,
-                                    _realmState);
+                                    RealmState);
                             }
 
                             try
@@ -1119,7 +1145,7 @@ public static partial class TypedAstEvaluator
                                     currentThisValue.ObjectValue is not null &&
                                     !ReferenceEquals(currentThisValue.ObjectValue, JsEnvironment.Uninitialized))
                                 {
-                                    _realmState.Logger?.LogInformation(
+                                    RealmState.Logger?.LogInformation(
                                         "Class constructor returning bound this instead of non-object return value");
                                     return currentThisValue;
                                 }
@@ -1152,7 +1178,7 @@ public static partial class TypedAstEvaluator
                                     throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
                                 }
 
-                                _realmState.Logger?.LogInformation(
+                                RealmState.Logger?.LogInformation(
                                     "Class constructor missing initialized this; falling back to return value reason={Reason}",
                                     ex.Message);
                             }
@@ -1168,7 +1194,7 @@ public static partial class TypedAstEvaluator
                         context.ClearReturn();
                     }
 
-                    _realmState.Logger?.LogInformation(
+                    RealmState.Logger?.LogInformation(
                         "Async completion func={Function} isAsync={IsAsync} wasAsync={WasAsync} completionKind={Kind}",
                         _function.Name?.Name ?? "<anonymous>",
                         IsAsyncFunction,
@@ -1202,9 +1228,9 @@ public static partial class TypedAstEvaluator
                     context.RemovePendingClassFieldInitializer(this);
                 }
 
-                _realmState.ReturnContext(context);
+                RealmState.ReturnContext(context);
             }
-    }
+        }
 
         private static HashSet<Symbol> RentSymbolSet()
         {
@@ -1215,7 +1241,6 @@ public static partial class TypedAstEvaluator
 
             set.Clear();
             return set;
-
         }
 
         private static HashSet<Symbol> RentSymbolSet(IEnumerable<Symbol> seed)
@@ -1238,7 +1263,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private JsValue CreateRejectedPromiseFromRealm(JsValue reason)
         {
-            var promiseCtor = _realmState.PromiseConstructor;
+            var promiseCtor = RealmState.PromiseConstructor;
             if (promiseCtor is IJsPropertyAccessor accessor &&
                 accessor.TryGetProperty("reject", out var rejectValue) &&
                 rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
@@ -1269,12 +1294,6 @@ public static partial class TypedAstEvaluator
         public IEnumerable<string> GetOwnPropertyNames()
         {
             return _properties.GetOwnPropertyNames();
-        }
-
-        public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true,
-            bool includeNonEnumerable = true)
-        {
-            return _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
         }
 
         public void SetPrivateNameScope(PrivateNameScope? scope)
@@ -1330,7 +1349,7 @@ public static partial class TypedAstEvaluator
 
         public void SetIsClassConstructor(bool isDerived)
         {
-            _isClassConstructor = true;
+            IsClassConstructor = true;
             _isDerivedClassConstructor = isDerived;
             _canUseFastPathBase = false;
         }
@@ -1350,7 +1369,8 @@ public static partial class TypedAstEvaluator
             // (e.g., FooObj.prototype = anotherFunction). Per ES spec, if the prototype property
             // is not an object, we should use the intrinsic %Object.prototype% instead, but
             // this is handled at the call site.
-            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) && value.TryGetObject<IJsObjectLike>(out var objLike))
+            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) &&
+                value.TryGetObject<IJsObjectLike>(out var objLike))
             {
                 prototype = objLike;
                 // Also cache if it's a JsObject for backwards compatibility
@@ -1358,6 +1378,7 @@ public static partial class TypedAstEvaluator
                 {
                     _prototypeObject = jsObj;
                 }
+
                 return true;
             }
 
@@ -1377,7 +1398,8 @@ public static partial class TypedAstEvaluator
             // Always check the current prototype property value first, in case it was reassigned
             // (e.g., FooObj.prototype = protoObj). The _prototypeObject cache is only used
             // as a fallback when the property hasn't been explicitly set.
-            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) && value.TryGetObject<JsObject>(out var jsObj))
+            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) &&
+                value.TryGetObject<JsObject>(out var jsObj))
             {
                 _prototypeObject = jsObj;
                 return jsObj;
@@ -1389,9 +1411,9 @@ public static partial class TypedAstEvaluator
                 return _prototypeObject;
             }
 
-            var created = new JsObject(_realmState.ObjectPrototype)
+            var created = new JsObject(RealmState.ObjectPrototype)
             {
-                RealmState = _realmState,
+                RealmState = RealmState,
                 Origin = string.IsNullOrEmpty(_function.Name?.Name)
                     ? "anonymous function prototype (materialized)"
                     : $"prototype of {_function.Name!.Name} (materialized)"
@@ -1453,14 +1475,15 @@ public static partial class TypedAstEvaluator
 
                 using var classFieldInitScope = context.EnterClassFieldInitializer();
                 var initEnv = new JsEnvironment(environment, isStrict: true);
-                initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, isConst: true, isLexical: true,
+                initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexical: true,
                     blocksFunctionScopeOverride: true);
                 initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(instance));
 
                 var fieldSuperBinding = ResolveInstanceFieldSuperBinding(environment, instance);
                 if (fieldSuperBinding is not null)
                 {
-                    initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fieldSuperBinding), true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fieldSuperBinding), true,
+                        isLexical: true,
                         blocksFunctionScopeOverride: true);
                 }
 
@@ -1497,7 +1520,8 @@ public static partial class TypedAstEvaluator
                         return;
                     }
                 }
-                else if (field.IsPrivate && PrivateNameScope is not null && !propertyName.Contains('@', StringComparison.Ordinal))
+                else if (field.IsPrivate && PrivateNameScope is not null &&
+                         !propertyName.Contains('@', StringComparison.Ordinal))
                 {
                     propertyName = PrivateNameScope.GetKey(propertyName);
                 }
@@ -1545,10 +1569,7 @@ public static partial class TypedAstEvaluator
 
                 var descriptor = new PropertyDescriptor
                 {
-                    JsValue = valueJs,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
+                    JsValue = valueJs, Writable = true, Enumerable = true, Configurable = true
                 };
 
                 if (instance is IPropertyDefinitionHost definitionHost)
@@ -1580,13 +1601,13 @@ public static partial class TypedAstEvaluator
             switch (value.ObjectValue)
             {
                 case TypedFunction typedFunction:
-                    typedFunction.EnsureHasName(displayName, overwriteExisting: true);
+                    typedFunction.EnsureHasName(displayName, true);
                     break;
                 case TypedGeneratorFactory generatorFactory:
-                    generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                    generatorFactory.EnsureHasName(displayName, true);
                     break;
                 case AsyncGeneratorFactory asyncGeneratorFactory:
-                    asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                    asyncGeneratorFactory.EnsureHasName(displayName, true);
                     break;
             }
         }
@@ -1600,10 +1621,12 @@ public static partial class TypedAstEvaluator
                 case JsObject jsObj:
                 {
                     var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}'";
+                    return
+                        $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}'";
                 }
                 default:
-                    return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto).ToString(CultureInfo.InvariantCulture)}";
+                    return
+                        $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto).ToString(CultureInfo.InvariantCulture)}";
             }
         }
 
@@ -1613,7 +1636,8 @@ public static partial class TypedAstEvaluator
             {
                 var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
                 var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}' proto={DescribePrototype(proto)}";
+                return
+                    $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}' proto={DescribePrototype(proto)}";
             }
 
             if (value.IsNull)
@@ -1637,7 +1661,8 @@ public static partial class TypedAstEvaluator
                 {
                     var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
                     var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}' proto={DescribePrototype(proto)}";
+                    return
+                        $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}' proto={DescribePrototype(proto)}";
                 }
                 case null:
                     return "null";
@@ -1800,6 +1825,7 @@ public static partial class TypedAstEvaluator
                     return false; // Duplicate parameter name
                 }
             }
+
             return true;
         }
 
@@ -1807,7 +1833,8 @@ public static partial class TypedAstEvaluator
         /// Fast-path invocation for simple functions. Uses pooled EvaluationContext.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFast(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
+        private JsValue InvokeSimpleFast(IReadOnlyList<JsValue> arguments, JsValue thisValue,
+            EvaluationContext? callingContext)
         {
             // Ultra-fast path for simple recursive functions (no arguments object, poolable environment)
             // This path has no try/catch to allow inlining
@@ -1830,6 +1857,7 @@ public static partial class TypedAstEvaluator
             {
                 return InvokeSimpleFastCore1(arg0, thisValue, callingContext);
             }
+
             return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
         }
 
@@ -1838,12 +1866,14 @@ public static partial class TypedAstEvaluator
         /// The provided environment is reset and reused instead of allocating a new one.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFast1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
+        private JsValue InvokeSimpleFast1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext,
+            JsEnvironment reuseEnvironment)
         {
             if (_canPoolInvocationEnvironment && !_usesArguments)
             {
                 return InvokeSimpleFastCore1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
+
             return InvokeSimpleFastWithExceptionHandling([arg0], thisValue, callingContext);
         }
 
@@ -1851,12 +1881,14 @@ public static partial class TypedAstEvaluator
         /// Ultra-fast 2-argument invoke - avoids array allocation entirely.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFast2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
+        private JsValue InvokeSimpleFast2(JsValue arg0, JsValue arg1, JsValue thisValue,
+            EvaluationContext callingContext)
         {
             if (_canPoolInvocationEnvironment && !_usesArguments)
             {
                 return InvokeSimpleFastCore2(arg0, arg1, thisValue, callingContext);
             }
+
             return InvokeSimpleFastWithExceptionHandling([arg0, arg1], thisValue, callingContext);
         }
 
@@ -1865,17 +1897,19 @@ public static partial class TypedAstEvaluator
         /// Only used when we can guarantee no ThrowSignal will escape (errors propagate via context).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext callingContext)
+        private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue,
+            EvaluationContext callingContext)
         {
             // Rent context from pool
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
             // Rent environment from pool
-            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            var functionEnvironment =
+                RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
             functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
@@ -1897,6 +1931,7 @@ public static partial class TypedAstEvaluator
             {
                 boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
+
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
@@ -1949,8 +1984,8 @@ public static partial class TypedAstEvaluator
             }
 
             // Return pooled resources
-            _realmState.ReturnContext(context);
-            _realmState.ReturnEnvironment(functionEnvironment);
+            RealmState.ReturnContext(context);
+            RealmState.ReturnEnvironment(functionEnvironment);
 
             return result;
         }
@@ -1962,12 +1997,13 @@ public static partial class TypedAstEvaluator
         private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
-            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            var functionEnvironment =
+                RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
             functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
@@ -1989,6 +2025,7 @@ public static partial class TypedAstEvaluator
             {
                 boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
+
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
@@ -2027,8 +2064,8 @@ public static partial class TypedAstEvaluator
                 result = JsValue.Undefined;
             }
 
-            _realmState.ReturnContext(context);
-            _realmState.ReturnEnvironment(functionEnvironment);
+            RealmState.ReturnContext(context);
+            RealmState.ReturnEnvironment(functionEnvironment);
             return result;
         }
 
@@ -2037,7 +2074,8 @@ public static partial class TypedAstEvaluator
         /// Reuses the provided environment AND the calling context - avoids all pooling allocations.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFastCore1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext, JsEnvironment reuseEnvironment)
+        private JsValue InvokeSimpleFastCore1Reuse(JsValue arg0, JsValue thisValue, EvaluationContext callingContext,
+            JsEnvironment reuseEnvironment)
         {
             // Use the calling context directly - no renting needed for simple recursive functions
             // This avoids ConcurrentStack Node allocations from pool rent/return
@@ -2064,6 +2102,7 @@ public static partial class TypedAstEvaluator
             {
                 boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
+
             reuseEnvironment._thisValue = boundThisValue;
             reuseEnvironment._hasThisValue = true;
 
@@ -2109,15 +2148,17 @@ public static partial class TypedAstEvaluator
         /// Ultra-fast 2-argument core invocation - no array allocation, no try/catch.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue, EvaluationContext callingContext)
+        private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue,
+            EvaluationContext callingContext)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
-            var functionEnvironment = _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+            var functionEnvironment =
+                RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
             functionEnvironment.SetSlotMap(_function.SlotMap);
             if (_function.SlotCount > 0)
@@ -2139,6 +2180,7 @@ public static partial class TypedAstEvaluator
             {
                 boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
+
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
@@ -2154,6 +2196,7 @@ public static partial class TypedAstEvaluator
                         functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
                     }
                 }
+
                 if (_parameterNames.Length > 1)
                 {
                     slots[1] = arg1;
@@ -2166,8 +2209,15 @@ public static partial class TypedAstEvaluator
             else
             {
                 // Fallback when slots not available
-                if (_parameterNames.Length > 0) functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
-                if (_parameterNames.Length > 1) functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
+                if (_parameterNames.Length > 0)
+                {
+                    functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                }
+
+                if (_parameterNames.Length > 1)
+                {
+                    functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
+                }
             }
 
             _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
@@ -2189,8 +2239,8 @@ public static partial class TypedAstEvaluator
                 result = JsValue.Undefined;
             }
 
-            _realmState.ReturnContext(context);
-            _realmState.ReturnEnvironment(functionEnvironment);
+            RealmState.ReturnContext(context);
+            RealmState.ReturnEnvironment(functionEnvironment);
             return result;
         }
 
@@ -2198,11 +2248,12 @@ public static partial class TypedAstEvaluator
         /// Standard fast path with exception handling for functions that may throw.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private JsValue InvokeSimpleFastWithExceptionHandling(IReadOnlyList<JsValue> arguments, JsValue thisValue, EvaluationContext? callingContext)
+        private JsValue InvokeSimpleFastWithExceptionHandling(IReadOnlyList<JsValue> arguments, JsValue thisValue,
+            EvaluationContext? callingContext)
         {
             // Rent context from pool - avoids allocation per call
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = _realmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
             context.AllowIdentifierCache = _allowIdentifierCache;
 
             if (callingContext is not null)
@@ -2213,7 +2264,7 @@ public static partial class TypedAstEvaluator
 
             // Create environment for function execution - use pooling when safe (no inner closures)
             var functionEnvironment = _canPoolInvocationEnvironment
-                ? _realmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
+                ? RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
             // Initialize slots for O(1) variable access when scope analysis provided slot count
@@ -2241,6 +2292,7 @@ public static partial class TypedAstEvaluator
                 // In sloppy mode: null/undefined become global object, primitives get boxed
                 boundThisValue = CoerceThisValueForNonStrict(thisValue);
             }
+
             // Bind this using fast field access (avoids dictionary allocation)
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
@@ -2279,11 +2331,12 @@ public static partial class TypedAstEvaluator
                     arguments,
                     new Symbol?[arguments.Count], // No mapped parameters in strict mode
                     functionEnvironment,
-                    mappedEnabled: false,
-                    _realmState,
+                    false,
+                    RealmState,
                     this,
-                    isStrict: true);
-                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject), isLexical: false);
+                    true);
+                functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                    isLexical: false);
             }
 
             try
@@ -2299,6 +2352,7 @@ public static partial class TypedAstEvaluator
                         callingContext.SetThrow(thrown);
                         return thrown;
                     }
+
                     throw new ThrowSignal(thrown);
                 }
 
@@ -2318,17 +2372,18 @@ public static partial class TypedAstEvaluator
                     callingContext.SetThrow(signal.ThrownValue);
                     return signal.ThrownValue;
                 }
+
                 throw;
             }
             finally
             {
                 // Return context to pool for reuse
-                _realmState.ReturnContext(context);
+                RealmState.ReturnContext(context);
 
                 // Return environment to pool if pooling was used
                 if (_canPoolInvocationEnvironment)
                 {
-                    _realmState.ReturnEnvironment(functionEnvironment);
+                    RealmState.ReturnEnvironment(functionEnvironment);
                 }
             }
         }

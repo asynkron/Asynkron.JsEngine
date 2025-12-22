@@ -1,5 +1,9 @@
+#region
+
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast.ShapeAnalyzer;
 
@@ -47,7 +51,8 @@ internal static class AstShapeAnalyzer
         return AnalyzeStatement(statement, includeNestedFunctions).HasAwait;
     }
 
-    public static bool TryFindSingleYield(ExpressionNode expression,[NotNullWhen(true)] out YieldExpression? yieldExpression)
+    public static bool TryFindSingleYield(ExpressionNode expression,
+        [NotNullWhen(true)] out YieldExpression? yieldExpression)
     {
         var summary = AnalyzeExpression(expression);
         if (summary.YieldCount != 1)
@@ -66,7 +71,7 @@ internal static class AstShapeAnalyzer
         ExpressionNode expression,
         Symbol replacementSymbol,
         [NotNullWhen(true)] out YieldExpression? yieldExpression,
-        [NotNullWhen(true)]out ExpressionNode? rewritten)
+        [NotNullWhen(true)] out ExpressionNode? rewritten)
     {
         var summary = AnalyzeExpression(expression);
         if (summary.YieldCount != 1)

@@ -1,8 +1,12 @@
-namespace Asynkron.JsEngine.Ast;
+#region
 
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-using JsTypes;
-using StdLib;
+
+#endregion
+
+namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
@@ -35,10 +39,12 @@ public static partial class TypedAstEvaluator
                     return;
                 }
             }
+
             // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
             // then perform SetFunctionName(value, bindingId).
             using var functionNameHint = targetIdentifier is not null &&
-                                         declarator.Initializer is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer)
+                                         declarator.Initializer is not null &&
+                                         ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer)
                 ? context.EnterFunctionNameHint(targetIdentifier.Name)
                 : null;
 
@@ -102,7 +108,8 @@ public static partial class TypedAstEvaluator
             }
 
             // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true
-            var allowNameInference = declarator.Initializer is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer);
+            var allowNameInference = declarator.Initializer is not null &&
+                                     ExpressionNode.IsAnonymousFunctionDefinitionNode(declarator.Initializer);
             declarator.Target.ApplyBindingTarget(valueJs, environment, context, mode,
                 declarator.Initializer is not null, allowNameInference);
         }

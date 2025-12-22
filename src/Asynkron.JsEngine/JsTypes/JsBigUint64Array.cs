@@ -1,7 +1,11 @@
+#region
+
 using System.Buffers.Binary;
 using System.Numerics;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

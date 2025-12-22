@@ -1,15 +1,20 @@
+#region
+
 using System.Collections;
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
+#endregion
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
-public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, IEnumerable<JsValue>
+public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider,
+    IEnumerable<JsValue>
 {
     private const uint DenseIndexLimit = 1_000_000;
 
@@ -19,27 +24,18 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     // We use a special JsValue kind or a unique object that we can identify
     private static readonly object ArrayHoleSentinel = new();
     private static readonly JsValue ArrayHole = new(JsValueKind.Object, 0.0, ArrayHoleSentinel);
-
-    private static bool IsArrayHole(JsValue value) =>
-        value.Kind == JsValueKind.Object && ReferenceEquals(value.ObjectValue, ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
     private readonly List<JsValue> _items = [];
 
     private readonly JsObject _properties = new();
     private readonly IJsCallable? _rangeErrorCtor;
-    private readonly RealmState? _realmState;
-
-    /// <summary>
-    /// Gets the RealmState associated with this array.
-    /// </summary>
-    public RealmState? RealmState => _realmState;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
     private Dictionary<uint, JsValue>? _sparseItems;
 
     public JsArray(RealmState? realmState = null)
     {
-        _realmState = realmState;
+        RealmState = realmState;
         _rangeErrorCtor = realmState?.RangeErrorConstructor;
         _typeErrorCtor = realmState?.TypeErrorConstructor;
         _arrayPrototype = realmState?.ArrayPrototype;
@@ -51,7 +47,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
         else
         {
-            _realmState?.Logger?.LogWarning("JsArray constructed without ArrayPrototype");
+            RealmState?.Logger?.LogWarning("JsArray constructed without ArrayPrototype");
         }
 
         DefineInitialLengthProperty();
@@ -76,6 +72,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _length = (uint)_items.Count;
     }
 
+    /// <summary>
+    /// Gets the RealmState associated with this array.
+    /// </summary>
+    public RealmState? RealmState { get; }
+
     public IReadOnlyList<JsValue> Items => _items;
 
     /// <summary>
@@ -83,16 +84,44 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// </summary>
     public double Length => _length;
 
+    /// <summary>
+    /// Returns true if this array has custom property descriptors (getters/setters) on numeric indices.
+    /// Arrays with custom descriptors cannot use the fast enumeration path because GetElement
+    /// bypasses the property descriptor mechanism.
+    /// </summary>
+    public bool HasCustomIndexedProperties =>
+        // Custom descriptors on indices (e.g., Object.defineProperty(arr, '0', {get: ...}))
+        // are stored in JsObject's _descriptors dictionary, not in _storage.Keys
+        _properties.HasNumericDescriptorKeys();
+
+    /// <summary>
+    /// Returns an enumerator that iterates through the array elements.
+    /// This provides a fast path for for-of loops, avoiding iterator result object allocations.
+    /// Per ES spec, length is checked on each iteration to handle array modifications during iteration.
+    ///
+    /// WARNING: Only use this if HasCustomIndexedProperties is false. GetElement bypasses
+    /// property descriptors and won't invoke custom getters.
+    /// </summary>
+    public IEnumerator<JsValue> GetEnumerator()
+    {
+        // Check _length on each iteration - array may be modified during iteration
+        // (e.g., array-contract.js, array-expand.js Test262 tests)
+        for (uint i = 0; i < _length; i++)
+        {
+            yield return GetElement(i);
+        }
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
     public bool IsExtensible => _properties.IsExtensible;
 
     public void PreventExtensions()
     {
         _properties.PreventExtensions();
-    }
-
-    public void Freeze()
-    {
-        _properties.Freeze();
     }
 
     public void SetPrototype(object? candidate)
@@ -117,8 +146,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public bool IsSealed => _properties.IsSealed;
     public bool IsFrozen => _properties.IsFrozen;
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
     public IEnumerable<string> Keys => _properties.Keys;
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -201,7 +228,8 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        _properties.SetProperty(name, value, receiver.IsNull || receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
+        _properties.SetProperty(name, value,
+            receiver.IsNull || receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -225,10 +253,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (index < _length && TryGetOwnIndex(index, out var value))
         {
-            return new PropertyDescriptor
-            {
-                Value = value, Writable = true, Enumerable = true, Configurable = true
-            };
+            return new PropertyDescriptor { Value = value, Writable = true, Enumerable = true, Configurable = true };
         }
 
         return null;
@@ -236,7 +261,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
-        foreach (var indexKey in EnumerateIndexPropertyNames(includeNonEnumerable: true))
+        foreach (var indexKey in EnumerateIndexPropertyNames(true))
         {
             yield return indexKey;
         }
@@ -254,7 +279,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
-        foreach (var indexKey in EnumerateIndexPropertyNames(includeNonEnumerable: false))
+        foreach (var indexKey in EnumerateIndexPropertyNames(false))
         {
             yield return indexKey;
         }
@@ -290,7 +315,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         _properties.DeleteOwnProperty(name);
         return DeleteElement((int)index);
-
     }
 
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
@@ -316,6 +340,19 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
+
+    private static bool IsArrayHole(JsValue value)
+    {
+        return value.Kind == JsValueKind.Object && ReferenceEquals(value.ObjectValue, ArrayHoleSentinel);
+    }
+
+    public void Freeze()
+    {
+        _properties.Freeze();
     }
 
     public void PushHole()
@@ -350,7 +387,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 JsValueKind.Boolean => item.NumberValue != 0 ? "true" : "false",
                 JsValueKind.Number => JsOps.ToCanonicalNumberString(item.NumberValue),
                 JsValueKind.String => item.ObjectValue as string ?? string.Empty,
-                JsValueKind.BigInt => item.ObjectValue is JsBigInt bi ? bi.Value.ToString(CultureInfo.InvariantCulture) : string.Empty,
+                JsValueKind.BigInt => item.ObjectValue is JsBigInt bi
+                    ? bi.Value.ToString(CultureInfo.InvariantCulture)
+                    : string.Empty,
                 _ => Convert.ToString(item.ObjectValue, CultureInfo.InvariantCulture) ?? string.Empty
             };
             parts.Add(str);
@@ -666,7 +705,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         deleteCount = Math.Max(0, Math.Min(deleteCount, _items.Count - start));
 
         // Create array of deleted items
-        var deleted = new JsArray(_realmState);
+        var deleted = new JsArray(RealmState);
         for (var i = 0; i < deleteCount; i++)
         {
             deleted.Push(_items[start]);
@@ -884,6 +923,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 index = (uint)(c - '0');
                 return true;
             }
+
             return false;
         }
 
@@ -1025,7 +1065,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private ThrowSignal CreateRangeError(string message, EvaluationContext? context = null)
     {
-        var realm = context?.RealmState ?? _realmState;
+        var realm = context?.RealmState ?? RealmState;
         var ctor = realm?.RangeErrorConstructor ?? _rangeErrorCtor;
         if (ctor is not null)
         {
@@ -1040,7 +1080,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private ThrowSignal CreateTypeError(string message, EvaluationContext? context = null)
     {
-        var realm = context?.RealmState ?? _realmState;
+        var realm = context?.RealmState ?? RealmState;
         var ctor = realm?.TypeErrorConstructor ?? _typeErrorCtor;
         if (ctor is not null)
         {
@@ -1081,34 +1121,4 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         throw signal;
     }
-
-    /// <summary>
-    /// Returns true if this array has custom property descriptors (getters/setters) on numeric indices.
-    /// Arrays with custom descriptors cannot use the fast enumeration path because GetElement
-    /// bypasses the property descriptor mechanism.
-    /// </summary>
-    public bool HasCustomIndexedProperties =>
-        // Custom descriptors on indices (e.g., Object.defineProperty(arr, '0', {get: ...}))
-        // are stored in JsObject's _descriptors dictionary, not in _storage.Keys
-        _properties.HasNumericDescriptorKeys();
-
-    /// <summary>
-    /// Returns an enumerator that iterates through the array elements.
-    /// This provides a fast path for for-of loops, avoiding iterator result object allocations.
-    /// Per ES spec, length is checked on each iteration to handle array modifications during iteration.
-    ///
-    /// WARNING: Only use this if HasCustomIndexedProperties is false. GetElement bypasses
-    /// property descriptors and won't invoke custom getters.
-    /// </summary>
-    public IEnumerator<JsValue> GetEnumerator()
-    {
-        // Check _length on each iteration - array may be modified during iteration
-        // (e.g., array-contract.js, array-expand.js Test262 tests)
-        for (uint i = 0; i < _length; i++)
-        {
-            yield return GetElement(i);
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

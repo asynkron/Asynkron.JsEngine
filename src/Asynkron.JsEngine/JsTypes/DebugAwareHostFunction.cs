@@ -36,7 +36,8 @@ public sealed class DebugAwareHostFunction : IJsEnvironmentAwareCallable, IJsPro
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+            out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)

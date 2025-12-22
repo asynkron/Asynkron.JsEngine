@@ -1,8 +1,12 @@
+#region
+
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Collections;
 
@@ -17,19 +21,13 @@ namespace Asynkron.JsEngine.Collections;
 public sealed class SymbolHybridDictionary<TValue>
 {
     private const int CutoverPoint = 8;
-
-    // Small storage - array of key-value pairs
-    private Entry[]? _entries;
     private int _count;
 
     // Large storage - full dictionary with reference equality
     private Dictionary<Symbol, TValue>? _dictionary;
 
-    private struct Entry
-    {
-        public Symbol Key;
-        public TValue Value;
-    }
+    // Small storage - array of key-value pairs
+    private Entry[]? _entries;
 
     public int Count
     {
@@ -78,6 +76,44 @@ public sealed class SymbolHybridDictionary<TValue>
 
             // Not found, add new
             AddInternal(key, value);
+        }
+    }
+
+    public IEnumerable<Symbol> Keys
+    {
+        get
+        {
+            if (_dictionary is not null)
+            {
+                return _dictionary.Keys;
+            }
+
+            var keys = new Symbol[_count];
+            for (var i = 0; i < _count; i++)
+            {
+                keys[i] = _entries![i].Key;
+            }
+
+            return keys;
+        }
+    }
+
+    public IEnumerable<TValue> Values
+    {
+        get
+        {
+            if (_dictionary is not null)
+            {
+                return _dictionary.Values;
+            }
+
+            var values = new TValue[_count];
+            for (var i = 0; i < _count; i++)
+            {
+                values[i] = _entries![i].Value;
+            }
+
+            return values;
         }
     }
 
@@ -137,6 +173,7 @@ public sealed class SymbolHybridDictionary<TValue>
         {
             _dictionary[_entries![i].Key] = _entries[i].Value;
         }
+
         _entries = null;
         _count = 0;
     }
@@ -197,6 +234,7 @@ public sealed class SymbolHybridDictionary<TValue>
                 {
                     _entries![j] = _entries[j + 1];
                 }
+
                 _entries![--_count] = default;
                 return true;
             }
@@ -217,43 +255,8 @@ public sealed class SymbolHybridDictionary<TValue>
         {
             Array.Clear(_entries, 0, _count);
         }
+
         _count = 0;
-    }
-
-    public IEnumerable<Symbol> Keys
-    {
-        get
-        {
-            if (_dictionary is not null)
-            {
-                return _dictionary.Keys;
-            }
-
-            var keys = new Symbol[_count];
-            for (var i = 0; i < _count; i++)
-            {
-                keys[i] = _entries![i].Key;
-            }
-            return keys;
-        }
-    }
-
-    public IEnumerable<TValue> Values
-    {
-        get
-        {
-            if (_dictionary is not null)
-            {
-                return _dictionary.Values;
-            }
-
-            var values = new TValue[_count];
-            for (var i = 0; i < _count; i++)
-            {
-                values[i] = _entries![i].Value;
-            }
-            return values;
-        }
     }
 
     public IEnumerable<KeyValuePair<Symbol, TValue>> GetEntries()
@@ -264,6 +267,7 @@ public sealed class SymbolHybridDictionary<TValue>
             {
                 yield return kvp;
             }
+
             yield break;
         }
 
@@ -281,6 +285,7 @@ public sealed class SymbolHybridDictionary<TValue>
             {
                 yield return kvp;
             }
+
             yield break;
         }
 
@@ -288,5 +293,11 @@ public sealed class SymbolHybridDictionary<TValue>
         {
             yield return new KeyValuePair<Symbol, TValue>(_entries![i].Key, _entries[i].Value);
         }
+    }
+
+    private struct Entry
+    {
+        public Symbol Key;
+        public TValue Value;
     }
 }

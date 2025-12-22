@@ -1,7 +1,11 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -39,6 +43,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         {
             _values[i] = values[i];
         }
+
         _indexNames = new string[_values.Length];
 
         if (realm.ObjectPrototype is not null)
@@ -83,8 +88,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             else
             {
                 var thrower = new HostFunction((_, _) =>
-                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                        "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)),
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                            "Access to callee is not allowed in strict mode.", realm.CreateContext(), realm)),
                     isConstructor: false);
 
                 _calleeDescriptor = new PropertyDescriptor
@@ -130,8 +135,6 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     }
 
     public JsObject? Prototype => _backing.Prototype;
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        _backing is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _backing.IsSealed;
     public bool IsFrozen => _backing.IsFrozen;
@@ -164,7 +167,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             return true;
         }
 
-        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
+        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+            out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -282,6 +286,9 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     {
         return DefinePropertyInternal(name, descriptor, false);
     }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _backing is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
     {

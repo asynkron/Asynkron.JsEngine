@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -61,15 +65,13 @@ public static partial class TypedAstEvaluator
                             nameTarget.EnsureHasName(displayName);
                         }
 
-                        obj.DefineProperty(name, new PropertyDescriptor
-                        {
-                            JsValue = valueJs,
-                            Writable = true,
-                            Enumerable = true,
-                            Configurable = true
-                        });
+                        obj.DefineProperty(name,
+                            new PropertyDescriptor
+                            {
+                                JsValue = valueJs, Writable = true, Enumerable = true, Configurable = true
+                            });
                         break;
-                }
+                    }
                     case ObjectMemberKind.Method:
                     {
                         var callable = member.Function!.CreateFunctionValue(environment, context,
@@ -102,13 +104,11 @@ public static partial class TypedAstEvaluator
                             nameTarget.EnsureHasName(displayName);
                         }
 
-                        obj.DefineProperty(name, new PropertyDescriptor
-                        {
-                            Value = callable,
-                            Writable = true,
-                            Enumerable = true,
-                            Configurable = true
-                        });
+                        obj.DefineProperty(name,
+                            new PropertyDescriptor
+                            {
+                                Value = callable, Writable = true, Enumerable = true, Configurable = true
+                            });
                         break;
                     }
                     case ObjectMemberKind.Getter:
@@ -162,13 +162,11 @@ public static partial class TypedAstEvaluator
                         var valueJs = member.Value is null
                             ? JsValue.Undefined
                             : member.Value.EvaluateExpression(environment, context);
-                        obj.DefineProperty(name, new PropertyDescriptor
-                        {
-                            JsValue = valueJs,
-                            Writable = true,
-                            Enumerable = true,
-                            Configurable = true
-                        });
+                        obj.DefineProperty(name,
+                            new PropertyDescriptor
+                            {
+                                JsValue = valueJs, Writable = true, Enumerable = true, Configurable = true
+                            });
                         break;
                     }
                     case ObjectMemberKind.Spread:
@@ -197,13 +195,11 @@ public static partial class TypedAstEvaluator
                         {
                             foreach (var kvp in dictionary)
                             {
-                                obj.DefineProperty(kvp.Key, new PropertyDescriptor
-                                {
-                                    Value = kvp.Value,
-                                    Writable = true,
-                                    Enumerable = true,
-                                    Configurable = true
-                                });
+                                obj.DefineProperty(kvp.Key,
+                                    new PropertyDescriptor
+                                    {
+                                        Value = kvp.Value, Writable = true, Enumerable = true, Configurable = true
+                                    });
                             }
 
                             break;
@@ -218,13 +214,14 @@ public static partial class TypedAstEvaluator
                             var spreadPropertyValue = accessor.TryGetProperty(key, out var val)
                                 ? val
                                 : JsValue.Undefined;
-                            obj.DefineProperty(key, new PropertyDescriptor
-                            {
-                                JsValue = spreadPropertyValue,
-                                Writable = true,
-                                Enumerable = true,
-                                Configurable = true
-                            });
+                            obj.DefineProperty(key,
+                                new PropertyDescriptor
+                                {
+                                    JsValue = spreadPropertyValue,
+                                    Writable = true,
+                                    Enumerable = true,
+                                    Configurable = true
+                                });
                         }
 
                         break;

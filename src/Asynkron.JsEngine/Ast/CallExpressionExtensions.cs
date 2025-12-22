@@ -1,9 +1,13 @@
+#region
+
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -53,9 +57,9 @@ public static partial class TypedAstEvaluator
                     if (calleeId is { SlotIndex: >= 0, ScopeId: >= 0 })
                     {
                         calleeValue = environment.TryReadIdentifierWithSlot(
-                                calleeId,
-                                context,
-                                out var slotCallee)
+                            calleeId,
+                            context,
+                            out var slotCallee)
                             ? slotCallee
                             : context.GetIdentifier(environment, calleeId.Name);
                     }
@@ -65,14 +69,17 @@ public static partial class TypedAstEvaluator
                     }
 
                     if (context.ShouldStopEvaluation)
+                    {
                         return JsValue.Undefined;
+                    }
 
                     // Fast path for TypedFunction only
                     if (calleeValue.TryGetObject<TypedFunction>(out var typedFunc) && !typedFunc.IsClassConstructor)
                     {
                         if (++context.CallDepth > context.MaxCallDepth)
                         {
-                            throw new InvalidOperationException($"Exceeded maximum call depth of {context.MaxCallDepth}.");
+                            throw new InvalidOperationException(
+                                $"Exceeded maximum call depth of {context.MaxCallDepth}.");
                         }
 
                         // Evaluate arguments and call specialized invoke - avoids array allocation
@@ -89,6 +96,7 @@ public static partial class TypedAstEvaluator
                                     context.CallDepth--;
                                     return JsValue.Undefined;
                                 }
+
                                 // Use environment reuse optimization when eligible
                                 result = expression.CanReuseCallerEnvironment
                                     ? typedFunc.InvokeWithContext1Reuse(arg0, JsValue.Undefined, context, environment)
@@ -101,12 +109,14 @@ public static partial class TypedAstEvaluator
                                     context.CallDepth--;
                                     return JsValue.Undefined;
                                 }
+
                                 var a1 = expression.Arguments[1].Expression.EvaluateExpression(environment, context);
                                 if (context.ShouldStopEvaluation)
                                 {
                                     context.CallDepth--;
                                     return JsValue.Undefined;
                                 }
+
                                 result = typedFunc.InvokeWithContext2(a0, a1, JsValue.Undefined, context);
                                 break;
                         }
@@ -158,7 +168,7 @@ public static partial class TypedAstEvaluator
             // Per ES spec 15.7.14, default derived constructors forward arguments directly
             // without invoking the iterator protocol. Check if we're in such a context.
             var isDefaultDerivedConstructorSuperCall = expression.Callee is SuperExpression &&
-                                                        environment.IsDefaultDerivedConstructor;
+                                                       environment.IsDefaultDerivedConstructor;
 
             var hasSpread = false;
             foreach (var argument in expression.Arguments)
@@ -235,13 +245,15 @@ public static partial class TypedAstEvaluator
 
                         for (var i = 0; i < argCount; i++)
                         {
-                            jsArgsArray[i] = expression.Arguments[i].Expression.EvaluateExpression(environment, context);
+                            jsArgsArray[i] = expression.Arguments[i].Expression
+                                .EvaluateExpression(environment, context);
                             if (context.ShouldStopEvaluation)
                             {
                                 if (pooledJsValueArray is not null)
                                 {
                                     JsValueCache.ReturnJsValueArray(pooledJsValueArray);
                                 }
+
                                 context.CallDepth--;
                                 return JsValue.Undefined;
                             }
@@ -268,7 +280,8 @@ public static partial class TypedAstEvaluator
 
                         // For default derived constructor super calls, bypass the iterator protocol
                         // and directly iterate array items per ES spec 15.7.14.
-                        if (isDefaultDerivedConstructorSuperCall && spreadValueJs.TryGetObject<JsArray>(out var jsArray))
+                        if (isDefaultDerivedConstructorSuperCall &&
+                            spreadValueJs.TryGetObject<JsArray>(out var jsArray))
                         {
                             foreach (var item in jsArray.Items)
                             {
@@ -336,7 +349,8 @@ public static partial class TypedAstEvaluator
                             {
                                 Property: LiteralExpression { Value.IsString: true } formatArgsLit
                             } inner
-                        } && string.Equals(callLit.Value.AsString(), "call", StringComparison.Ordinal) && string.Equals(formatArgsLit.Value.AsString(), "formatArgs", StringComparison.Ordinal))
+                        } && string.Equals(callLit.Value.AsString(), "call", StringComparison.Ordinal) &&
+                        string.Equals(formatArgsLit.Value.AsString(), "formatArgs", StringComparison.Ordinal))
                     {
                         var targetJs = inner.Target.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
@@ -442,7 +456,8 @@ public static partial class TypedAstEvaluator
             if (callable is EvalHostFunction evalHostFunction)
             {
                 evalHost = evalHostFunction;
-                var isDirectEvalCall = expression is { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } } &&
+                var isDirectEvalCall = expression is
+                                           { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } } &&
                                        thisValue.IsUndefined &&
                                        ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
                 evalHost.IsDirectCall = isDirectEvalCall;
@@ -456,7 +471,8 @@ public static partial class TypedAstEvaluator
                 // First check if we're in an arrow function that has captured a lexical this environment.
                 // Arrow functions store a reference to the original constructor's environment so super()
                 // can update the correct `this` binding.
-                if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
+                if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _,
+                        out var lexicalEnvValue) &&
                     lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
                 {
                     thisInitializationEnvironment = lexicalThisEnv;
@@ -467,7 +483,7 @@ public static partial class TypedAstEvaluator
                 }
                 // Otherwise, prefer the environment that owns the current `this` binding; the [[ThisInitialized]]
                 // marker is defined alongside it for derived constructors.
-                else if (environment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out var thisEnv, out _))
+                else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
                 {
                     thisInitializationEnvironment = thisEnv;
                     if (thisEnv.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
@@ -477,7 +493,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 if (thisInitializationEnvironment is null &&
-                    environment.TryFindBindingJsValue(Symbol.ThisInitialized, allowUninitialized: true, out var foundEnv,
+                    environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out var foundEnv,
                         out var foundValue))
                 {
                     thisInitializationEnvironment = foundEnv;
@@ -517,9 +533,9 @@ public static partial class TypedAstEvaluator
                     if (thisInitializationEnvironment is not null)
                     {
                         var alreadyInitialized = thisInitializationValue.IsUndefined
-                            ? (thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue)
+                            ? thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue)
                                 ? initValue
-                                : JsValue.Undefined)
+                                : JsValue.Undefined
                             : thisInitializationValue;
 
                         if (!alreadyInitialized.IsUndefined)
@@ -527,7 +543,9 @@ public static partial class TypedAstEvaluator
                             context.RealmState?.Logger?.LogInformation(
                                 "Super call pre-check thisInit env={Env} value={Value}",
                                 thisInitializationEnvironment.GetHashCode(),
-                                alreadyInitialized.Kind == JsValueKind.Object ? alreadyInitialized.ObjectValue : alreadyInitialized.Kind.ToString());
+                                alreadyInitialized.Kind == JsValueKind.Object
+                                    ? alreadyInitialized.ObjectValue
+                                    : alreadyInitialized.Kind.ToString());
                             if (JsOps.ToBoolean(alreadyInitialized))
                             {
                                 throw StandardLibrary.ThrowReferenceError(
@@ -550,6 +568,7 @@ public static partial class TypedAstEvaluator
                     {
                         beforeType = ex.GetType().Name;
                     }
+
                     context.RealmState?.Logger?.LogInformation(
                         "Super assigning this (hasBinding={HasBinding}, beforeType={BeforeType})",
                         hasThisBinding,
@@ -574,7 +593,8 @@ public static partial class TypedAstEvaluator
                         var constructorForSuper = superBindingForCall?.Constructor ?? binding.Constructor;
                         var prototypeForSuper = superBindingForCall?.Prototype ?? binding.Prototype;
                         targetEnvironment.AssignJsValue(Symbol.Super,
-                            JsValue.FromObjectUnsafe(new SuperBinding(constructorForSuper, prototypeForSuper, JsValue.FromObjectUnsafe(thisAfterSuper), true)));
+                            JsValue.FromObjectUnsafe(new SuperBinding(constructorForSuper, prototypeForSuper,
+                                JsValue.FromObjectUnsafe(thisAfterSuper), true)));
                     }
 
                     context.MarkThisInitialized();
@@ -648,6 +668,7 @@ public static partial class TypedAstEvaluator
                 {
                     JsValueCache.ReturnArgumentArray(pooledArgsArray);
                 }
+
                 if (pooledJsValueArray is not null)
                 {
                     JsValueCache.ReturnJsValueArray(pooledJsValueArray);
@@ -690,13 +711,17 @@ public static partial class TypedAstEvaluator
 
             // Only handle simple member expression calls like map.set(), map.get(), etc.
             if (callExpr.Callee is not MemberExpression { IsComputed: false, IsOptional: false } member)
+            {
                 return false;
+            }
 
             // IMPORTANT: Only use fast path for simple identifier targets (e.g., `myMap.set(...)`)
             // If we evaluate a complex target expression (like `getMap().set(...)`) and it's NOT
             // a Map/Set, the normal path would evaluate it again, causing double execution!
             if (member.Target is not IdentifierExpression)
+            {
                 return false;
+            }
 
             // Get the method name
             var methodName = member.Property switch
@@ -707,7 +732,9 @@ public static partial class TypedAstEvaluator
             };
 
             if (methodName is null)
+            {
                 return false;
+            }
 
             // Evaluate the target (map or set instance) - safe because it's just an identifier lookup
             var targetJs = member.Target.EvaluateExpression(environment, context);
@@ -730,20 +757,28 @@ public static partial class TypedAstEvaluator
                         break;
                     }
                 }
+
                 if (!hasSpread)
                 {
                     result = methodName switch
                     {
-                        "set" when callExpr.Arguments.Length >= 2 => CallExpression.FastMapSet(map, callExpr.Arguments, environment, context),
-                        "get" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapGet(map, callExpr.Arguments, environment, context),
-                        "has" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapHas(map, callExpr.Arguments, environment, context),
-                        "delete" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapDelete(map, callExpr.Arguments, environment, context),
+                        "set" when callExpr.Arguments.Length >= 2 => CallExpression.FastMapSet(map, callExpr.Arguments,
+                            environment, context),
+                        "get" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapGet(map, callExpr.Arguments,
+                            environment, context),
+                        "has" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapHas(map, callExpr.Arguments,
+                            environment, context),
+                        "delete" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapDelete(map,
+                            callExpr.Arguments, environment, context),
                         "clear" => CallExpression.FastMapClear(map),
-                        _ => JsValue.Unit // Fall back to normal path for other methods (size is a property, not a method)
+                        _ => JsValue
+                            .Unit // Fall back to normal path for other methods (size is a property, not a method)
                     };
 
                     if (!result.IsUnit)
+                    {
                         return true;
+                    }
                 }
             }
 
@@ -760,19 +795,26 @@ public static partial class TypedAstEvaluator
                         break;
                     }
                 }
+
                 if (!hasSpread)
                 {
                     result = methodName switch
                     {
-                        "add" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetAdd(set, callExpr.Arguments, environment, context),
-                        "has" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetHas(set, callExpr.Arguments, environment, context),
-                        "delete" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetDelete(set, callExpr.Arguments, environment, context),
+                        "add" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetAdd(set, callExpr.Arguments,
+                            environment, context),
+                        "has" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetHas(set, callExpr.Arguments,
+                            environment, context),
+                        "delete" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetDelete(set,
+                            callExpr.Arguments, environment, context),
                         "clear" => CallExpression.FastSetClear(set),
-                        _ => JsValue.Unit // Fall back to normal path for other methods (size is a property, not a method)
+                        _ => JsValue
+                            .Unit // Fall back to normal path for other methods (size is a property, not a method)
                     };
 
                     if (!result.IsUnit)
+                    {
                         return true;
+                    }
                 }
             }
 
@@ -782,37 +824,61 @@ public static partial class TypedAstEvaluator
         // ---- Map fast-path helpers ----
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastMapSet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var key = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             var value = args[1].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             map.Set(key, value);
             return JsValue.FromObjectUnsafe(map);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastMapGet(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var key = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             return map.Get(key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastMapHas(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var key = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             return map.Has(key) ? JsValue.True : JsValue.False;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastMapDelete(JsMap map, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var key = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             return map.Delete(key) ? JsValue.True : JsValue.False;
         }
 
@@ -826,27 +892,42 @@ public static partial class TypedAstEvaluator
         // ---- Set fast-path helpers ----
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastSetAdd(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var value = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             set.Add(value);
             return JsValue.FromObjectUnsafe(set);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastSetHas(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var value = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             return set.Has(value) ? JsValue.True : JsValue.False;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env, EvaluationContext ctx)
+        private static JsValue FastSetDelete(JsSet set, ImmutableArray<CallArgument> args, JsEnvironment env,
+            EvaluationContext ctx)
         {
             var value = args[0].Expression.EvaluateExpression(env, ctx);
-            if (ctx.ShouldStopEvaluation) return JsValue.Undefined;
+            if (ctx.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
             return set.Delete(value) ? JsValue.True : JsValue.False;
         }
 

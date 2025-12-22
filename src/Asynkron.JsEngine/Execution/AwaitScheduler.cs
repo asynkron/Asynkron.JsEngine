@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -11,22 +15,7 @@ namespace Asynkron.JsEngine.Execution;
 internal static class AwaitScheduler
 {
     // Reusable callback delegates to avoid allocations in hot path
-    [ThreadStatic]
-    private static PromiseAwaitState? TCachedState;
-
-    private sealed class PromiseAwaitState
-    {
-        public int Completed;
-        public int Fulfilled;
-        public JsValue Value;
-
-        public void Reset()
-        {
-            Completed = 0;
-            Fulfilled = 0;
-            Value = JsValue.Undefined;
-        }
-    }
+    [ThreadStatic] private static PromiseAwaitState? TCachedState;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static PromiseAwaitState RentState()
@@ -38,6 +27,7 @@ internal static class AwaitScheduler
             state.Reset();
             return state;
         }
+
         return new PromiseAwaitState();
     }
 
@@ -119,6 +109,7 @@ internal static class AwaitScheduler
             {
                 return HandleDirectPromise(directPromise, context, out resolvedValue, drainMicrotasks);
             }
+
             return true;
         }
 
@@ -134,6 +125,7 @@ internal static class AwaitScheduler
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
+
             resolvedValue = settledValue;
             // Continue to check if a settled value is itself a promise
             if (!resolvedValue.IsObject)
@@ -158,6 +150,7 @@ internal static class AwaitScheduler
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
+
             resolvedValue = settledValue;
             if (!resolvedValue.IsObject)
             {
@@ -184,6 +177,7 @@ internal static class AwaitScheduler
                     resolvedValue = JsValue.Undefined;
                     return false;
                 }
+
                 resolvedValue = loopSettled;
                 continue;
             }
@@ -202,12 +196,15 @@ internal static class AwaitScheduler
             var onRejected = new AwaitRejectedCallback(awaitState);
 
             // Wrap callbacks in HostFunction for JsValue compatibility
-            var onFulfilledFn = new HostFunction(args => onFulfilled.Invoke(args, JsValue.Undefined), isConstructor: false);
-            var onRejectedFn = new HostFunction(args => onRejected.Invoke(args, JsValue.Undefined), isConstructor: false);
+            var onFulfilledFn =
+                new HostFunction(args => onFulfilled.Invoke(args, JsValue.Undefined), isConstructor: false);
+            var onRejectedFn =
+                new HostFunction(args => onRejected.Invoke(args, JsValue.Undefined), isConstructor: false);
 
             try
             {
-                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], JsValue.FromObjectUnsafe(promiseObj));
+                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn],
+                    JsValue.FromObjectUnsafe(promiseObj));
             }
             catch (ThrowSignal signal)
             {
@@ -273,6 +270,7 @@ internal static class AwaitScheduler
                 resolvedValue = JsValue.Undefined;
                 return false;
             }
+
             resolvedValue = value;
             return true;
         }
@@ -291,6 +289,7 @@ internal static class AwaitScheduler
                     resolvedValue = JsValue.Undefined;
                     return false;
                 }
+
                 resolvedValue = value;
                 return true;
             }
@@ -363,6 +362,20 @@ internal static class AwaitScheduler
         // (this shouldn't happen in normal operation)
         resolvedValue = candidate;
         return true;
+    }
+
+    private sealed class PromiseAwaitState
+    {
+        public int Completed;
+        public int Fulfilled;
+        public JsValue Value;
+
+        public void Reset()
+        {
+            Completed = 0;
+            Fulfilled = 0;
+            Value = JsValue.Undefined;
+        }
     }
 
     /// <summary>

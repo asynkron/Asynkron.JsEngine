@@ -1,7 +1,13 @@
+#region
+
 using System.Collections.Immutable;
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -13,14 +19,12 @@ public static partial class TypedAstEvaluator
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
-        private readonly bool _isLexicallyStrict;
         private readonly bool _hasFunctionNameEnvironment;
+        private readonly bool _isLexicallyStrict;
         private readonly JsObject _properties = new();
-        private readonly RealmState _realmState;
-        private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
-        private PrivateNameScope? _privateNameScope;
         private IJsObjectLike? _homeObject;
+        private bool _isConstructorEnabled;
 
         public AsyncGeneratorFactory(
             FunctionExpression function,
@@ -37,12 +41,18 @@ public static partial class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
-            _realmState = realmState;
+            RealmState = realmState;
             _isLexicallyStrict = isLexicallyStrict;
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             _isConstructorEnabled = isConstructorFunction;
             InitializeProperties();
         }
+
+        public PrivateNameScope? PrivateNameScope { get; private set; }
+
+        public bool IsArrowFunction => false;
+        public bool DisallowConstruct => true;
+        public RealmState RealmState { get; }
 
         public bool IsExtensible => _properties.IsExtensible;
 
@@ -104,11 +114,11 @@ public static partial class TypedAstEvaluator
                 arguments,
                 thisValue,
                 this,
-                _realmState,
+                RealmState,
                 _isLexicallyStrict,
                 _hasFunctionNameEnvironment,
                 _homeObject,
-                _privateNameScope,
+                PrivateNameScope,
                 _capturedPrivateNameScopes);
             instance.Initialize();
             return (JsValue)instance.CreateAsyncIteratorObject();
@@ -118,10 +128,6 @@ public static partial class TypedAstEvaluator
 
         public bool IsSealed => _properties.IsSealed;
         public bool IsFrozen => _properties.IsFrozen;
-
-        public bool IsArrowFunction => false;
-        public bool DisallowConstruct => true;
-        public RealmState RealmState => _realmState;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -138,34 +144,6 @@ public static partial class TypedAstEvaluator
         public void Seal()
         {
             _properties.Seal();
-        }
-
-        public PrivateNameScope? PrivateNameScope => _privateNameScope;
-
-        public void SetPrivateNameScope(PrivateNameScope? scope)
-        {
-            _privateNameScope = scope;
-        }
-
-        public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
-        {
-            _capturedPrivateNameScopes = scopes;
-        }
-
-        public void DisableConstruction()
-        {
-            if (!_isConstructorEnabled)
-            {
-                return;
-            }
-
-            _isConstructorEnabled = false;
-            _properties.DeleteOwnProperty("prototype");
-        }
-
-        public void SetHomeObject(IJsObjectLike homeObject)
-        {
-            _homeObject = homeObject;
         }
 
         public bool Delete(string name)
@@ -203,8 +181,10 @@ public static partial class TypedAstEvaluator
                                 // items[i] is already JsValue from JsArray.Items
                                 converted[i] = items[i];
                             }
+
                             argList = converted;
                         }
+
                         return callable.Invoke(argList, thisArg);
                     });
                     return true;
@@ -220,18 +200,28 @@ public static partial class TypedAstEvaluator
                         return (JsValue)new HostFunction((_, innerArgs) =>
                         {
                             if (boundArgs.Count == 0)
+                            {
                                 return callable.Invoke(innerArgs, boundThis);
+                            }
+
                             if (innerArgs.Count == 0)
+                            {
                                 return callable.Invoke(boundArgs, boundThis);
+                            }
 
                             var finalArgs = new JsValue[boundArgs.Count + innerArgs.Count];
                             for (var i = 0; i < boundArgs.Count; i++)
+                            {
                                 finalArgs[i] = boundArgs[i];
+                            }
+
                             for (var i = 0; i < innerArgs.Count; i++)
+                            {
                                 finalArgs[boundArgs.Count + i] = innerArgs[i];
+                            }
 
                             return callable.Invoke(finalArgs, boundThis);
-                        }, _realmState, isConstructor: false) { DisallowConstruct = true };
+                        }, RealmState, false) { DisallowConstruct = true };
                     });
                     return true;
             }
@@ -294,6 +284,32 @@ public static partial class TypedAstEvaluator
             return _properties.TryDefineProperty(name, descriptor);
         }
 
+        public void SetPrivateNameScope(PrivateNameScope? scope)
+        {
+            PrivateNameScope = scope;
+        }
+
+        public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
+        {
+            _capturedPrivateNameScopes = scopes;
+        }
+
+        public void DisableConstruction()
+        {
+            if (!_isConstructorEnabled)
+            {
+                return;
+            }
+
+            _isConstructorEnabled = false;
+            _properties.DeleteOwnProperty("prototype");
+        }
+
+        public void SetHomeObject(IJsObjectLike homeObject)
+        {
+            _homeObject = homeObject;
+        }
+
         public override string ToString()
         {
             return _function.Name is { } name
@@ -303,38 +319,38 @@ public static partial class TypedAstEvaluator
 
         private void EnsureAsyncGeneratorIntrinsics()
         {
-            var engine = _realmState.Engine ?? throw new InvalidOperationException("Engine reference is missing.");
+            var engine = RealmState.Engine ?? throw new InvalidOperationException("Engine reference is missing.");
 
             // %AsyncIteratorPrototype% (inherits from %Object.prototype%)
-            if (_realmState.AsyncIteratorPrototype is null)
+            if (RealmState.AsyncIteratorPrototype is null)
             {
                 var asyncIteratorProto = new JsObject();
-                if (_realmState.ObjectPrototype is not null)
+                if (RealmState.ObjectPrototype is not null)
                 {
-                    asyncIteratorProto.SetPrototype(_realmState.ObjectPrototype);
+                    asyncIteratorProto.SetPrototype(RealmState.ObjectPrototype);
                 }
 
-                _realmState.AsyncIteratorPrototype = asyncIteratorProto;
+                RealmState.AsyncIteratorPrototype = asyncIteratorProto;
             }
 
             // %AsyncGeneratorPrototype% (inherits from %AsyncIteratorPrototype%)
-            if (_realmState.AsyncGeneratorPrototype is null)
+            if (RealmState.AsyncGeneratorPrototype is null)
             {
                 var asyncGenProto = new JsObject();
-                asyncGenProto.SetPrototype(_realmState.AsyncIteratorPrototype ?? _realmState.ObjectPrototype);
-                _realmState.AsyncGeneratorPrototype = asyncGenProto;
+                asyncGenProto.SetPrototype(RealmState.AsyncIteratorPrototype ?? RealmState.ObjectPrototype);
+                RealmState.AsyncGeneratorPrototype = asyncGenProto;
             }
 
             // %AsyncGeneratorFunction.prototype%
-            if (_realmState.AsyncGeneratorFunctionPrototype is null && _realmState.FunctionPrototype is not null)
+            if (RealmState.AsyncGeneratorFunctionPrototype is null && RealmState.FunctionPrototype is not null)
             {
                 var asyncGenFuncProto = new JsObject();
-                asyncGenFuncProto.SetPrototype(_realmState.FunctionPrototype);
+                asyncGenFuncProto.SetPrototype(RealmState.FunctionPrototype);
 
                 asyncGenFuncProto.DefineProperty("prototype",
                     new PropertyDescriptor
                     {
-                        Value = _realmState.AsyncGeneratorPrototype,
+                        Value = RealmState.AsyncGeneratorPrototype,
                         Writable = false,
                         Enumerable = false,
                         Configurable = true,
@@ -344,13 +360,13 @@ public static partial class TypedAstEvaluator
                         HasConfigurable = true
                     });
 
-                if (_realmState.AsyncGeneratorFunctionConstructor is null)
+                if (RealmState.AsyncGeneratorFunctionConstructor is null)
                 {
-                    _realmState.AsyncGeneratorFunctionConstructor =
-                        CreateAsyncGeneratorFunctionConstructor(engine, _realmState);
+                    RealmState.AsyncGeneratorFunctionConstructor =
+                        CreateAsyncGeneratorFunctionConstructor(engine, RealmState);
                 }
 
-                if (_realmState.AsyncGeneratorFunctionConstructor is { } asyncGenCtor)
+                if (RealmState.AsyncGeneratorFunctionConstructor is { } asyncGenCtor)
                 {
                     asyncGenCtor.SetProperty("prototype", (JsValue)asyncGenFuncProto);
                 }
@@ -358,7 +374,7 @@ public static partial class TypedAstEvaluator
                 asyncGenFuncProto.DefineProperty("constructor",
                     new PropertyDescriptor
                     {
-                        Value = _realmState.AsyncGeneratorFunctionConstructor,
+                        Value = RealmState.AsyncGeneratorFunctionConstructor,
                         Writable = false,
                         Enumerable = false,
                         Configurable = true,
@@ -368,7 +384,7 @@ public static partial class TypedAstEvaluator
                         HasConfigurable = true
                     });
 
-                _realmState.AsyncGeneratorFunctionPrototype = asyncGenFuncProto;
+                RealmState.AsyncGeneratorFunctionPrototype = asyncGenFuncProto;
             }
         }
 
@@ -377,10 +393,7 @@ public static partial class TypedAstEvaluator
             HostFunction constructor = null!;
 
             constructor = new HostFunction((_, args) =>
-                    AsyncGeneratorFunctionConstructorBody(args, constructor, engine, realm))
-            {
-                RealmState = realm
-            };
+                AsyncGeneratorFunctionConstructorBody(args, constructor, engine, realm)) { RealmState = realm };
 
             constructor.SetInvokeWithContext((args, _, _, newTarget) =>
             {
@@ -389,11 +402,12 @@ public static partial class TypedAstEvaluator
                 {
                     targetCallable = callable;
                 }
+
                 return AsyncGeneratorFunctionConstructorBody(args, targetCallable, engine, realm);
             });
 
-            StandardLibrary.DefineConstantProperty(constructor, "length", 1d, configurable: true);
-            StandardLibrary.DefineConstantProperty(constructor, "name", "AsyncGeneratorFunction", configurable: true);
+            StandardLibrary.DefineConstantProperty(constructor, "length", 1d, true);
+            StandardLibrary.DefineConstantProperty(constructor, "name", "AsyncGeneratorFunction", true);
 
             if (realm.FunctionPrototype is { } functionPrototype)
             {
@@ -425,17 +439,14 @@ public static partial class TypedAstEvaluator
             var paramList = string.Join(',', parameters);
             var functionSource = $"(async function* anonymous({paramList}\n) {{\n{bodySource}\n}})";
 
-            var scriptGoalOptions = new JsEngineOptions
-            {
-                AllowImportMeta = false
-            };
+            var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
 
             ProgramNode program;
             try
             {
                 program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
             }
-            catch (Parser.ParseException parseException)
+            catch (ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
                 throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
@@ -500,42 +511,51 @@ public static partial class TypedAstEvaluator
 
             if (primitive.TryUnwrap(out JsBigInt? bigInt))
             {
-                return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return bigInt.Value.ToString(CultureInfo.InvariantCulture);
             }
 
             if (primitive.TryGetDouble(out var d))
             {
                 if (double.IsNaN(d))
+                {
                     return "NaN";
+                }
+
                 if (double.IsPositiveInfinity(d))
+                {
                     return "Infinity";
+                }
+
                 if (double.IsNegativeInfinity(d))
+                {
                     return "-Infinity";
-                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                return d.ToString(CultureInfo.InvariantCulture);
             }
 
             // At this point, all primitive types have been handled above;
             // remaining cases are objects, so use ObjectValue directly.
-            return Convert.ToString(primitive.ObjectValue, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            return Convert.ToString(primitive.ObjectValue, CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()
         {
             EnsureAsyncGeneratorIntrinsics();
 
-            if (_realmState.AsyncGeneratorFunctionPrototype is { } asyncGenFuncProto)
+            if (RealmState.AsyncGeneratorFunctionPrototype is { } asyncGenFuncProto)
             {
                 _properties.SetPrototype(asyncGenFuncProto);
             }
-            else if (_realmState.FunctionPrototype is { } functionPrototype)
+            else if (RealmState.FunctionPrototype is { } functionPrototype)
             {
                 _properties.SetPrototype(functionPrototype);
             }
 
-            if (_isConstructorEnabled && _realmState.ObjectPrototype is not null)
+            if (_isConstructorEnabled && RealmState.ObjectPrototype is not null)
             {
                 var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.AsyncGeneratorPrototype ?? _realmState.ObjectPrototype);
+                generatorPrototype.SetPrototype(RealmState.AsyncGeneratorPrototype ?? RealmState.ObjectPrototype);
                 generatorPrototype.DefineProperty("constructor",
                     new PropertyDescriptor
                     {

@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -124,7 +128,8 @@ public static partial class TypedAstEvaluator
                             throw new InvalidOperationException("Rest parameter must have an identifier.");
                         }
 
-                        environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(restArray), isLexical: false);
+                        environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(restArray),
+                            isLexical: false);
                     }
 
                     continue;

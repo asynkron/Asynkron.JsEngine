@@ -1,10 +1,14 @@
+#region
+
 using System.Globalization;
 using System.Reflection;
-using Microsoft.Extensions.Logging;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using Microsoft.Extensions.Logging;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -145,7 +149,8 @@ public sealed partial class TypedArrayPrototype
     private JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.values");
-        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => typedArray.GetValueForIndex((int)idx), Realm));
+        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray,
+            idx => typedArray.GetValueForIndex((int)idx), Realm));
     }
 
     [JsHostMethod("keys", Length = 0d)]
@@ -242,7 +247,8 @@ public sealed partial class TypedArrayPrototype
             }
             else
             {
-                accumulator = callback.Invoke([accumulator, value, JsValue.FromNumber((double)k), (JsValue)typedArray], JsValue.Undefined);
+                accumulator = callback.Invoke([accumulator, value, JsValue.FromNumber((double)k), (JsValue)typedArray],
+                    JsValue.Undefined);
             }
 
             k += step;
@@ -399,7 +405,9 @@ public sealed partial class TypedArrayPrototype
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
+                ? candidate
+                : JsValue.Undefined;
             var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
@@ -429,7 +437,9 @@ public sealed partial class TypedArrayPrototype
         for (var k = 0; k < length; k++)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
+                ? candidate
+                : JsValue.Undefined;
             var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
@@ -459,7 +469,9 @@ public sealed partial class TypedArrayPrototype
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
+                ? candidate
+                : JsValue.Undefined;
             var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
@@ -489,7 +501,9 @@ public sealed partial class TypedArrayPrototype
         for (var k = length - 1; k >= 0; k--)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate) ? candidate : JsValue.Undefined;
+            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
+                ? candidate
+                : JsValue.Undefined;
             var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {

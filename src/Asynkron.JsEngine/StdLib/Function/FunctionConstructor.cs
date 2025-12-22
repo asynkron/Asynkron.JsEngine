@@ -1,3 +1,5 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -7,10 +9,13 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Function", PrototypeType = typeof(FunctionPrototype), Length = 1d, DisplayName = "Function")]
-public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
 
@@ -100,7 +105,8 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             JsValueKind.Boolean => value.NumberValue != 0 ? "true" : "false",
             JsValueKind.Number => NumberToString(value.NumberValue),
             JsValueKind.String => value.ObjectValue as string ?? string.Empty,
-            JsValueKind.Symbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realmState),
+            JsValueKind.Symbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext,
+                realmState),
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bigInt
                 ? bigInt.Value.ToString(CultureInfo.InvariantCulture)
                 : string.Empty,
@@ -110,14 +116,27 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
 
         static string NumberToString(double d)
         {
-            if (double.IsNaN(d)) return "NaN";
-            if (double.IsPositiveInfinity(d)) return "Infinity";
-            if (double.IsNegativeInfinity(d)) return "-Infinity";
+            if (double.IsNaN(d))
+            {
+                return "NaN";
+            }
+
+            if (double.IsPositiveInfinity(d))
+            {
+                return "Infinity";
+            }
+
+            if (double.IsNegativeInfinity(d))
+            {
+                return "-Infinity";
+            }
+
             return d.ToString(CultureInfo.InvariantCulture);
         }
     }
 
-    private static string ToFunctionArgumentStringFromObject(object? value, EvaluationContext evalContext, RealmState realmState)
+    private static string ToFunctionArgumentStringFromObject(object? value, EvaluationContext evalContext,
+        RealmState realmState)
     {
         var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)

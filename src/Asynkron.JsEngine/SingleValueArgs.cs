@@ -1,6 +1,10 @@
+#region
+
 using System.Collections;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -32,5 +36,8 @@ public readonly struct SingleValueArgs(JsValue value) : IReadOnlyList<JsValue>
         yield return value;
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 }

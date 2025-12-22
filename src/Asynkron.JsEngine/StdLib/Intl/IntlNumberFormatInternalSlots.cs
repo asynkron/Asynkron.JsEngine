@@ -1,4 +1,8 @@
+#region
+
 using System.Globalization;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 

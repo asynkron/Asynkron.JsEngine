@@ -1,4 +1,8 @@
+#region
+
 using System.Runtime.CompilerServices;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -11,17 +15,14 @@ public sealed class JsPromise
 
     private readonly JsEngine _engine;
     private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
+
+    private bool _handlersScheduled;
+
     // Spare list for swapping during ProcessHandlersCore - avoids ToArray and locks
     private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)>? _spareHandlers;
-    private bool _handlersScheduled;
 
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
-
-    // Debug helpers for instrumentation
-    internal int DebugHandlerCount => _handlers.Count;
-    internal string DebugState => _state.ToString();
-    internal int DebugId => RuntimeHelpers.GetHashCode(this);
 
     public JsPromise(JsEngine engine)
     {
@@ -30,6 +31,16 @@ public sealed class JsPromise
         // Store the promise reference in a dedicated internal slot to avoid property allocation.
         JsObject.SetPromiseSlot(this);
     }
+
+    // Debug helpers for instrumentation
+    internal int DebugHandlerCount => _handlers.Count;
+    internal string DebugState => _state.ToString();
+    internal int DebugId => RuntimeHelpers.GetHashCode(this);
+
+    /// <summary>
+    ///     Gets the underlying JsObject for property access.
+    /// </summary>
+    public JsObject JsObject { get; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static bool TryGetInternalPromise(JsValue candidate, out JsPromise? promise)
@@ -50,7 +61,7 @@ public sealed class JsPromise
         if (candidate.TryGetObject<JsObject>(out var jsObject) &&
             (jsObject.TryGetPromiseSlot(out var slotPromise) ||
              (jsObject.TryGetJsValue(InternalPromiseKey, out var inner) &&
-              inner.TryGetObject<JsPromise>(out slotPromise))) &&
+              inner.TryGetObject(out slotPromise))) &&
             slotPromise is not null)
         {
             promise = slotPromise;
@@ -69,11 +80,6 @@ public sealed class JsPromise
         promise = null;
         return false;
     }
-
-    /// <summary>
-    ///     Gets the underlying JsObject for property access.
-    /// </summary>
-    public JsObject JsObject { get; }
 
     /// <summary>
     ///     Resolves the promise with the given value.
@@ -118,7 +124,8 @@ public sealed class JsPromise
             // Call thenable.then(resolve, reject)
             // IJsCallable converts to JsValue via FromObjectUnsafe without allocation
             var thenableValue = JsValue.FromObjectUnsafe(thenable);
-            thenMethod.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)], thenableValue);
+            thenMethod.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)],
+                thenableValue);
         }
         catch (ThrowSignal signal)
         {
@@ -305,7 +312,8 @@ public sealed class JsPromise
             // IJsCallable converts to JsValue via FromObjectUnsafe without allocation
             var resolveCallback = new ChainResolveCallback(nextPromise);
             var rejectCallback = new ChainRejectCallback(nextPromise);
-            thenCallable.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)], result);
+            thenCallable.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)],
+                result);
         }
         else
         {

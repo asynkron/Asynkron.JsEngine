@@ -1,5 +1,9 @@
+#region
+
 using System.Collections;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -11,41 +15,48 @@ public readonly struct ArgumentSlice : IReadOnlyList<JsValue>
 {
     private readonly IReadOnlyList<JsValue>? _source;
     private readonly int _offset;
-    private readonly int _count;
 
     public ArgumentSlice(IReadOnlyList<JsValue> source, int offset)
     {
         _source = source;
         _offset = Math.Min(offset, source.Count);
-        _count = Math.Max(0, source.Count - _offset);
+        Count = Math.Max(0, source.Count - _offset);
     }
 
     public ArgumentSlice(IReadOnlyList<JsValue> source, int offset, int count)
     {
         _source = source;
         _offset = Math.Min(offset, source.Count);
-        _count = Math.Min(count, Math.Max(0, source.Count - _offset));
+        Count = Math.Min(count, Math.Max(0, source.Count - _offset));
     }
 
-    public int Count => _count;
+    public int Count { get; }
 
     public JsValue this[int index]
     {
         get
         {
-            if ((uint)index >= (uint)_count)
+            if ((uint)index >= (uint)Count)
+            {
                 throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
             return _source![_offset + index];
         }
     }
 
     public IEnumerator<JsValue> GetEnumerator()
     {
-        for (var i = 0; i < _count; i++)
+        for (var i = 0; i < Count; i++)
+        {
             yield return _source![_offset + i];
+        }
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 
     /// <summary>
     /// Static empty instance for zero-arg cases.

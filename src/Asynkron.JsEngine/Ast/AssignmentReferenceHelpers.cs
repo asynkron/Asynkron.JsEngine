@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -61,7 +65,7 @@ public static partial class TypedAstEvaluator
         // Extract object for existing logic - primitives need proper handling
         var targetObj = target.Kind switch
         {
-            JsValueKind.Boolean => (object?)target.AsBoolean(),
+            JsValueKind.Boolean => target.AsBoolean(),
             JsValueKind.Number => target.NumberValue,
             JsValueKind.String => target.ObjectValue,
             JsValueKind.Symbol => target.ObjectValue,
@@ -102,6 +106,7 @@ public static partial class TypedAstEvaluator
                     context,
                     context.RealmState);
             }
+
             return;
         }
 
@@ -277,9 +282,11 @@ public static partial class TypedAstEvaluator
                     InvokeCallableJsValue(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
                     return true;
                 }
+
                 // Accessor with only getter - [[Set]] returns false
                 return false;
             }
+
             // Data property - primitives can't have own data properties that are writable
             // Return false since we can't create an own property on the receiver
             return false;
@@ -300,16 +307,8 @@ public static partial class TypedAstEvaluator
             {
                 // Proxy's SetProperty will invoke the 'set' trap if defined
                 // The trap receives (target, propertyName, value, receiver)
-                try
-                {
-                    proxy.SetProperty(propertyName, value, JsValue.FromObjectUnsafe(receiver));
-                    return true;
-                }
-                catch (ThrowSignal)
-                {
-                    // Proxy trap threw - re-throw
-                    throw;
-                }
+                proxy.SetProperty(propertyName, value, JsValue.FromObjectUnsafe(receiver));
+                return true;
             }
 
             var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
@@ -319,9 +318,11 @@ public static partial class TypedAstEvaluator
                 {
                     if (inheritedDescriptor.Set is not null)
                     {
-                        InvokeCallableJsValue(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
+                        InvokeCallableJsValue(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver),
+                            context);
                         return true;
                     }
+
                     // Accessor with only getter - [[Set]] returns false
                     return false;
                 }
@@ -338,10 +339,12 @@ public static partial class TypedAstEvaluator
             {
                 next = objectLike.Prototype;
             }
+
             if (next is null && current is IPrototypeAccessorProvider protoProvider)
             {
                 next = protoProvider.PrototypeAccessor;
             }
+
             current = next;
         }
 

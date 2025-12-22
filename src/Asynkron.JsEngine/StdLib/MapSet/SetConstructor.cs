@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -11,14 +15,18 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
 {
     private HostFunction? _constructor;
 
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Set constructor not initialized");
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
-            return JsValue.FromObjectUnsafe(ConstructSet(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
+            return JsValue.FromObjectUnsafe(ConstructSet(args, _constructor ?? ConstructFallback,
+                _constructor ?? ConstructFallback, constructing));
         }
 
-        throw StandardLibrary.ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
+        throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -31,7 +39,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         {
             if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
-                throw StandardLibrary.ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
+                throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
@@ -42,7 +50,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
     private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? providedThis = null)
     {
-        var proto = ReflectHelper.ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var backing = new JsSet();
         object receiver;
 
@@ -84,7 +92,4 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
             set.Add(value);
         }
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Set constructor not initialized");
 }

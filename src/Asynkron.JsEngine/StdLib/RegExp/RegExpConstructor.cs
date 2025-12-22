@@ -1,16 +1,23 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.RegExpHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("RegExp", PrototypeType = typeof(RegExpPrototype), Length = 2d, DisplayName = "RegExp")]
-public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("RegExp constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -21,7 +28,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var targetCtor = _constructor ?? ConstructFallback;
-        var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
+        var providedThis = thisValue.IsObject ? thisValue.AsObject() : null;
         return ConstructRegExp(args, targetCtor, targetCtor, providedThis);
     }
 
@@ -43,6 +50,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             {
                 effectiveNewTarget = targetCtor;
             }
+
             JsObject? thisObj = null;
             thisArg.TryGetObject<JsObject>(out thisObj);
             return ConstructRegExp(args, effectiveNewTarget, targetCtor, thisObj);
@@ -64,7 +72,7 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
 
     private JsObject PrepareTargetInstance(JsObject? provided, IJsCallable newTarget, IJsCallable targetCtor)
     {
-        var instance = provided ?? PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = provided ?? PrepareThisObject(JsValue.Undefined, false);
         if (instance.RealmState is null)
         {
             instance.RealmState = Realm;
@@ -100,7 +108,4 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         var flags = args.Count > 1 ? JsOps.ToJsString(args[1]) ?? string.Empty : string.Empty;
         return CreateRegExpLiteral(pattern, flags, Realm, target);
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("RegExp constructor not initialized");
 }

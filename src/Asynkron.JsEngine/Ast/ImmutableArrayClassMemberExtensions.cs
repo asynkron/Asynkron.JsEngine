@@ -1,7 +1,11 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -52,8 +56,8 @@ public static partial class TypedAstEvaluator
                 // Get value as JsValue and extract callable
                 var valueJs = member.Function is { } functionExpression
                     ? JsValue.FromObjectUnsafe(functionExpression.CreateFunctionValue(environment, context,
-                        createFunctionNameEnvironment: true,
-                        isConstructorFunction: false))
+                        true,
+                        false))
                     : member.Function.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
@@ -82,8 +86,9 @@ public static partial class TypedAstEvaluator
                         {
                             typedFunction.SetHomeObject(homeObject);
                         }
+
                         typedFunction.DisableConstruction();
-                        typedFunction.EnsureHasName(displayName, overwriteExisting: true);
+                        typedFunction.EnsureHasName(displayName, true);
                         break;
                     case TypedGeneratorFactory generatorFactory:
                         generatorFactory.SetPrivateNameScope(privateNameScope);
@@ -91,9 +96,10 @@ public static partial class TypedAstEvaluator
                         {
                             generatorFactory.SetHomeObject(homeObject);
                         }
+
                         // Class methods are non-constructors, even for generator forms.
                         generatorFactory.DisableConstruction();
-                        generatorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                        generatorFactory.EnsureHasName(displayName, true);
                         break;
                     case AsyncGeneratorFactory asyncGeneratorFactory:
                         asyncGeneratorFactory.SetPrivateNameScope(privateNameScope);
@@ -101,8 +107,9 @@ public static partial class TypedAstEvaluator
                         {
                             asyncGeneratorFactory.SetHomeObject(homeObject);
                         }
+
                         asyncGeneratorFactory.DisableConstruction();
-                        asyncGeneratorFactory.EnsureHasName(displayName, overwriteExisting: true);
+                        asyncGeneratorFactory.EnsureHasName(displayName, true);
                         break;
                     case IFunctionNameTarget nameTarget:
                         nameTarget.EnsureHasName(displayName);
@@ -112,6 +119,5 @@ public static partial class TypedAstEvaluator
                 member.DefineMember(propertyName, callable, constructorAccessor, prototype);
             }
         }
-
     }
 }

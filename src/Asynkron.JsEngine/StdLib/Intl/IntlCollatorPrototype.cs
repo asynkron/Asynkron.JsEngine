@@ -1,8 +1,12 @@
+#region
+
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -28,7 +32,7 @@ public sealed partial class IntlCollatorPrototype
             var first = args.Count > 0 ? JsValueToString(args[0], Realm) : string.Empty;
             var second = args.Count > 1 ? JsValueToString(args[1], Realm) : string.Empty;
             return new JsValue(CompareStrings(slots, first, second));
-        }, Realm, isConstructor: false);
+        }, Realm, false);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]
@@ -55,7 +59,8 @@ public sealed partial class IntlCollatorPrototype
 
     private IntlCollatorInternalSlots GetSlots(JsObject collator)
     {
-        if (collator.TryGetProperty(SlotsKey, out var value) && value.TryGetObject<IntlCollatorInternalSlots>(out var slots))
+        if (collator.TryGetProperty(SlotsKey, out var value) &&
+            value.TryGetObject<IntlCollatorInternalSlots>(out var slots))
         {
             return slots;
         }
@@ -261,14 +266,18 @@ public sealed partial class IntlCollatorPrototype
             {
                 return string.Equals(casePreference, "upper", StringComparison.Ordinal)
                     ? char.IsUpper(left) ? -1 : 1
-                    : char.IsUpper(left) ? 1 : -1;
+                    : char.IsUpper(left)
+                        ? 1
+                        : -1;
             }
 
             if (char.IsLower(left) != char.IsLower(right))
             {
                 return string.Equals(casePreference, "upper", StringComparison.Ordinal)
                     ? char.IsLower(left) ? 1 : -1
-                    : char.IsLower(left) ? -1 : 1;
+                    : char.IsLower(left)
+                        ? -1
+                        : 1;
             }
         }
 

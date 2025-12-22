@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -9,12 +13,6 @@ namespace Asynkron.JsEngine.StdLib;
 [JsMethodAlias("keys", "values")]
 public sealed partial class SetPrototype
 {
-    private enum SetIterationKind
-    {
-        Entries,
-        Values
-    }
-
     [JsHostMethod("add", Length = 1d)]
     public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -154,5 +152,11 @@ public sealed partial class SetPrototype
         pair.SetElement(0, first);
         pair.SetElement(1, second);
         return pair;
+    }
+
+    private enum SetIterationKind
+    {
+        Entries,
+        Values
     }
 }

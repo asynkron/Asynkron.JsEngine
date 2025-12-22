@@ -1,5 +1,9 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -63,6 +67,7 @@ internal static class LoopNormalizer
                 {
                     CollectBindingNames(declarator.Target, bindingNames);
                 }
+
                 perIterationBindings = [..bindingNames];
             }
         }

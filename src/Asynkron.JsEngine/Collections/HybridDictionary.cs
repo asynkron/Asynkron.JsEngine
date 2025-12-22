@@ -1,6 +1,10 @@
+#region
+
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+
+#endregion
 
 namespace Asynkron.JsEngine.Collections;
 
@@ -14,19 +18,13 @@ namespace Asynkron.JsEngine.Collections;
 public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
 {
     private const int CutoverPoint = 9;
-
-    // Small object storage - array of key-value pairs
-    private Entry[]? _entries;
     private int _count;
 
     // Large object storage - full dictionary
     private Dictionary<string, TValue>? _dictionary;
 
-    private struct Entry
-    {
-        public string Key;
-        public TValue Value;
-    }
+    // Small object storage - array of key-value pairs
+    private Entry[]? _entries;
 
     public int Count
     {
@@ -50,6 +48,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
             {
                 keys[i] = _entries![i].Key;
             }
+
             return keys;
         }
     }
@@ -68,6 +67,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
             {
                 values[i] = _entries![i].Value;
             }
+
             return values;
         }
     }
@@ -126,31 +126,6 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void AddInternal(string key, TValue value)
-    {
-        if (_count >= CutoverPoint)
-        {
-            SwitchToDictionary();
-            _dictionary!.Add(key, value);
-            return;
-        }
-
-        _entries ??= new Entry[CutoverPoint];
-        _entries[_count++] = new Entry { Key = key, Value = value };
-    }
-
-    private void SwitchToDictionary()
-    {
-        _dictionary = new Dictionary<string, TValue>(_count + 4, StringComparer.Ordinal);
-        for (var i = 0; i < _count; i++)
-        {
-            _dictionary[_entries![i].Key] = _entries[i].Value;
-        }
-        _entries = null;
-        _count = 0;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsKey(string key)
     {
         if (_dictionary is not null)
@@ -176,22 +151,6 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         }
 
         value = default;
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryFindEntry(string key, out int index)
-    {
-        for (var i = 0; i < _count; i++)
-        {
-            if (string.Equals(_entries![i].Key, key, StringComparison.Ordinal))
-            {
-                index = i;
-                return true;
-            }
-        }
-
-        index = -1;
         return false;
     }
 
@@ -229,10 +188,14 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         {
             Array.Clear(_entries, 0, _count);
         }
+
         _count = 0;
     }
 
-    public void Add(KeyValuePair<string, TValue> item) => Add(item.Key, item.Value);
+    public void Add(KeyValuePair<string, TValue> item)
+    {
+        Add(item.Key, item.Value);
+    }
 
     public bool Contains(KeyValuePair<string, TValue> item)
     {
@@ -240,6 +203,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         {
             return EqualityComparer<TValue>.Default.Equals(value, item.Value);
         }
+
         return false;
     }
 
@@ -263,6 +227,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         {
             return Remove(item.Key);
         }
+
         return false;
     }
 
@@ -274,6 +239,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
             {
                 yield return kvp;
             }
+
             yield break;
         }
 
@@ -283,5 +249,56 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
         }
     }
 
-    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void AddInternal(string key, TValue value)
+    {
+        if (_count >= CutoverPoint)
+        {
+            SwitchToDictionary();
+            _dictionary!.Add(key, value);
+            return;
+        }
+
+        _entries ??= new Entry[CutoverPoint];
+        _entries[_count++] = new Entry { Key = key, Value = value };
+    }
+
+    private void SwitchToDictionary()
+    {
+        _dictionary = new Dictionary<string, TValue>(_count + 4, StringComparer.Ordinal);
+        for (var i = 0; i < _count; i++)
+        {
+            _dictionary[_entries![i].Key] = _entries[i].Value;
+        }
+
+        _entries = null;
+        _count = 0;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryFindEntry(string key, out int index)
+    {
+        for (var i = 0; i < _count; i++)
+        {
+            if (string.Equals(_entries![i].Key, key, StringComparison.Ordinal))
+            {
+                index = i;
+                return true;
+            }
+        }
+
+        index = -1;
+        return false;
+    }
+
+    private struct Entry
+    {
+        public string Key;
+        public TValue Value;
+    }
 }

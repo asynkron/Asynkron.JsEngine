@@ -1,4 +1,8 @@
+#region
+
 using System.Runtime.CompilerServices;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -8,8 +12,8 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class PropertyDescriptor
 {
     private IJsCallable? _get;
-    private IJsCallable? _set;
     private JsValue _jsValue;
+    private IJsCallable? _set;
     private bool _writable = true;
 
     /// <summary>

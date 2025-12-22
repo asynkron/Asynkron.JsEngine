@@ -1,15 +1,23 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("WeakRef", PrototypeType = typeof(WeakRefPrototype), Length = 1d, DisplayName = "WeakRef")]
-public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("WeakRef constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -44,7 +52,7 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
     {
         var target = RequireTargetObject(args);
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -70,9 +78,6 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         instance.SetProperty("_target", target);
         instance.RealmState ??= Realm;
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("WeakRef constructor not initialized");
 
     private void ApplyPrototype(JsObject instance, IJsCallable target)
     {

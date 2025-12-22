@@ -1,21 +1,23 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
 internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 {
     private readonly Func<string, JsValue> _bindingLookup;
+    private readonly Action? _ensureEvaluated;
     private readonly ImmutableArray<string> _exportNames;
+    private readonly bool _isDeferred;
     private readonly RealmState _realmState;
 
-    private static string ToStringTagKey => SymbolKeys.ToStringTag;
-
     private readonly TypedAstSymbol _toStringTagSymbol = Symbols.ToStringTag;
-    private readonly Action? _ensureEvaluated;
-    private readonly bool _isDeferred;
 
     internal ModuleNamespace(
         IEnumerable<string> exportNames,
@@ -31,6 +33,8 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         _isDeferred = isDeferred;
         _ensureEvaluated = ensureEvaluated;
     }
+
+    private static string ToStringTagKey => SymbolKeys.ToStringTag;
 
     internal ImmutableArray<string> ExportNames => _exportNames;
 
@@ -155,6 +159,36 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
     }
 
+    public void SetPrototype(object? candidate)
+    {
+        if (candidate is null)
+        {
+            if (_isDeferred)
+            {
+            }
+
+            return;
+        }
+
+        throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
+    }
+
+    public void Seal()
+    {
+        // Module namespace objects are always non-extensible; nothing to do.
+    }
+
+    public bool Delete(string name)
+    {
+        if (!IsSymbolLikeNamespaceKey(name))
+        {
+            EnsureExportsEvaluated(name);
+        }
+
+        return !_exportNames.Contains(name, StringComparer.Ordinal) &&
+               !string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Implements [[DefineOwnProperty]] for module namespace exotic objects.
     /// Returns true if no change is requested, false otherwise.
@@ -260,37 +294,6 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
 
         return true;
-    }
-
-    public void SetPrototype(object? candidate)
-    {
-        if (candidate is null)
-        {
-            if (_isDeferred)
-            {
-                return;
-            }
-
-            return;
-        }
-
-        throw StandardLibrary.ThrowTypeError("Module namespace objects are immutable", realm: _realmState);
-    }
-
-    public void Seal()
-    {
-        // Module namespace objects are always non-extensible; nothing to do.
-    }
-
-    public bool Delete(string name)
-    {
-        if (!IsSymbolLikeNamespaceKey(name))
-        {
-            EnsureExportsEvaluated(name);
-        }
-
-        return !_exportNames.Contains(name, StringComparer.Ordinal) &&
-               !string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
     internal bool HasExport(string name)

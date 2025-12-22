@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -32,6 +36,7 @@ public static partial class TypedAstEvaluator
             {
                 context.AllowIdentifierCache = AllowsIdentifierCaching(block);
             }
+
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
 
             // Fast path: if the block has no lexical/function decls, execute directly in the incoming environment
@@ -118,7 +123,8 @@ public static partial class TypedAstEvaluator
                     {
                         Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                     } lexDecl:
-                        var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        var isConst =
+                            lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in lexDecl.Declarators)
                         {
                             block.HoistLexicalBindingTargetForTdz(declarator.Target, scope, isConst);
@@ -186,7 +192,7 @@ public static partial class TypedAstEvaluator
                 blockEnvironment.DefineJsValue(
                     functionDeclaration.Name,
                     JsValue.FromObjectUnsafe(functionValue),
-                    isConst: true,
+                    true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);
             }
@@ -202,6 +208,7 @@ public static partial class TypedAstEvaluator
                         blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
                             blocksFunctionScopeOverride: true, isConst: isConst);
                     }
+
                     break;
                 case ArrayBinding arrayBinding:
                     foreach (var element in arrayBinding.Elements)
@@ -211,20 +218,24 @@ public static partial class TypedAstEvaluator
                             block.HoistLexicalBindingTargetForTdz(elementTarget, blockEnvironment, isConst);
                         }
                     }
+
                     if (arrayBinding.RestElement is { } restTarget)
                     {
                         block.HoistLexicalBindingTargetForTdz(restTarget, blockEnvironment, isConst);
                     }
+
                     break;
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
                     {
                         block.HoistLexicalBindingTargetForTdz(prop.Target, blockEnvironment, isConst);
                     }
+
                     if (objectBinding.RestElement is { } restObjTarget)
                     {
                         block.HoistLexicalBindingTargetForTdz(restObjTarget, blockEnvironment, isConst);
                     }
+
                     break;
             }
         }

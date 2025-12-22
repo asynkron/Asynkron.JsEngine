@@ -1,13 +1,256 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
+#endregion
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private static HashSet<Symbol> CollectTopLevelLexicalNames(ImmutableArray<StatementNode> statements)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var statement in statements)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } decl:
+                    foreach (var declarator in decl.Declarators)
+                    {
+                        CollectBindingNames(declarator.Target, names);
+                    }
+
+                    break;
+                case ClassDeclaration classDeclaration:
+                    names.Add(classDeclaration.Name);
+                    break;
+            }
+        }
+
+        return names;
+    }
+
+    private static void CollectBindingNames(BindingTarget target, HashSet<Symbol> names)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    names.Add(identifier.Name);
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingNames(element.Target, names);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingNames(property.Target, names);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
+    /// <summary>
+    /// Collects all var-declared names from the program body, including function declarations.
+    /// This is used for GlobalDeclarationInstantiation to check for conflicts before creating bindings.
+    /// </summary>
+    private static HashSet<Symbol> CollectAllVarNames(
+        ImmutableArray<StatementNode> statements,
+        bool isStrict)
+    {
+        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        CollectVarNamesFromStatements(statements, names, isStrict, false);
+        return names;
+    }
+
+    private static void CollectVarNamesFromStatements(
+        ImmutableArray<StatementNode> statements,
+        HashSet<Symbol> names,
+        bool isStrict,
+        bool inBlockScope)
+    {
+        foreach (var statement in statements)
+        {
+            CollectVarNamesFromStatement(statement, names, isStrict, inBlockScope);
+        }
+    }
+
+    private static void CollectVarNamesFromStatement(
+        StatementNode statement,
+        HashSet<Symbol> names,
+        bool isStrict,
+        bool inBlockScope)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
+                    foreach (var declarator in varDeclaration.Declarators)
+                    {
+                        CollectBindingNames(declarator.Target, names);
+                    }
+
+                    break;
+                case FunctionDeclaration functionDeclaration:
+                    // Function declarations at top-level are always hoisted as var names
+                    // Block-scoped function declarations are lexically scoped (no AnnexB hoisting)
+                    if (!inBlockScope)
+                    {
+                        names.Add(functionDeclaration.Name);
+                    }
+
+                    break;
+                case BlockStatement block:
+                    CollectVarNamesFromStatements(block.Statements, names, isStrict, true);
+                    break;
+                case IfStatement ifStatement:
+                    CollectVarNamesFromStatement(ifStatement.Then, names, isStrict, true);
+                    if (ifStatement.Else is not null)
+                    {
+                        statement = ifStatement.Else;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
+                    {
+                        foreach (var declarator in initVar.Declarators)
+                        {
+                            CollectBindingNames(declarator.Target, names);
+                        }
+                    }
+
+                    statement = forStatement.Body;
+                    continue;
+                case ForEachStatement { DeclarationKind: VariableKind.Var } forEachStatement:
+                    CollectBindingNames(forEachStatement.Target, names);
+                    statement = forEachStatement.Body;
+                    continue;
+                case ForEachStatement forEachStatement:
+                    statement = forEachStatement.Body;
+                    continue;
+                case TryStatement tryStatement:
+                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names, isStrict, true);
+                    if (tryStatement.Catch is not null)
+                    {
+                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names, isStrict, true);
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names, isStrict, true);
+                    }
+
+                    break;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        CollectVarNamesFromStatements(switchCase.Body.Statements, names, isStrict, true);
+                    }
+
+                    break;
+                case LabeledStatement labeledStatement:
+                    statement = labeledStatement.Statement;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+            }
+
+            break;
+        }
+    }
+
+    private static void HoistLexicalBindingTargetForGlobalTdz(BindingTarget target, JsEnvironment environment,
+        bool isConst)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (!environment.HasBinding(id.Name))
+                    {
+                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
+                            blocksFunctionScopeOverride: true, isConst: isConst);
+                    }
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is { } elementTarget)
+                        {
+                            HoistLexicalBindingTargetForGlobalTdz(elementTarget, environment, isConst);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is { } restTarget)
+                    {
+                        target = restTarget;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        HoistLexicalBindingTargetForGlobalTdz(prop.Target, environment, isConst);
+                    }
+
+                    if (objectBinding.RestElement is { } restObjTarget)
+                    {
+                        target = restObjTarget;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+    }
+
     extension(ProgramNode program)
     {
         public object? EvaluateProgram(
@@ -23,7 +266,11 @@ public static partial class TypedAstEvaluator
             var result = program.EvaluateProgramJsValue(environment, realmState, cancellationToken,
                 executionKind, createStrictEnvironment, functionNameHint, inheritedPrivateNameScopes,
                 drainAwaitMicrotasks);
-            if (result.IsUnit) return Symbol.Undefined;
+            if (result.IsUnit)
+            {
+                return Symbol.Undefined;
+            }
+
             return result.Kind switch
             {
                 JsValueKind.Undefined => Symbol.Undefined,
@@ -61,6 +308,7 @@ public static partial class TypedAstEvaluator
                     "Program inherited {PrivateScopeCount} private scopes",
                     scopes.Length);
             }
+
             context.SourceReference = program.Source;
             context.IsStrictSource = program.IsStrict;
             using var nameHintHandle = functionNameHint is not null
@@ -149,6 +397,7 @@ public static partial class TypedAstEvaluator
                             context,
                             context.RealmState);
                     }
+
                     // Step 5.b: Check against existing lexical declarations
                     if (globalScopeToCheck.HasGlobalLexicalDeclaration(lexicalName))
                     {
@@ -212,11 +461,13 @@ public static partial class TypedAstEvaluator
                     {
                         Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                     } lexDecl:
-                        var isConst = lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        var isConst =
+                            lexDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in lexDecl.Declarators)
                         {
                             HoistLexicalBindingTargetForGlobalTdz(declarator.Target, executionEnvironment, isConst);
                         }
+
                         break;
                     case ClassDeclaration classDecl:
                         // Class declarations are also lexically scoped and need TDZ
@@ -225,6 +476,7 @@ public static partial class TypedAstEvaluator
                             executionEnvironment.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexical: true,
                                 blocksFunctionScopeOverride: true, isConst: true);
                         }
+
                         break;
                 }
             }
@@ -267,243 +519,6 @@ public static partial class TypedAstEvaluator
             }
 
             return resultJs;
-        }
-    }
-
-    private static HashSet<Symbol> CollectTopLevelLexicalNames(ImmutableArray<StatementNode> statements)
-    {
-        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        foreach (var statement in statements)
-        {
-            switch (statement)
-            {
-                case VariableDeclaration
-                {
-                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
-                } decl:
-                    foreach (var declarator in decl.Declarators)
-                    {
-                        CollectBindingNames(declarator.Target, names);
-                    }
-
-                    break;
-                case ClassDeclaration classDeclaration:
-                    names.Add(classDeclaration.Name);
-                    break;
-            }
-        }
-
-        return names;
-    }
-
-    private static void CollectBindingNames(BindingTarget target, HashSet<Symbol> names)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding identifier:
-                    names.Add(identifier.Name);
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is not null)
-                        {
-                            CollectBindingNames(element.Target, names);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        target = arrayBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        CollectBindingNames(property.Target, names);
-                    }
-
-                    if (objectBinding.RestElement is not null)
-                    {
-                        target = objectBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-            }
-
-            break;
-        }
-    }
-
-    /// <summary>
-    /// Collects all var-declared names from the program body, including function declarations.
-    /// This is used for GlobalDeclarationInstantiation to check for conflicts before creating bindings.
-    /// </summary>
-    private static HashSet<Symbol> CollectAllVarNames(
-        ImmutableArray<StatementNode> statements,
-        bool isStrict)
-    {
-        var names = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-        CollectVarNamesFromStatements(statements, names, isStrict, inBlockScope: false);
-        return names;
-    }
-
-    private static void CollectVarNamesFromStatements(
-        ImmutableArray<StatementNode> statements,
-        HashSet<Symbol> names,
-        bool isStrict,
-        bool inBlockScope)
-    {
-        foreach (var statement in statements)
-        {
-            CollectVarNamesFromStatement(statement, names, isStrict, inBlockScope);
-        }
-    }
-
-    private static void CollectVarNamesFromStatement(
-        StatementNode statement,
-        HashSet<Symbol> names,
-        bool isStrict,
-        bool inBlockScope)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
-                    foreach (var declarator in varDeclaration.Declarators)
-                    {
-                        CollectBindingNames(declarator.Target, names);
-                    }
-
-                    break;
-                case FunctionDeclaration functionDeclaration:
-                    // Function declarations at top-level are always hoisted as var names
-                    // Block-scoped function declarations are lexically scoped (no AnnexB hoisting)
-                    if (!inBlockScope)
-                    {
-                        names.Add(functionDeclaration.Name);
-                    }
-
-                    break;
-                case BlockStatement block:
-                    CollectVarNamesFromStatements(block.Statements, names, isStrict, true);
-                    break;
-                case IfStatement ifStatement:
-                    CollectVarNamesFromStatement(ifStatement.Then, names, isStrict, inBlockScope: true);
-                    if (ifStatement.Else is not null)
-                    {
-                        statement = ifStatement.Else;
-                        continue;
-                    }
-
-                    break;
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
-                    continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    continue;
-                case ForStatement forStatement:
-                    if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar)
-                    {
-                        foreach (var declarator in initVar.Declarators)
-                        {
-                            CollectBindingNames(declarator.Target, names);
-                        }
-                    }
-
-                    statement = forStatement.Body;
-                    continue;
-                case ForEachStatement { DeclarationKind: VariableKind.Var } forEachStatement:
-                    CollectBindingNames(forEachStatement.Target, names);
-                    statement = forEachStatement.Body;
-                    continue;
-                case ForEachStatement forEachStatement:
-                    statement = forEachStatement.Body;
-                    continue;
-                case TryStatement tryStatement:
-                    CollectVarNamesFromStatements(tryStatement.TryBlock.Statements, names, isStrict, true);
-                    if (tryStatement.Catch is not null)
-                    {
-                        CollectVarNamesFromStatements(tryStatement.Catch.Body.Statements, names, isStrict, true);
-                    }
-
-                    if (tryStatement.Finally is not null)
-                    {
-                        CollectVarNamesFromStatements(tryStatement.Finally.Statements, names, isStrict, true);
-                    }
-
-                    break;
-                case SwitchStatement switchStatement:
-                    foreach (var switchCase in switchStatement.Cases)
-                    {
-                        CollectVarNamesFromStatements(switchCase.Body.Statements, names, isStrict, true);
-                    }
-
-                    break;
-                case LabeledStatement labeledStatement:
-                    statement = labeledStatement.Statement;
-                    continue;
-                case WithStatement withStatement:
-                    statement = withStatement.Body;
-                    continue;
-            }
-
-            break;
-        }
-    }
-
-    private static void HoistLexicalBindingTargetForGlobalTdz(BindingTarget target, JsEnvironment environment, bool isConst)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding id:
-                    if (!environment.HasBinding(id.Name))
-                    {
-                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true, blocksFunctionScopeOverride: true, isConst: isConst);
-                    }
-
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is { } elementTarget)
-                        {
-                            HoistLexicalBindingTargetForGlobalTdz(elementTarget, environment, isConst);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is { } restTarget)
-                    {
-                        target = restTarget;
-                        continue;
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var prop in objectBinding.Properties)
-                    {
-                        HoistLexicalBindingTargetForGlobalTdz(prop.Target, environment, isConst);
-                    }
-
-                    if (objectBinding.RestElement is { } restObjTarget)
-                    {
-                        target = restObjTarget;
-                        continue;
-                    }
-
-                    break;
-            }
-
-            break;
         }
     }
 }

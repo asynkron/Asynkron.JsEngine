@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

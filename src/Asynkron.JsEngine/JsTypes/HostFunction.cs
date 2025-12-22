@@ -1,25 +1,22 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-using static Asynkron.JsEngine.StdLib.BigIntHelper;
-using static Asynkron.JsEngine.StdLib.BooleanHelper;
-using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StringHelper;
-using static Asynkron.JsEngine.StdLib.SymbolHelper;
+
+#endregion
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Represents a host function that can be called from JavaScript.
 /// </summary>
-    public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-        IPrototypeAccessorProvider,
-        IJsEnvironmentAwareCallable
-    {
-        private Func<JsValue, IReadOnlyList<JsValue>, JsValue> _handler;
-        private Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? _invokeWithContext;
-        private bool _isConstructor = true;
-        internal bool IsBoundFunction { get; set; }
+public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+    IPrototypeAccessorProvider,
+    IJsEnvironmentAwareCallable
+{
+    private bool _isConstructor = true;
 
     public HostFunction(Func<IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
         bool isConstructor = true)
@@ -27,7 +24,7 @@ namespace Asynkron.JsEngine.JsTypes;
         ArgumentNullException.ThrowIfNull(handler);
 
         Properties = new JsObject();
-        _handler = (_, args) => handler(args);
+        HandlerForSnapshot = (_, args) => handler(args);
         RealmState = realmState;
         _isConstructor = isConstructor;
         InitializePrototype();
@@ -36,7 +33,7 @@ namespace Asynkron.JsEngine.JsTypes;
     public HostFunction(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
-        _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        HandlerForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
         Properties = new JsObject();
         RealmState = realmState;
         _isConstructor = isConstructor;
@@ -53,7 +50,7 @@ namespace Asynkron.JsEngine.JsTypes;
         Properties = new JsObject();
         RealmState = realmState;
         _isConstructor = isConstructor;
-        _handler = (thisValue, args) => handler(thisValue, args, realmState);
+        HandlerForSnapshot = (thisValue, args) => handler(thisValue, args, realmState);
         InitializePrototype();
     }
 
@@ -64,7 +61,7 @@ namespace Asynkron.JsEngine.JsTypes;
         bool isConstructor,
         bool initializePrototype)
     {
-        _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        HandlerForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
         Properties = properties ?? throw new ArgumentNullException(nameof(properties));
         _isConstructor = isConstructor;
         RealmState = realmState;
@@ -73,6 +70,8 @@ namespace Asynkron.JsEngine.JsTypes;
             InitializePrototype();
         }
     }
+
+    internal bool IsBoundFunction { get; set; }
 
     /// <summary>
     ///     Optional realm/global object that owns this host function. Used for
@@ -142,6 +141,15 @@ namespace Asynkron.JsEngine.JsTypes;
     internal JsObject Properties { get; }
 
     internal JsObject PropertiesObject => Properties;
+
+    internal Func<JsValue, IReadOnlyList<JsValue>, JsValue> HandlerForSnapshot { get; private set; }
+
+    internal Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? InvokeWithContextForSnapshot
+    {
+        get;
+        private set;
+    }
+
     public bool IsExtensible => Properties.IsExtensible;
 
     public void PreventExtensions()
@@ -149,51 +157,10 @@ namespace Asynkron.JsEngine.JsTypes;
         Properties.PreventExtensions();
     }
 
-        public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
-        {
-            return _handler(thisValue, arguments);
-        }
-
-        public JsValue InvokeWithContext(
-            IReadOnlyList<JsValue> arguments,
-            JsValue thisValue,
-            EvaluationContext? context,
-            JsValue newTarget = default)
-        {
-            if (_invokeWithContext is null)
-            {
-                return _handler(thisValue, arguments);
-            }
-
-            return _invokeWithContext(arguments, thisValue, context, newTarget);
-        }
-
-        public void SetInvokeWithContext(
-            Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue> handler)
-        {
-            _invokeWithContext = handler ?? throw new ArgumentNullException(nameof(handler));
-        }
-
-        internal Func<JsValue, IReadOnlyList<JsValue>, JsValue> HandlerForSnapshot => _handler;
-
-        internal Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? InvokeWithContextForSnapshot =>
-            _invokeWithContext;
-
-        internal void SetInvokeWithContextForSnapshot(
-            Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? handler)
-        {
-            _invokeWithContext = handler;
-        }
-
-        internal void SetHandlerForSnapshot(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
-        {
-            _handler = handler ?? throw new ArgumentNullException(nameof(handler));
-        }
-
-        internal void SetConstructorFlagForSnapshot(bool isConstructor)
-        {
-            _isConstructor = isConstructor;
-        }
+    public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
+    {
+        return HandlerForSnapshot(thisValue, arguments);
+    }
 
     /// <summary>
     ///     Captures the environment that invoked this host function so nested
@@ -243,7 +210,7 @@ namespace Asynkron.JsEngine.JsTypes;
                     var target = thisValue.TryGetObject<IJsCallable>(out var thisObj) ? thisObj : jsCallable;
                     var thisArg = args.GetArgument(0);
                     IReadOnlyList<JsValue> argList;
-                    if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray) )
+                    if (args.Count > 1 && args[1].TryGetObject<JsArray>(out var jsArray))
                     {
                         // items[i] is already JsValue from JsArray.Items
                         var items = jsArray.Items;
@@ -252,12 +219,14 @@ namespace Asynkron.JsEngine.JsTypes;
                         {
                             jsValues[i] = items[i];
                         }
+
                         argList = jsValues;
                     }
                     else
                     {
                         argList = ArgumentSlice.Empty;
                     }
+
                     return target.Invoke(argList, thisArg);
                 }, isConstructor: false);
                 return true;
@@ -332,9 +301,6 @@ namespace Asynkron.JsEngine.JsTypes;
         }
     }
 
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        Properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
-
     public bool IsSealed => Properties.IsSealed;
     public bool IsFrozen => Properties.IsFrozen;
 
@@ -374,6 +340,45 @@ namespace Asynkron.JsEngine.JsTypes;
         return Properties.TryDefineProperty(name, descriptor);
     }
 
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        Properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
+
+    public JsValue InvokeWithContext(
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue,
+        EvaluationContext? context,
+        JsValue newTarget = default)
+    {
+        if (InvokeWithContextForSnapshot is null)
+        {
+            return HandlerForSnapshot(thisValue, arguments);
+        }
+
+        return InvokeWithContextForSnapshot(arguments, thisValue, context, newTarget);
+    }
+
+    public void SetInvokeWithContext(
+        Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue> handler)
+    {
+        InvokeWithContextForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
+    }
+
+    internal void SetInvokeWithContextForSnapshot(
+        Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? handler)
+    {
+        InvokeWithContextForSnapshot = handler;
+    }
+
+    internal void SetHandlerForSnapshot(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
+    {
+        HandlerForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
+    }
+
+    internal void SetConstructorFlagForSnapshot(bool isConstructor)
+    {
+        _isConstructor = isConstructor;
+    }
+
     public bool DeleteProperty(string name)
     {
         return Properties.DeleteOwnProperty(name);
@@ -392,6 +397,7 @@ namespace Asynkron.JsEngine.JsTypes;
             {
                 copy[i] = boundArgs[i];
             }
+
             boundArgs = copy;
         }
 
@@ -399,11 +405,7 @@ namespace Asynkron.JsEngine.JsTypes;
         {
             var finalArgs = Combine(boundArgs, innerArgs);
             return target.Invoke(finalArgs, boundThis);
-        }, realmState, isConstructor: false)
-        {
-            IsBoundFunction = true,
-            IsConstructor = targetIsConstructor
-        };
+        }, realmState, false) { IsBoundFunction = true, IsConstructor = targetIsConstructor };
 
         boundFunction.SetInvokeWithContext((invokeArgs, _, context, newTarget) =>
         {
@@ -449,15 +451,25 @@ namespace Asynkron.JsEngine.JsTypes;
         static IReadOnlyList<JsValue> Combine(IReadOnlyList<JsValue> prefix, IReadOnlyList<JsValue> suffix)
         {
             if (prefix.Count == 0)
+            {
                 return suffix;
+            }
+
             if (suffix.Count == 0)
+            {
                 return prefix;
+            }
 
             var final = new JsValue[prefix.Count + suffix.Count];
             for (var i = 0; i < prefix.Count; i++)
+            {
                 final[i] = prefix[i];
+            }
+
             for (var i = 0; i < suffix.Count; i++)
+            {
                 final[prefix.Count + i] = suffix[i];
+            }
 
             return final;
         }
@@ -500,13 +512,11 @@ namespace Asynkron.JsEngine.JsTypes;
         prototype.SetProperty("constructor", (JsValue)this);
         // Per ES spec, the "prototype" property on constructor functions should be
         // writable, but NOT enumerable and NOT configurable
-        Properties.DefineProperty("prototype", new PropertyDescriptor
-        {
-            Value = (JsValue)prototype,
-            Writable = true,
-            Enumerable = false,
-            Configurable = false
-        });
+        Properties.DefineProperty("prototype",
+            new PropertyDescriptor
+            {
+                Value = (JsValue)prototype, Writable = true, Enumerable = false, Configurable = false
+            });
     }
 
     private void RemovePrototypeDataProperty()

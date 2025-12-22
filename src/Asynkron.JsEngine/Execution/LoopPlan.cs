@@ -1,5 +1,9 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -22,11 +26,13 @@ internal sealed record LoopPlan(
     int IterationSlotCount = -1,
     ImmutableArray<int> PerIterationSlotIndices = default)
 {
+    private bool _bodyNeedsEnvironment;
+
+    private bool _bodyNeedsEnvironmentComputed;
+
     // Cached analysis for fast-path loop body execution
     private StatementNode? _singleBodyStatement;
     private bool _singleBodyStatementComputed;
-    private bool _bodyNeedsEnvironment;
-    private bool _bodyNeedsEnvironmentComputed;
 
     /// <summary>
     /// Returns the single statement inside the body block, or null if the body has
@@ -40,6 +46,7 @@ internal sealed record LoopPlan(
             {
                 ComputeSingleBodyStatement();
             }
+
             return _singleBodyStatement;
         }
     }
@@ -55,6 +62,7 @@ internal sealed record LoopPlan(
             {
                 ComputeBodyNeedsEnvironment();
             }
+
             return _bodyNeedsEnvironment;
         }
     }

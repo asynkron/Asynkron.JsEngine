@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

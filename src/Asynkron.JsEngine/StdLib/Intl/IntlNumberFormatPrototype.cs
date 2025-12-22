@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -31,7 +35,7 @@ public sealed partial class IntlNumberFormatPrototype
         var value = args.GetArgument(0);
         var result = FormatNumberResult(nf, value);
         var partsArray = new JsArray(Realm);
-        var parts = result.Parts ?? [new("literal", result.Formatted)];
+        var parts = result.Parts ?? [new NumberFormatPart("literal", result.Formatted)];
         foreach (var part in parts)
         {
             var entry = new JsObject(Realm.ObjectPrototype);
@@ -96,7 +100,8 @@ public sealed partial class IntlNumberFormatPrototype
         obj.SetProperty("locale", (JsValue)slots.Locale);
         obj.SetProperty("numberingSystem", (JsValue)slots.NumberingSystem);
         obj.SetProperty("style", (JsValue)slots.Style);
-        obj.SetProperty("currency", slots.Currency is { Length: > 0 } currencyValue ? (JsValue)currencyValue : JsValue.Undefined);
+        obj.SetProperty("currency",
+            slots.Currency is { Length: > 0 } currencyValue ? (JsValue)currencyValue : JsValue.Undefined);
         obj.SetProperty("currencyDisplay",
             slots.Style == "currency" ? (JsValue)slots.CurrencyDisplay : JsValue.Undefined);
         obj.SetProperty("currencySign",
@@ -116,6 +121,7 @@ public sealed partial class IntlNumberFormatPrototype
             obj.SetProperty("minimumFractionDigits", (double)slots.MinimumFractionDigits);
             obj.SetProperty("maximumFractionDigits", (double)slots.MaximumFractionDigits);
         }
+
         obj.SetProperty("useGrouping", (JsValue)(slots.UseGrouping ? "auto" : "never"));
         obj.SetProperty("notation", (JsValue)slots.Notation);
         obj.SetProperty("signDisplay", (JsValue)slots.SignDisplay);
@@ -135,35 +141,30 @@ public sealed partial class IntlNumberFormatPrototype
 
     private IntlNumberFormatInternalSlots GetSlots(JsObject nf)
     {
-        if (nf.TryGetProperty(SlotsKey, out var slotsValue) && slotsValue.TryGetObject<IntlNumberFormatInternalSlots>(out var slots))
+        if (nf.TryGetProperty(SlotsKey, out var slotsValue) &&
+            slotsValue.TryGetObject<IntlNumberFormatInternalSlots>(out var slots))
         {
             return slots;
         }
 
         throw ThrowTypeError("Intl.NumberFormat instance is missing internal slots", realm: Realm);
     }
+
     private HostFunction CreateBoundFormatFunction(Func<JsValue, JsValue> formatter)
     {
-        var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, isConstructor: false);
+        var function = new HostFunction((_, args) => formatter(args.GetArgument(0)), Realm, false);
         DefineFormatFunctionMetadata(function);
         return function;
     }
 
     private static void DefineFormatFunctionMetadata(HostFunction function)
     {
-        function.DefineProperty("length", new PropertyDescriptor
-        {
-            Value = (JsValue)1d,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        function.DefineProperty("name", new PropertyDescriptor
-        {
-            Value = (JsValue)string.Empty,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
+        function.DefineProperty("length",
+            new PropertyDescriptor { Value = (JsValue)1d, Writable = false, Enumerable = false, Configurable = true });
+        function.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = (JsValue)string.Empty, Writable = false, Enumerable = false, Configurable = true
+            });
     }
 }

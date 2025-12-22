@@ -1,6 +1,11 @@
+#region
+
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -13,12 +18,18 @@ public static class JsValueCache
     // Cache small integers (0-10239) as JsValue - avoids boxing on every access
     // Jint uses 10240 to cover common array indices and iteration counts
     private const int IntegerCacheSize = 10240;
-    private static readonly JsValue[] CachedIntegersJsValue = new JsValue[IntegerCacheSize];
-    // Keep boxed version for legacy API compatibility
-    private static readonly object?[] CachedIntegers = new object?[IntegerCacheSize];
 
     // Cache index strings for property access (0-9999) - covers common array indices
     private const int IndexStringCacheSize = 10000;
+
+    // Argument array pools - 15 cached arrays per size (matches Jint's approach)
+    // Most function calls have 0-3 arguments, so we optimize heavily for these cases
+    private const int PoolSize = 15;
+
+    private static readonly JsValue[] CachedIntegersJsValue = new JsValue[IntegerCacheSize];
+
+    // Keep boxed version for legacy API compatibility
+    private static readonly object?[] CachedIntegers = new object?[IntegerCacheSize];
     private static readonly string[] CachedIndexStrings = new string[IndexStringCacheSize];
 
     // Cache common strings
@@ -52,10 +63,6 @@ public static class JsValueCache
     public static readonly object BoxedNaN = double.NaN;
     public static readonly object BoxedPositiveInfinity = double.PositiveInfinity;
     public static readonly object BoxedNegativeInfinity = double.NegativeInfinity;
-
-    // Argument array pools - 15 cached arrays per size (matches Jint's approach)
-    // Most function calls have 0-3 arguments, so we optimize heavily for these cases
-    private const int PoolSize = 15;
     private static readonly ObjectPool<object?[]> Pool1 = new(PoolSize, static () => new object?[1]);
     private static readonly ObjectPool<object?[]> Pool2 = new(PoolSize, static () => new object?[2]);
     private static readonly ObjectPool<object?[]> Pool3 = new(PoolSize, static () => new object?[3]);
@@ -72,14 +79,14 @@ public static class JsValueCache
         // Pre-cache integers 0-10239 as both JsValue and boxed doubles
         for (var i = 0; i < IntegerCacheSize; i++)
         {
-            CachedIntegersJsValue[i] = (JsValue)(double)i;
+            CachedIntegersJsValue[i] = (double)i;
             CachedIntegers[i] = (double)i;
         }
 
         // Pre-cache index strings 0-9999 for array property access
         for (var i = 0; i < IndexStringCacheSize; i++)
         {
-            CachedIndexStrings[i] = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            CachedIndexStrings[i] = i.ToString(CultureInfo.InvariantCulture);
         }
 
         // Pre-intern well-known strings
@@ -110,6 +117,7 @@ public static class JsValueCache
         {
             return CachedIntegers[value]!;
         }
+
         return (double)value;
     }
 
@@ -124,7 +132,8 @@ public static class JsValueCache
         {
             return CachedIntegersJsValue[value];
         }
-        return (JsValue)(double)value;
+
+        return (double)value;
     }
 
     /// <summary>
@@ -142,14 +151,30 @@ public static class JsValueCache
             {
                 return value;
             }
+
             return CachedIntegers[(int)value]!;
         }
 
         // Check special values
-        if (double.IsNaN(value)) return BoxedNaN;
-        if (double.IsPositiveInfinity(value)) return BoxedPositiveInfinity;
-        if (double.IsNegativeInfinity(value)) return BoxedNegativeInfinity;
-        if (value == -1.0) return BoxedNegativeOne;
+        if (double.IsNaN(value))
+        {
+            return BoxedNaN;
+        }
+
+        if (double.IsPositiveInfinity(value))
+        {
+            return BoxedPositiveInfinity;
+        }
+
+        if (double.IsNegativeInfinity(value))
+        {
+            return BoxedNegativeInfinity;
+        }
+
+        if (value == -1.0)
+        {
+            return BoxedNegativeOne;
+        }
 
         return value;
     }
@@ -168,20 +193,24 @@ public static class JsValueCache
             // Preserve negative zero (don't use cache for -0)
             if (value == 0 && double.IsNegative(value))
             {
-                return (JsValue)value;
+                return value;
             }
+
             return CachedIntegersJsValue[(int)value];
         }
 
         // No need to special-case NaN/Infinity/etc for JsValue since there's no boxing benefit
-        return (JsValue)value;
+        return value;
     }
 
     /// <summary>
     /// Gets a cached boxed boolean.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static object GetBoolean(bool value) => value ? BoxedTrue : BoxedFalse;
+    public static object GetBoolean(bool value)
+    {
+        return value ? BoxedTrue : BoxedFalse;
+    }
 
     /// <summary>
     /// Gets a cached string representation of an integer index if within cache range.
@@ -194,7 +223,8 @@ public static class JsValueCache
         {
             return CachedIndexStrings[index];
         }
-        return index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        return index.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -207,7 +237,8 @@ public static class JsValueCache
         {
             return CachedIndexStrings[(int)index];
         }
-        return index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        return index.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -222,6 +253,7 @@ public static class JsValueCache
         {
             return CachedIndexStrings[(int)value];
         }
+
         return null;
     }
 
@@ -231,8 +263,15 @@ public static class JsValueCache
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string InternString(string value)
     {
-        if (value.Length == 0) return EmptyString;
-        if (value.Length > 20) return value; // Don't intern long strings
+        if (value.Length == 0)
+        {
+            return EmptyString;
+        }
+
+        if (value.Length > 20)
+        {
+            return value; // Don't intern long strings
+        }
 
         return InternedStrings.GetOrAdd(value, static v => v);
     }
@@ -263,7 +302,10 @@ public static class JsValueCache
     public static void ReturnArgumentArray(object?[] array)
     {
         var length = array.Length;
-        if (length == 0 || length > 4) return;
+        if (length == 0 || length > 4)
+        {
+            return;
+        }
 
         // Clear references to allow GC of contained objects
         // Use explicit assignments for small arrays to avoid Array.Clear overhead
@@ -354,7 +396,10 @@ public static class JsValueCache
     public static void ReturnJsValueArray(JsValue[] array)
     {
         var length = array.Length;
-        if (length == 0 || length > 4) return;
+        if (length == 0 || length > 4)
+        {
+            return;
+        }
 
         // Reset to default (Undefined) to allow GC of any object references
         switch (length)

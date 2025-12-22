@@ -1,3 +1,5 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -7,12 +9,18 @@ using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("ArrayBuffer", PrototypeType = typeof(ArrayBufferPrototype), Length = 1d, DisplayName = "ArrayBuffer")]
-public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("ArrayBuffer constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -65,7 +73,10 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
     }
 
     [JsConstructorSymbolGetter("species")]
-    public static JsValue GetSpecies(JsValue thisValue) => thisValue;
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
 
     private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget)
     {
@@ -91,7 +102,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             return new JsArrayBuffer(allocLength, allocMax, Realm);
         }
 
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         var proto = ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm) ?? Prototype;
         if (proto is not null)
         {
@@ -145,7 +156,4 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
 
         return ToIndexAsLong(JsValue.FromObjectUnsafe(maxVal), Realm);
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("ArrayBuffer constructor not initialized");
 }

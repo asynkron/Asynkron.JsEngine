@@ -7,37 +7,37 @@ namespace Asynkron.JsEngine.Ast;
 public enum BinaryOperator : byte
 {
     // Arithmetic
-    Add,              // +
-    Subtract,         // -
-    Multiply,         // *
-    Divide,           // /
-    Modulo,           // %
-    Power,            // **
+    Add, // +
+    Subtract, // -
+    Multiply, // *
+    Divide, // /
+    Modulo, // %
+    Power, // **
 
     // Comparison
-    Equal,            // ==
-    NotEqual,         // !=
-    StrictEqual,      // ===
-    StrictNotEqual,   // !==
-    LessThan,         // <
-    LessThanOrEqual,  // <=
-    GreaterThan,      // >
+    Equal, // ==
+    NotEqual, // !=
+    StrictEqual, // ===
+    StrictNotEqual, // !==
+    LessThan, // <
+    LessThanOrEqual, // <=
+    GreaterThan, // >
     GreaterThanOrEqual, // >=
 
     // Logical
-    LogicalAnd,       // &&
-    LogicalOr,        // ||
+    LogicalAnd, // &&
+    LogicalOr, // ||
     NullishCoalescing, // ??
 
     // Bitwise
-    BitwiseAnd,       // &
-    BitwiseOr,        // |
-    BitwiseXor,       // ^
-    LeftShift,        // <<
-    RightShift,       // >>
+    BitwiseAnd, // &
+    BitwiseOr, // |
+    BitwiseXor, // ^
+    LeftShift, // <<
+    RightShift, // >>
     UnsignedRightShift, // >>>
 
     // Other
-    In,               // in
+    In, // in
     InstanceOf // instanceof
 }

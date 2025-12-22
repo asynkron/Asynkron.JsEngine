@@ -1,6 +1,10 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -28,7 +32,8 @@ public static partial class TypedAstEvaluator
             // Check the realm's template cache first.
             var realmState = context.RealmState;
             JsArray templateObject;
-            if (realmState is not null && realmState.TemplateObjectCache.TryGetValue(expression, out var cachedTemplate))
+            if (realmState is not null &&
+                realmState.TemplateObjectCache.TryGetValue(expression, out var cachedTemplate))
             {
                 templateObject = (JsArray)cachedTemplate;
             }

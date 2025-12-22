@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -77,7 +81,8 @@ public static partial class TypedAstEvaluator
 
                 // Evaluate the case clause body statements in the switch environment
                 // We evaluate the statements directly without creating a new block environment
-                var (caseCompletionJs, hasCaseJs) = SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
+                var (caseCompletionJs, hasCaseJs) =
+                    SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
 
                 // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
                 // UpdateEmpty semantics: only update V if the completion is not empty
@@ -102,11 +107,12 @@ public static partial class TypedAstEvaluator
             return completionValue;
         }
 
-        private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv, EvaluationContext context)
+        private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv,
+            EvaluationContext context)
         {
             foreach (var binding in plan.LexicalBindings)
             {
-                binding.Target.CreateUninitializedLexicalBindings(switchEnv, isConst: binding.IsConst);
+                binding.Target.CreateUninitializedLexicalBindings(switchEnv, binding.IsConst);
             }
 
             foreach (var funcBinding in plan.FunctionBindings)
@@ -116,7 +122,7 @@ public static partial class TypedAstEvaluator
                     switchEnv.DefineJsValue(
                         funcBinding.Name,
                         JsValue.Uninitialized,
-                        isConst: true,
+                        true,
                         isLexical: true,
                         blocksFunctionScopeOverride: true);
                     continue;
@@ -127,7 +133,7 @@ public static partial class TypedAstEvaluator
                 switchEnv.DefineJsValue(
                     funcBinding.Name,
                     JsValue.FromObjectUnsafe(functionValue),
-                    isConst: true,
+                    true,
                     isLexical: true,
                     blocksFunctionScopeOverride: true);
             }
@@ -137,7 +143,7 @@ public static partial class TypedAstEvaluator
                 switchEnv.DefineJsValue(
                     className,
                     JsValue.Undefined,
-                    isConst: true,
+                    true,
                     isLexical: true,
                     blocksFunctionScopeOverride: false);
             }
@@ -146,7 +152,8 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Evaluates a case clause body and returns a tuple with the value and whether it produced a value.
         /// </summary>
-        private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body, JsEnvironment switchEnv, EvaluationContext context)
+        private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body,
+            JsEnvironment switchEnv, EvaluationContext context)
         {
             // Evaluate statements in the case clause body without creating a new environment
             // The statements are evaluated in the shared switch environment

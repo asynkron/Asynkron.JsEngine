@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -82,6 +86,7 @@ public static partial class TypedAstEvaluator
                     {
                         lastValueJs = bodyResult;
                     }
+
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);
@@ -112,8 +117,8 @@ public static partial class TypedAstEvaluator
 
                     if (state.IteratorObject is not null && !iteratorDone)
                     {
-                        state.IteratorObject.IteratorClose(context, preserveExistingThrow: true,
-                            existingThrowOverride: thrown);
+                        state.IteratorObject.IteratorClose(context, true,
+                            thrown);
 
                         if (context.IsThrow)
                         {
@@ -142,18 +147,10 @@ public static partial class TypedAstEvaluator
                     }
 
                     JsValue value;
-                    try
-                    {
-                        // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
-                        value = resultObj.TryGetProperty("value", out var yielded)
-                            ? yielded
-                            : JsValue.Undefined;
-                    }
-                    catch (ThrowSignal)
-                    {
-                        // IteratorValue abrupts do not trigger IteratorClose (per 7.4.4).
-                        throw;
-                    }
+                    // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
+                    value = resultObj.TryGetProperty("value", out var yielded)
+                        ? yielded
+                        : JsValue.Undefined;
 
                     var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                         or VariableKind.Using or VariableKind.AwaitUsing
@@ -179,6 +176,7 @@ public static partial class TypedAstEvaluator
                         {
                             lastValueJs = bodyResult;
                         }
+
                         if (context.IsThrow)
                         {
                             throw new ThrowSignal(context.FlowValue);
@@ -188,7 +186,7 @@ public static partial class TypedAstEvaluator
                     {
                         if (state.IteratorObject is not null && !iteratorDone)
                         {
-                            state.IteratorObject.IteratorClose(context, preserveExistingThrow: true);
+                            state.IteratorObject.IteratorClose(context, true);
                         }
 
                         throw;
@@ -216,7 +214,8 @@ public static partial class TypedAstEvaluator
                             creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
-                    plan.Target.AssignLoopBinding(JsValue.FromObjectUnsafe(nextResult), iterationEnvironment, outerEnvironment, context,
+                    plan.Target.AssignLoopBinding(JsValue.FromObjectUnsafe(nextResult), iterationEnvironment,
+                        outerEnvironment, context,
                         plan.DeclarationKind);
                     if (context.IsThrow)
                     {
@@ -232,6 +231,7 @@ public static partial class TypedAstEvaluator
                     {
                         lastValueJs = bodyResult2;
                     }
+
                     if (context.IsThrow)
                     {
                         throw new ThrowSignal(context.FlowValue);

@@ -1,3 +1,9 @@
+#region
+
+using Microsoft.Extensions.Logging;
+
+#endregion
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -17,5 +23,5 @@ public sealed class JsEngineOptions : IJsEngineOptions
     /// <summary>
     /// Optional logger to receive realm traces and diagnostics.
     /// </summary>
-    public Microsoft.Extensions.Logging.ILogger? Logger { get; init; }
+    public ILogger? Logger { get; init; }
 }

@@ -1,4 +1,8 @@
+#region
+
 using System.Text.Json;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -59,7 +63,7 @@ internal static class IntlWeekData
         var assembly = typeof(IntlWeekData).Assembly;
         const string resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlWeekData.json";
         using var stream = assembly.GetManifestResourceStream(resourceName)
-                        ?? throw new InvalidOperationException("Could not load embedded Intl week data.");
+                           ?? throw new InvalidOperationException("Could not load embedded Intl week data.");
         var payload = JsonSerializer.Deserialize<WeekDataPayload>(stream)
                       ?? throw new InvalidOperationException("Intl week data payload is missing.");
         return payload with

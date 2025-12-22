@@ -1,5 +1,9 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Parser;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -34,10 +38,12 @@ public sealed record SwitchStatement(
                 {
                     if (stmt is VariableDeclaration
                         {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing
                         } varDecl)
                     {
-                        var isConst = varDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        var isConst =
+                            varDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in varDecl.Declarators)
                         {
                             lexicalBindings.Add(new SwitchLexicalBinding(declarator.Target, isConst));
@@ -51,7 +57,7 @@ public sealed record SwitchStatement(
                         var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
                                                  funcDecl.Function.IsGenerator;
                         functionBindings.Add(new SwitchFunctionBinding(funcDecl.Name, funcDecl.Function,
-                            InitializeNow: !isAsyncOrGenerator));
+                            !isAsyncOrGenerator));
                         continue;
                     }
 

@@ -1,9 +1,13 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.IntlHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -25,7 +29,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
     private DateTimeFormatInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
     {
-        var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = ResolveIntlLocales(localesArg, Realm);
 
         var options = NormalizeOptions(optionsArg);
         var localeMatcher = ReadStringOption(
@@ -88,7 +92,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
             return jsObject;
         }
 
-        throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat options must be an object", realm: Realm);
+        throw ThrowTypeError("Intl.DateTimeFormat options must be an object", realm: Realm);
     }
 
     private static object? GetOption(JsObject options, string propertyName)
@@ -107,13 +111,13 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         if (!rawValue.TryGetString(out var strValue))
         {
-            throw StandardLibrary.ThrowTypeError(
+            throw ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
         }
 
         if (!allowed.Contains(strValue, StringComparer.Ordinal))
         {
-            throw StandardLibrary.ThrowRangeError(
+            throw ThrowRangeError(
                 $"Intl.DateTimeFormat {propertyName} option '{strValue}' is not supported", realm: Realm);
         }
 
@@ -130,12 +134,12 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         if (!value.TryGetString(out var calendar))
         {
-            throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat calendar option must be a string", realm: Realm);
+            throw ThrowTypeError("Intl.DateTimeFormat calendar option must be a string", realm: Realm);
         }
 
         if (!IntlUtilities.TryNormalizeCalendar(calendar, out var canonical))
         {
-            throw StandardLibrary.ThrowRangeError($"Unsupported calendar '{calendar}'", realm: Realm);
+            throw ThrowRangeError($"Unsupported calendar '{calendar}'", realm: Realm);
         }
 
         return canonical;
@@ -151,7 +155,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         if (!value.TryGetString(out var system))
         {
-            throw StandardLibrary.ThrowTypeError(
+            throw ThrowTypeError(
                 "Intl.DateTimeFormat numberingSystem option must be a string", realm: Realm);
         }
 
@@ -170,7 +174,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         if (!value.TryGetString(out var stringValue))
         {
-            throw StandardLibrary.ThrowTypeError(
+            throw ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
         }
 
@@ -187,7 +191,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         if (!value.TryGetString(out var component))
         {
-            throw StandardLibrary.ThrowTypeError(
+            throw ThrowTypeError(
                 $"Intl.DateTimeFormat {propertyName} option must be a string", realm: Realm);
         }
 
@@ -202,7 +206,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
 
         if (!isAllowed)
         {
-            throw StandardLibrary.ThrowRangeError(
+            throw ThrowRangeError(
                 $"Intl.DateTimeFormat {propertyName} option '{component}' is not supported", realm: Realm);
         }
 
@@ -223,7 +227,7 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
     {
         var supportedLocales = new HostFunction((_, args) =>
         {
-            var result = IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+            var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
             return JsValue.FromObjectUnsafe(result);
         }, isConstructor: false);
 

@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -11,10 +15,10 @@ internal readonly struct AssignmentReference
 {
     private enum ReferenceKind
     {
-        DeclarativeBinding,   // Most common - cached identifier binding
-        GlobalBinding,        // Global object property
-        WithBinding,          // With statement binding
-        Unresolvable,         // Undeclared identifier
+        DeclarativeBinding, // Most common - cached identifier binding
+        GlobalBinding, // Global object property
+        WithBinding, // With statement binding
+        Unresolvable, // Undeclared identifier
         Delegate // Fallback for complex cases (member access, etc.)
     }
 
@@ -112,7 +116,7 @@ internal readonly struct AssignmentReference
             context,
             isStrict,
             default,
-            environment,  // Store environment for sloppy mode global creation
+            environment, // Store environment for sloppy mode global creation
             null,
             null);
     }

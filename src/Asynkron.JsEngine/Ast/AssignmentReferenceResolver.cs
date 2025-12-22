@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -74,7 +78,7 @@ internal static class AssignmentReferenceResolver
         EvaluationContext context,
         Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression)
     {
-        return Resolve(expression, environment, context, evaluateExpression, deferPropertyKeyConversion: false);
+        return Resolve(expression, environment, context, evaluateExpression, false);
     }
 
     public static AssignmentReference ResolveForDestructuring(
@@ -83,7 +87,7 @@ internal static class AssignmentReferenceResolver
         EvaluationContext context,
         Func<ExpressionNode, JsEnvironment, EvaluationContext, JsValue> evaluateExpression)
     {
-        return Resolve(expression, environment, context, evaluateExpression, deferPropertyKeyConversion: true);
+        return Resolve(expression, environment, context, evaluateExpression, true);
     }
 
     private static AssignmentReference Resolve(
@@ -237,7 +241,7 @@ internal static class AssignmentReferenceResolver
                     propertyName,
                     context,
                     context.CurrentScope.IsStrict,
-                    allowPrivate: !member.IsComputed);
+                    !member.IsComputed);
             }
         }
 
@@ -262,7 +266,7 @@ internal static class AssignmentReferenceResolver
             propertyValue,
             context,
             context.CurrentScope.IsStrict,
-            allowPrivate: !member.IsComputed);
+            !member.IsComputed);
         return AssignmentReference.ForDelegate(
             () => handle.GetJsValue(),
             newValue => handle.SetValue(newValue));
@@ -391,7 +395,8 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue, context);
+                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue,
+                            context);
                         return;
                     }
 
@@ -408,17 +413,18 @@ internal static class AssignmentReferenceResolver
                         return;
                     }
 
-                    target.DefineProperty(propertyName, new PropertyDescriptor
-                    {
-                        JsValue = value,
-                        Writable = true,
-                        Enumerable = inheritedDescriptor.Enumerable,
-                        Configurable = inheritedDescriptor.Configurable,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = inheritedDescriptor.HasEnumerable,
-                        HasConfigurable = inheritedDescriptor.HasConfigurable
-                    });
+                    target.DefineProperty(propertyName,
+                        new PropertyDescriptor
+                        {
+                            JsValue = value,
+                            Writable = true,
+                            Enumerable = inheritedDescriptor.Enumerable,
+                            Configurable = inheritedDescriptor.Configurable,
+                            HasValue = true,
+                            HasWritable = true,
+                            HasEnumerable = inheritedDescriptor.HasEnumerable,
+                            HasConfigurable = inheritedDescriptor.HasConfigurable
+                        });
                     return;
                 }
 
@@ -446,7 +452,8 @@ internal static class AssignmentReferenceResolver
                             return;
                         }
 
-                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue, context);
+                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue,
+                            context);
                         return;
                     }
 
@@ -463,17 +470,18 @@ internal static class AssignmentReferenceResolver
                         return;
                     }
 
-                    target.DefineProperty(propertyName, new PropertyDescriptor
-                    {
-                        JsValue = value,
-                        Writable = true,
-                        Enumerable = inheritedDescriptor.Enumerable,
-                        Configurable = inheritedDescriptor.Configurable,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = inheritedDescriptor.HasEnumerable,
-                        HasConfigurable = inheritedDescriptor.HasConfigurable
-                    });
+                    target.DefineProperty(propertyName,
+                        new PropertyDescriptor
+                        {
+                            JsValue = value,
+                            Writable = true,
+                            Enumerable = inheritedDescriptor.Enumerable,
+                            Configurable = inheritedDescriptor.Configurable,
+                            HasValue = true,
+                            HasWritable = true,
+                            HasEnumerable = inheritedDescriptor.HasEnumerable,
+                            HasConfigurable = inheritedDescriptor.HasConfigurable
+                        });
                     return;
                 }
 

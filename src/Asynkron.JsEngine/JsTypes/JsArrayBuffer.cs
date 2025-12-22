@@ -1,11 +1,16 @@
+#region
+
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Represents a JavaScript ArrayBuffer - a fixed-length raw binary data buffer.
 /// </summary>
-public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvider, IJsObjectLike, IPropertyDefinitionHost,
+public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvider, IJsObjectLike,
+    IPropertyDefinitionHost,
     IExtensibilityControl
 {
     private readonly JsObject _properties = new();
@@ -16,7 +21,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     /// <summary>
     ///     Creates a new ArrayBuffer with the specified length in bytes.
     /// </summary>
-    public JsArrayBuffer(int byteLength, int? maxByteLength = null, RealmState? realmState = null, bool isShared = false)
+    public JsArrayBuffer(int byteLength, int? maxByteLength = null, RealmState? realmState = null,
+        bool isShared = false)
     {
         if (byteLength < 0)
         {
@@ -82,23 +88,21 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     public bool Resizable { get; }
 
     public int MaxByteLength { get; }
+    public bool IsExtensible => _properties.IsExtensible;
 
-    public IJsPropertyAccessor? PrototypeAccessor => _properties.PrototypeAccessor;
+    public void PreventExtensions()
+    {
+        _properties.PreventExtensions();
+    }
 
     public JsObject? Prototype => _properties.Prototype;
     public bool IsSealed => _properties.IsSealed;
     public bool IsFrozen => _properties.IsFrozen;
-    public bool IsExtensible => _properties.IsExtensible;
     IEnumerable<string> IJsObjectLike.Keys => _properties.Keys;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
         _properties.DefineProperty(name, descriptor);
-    }
-
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return _properties.TryDefineProperty(name, descriptor);
     }
 
     public void SetPrototype(object? candidate)
@@ -111,11 +115,6 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
         _properties.Seal();
     }
 
-    public void PreventExtensions()
-    {
-        _properties.PreventExtensions();
-    }
-
     public bool Delete(string name)
     {
         return _properties.Delete(name);
@@ -123,7 +122,8 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                out value))
         {
             return true;
         }
@@ -151,6 +151,13 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
     {
         SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public IJsPropertyAccessor? PrototypeAccessor => _properties.PrototypeAccessor;
 
     /// <summary>
     ///     Creates a copy of this ArrayBuffer containing a slice of the data.

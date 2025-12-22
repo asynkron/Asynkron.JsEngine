@@ -1,9 +1,13 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -14,20 +18,24 @@ namespace Asynkron.JsEngine;
 public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationContextAwareCallable, IJsPropertyAccessor
 {
     internal static readonly Symbol FieldInitializerEvalFlag = Symbol.Intern("#classFieldInitializerEval");
-    private readonly JsEngine _engine;
     private readonly JsObject _properties = new();
 
     public EvalHostFunction(JsEngine engine)
     {
-        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        if (_engine.RealmState.FunctionPrototype is { } functionPrototype)
+        Engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        if (Engine.RealmState.FunctionPrototype is { } functionPrototype)
         {
             _properties.SetPrototype(functionPrototype);
         }
+
         _properties.SetProperty("prototype", (JsValue)new JsObject());
     }
 
-    internal JsEngine Engine => _engine;
+    internal JsEngine Engine { get; }
+
+    internal bool InClassFieldInitializer { get; set; }
+
+    internal bool IsDirectCall { get; set; }
 
     public EvaluationContext? CallingContext { get; set; }
 
@@ -36,10 +44,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     ///     This allows eval to execute code in the caller's scope.
     /// </summary>
     public JsEnvironment? CallingJsEnvironment { get; set; }
-
-    internal bool InClassFieldInitializer { get; set; }
-
-    internal bool IsDirectCall { get; set; }
 
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
@@ -54,7 +58,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         IsDirectCall = false;
 
         // Direct eval executes in the caller's scope; indirect eval always uses the realm's global scope.
-        var evalRealmGlobal = _engine.GlobalExecutionScope ?? _engine.GlobalEnvironment;
+        var evalRealmGlobal = Engine.GlobalExecutionScope ?? Engine.GlobalEnvironment;
         var environment = isDirectEval
             ? CallingJsEnvironment ?? throw new InvalidOperationException("eval() called without a calling environment")
             : evalRealmGlobal;
@@ -65,7 +69,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         ProgramNode program;
         try
         {
-            program = _engine.ParseProgram(code, forceStrict);
+            program = Engine.ParseProgram(code, forceStrict);
         }
         catch (ParseException parseException)
         {
@@ -102,10 +106,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var validationFlags = ScanForValidationFlags(program.Body);
 
         // Check for super call in initializer (includeFunctionBodies semantics)
-        var containsSuperCallInInitializer = (validationFlags & (EvalValidationFlags.ContainsSuperCall | EvalValidationFlags.ContainsSuperCallInFunctions)) != 0;
-        var containsSuperReferenceInInitializer = (validationFlags & (EvalValidationFlags.ContainsSuperReference | EvalValidationFlags.ContainsSuperReferenceInFunctions)) != 0;
+        var containsSuperCallInInitializer = (validationFlags &
+                                              (EvalValidationFlags.ContainsSuperCall |
+                                               EvalValidationFlags.ContainsSuperCallInFunctions)) != 0;
+        var containsSuperReferenceInInitializer = (validationFlags & (EvalValidationFlags.ContainsSuperReference |
+                                                                      EvalValidationFlags
+                                                                          .ContainsSuperReferenceInFunctions)) != 0;
         var containsArgumentsInInitializer = insideClassFieldInitializer &&
-                                             (validationFlags & (EvalValidationFlags.ContainsArguments | EvalValidationFlags.ContainsArgumentsInFunctions)) != 0;
+                                             (validationFlags & (EvalValidationFlags.ContainsArguments |
+                                                                 EvalValidationFlags.ContainsArgumentsInFunctions)) !=
+                                             0;
 
         if (insideClassFieldInitializer && containsSuperCallInInitializer)
         {
@@ -132,7 +142,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         // Check new.target with includeFunctionBodies=true
-        var containsNewTargetInFunctions = (validationFlags & (EvalValidationFlags.ContainsNewTarget | EvalValidationFlags.ContainsNewTargetInFunctions)) != 0;
+        var containsNewTargetInFunctions = (validationFlags &
+                                            (EvalValidationFlags.ContainsNewTarget |
+                                             EvalValidationFlags.ContainsNewTargetInFunctions)) != 0;
         if (!isDirectEval && containsNewTargetInFunctions)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -254,7 +266,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             // (PerformEval step 9.a).
             lexicalEnv = new JsEnvironment(
                 environment,
-                isFunctionScope: true,
+                true,
                 true,
                 description: "strict direct eval",
                 treatAsGlobalFunctionScope: false,
@@ -266,8 +278,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             // declarations still target the caller's var environment (EvalDeclarationInstantiation step 8).
             lexicalEnv = new JsEnvironment(
                 environment,
-                isFunctionScope: false,
-                isStrict: false,
+                false,
+                false,
                 description: "direct eval lexical",
                 inheritStrictness: false);
         }
@@ -416,8 +428,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     evalPrivateNameScopes.Value.Length,
                     insideClassFieldInitializer);
             }
-            var result = program.EvaluateProgram(evalEnvironment, _engine.RealmState, CancellationToken.None,
-                ExecutionKind.Eval, createStrictEnvironment: false, inheritedPrivateNameScopes: evalPrivateNameScopes);
+
+            var result = program.EvaluateProgram(evalEnvironment, Engine.RealmState, CancellationToken.None,
+                ExecutionKind.Eval, false, inheritedPrivateNameScopes: evalPrivateNameScopes);
 
             return JsValue.FromObjectUnsafe(result);
         }
@@ -430,7 +443,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+            out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -657,7 +671,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration
                         {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing
                         } initDecl)
                     {
                         foreach (var declarator in initDecl.Declarators)
@@ -697,6 +712,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         {
                             CollectBindingNames(catchClause.Binding, names);
                         }
+
                         CollectLexicallyDeclaredNamesFromStatement(catchClause.Body, names);
                     }
 
@@ -866,14 +882,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         return iterationDepth == 0 && switchDepth == 0;
                     }
 
-                    return !TryResolveLabel(labels, breakStatement.Label, requireIteration: false);
+                    return !TryResolveLabel(labels, breakStatement.Label, false);
                 case ContinueStatement continueStatement:
                     if (continueStatement.Label is null)
                     {
                         return iterationDepth == 0;
                     }
 
-                    return !TryResolveLabel(labels, continueStatement.Label, requireIteration: true);
+                    return !TryResolveLabel(labels, continueStatement.Label, true);
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
@@ -997,13 +1013,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return false;
     }
 
-    private enum LabelTargetKind
-    {
-        Other,
-        Iteration,
-        Switch
-    }
-
     private static bool CanDeclareGlobalFunction(JsEnvironment varEnv, Symbol name)
     {
         var descriptor = varEnv.GetGlobalOwnPropertyDescriptor(name, out var globalObject);
@@ -1113,7 +1122,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     return false;
                 case IfStatement ifStatement:
                     return StatementContainsNewTarget(ifStatement.Then, includeFunctionBodies) ||
-                           (ifStatement.Else is not null && StatementContainsNewTarget(ifStatement.Else, includeFunctionBodies));
+                           (ifStatement.Else is not null &&
+                            StatementContainsNewTarget(ifStatement.Else, includeFunctionBodies));
                 case WhileStatement whileStatement:
                     statement = whileStatement.Body;
                     continue;
@@ -1129,6 +1139,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         return true;
                     }
+
                     if (forStatement.Initializer is VariableDeclaration initVarDecl &&
                         StatementContainsNewTarget(initVarDecl, includeFunctionBodies))
                     {
@@ -1238,6 +1249,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         return true;
                     }
+
                     if (forStatement.Initializer is VariableDeclaration initVarDecl &&
                         StatementContainsSuperCall(initVarDecl, includeFunctionBodies))
                     {
@@ -1359,6 +1371,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         return true;
                     }
+
                     if (forStatement.Initializer is VariableDeclaration initVarDecl &&
                         StatementContainsSuper(initVarDecl, includeFunctionBodies))
                     {
@@ -1480,6 +1493,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         return true;
                     }
+
                     if (forStatement.Initializer is VariableDeclaration initVarDecl &&
                         StatementContainsArguments(initVarDecl, includeFunctionBodies))
                     {
@@ -1657,7 +1671,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
 
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
-                            or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                                or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
                             if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsNewTarget(member.Value, includeFunctionBodies))
@@ -1845,7 +1859,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
 
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
-                            or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                                or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
                             if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsArguments(member.Value, includeFunctionBodies))
@@ -2034,7 +2048,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
 
                         if (member.Function is not null || member.Kind is ObjectMemberKind.Method
-                            or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                                or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
                         {
                             if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsSuperCall(member.Value, includeFunctionBodies))
@@ -2226,7 +2240,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
 
                         if (member.Function is not null ||
-                            member.Kind is ObjectMemberKind.Method or ObjectMemberKind.Getter or ObjectMemberKind.Setter)
+                            member.Kind is ObjectMemberKind.Method or ObjectMemberKind.Getter
+                                or ObjectMemberKind.Setter)
                         {
                             if (member is { IsComputed: true, Value: not null } &&
                                 ExpressionContainsSuper(member.Value, includeFunctionBodies))
@@ -2351,7 +2366,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } lexicalDeclaration:
                 {
-                    var isConst = lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    var isConst =
+                        lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                     foreach (var declarator in lexicalDeclaration.Declarators)
                     {
                         CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
@@ -2383,10 +2399,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration
                         {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing
                         } initDecl)
                     {
-                        var isConst = initDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        var isConst =
+                            initDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
                         foreach (var declarator in initDecl.Declarators)
                         {
                             CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
@@ -2426,6 +2444,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         {
                             CollectLexicalDeclarationNames(catchClause.Binding, false, declarations);
                         }
+
                         CollectLexicalDeclarationsFromStatement(catchClause.Body, declarations);
                     }
 
@@ -2723,7 +2742,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         if (declarator.Initializer is not null)
                         {
-                            var initResult = FindInvalidPrivateNameInExpression(declarator.Initializer, availableScopes);
+                            var initResult =
+                                FindInvalidPrivateNameInExpression(declarator.Initializer, availableScopes);
                             if (initResult is not null)
                             {
                                 return initResult;
@@ -2746,7 +2766,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     // in the outer scope and may reference outer private names.
                     if (classDeclaration.Definition.Extends is not null)
                     {
-                        var heritage = FindInvalidPrivateNameInExpression(classDeclaration.Definition.Extends, availableScopes);
+                        var heritage =
+                            FindInvalidPrivateNameInExpression(classDeclaration.Definition.Extends, availableScopes);
                         if (heritage is not null)
                         {
                             return heritage;
@@ -2791,7 +2812,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                     // For non-computed member expressions with private names (e.g., this.#x),
                     // the Property is a LiteralExpression containing the private name string.
-                    if (memberExpression is { IsComputed: false, Property: LiteralExpression { Value.IsString: true } propLit })
+                    if (memberExpression is
+                        { IsComputed: false, Property: LiteralExpression { Value.IsString: true } propLit })
                     {
                         var propName = propLit.Value.AsString()!;
                         if (propName.IsPrivateName())
@@ -3032,7 +3054,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     // Similar to ClassDeclaration - check heritage and computed keys
                     if (classExpression.Definition.Extends is not null)
                     {
-                        var heritage = FindInvalidPrivateNameInExpression(classExpression.Definition.Extends, availableScopes);
+                        var heritage =
+                            FindInvalidPrivateNameInExpression(classExpression.Definition.Extends, availableScopes);
                         if (heritage is not null)
                         {
                             return heritage;
@@ -3117,7 +3140,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private static EvalValidationFlags ScanForValidationFlags(ImmutableArray<StatementNode> statements)
     {
         var flags = EvalValidationFlags.None;
-        ScanStatements(statements, ref flags, inFunctionBody: false, inLoop: false, inSwitch: false);
+        ScanStatements(statements, ref flags, false, false, false);
         return flags;
     }
 
@@ -3134,7 +3157,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
     }
 
-    private static void ScanStatement(StatementNode statement, ref EvalValidationFlags flags, bool inFunctionBody, bool inLoop, bool inSwitch)
+    private static void ScanStatement(StatementNode statement, ref EvalValidationFlags flags, bool inFunctionBody,
+        bool inLoop, bool inSwitch)
     {
         while (true)
         {
@@ -3186,7 +3210,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     continue;
 
                 case DoWhileStatement doWhileStatement:
-                    ScanStatement(doWhileStatement.Body, ref flags, inFunctionBody, inLoop: true, inSwitch);
+                    ScanStatement(doWhileStatement.Body, ref flags, inFunctionBody, true, inSwitch);
                     ScanExpression(doWhileStatement.Condition, ref flags, inFunctionBody);
                     break;
 
@@ -3229,7 +3253,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                             ScanExpression(switchCase.Test, ref flags, inFunctionBody);
                         }
 
-                        ScanStatement(switchCase.Body, ref flags, inFunctionBody, inLoop, inSwitch: true);
+                        ScanStatement(switchCase.Body, ref flags, inFunctionBody, inLoop, true);
                     }
 
                     break;
@@ -3268,7 +3292,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                 case FunctionDeclaration functionDeclaration:
                     // Scan function body with inFunctionBody=true to mark "InFunctions" flags
-                    ScanStatements(functionDeclaration.Function.Body.Statements, ref flags, inFunctionBody: true, inLoop: false, inSwitch: false);
+                    ScanStatements(functionDeclaration.Function.Body.Statements, ref flags, true, false, false);
                     break;
 
                 case ClassDeclaration:
@@ -3302,23 +3326,38 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 case NewTargetExpression:
                     if (inFunctionBody)
+                    {
                         flags |= EvalValidationFlags.ContainsNewTargetInFunctions;
+                    }
                     else
+                    {
                         flags |= EvalValidationFlags.ContainsNewTarget;
+                    }
+
                     break;
 
                 case SuperExpression:
                     if (inFunctionBody)
+                    {
                         flags |= EvalValidationFlags.ContainsSuperReferenceInFunctions;
+                    }
                     else
+                    {
                         flags |= EvalValidationFlags.ContainsSuperReference;
+                    }
+
                     break;
 
                 case IdentifierExpression id when id.Name == Symbol.Arguments:
                     if (inFunctionBody)
+                    {
                         flags |= EvalValidationFlags.ContainsArgumentsInFunctions;
+                    }
                     else
+                    {
                         flags |= EvalValidationFlags.ContainsArguments;
+                    }
+
                     break;
 
                 case CallExpression call:
@@ -3326,9 +3365,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     if (call.Callee is SuperExpression)
                     {
                         if (inFunctionBody)
+                        {
                             flags |= EvalValidationFlags.ContainsSuperCallInFunctions;
+                        }
                         else
+                        {
                             flags |= EvalValidationFlags.ContainsSuperCall;
+                        }
                     }
 
                     ScanExpression(call.Callee, ref flags, inFunctionBody);
@@ -3420,7 +3463,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         if (member.Function is not null)
                         {
                             // Method - scan body with inFunctionBody=true
-                            ScanStatements(member.Function.Body.Statements, ref flags, inFunctionBody: true, inLoop: false, inSwitch: false);
+                            ScanStatements(member.Function.Body.Statements, ref flags, true, false, false);
                         }
                     }
 
@@ -3429,7 +3472,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case FunctionExpression funcExpr:
                     // FunctionExpression handles both regular functions and arrow functions
                     // Arrow functions with expression body have funcExpr.Body as a single return statement
-                    ScanStatements(funcExpr.Body.Statements, ref flags, inFunctionBody: true, inLoop: false, inSwitch: false);
+                    ScanStatements(funcExpr.Body.Statements, ref flags, true, false, false);
                     break;
 
                 case TemplateLiteralExpression template:
@@ -3467,5 +3510,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
             break;
         }
+    }
+
+    private enum LabelTargetKind
+    {
+        Other,
+        Iteration,
+        Switch
     }
 }

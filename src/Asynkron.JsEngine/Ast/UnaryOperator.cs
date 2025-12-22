@@ -6,15 +6,15 @@ namespace Asynkron.JsEngine.Ast;
 public enum UnaryOperator : byte
 {
     // Prefix operators
-    Plus,             // +
-    Minus,            // -
-    LogicalNot,       // !
-    BitwiseNot,       // ~
-    TypeOf,           // typeof
-    Void,             // void
-    Delete,           // delete
+    Plus, // +
+    Minus, // -
+    LogicalNot, // !
+    BitwiseNot, // ~
+    TypeOf, // typeof
+    Void, // void
+    Delete, // delete
 
     // Update operators (prefix and postfix)
-    Increment,        // ++
+    Increment, // ++
     Decrement // --
 }

@@ -1,8 +1,12 @@
+#region
+
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Parser;
 
@@ -309,6 +313,7 @@ public sealed class TypedAstParser(
                 // Automatic Semicolon Insertion: if the next token cannot appear here,
                 // the semicolon terminating the do-while is inserted implicitly.
             }
+
             return new DoWhileStatement(CreateSourceReference(keyword), body, condition);
         }
 
@@ -378,7 +383,8 @@ public sealed class TypedAstParser(
                 {
                     initializer = ParseExpression(false);
                 }
-                else if (!allowInitializerless && (isUsingDeclaration || kind == VariableKind.Const || requiresInitializer))
+                else if (!allowInitializerless &&
+                         (isUsingDeclaration || kind == VariableKind.Const || requiresInitializer))
                 {
                     var message = isUsingDeclaration
                         ? "Using declarations require an initializer."
@@ -446,7 +452,7 @@ public sealed class TypedAstParser(
                 ExpressionNode? defaultValue = null;
                 if (Match(TokenType.Equal))
                 {
-                    defaultValue = ParseAssignment(validateCoverInitializedName: false);
+                    defaultValue = ParseAssignment(false);
                 }
 
                 elements.Add(new ArrayBindingElement(elementTarget.Source, elementTarget, defaultValue));
@@ -492,7 +498,7 @@ public sealed class TypedAstParser(
                 if (Match(TokenType.LeftBracket))
                 {
                     var start = Previous();
-                    nameExpression = ParseAssignment(validateCoverInitializedName: false);
+                    nameExpression = ParseAssignment(false);
                     Consume(TokenType.RightBracket, "Expected ']' after computed property name.");
                     name = string.Empty;
                     canUseShorthand = false;
@@ -528,7 +534,7 @@ public sealed class TypedAstParser(
                 ExpressionNode? defaultValue = null;
                 if (Match(TokenType.Equal))
                 {
-                    defaultValue = ParseAssignment(validateCoverInitializedName: false);
+                    defaultValue = ParseAssignment(false);
                 }
 
                 properties.Add(new ObjectBindingProperty(source, name, target, defaultValue, nameExpression));
@@ -769,7 +775,8 @@ public sealed class TypedAstParser(
             Consume(TokenType.RightBrace, "Expected '}' after class body.");
             var ctor = constructor ?? CreateDefaultConstructor(className, extendsExpression is not null);
             var sourceReference = CreateSourceReference(classToken);
-            return new ClassDefinition(sourceReference, extendsExpression, ctor, members, fields, staticBlocks, staticElements);
+            return new ClassDefinition(sourceReference, extendsExpression, ctor, members, fields, staticBlocks,
+                staticElements);
         }
 
         private (FunctionExpression? Constructor,
@@ -859,6 +866,7 @@ public sealed class TypedAstParser(
                         staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Field,
                             fields.Count - 1));
                     }
+
                     continue;
                 }
 
@@ -1016,6 +1024,7 @@ public sealed class TypedAstParser(
                             staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Field,
                                 fields.Count - 1));
                         }
+
                         continue;
                     }
 
@@ -1056,6 +1065,7 @@ public sealed class TypedAstParser(
                             staticElements.Add(new ClassStaticElement(ClassStaticElementKind.Field,
                                 fields.Count - 1));
                         }
+
                         continue;
                     }
 
@@ -1139,8 +1149,8 @@ public sealed class TypedAstParser(
             var statements = ImmutableArray.Create<StatementNode>(new ExpressionStatement(null, superCall));
             var body = new BlockStatement(null, statements, true);
             return new FunctionExpression(body.Source, className, [restParameter], body, false,
-                false, IsArrow: false, WasAsync: false, IsHoistableDefaultExport: false,
-                IsDefaultDerivedConstructor: true);
+                false, false, false, false,
+                true);
         }
 
         private StatementNode ParseImportStatement()
@@ -1256,8 +1266,7 @@ public sealed class TypedAstParser(
                     var value = GetStringLiteralValue(valueToken);
 
                     builder.Add(new ImportAttribute(CreateSourceReference(keyToken), key, value));
-                }
-                while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
+                } while (Match(TokenType.Comma) && !Check(TokenType.RightBrace));
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after import attributes.");
@@ -1295,6 +1304,7 @@ public sealed class TypedAstParser(
                 {
                     throw new ParseException("Expected identifier or string in import list.", Peek(), _source);
                 }
+
                 Symbol local;
 
                 if (MatchContextualKeyword("as"))
@@ -1342,6 +1352,7 @@ public sealed class TypedAstParser(
                     {
                         throw new ParseException("Expected identifier or string after 'as'.", Peek(), _source);
                     }
+
                     ConsumeContextualKeyword("from", "Expected 'from' after exported namespace.");
                     var namespaceModuleToken = Consume(TokenType.String, "Expected module path.");
                     var namespaceModulePath = GetStringLiteralValue(namespaceModuleToken);
@@ -1494,6 +1505,7 @@ public sealed class TypedAstParser(
                 {
                     throw new ParseException("Expected identifier or string in export list.", Peek(), _source);
                 }
+
                 Symbol exported;
 
                 if (MatchContextualKeyword("as"))
@@ -1650,13 +1662,13 @@ public sealed class TypedAstParser(
                     }
                 }
                 else
-                // In non-strict mode, 'for (let' is only a lexical declaration if followed by '[', '{'
-                // or a binding identifier. Otherwise 'let' is just an identifier expression.
-                // See: for ( [lookahead ∉ { let [ }] Expression
+                    // In non-strict mode, 'for (let' is only a lexical declaration if followed by '[', '{'
+                    // or a binding identifier. Otherwise 'let' is just an identifier expression.
+                    // See: for ( [lookahead ∉ { let [ }] Expression
                 if (Check(TokenType.Let) &&
                     (InStrictContext || CheckAhead(TokenType.LeftBracket) || CheckAhead(TokenType.LeftBrace) ||
-                     CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let) &&
-                     !CheckAhead(TokenType.In)))
+                     (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let) &&
+                      !CheckAhead(TokenType.In))))
                 {
                     Advance(); // consume 'let'
                     var previousAllowIn = _allowInExpressions;
@@ -1778,13 +1790,13 @@ public sealed class TypedAstParser(
                     return forEachStatement;
                 }
 
-                var assignment = CreateInitializerAssignment(initializerDeclaration.Declarators[0].Target, varInitializer);
+                var assignment =
+                    CreateInitializerAssignment(initializerDeclaration.Declarators[0].Target, varInitializer);
                 var assignmentStatement = new ExpressionStatement(
                     assignment.Source ?? varInitializer.Source ?? CreateSourceReference(forToken), assignment);
                 var isStrict = body is BlockStatement b ? b.IsStrict : InStrictContext;
                 return new BlockStatement(forEachStatement.Source,
                     [assignmentStatement, forEachStatement], isStrict);
-
             }
 
             if (!firstClauseTerminated)
@@ -2077,7 +2089,8 @@ public sealed class TypedAstParser(
                 // After #identifier, we must have 'in' operator
                 if (!Match(TokenType.In))
                 {
-                    throw new ParseException($"Private identifier '#{privateName}' is not valid here.", Peek(), _source);
+                    throw new ParseException($"Private identifier '#{privateName}' is not valid here.", Peek(),
+                        _source);
                 }
 
                 var privateExpr = new PrivateIdentifierExpression(
@@ -2204,17 +2217,20 @@ public sealed class TypedAstParser(
         {
             if (Match(TokenType.PlusPlus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Increment, ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Increment, ParseUnary(),
+                    true);
             }
 
             if (Match(TokenType.MinusMinus))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Decrement, ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Decrement, ParseUnary(),
+                    true);
             }
 
             if (Match(TokenType.Bang))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.LogicalNot, ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.LogicalNot, ParseUnary(),
+                    true);
             }
 
             if (Match(TokenType.Minus))
@@ -2229,7 +2245,8 @@ public sealed class TypedAstParser(
 
             if (Match(TokenType.Tilde))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.BitwiseNot, ParseUnary(), true);
+                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.BitwiseNot, ParseUnary(),
+                    true);
             }
 
             if (Match(TokenType.Typeof))
@@ -2315,7 +2332,6 @@ public sealed class TypedAstParser(
 
                 op = Advance();
                 return new UnaryExpression(CreateSourceReference(op), UnaryOperator.Increment, expr, false);
-
             }
 
             if (!Check(TokenType.MinusMinus))
@@ -2756,13 +2772,14 @@ public sealed class TypedAstParser(
                     _allowInExpressions = true;
                     try
                     {
-                        var expr = ParseExpression(false, validateCoverInitializedName: false);
+                        var expr = ParseExpression(false, false);
                         elements.Add(new ArrayElement(expr.Source, expr, isSpread));
                     }
                     finally
                     {
                         _allowInExpressions = previousAllowIn;
                     }
+
                     expectElement = false;
 
                     if (!Match(TokenType.Comma))
@@ -2805,7 +2822,7 @@ public sealed class TypedAstParser(
 
                 if (Match(TokenType.DotDotDot))
                 {
-                    var spreadExpr = ParseExpression(false, validateCoverInitializedName: false);
+                    var spreadExpr = ParseExpression(false, false);
                     members.Add(new ObjectMember(spreadExpr.Source, ObjectMemberKind.Spread, string.Empty, spreadExpr,
                         null, false, false, null));
                     continue;
@@ -2900,7 +2917,7 @@ public sealed class TypedAstParser(
                     _allowInExpressions = true;
                     try
                     {
-                        value = ParseExpression(false, validateCoverInitializedName: false);
+                        value = ParseExpression(false, false);
                     }
                     finally
                     {
@@ -2926,13 +2943,14 @@ public sealed class TypedAstParser(
                         _allowInExpressions = true;
                         try
                         {
-                            var initializer = ParseAssignment(validateCoverInitializedName: false);
+                            var initializer = ParseAssignment(false);
                             value = new AssignmentExpression(initializer.Source ?? keySource, symbol, initializer);
                         }
                         finally
                         {
                             _allowInExpressions = previousAllowIn;
                         }
+
                         hasCoverInitializedName = true;
                     }
                     else
@@ -2965,7 +2983,8 @@ public sealed class TypedAstParser(
                 {
                     // Legacy octal escape sequences are AnnexB features and always rejected in non-tagged templates
                     case TemplateStringPart { Cooked.HasLegacyOctal: true }:
-                        throw new ParseException(@"Legacy octal escape sequences are not allowed. Use \x or \u escapes instead.",
+                        throw new ParseException(
+                            @"Legacy octal escape sequences are not allowed. Use \x or \u escapes instead.",
                             templateToken, _source);
                     case TemplateStringPart { Cooked.HasLegacyNonOctalEscape: true }:
                         throw new ParseException(@"\8 and \9 escape sequences are not allowed.",
@@ -2979,7 +2998,8 @@ public sealed class TypedAstParser(
                     case TemplateExpression expression:
                     {
                         var parsedExpression = ParseTemplateInterpolation(expression.ExpressionText);
-                        builder.Add(new TemplatePart(parsedExpression.Source ?? CreateSourceReference(templateToken), null,
+                        builder.Add(new TemplatePart(parsedExpression.Source ?? CreateSourceReference(templateToken),
+                            null,
                             parsedExpression));
                         break;
                     }
@@ -3053,7 +3073,8 @@ public sealed class TypedAstParser(
             return new ArrayExpression(CreateSourceReference(templateToken), elements.ToImmutable());
         }
 
-        private ArrayExpression BuildTemplateStringsArrayWithNullable(IReadOnlyList<string?> values, Token templateToken)
+        private ArrayExpression BuildTemplateStringsArrayWithNullable(IReadOnlyList<string?> values,
+            Token templateToken)
         {
             var elements = ImmutableArray.CreateBuilder<ArrayElement>(values.Count);
             foreach (var text in values)
@@ -3185,9 +3206,10 @@ public sealed class TypedAstParser(
                 ValidateStrictModeParameters(parameters);
             }
 
-            var body = ParseBlock(leftBraceConsumed: true);
+            var body = ParseBlock(true);
             var sourceReference = body.Source ?? CreateSourceReference(startToken);
-            return new FunctionExpression(sourceReference, name, parameters, body, isAsync, isGenerator, WasAsync: isAsync);
+            return new FunctionExpression(sourceReference, name, parameters, body, isAsync, isGenerator,
+                WasAsync: isAsync);
         }
 
         private ImmutableArray<FunctionParameter> ParseParameterList()
@@ -3220,7 +3242,7 @@ public sealed class TypedAstParser(
 
                 var defaultValue = isRest switch
                 {
-                    false when Match(TokenType.Equal) => ParseAssignment(validateCoverInitializedName: false),
+                    false when Match(TokenType.Equal) => ParseAssignment(false),
                     true when Check(TokenType.Equal) => throw new ParseException(
                         "Rest parameters cannot have default values.", Peek(), _source),
                     _ => null
@@ -3584,7 +3606,7 @@ public sealed class TypedAstParser(
                 if (valueExpression is DestructuringAssignmentExpression destructuringValue)
                 {
                     var bindingTarget = destructuringValue.Target
-                                       ?? throw new NotSupportedException("Invalid object destructuring target.");
+                                        ?? throw new NotSupportedException("Invalid object destructuring target.");
                     properties.Add(new ObjectBindingProperty(member.Source ?? obj.Source, name, bindingTarget,
                         destructuringValue.Value, nameExpression));
                     continue;
@@ -3916,7 +3938,7 @@ public sealed class TypedAstParser(
                         ExpressionNode? defaultValue = null;
                         if (!isRest && Match(TokenType.Equal))
                         {
-                            defaultValue = ParseAssignment(validateCoverInitializedName: false);
+                            defaultValue = ParseAssignment(false);
                         }
                         else if (isRest && Check(TokenType.Equal))
                         {
@@ -3952,7 +3974,7 @@ public sealed class TypedAstParser(
                         ExpressionNode? defaultValue = null;
                         if (!isRest && Match(TokenType.Equal))
                         {
-                            defaultValue = ParseAssignment(validateCoverInitializedName: false);
+                            defaultValue = ParseAssignment(false);
                         }
                         else if (isRest && Check(TokenType.Equal))
                         {
@@ -4395,7 +4417,8 @@ public sealed class TypedAstParser(
             // Legacy octal escape sequences are AnnexB features and always rejected
             if (decoded.HasLegacyOctal)
             {
-                throw new ParseException("Legacy octal escape sequences are not allowed. Use \\x or \\u escapes instead.", token,
+                throw new ParseException(
+                    "Legacy octal escape sequences are not allowed. Use \\x or \\u escapes instead.", token,
                     _source);
             }
 
@@ -4406,7 +4429,6 @@ public sealed class TypedAstParser(
             }
 
             return decoded.Value;
-
         }
 
         private string GetPropertyNameValue(Token token)
@@ -4552,7 +4574,6 @@ public sealed class TypedAstParser(
 
             // When await-as-keyword is not permitted, it is parsed as an identifier.
             return true;
-
         }
 
         private FunctionContextScope EnterFunctionContext(bool isAsync, bool isGenerator)

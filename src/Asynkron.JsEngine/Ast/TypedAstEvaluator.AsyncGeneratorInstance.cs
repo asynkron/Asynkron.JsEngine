@@ -1,6 +1,10 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -90,6 +94,7 @@ public static partial class TypedAstEvaluator
                 {
                     resolve = res;
                 }
+
                 if (execArgs.Count >= 2 && execArgs[1].TryUnwrap(out IJsCallable? rej))
                 {
                     reject = rej;
@@ -189,8 +194,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            var onFulfilled = new AsyncResumeCallback(this, resolve, reject, isRejection: false);
-            var onRejected = new AsyncResumeCallback(this, resolve, reject, isRejection: true);
+            var onFulfilled = new AsyncResumeCallback(this, resolve, reject, false);
+            var onRejected = new AsyncResumeCallback(this, resolve, reject, true);
 
             InvokeWithTwoArgs(
                 thenCallable,
@@ -209,27 +214,6 @@ public static partial class TypedAstEvaluator
             }
 
             return realmState.AsyncGeneratorPrototype ?? realmState.ObjectPrototype;
-        }
-
-        /// <summary>
-        ///     Lightweight callback for async generator resume - avoids HostFunction allocation.
-        /// </summary>
-        private sealed class AsyncResumeCallback(
-            AsyncGeneratorInstance executor,
-            IJsCallable resolve,
-            IJsCallable reject,
-            bool isRejection) : IJsCallable
-        {
-            public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
-            {
-                var value = args.Count > 0 ? args[0] : JsValue.Undefined;
-                var mode = isRejection
-                    ? TypedGeneratorInstance.ResumeMode.Throw
-                    : TypedGeneratorInstance.ResumeMode.Next;
-                var resumed = executor._inner.ExecuteAsyncStep(mode, value);
-                executor.ResolveFromStep(resumed, resolve, reject);
-                return JsValue.Undefined;
-            }
         }
 
         private static void InvokeWithOneArg(IJsCallable callable, JsValue arg0)
@@ -258,6 +242,27 @@ public static partial class TypedAstEvaluator
             finally
             {
                 JsValueCache.ReturnJsValueArray(args);
+            }
+        }
+
+        /// <summary>
+        ///     Lightweight callback for async generator resume - avoids HostFunction allocation.
+        /// </summary>
+        private sealed class AsyncResumeCallback(
+            AsyncGeneratorInstance executor,
+            IJsCallable resolve,
+            IJsCallable reject,
+            bool isRejection) : IJsCallable
+        {
+            public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
+            {
+                var value = args.Count > 0 ? args[0] : JsValue.Undefined;
+                var mode = isRejection
+                    ? TypedGeneratorInstance.ResumeMode.Throw
+                    : TypedGeneratorInstance.ResumeMode.Next;
+                var resumed = executor._inner.ExecuteAsyncStep(mode, value);
+                executor.ResolveFromStep(resumed, resolve, reject);
+                return JsValue.Undefined;
             }
         }
     }

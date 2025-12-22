@@ -1,8 +1,13 @@
+#region
+
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -45,7 +50,8 @@ public static partial class TypedAstEvaluator
 
         if (left.IsBigInt || right.IsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         // Convert to numeric and add
@@ -121,7 +127,8 @@ public static partial class TypedAstEvaluator
 
         if (leftVal.IsBigInt || rightVal.IsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         // Convert both to numbers - this will throw for Symbols
@@ -190,6 +197,7 @@ public static partial class TypedAstEvaluator
                 {
                     throw StandardLibrary.ThrowRangeError("Division by zero", context);
                 }
+
                 return l / r;
             },
             context);
@@ -216,6 +224,7 @@ public static partial class TypedAstEvaluator
                 {
                     throw StandardLibrary.ThrowRangeError("Division by zero", context);
                 }
+
                 return l % r;
             },
             context);
@@ -260,7 +269,8 @@ public static partial class TypedAstEvaluator
         // Mixed types
         if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions", context);
+            throw StandardLibrary.ThrowTypeError("Cannot mix BigInt and other types, use explicit conversions",
+                context);
         }
 
         return JsValue.FromDouble(numericOp(leftNumeric.NumberValue, rightNumeric.NumberValue));
@@ -284,7 +294,8 @@ public static partial class TypedAstEvaluator
             JsValueKind.Null => JsValue.Zero,
             JsValueKind.Boolean => value.AsBoolean() ? JsValue.One : JsValue.Zero,
             JsValueKind.String => new JsValue(JsOps.ToNumber(value.AsString(), context)),
-            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number", context),
+            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number",
+                context),
             JsValueKind.Object => ToNumericValueFromObject(value.ObjectValue, context),
             _ => JsValue.NaN
         };
@@ -319,8 +330,10 @@ public static partial class TypedAstEvaluator
             JsValueKind.Null => 0.0,
             JsValueKind.Boolean => value.AsBoolean() ? 1.0 : 0.0,
             JsValueKind.String => JsOps.ToNumber(value.AsString(), context),
-            JsValueKind.BigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number", context),
-            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number", context),
+            JsValueKind.BigInt => throw StandardLibrary.ThrowTypeError("Cannot convert a BigInt value to a number",
+                context),
+            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number",
+                context),
             JsValueKind.Object => JsOps.ToNumber(value, context),
             _ => double.NaN
         };
@@ -344,7 +357,8 @@ public static partial class TypedAstEvaluator
             JsValueKind.Boolean => value.AsBoolean() ? "true" : "false",
             JsValueKind.Number => JsOps.ToJsString(value.NumberValue, context),
             JsValueKind.BigInt => value.AsBigInt().ToString(),
-            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context),
+            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string",
+                context),
             JsValueKind.Object => JsOps.ToJsString(value, context),
             _ => "undefined"
         };
@@ -363,7 +377,7 @@ public static partial class TypedAstEvaluator
 
         if (value.IsBigInt)
         {
-            return new JsValue(new JsBigInt(value.AsBigInt().Value + System.Numerics.BigInteger.One));
+            return new JsValue(new JsBigInt(value.AsBigInt().Value + BigInteger.One));
         }
 
         // Convert to numeric first
@@ -372,9 +386,10 @@ public static partial class TypedAstEvaluator
         {
             return JsValue.FromDouble(numeric.NumberValue + 1.0);
         }
+
         if (numeric.IsBigInt)
         {
-            return new JsValue(new JsBigInt(numeric.AsBigInt().Value + System.Numerics.BigInteger.One));
+            return new JsValue(new JsBigInt(numeric.AsBigInt().Value + BigInteger.One));
         }
 
         return JsValue.NaN;
@@ -393,7 +408,7 @@ public static partial class TypedAstEvaluator
 
         if (value.IsBigInt)
         {
-            return new JsValue(new JsBigInt(value.AsBigInt().Value - System.Numerics.BigInteger.One));
+            return new JsValue(new JsBigInt(value.AsBigInt().Value - BigInteger.One));
         }
 
         // Convert to numeric first
@@ -402,9 +417,10 @@ public static partial class TypedAstEvaluator
         {
             return JsValue.FromDouble(numeric.NumberValue - 1.0);
         }
+
         if (numeric.IsBigInt)
         {
-            return new JsValue(new JsBigInt(numeric.AsBigInt().Value - System.Numerics.BigInteger.One));
+            return new JsValue(new JsBigInt(numeric.AsBigInt().Value - BigInteger.One));
         }
 
         return JsValue.NaN;
@@ -431,6 +447,7 @@ public static partial class TypedAstEvaluator
         {
             return JsValue.FromDouble(-numeric.NumberValue);
         }
+
         if (numeric.IsBigInt)
         {
             return new JsValue(-numeric.AsBigInt());
@@ -590,7 +607,8 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) & JsNumericConversions.ToInt32(right.NumberValue));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) &
+                                      JsNumericConversions.ToInt32(right.NumberValue));
         }
 
         // Use JsValue overload directly - avoids boxing
@@ -609,7 +627,8 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) | JsNumericConversions.ToInt32(right.NumberValue));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) |
+                                      JsNumericConversions.ToInt32(right.NumberValue));
         }
 
         // Use JsValue overload directly - avoids boxing
@@ -628,7 +647,8 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) ^ JsNumericConversions.ToInt32(right.NumberValue));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) ^
+                                      JsNumericConversions.ToInt32(right.NumberValue));
         }
 
         // Use JsValue overload directly - avoids boxing
@@ -647,7 +667,8 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) << (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) <<
+                                      (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
         // Use JsValue overload directly - avoids boxing
@@ -663,7 +684,8 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
+            return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) >>
+                                      (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
         // Use JsValue overload directly - avoids boxing
@@ -679,7 +701,8 @@ public static partial class TypedAstEvaluator
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
         {
-            return JsValue.FromDouble(JsNumericConversions.ToUInt32(left.NumberValue) >> (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
+            return JsValue.FromDouble(JsNumericConversions.ToUInt32(left.NumberValue) >>
+                                      (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
         }
 
         // Use JsValue overload directly - avoids boxing

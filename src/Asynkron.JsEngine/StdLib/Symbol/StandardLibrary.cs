@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -28,13 +32,13 @@ public static class SymbolHelper
             {
                 var sym = RequireSymbolReceiver(thisValue, realm);
                 return new JsValue(JsValueKind.Symbol, 0.0, sym);
-            }, realm, isConstructor: false);
+            }, realm, false);
 
             var toString = new HostFunction((thisValue, _) =>
             {
                 var sym = RequireSymbolReceiver(thisValue, realm);
                 return new JsValue(sym.ToString());
-            }, realm, isConstructor: false);
+            }, realm, false);
 
             wrapper.SetHostedProperty("valueOf", valueOf);
             wrapper.SetHostedProperty("toString", toString);
@@ -45,7 +49,7 @@ public static class SymbolHelper
                 {
                     var sym = RequireSymbolReceiver(thisValue, realm);
                     return new JsValue(JsValueKind.Symbol, 0.0, sym);
-                }, realm, isConstructor: false));
+                }, realm, false));
 
             var toStringTagKey = SymbolKeys.ToStringTag;
             wrapper.SetProperty(toStringTagKey, "Symbol");
@@ -69,6 +73,7 @@ public static class SymbolHelper
             {
                 return innerSym;
             }
+
             // Also check if inner.ObjectValue is directly a TypedAstSymbol (backward compatibility)
             if (inner.ObjectValue is TypedAstSymbol directSym)
             {

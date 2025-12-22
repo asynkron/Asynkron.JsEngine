@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -11,11 +15,15 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 {
     private HostFunction? _constructor;
 
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Map constructor not initialized");
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
-            return JsValue.FromObjectUnsafe(ConstructMap(args, _constructor ?? ConstructFallback, _constructor ?? ConstructFallback, constructing));
+            return JsValue.FromObjectUnsafe(ConstructMap(args, _constructor ?? ConstructFallback,
+                _constructor ?? ConstructFallback, constructing));
         }
 
         throw ThrowTypeError("Constructor Map requires 'new'", realm: Realm);
@@ -101,7 +109,4 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             map.Set(key, value);
         }
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Map constructor not initialized");
 }

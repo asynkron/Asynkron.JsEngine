@@ -1,9 +1,12 @@
+#region
+
 using System.Globalization;
 using System.Text.Json;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -139,6 +142,7 @@ public static class JsonHelper
                     {
                         return "null";
                     }
+
                     switch (jsValue.Kind)
                     {
                         case JsValueKind.Boolean:
@@ -150,6 +154,7 @@ public static class JsonHelper
                             {
                                 return "null";
                             }
+
                             return d.ToString(CultureInfo.InvariantCulture);
                         }
                         case JsValueKind.String when jsValue.ObjectValue is string str:

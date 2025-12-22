@@ -1,8 +1,11 @@
+#region
+
 using System.Globalization;
-using Microsoft.Extensions.Logging;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -180,13 +183,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     /// <summary>
     ///     Gets the number of elements in the typed array.
     /// </summary>
-    public virtual int Length
-    {
-        get
-        {
-            return ComputeLength();
-        }
-    }
+    public virtual int Length => ComputeLength();
 
     /// <summary>
     ///     Gets the size in bytes of each element in the array.
@@ -208,8 +205,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     }
 
     public JsObject? Prototype => _properties.Prototype;
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
     public bool IsFrozen => _properties.IsFrozen;
@@ -350,39 +345,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         return _properties.DeleteOwnProperty(name);
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        if (TryParseIndex(name, out var index))
-        {
-            if (index < 0)
-            {
-                return false;
-            }
-
-            // Integer-indexed exotic objects reject accessor descriptors and
-            // attribute changes that would make the property non-writable,
-            // non-enumerable, or configurable.
-            if (descriptor.IsAccessorDescriptor ||
-                descriptor is { HasWritable: true, Writable: false } ||
-                descriptor is { HasEnumerable: true, Enumerable: false } ||
-                descriptor is { HasConfigurable: true, Configurable: true })
-            {
-                return false;
-            }
-
-            if (_buffer.IsDetached || IsDetachedOrOutOfBounds() || index >= Length)
-            {
-                throw CreateOutOfBoundsTypeError();
-            }
-
-            var value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
-            SetValue(index, value);
-            return true;
-        }
-
-        return _properties.TryDefineProperty(name, descriptor);
-    }
-
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
         if (!TryParseIndex(name, out var index) || index < 0)
@@ -397,10 +359,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         return new PropertyDescriptor
         {
-            Value = GetValueForIndex(index),
-            Writable = true,
-            Enumerable = true,
-            Configurable = false
+            Value = GetValueForIndex(index), Writable = true, Enumerable = true, Configurable = false
         };
     }
 
@@ -457,6 +416,42 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         keys.AddRange(_properties.GetEnumerablePropertyNames());
         return keys;
     }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        if (TryParseIndex(name, out var index))
+        {
+            if (index < 0)
+            {
+                return false;
+            }
+
+            // Integer-indexed exotic objects reject accessor descriptors and
+            // attribute changes that would make the property non-writable,
+            // non-enumerable, or configurable.
+            if (descriptor.IsAccessorDescriptor ||
+                descriptor is { HasWritable: true, Writable: false } ||
+                descriptor is { HasEnumerable: true, Enumerable: false } ||
+                descriptor is { HasConfigurable: true, Configurable: true })
+            {
+                return false;
+            }
+
+            if (_buffer.IsDetached || IsDetachedOrOutOfBounds() || index >= Length)
+            {
+                throw CreateOutOfBoundsTypeError();
+            }
+
+            var value = descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined;
+            SetValue(index, value);
+            return true;
+        }
+
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     private int ComputeLength()
     {
@@ -934,6 +929,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         {
             return typedArray;
         }
+
         return fallback;
     }
 

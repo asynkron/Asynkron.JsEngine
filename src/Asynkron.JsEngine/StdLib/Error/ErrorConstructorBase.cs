@@ -1,16 +1,22 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
-public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
 
     protected abstract string ErrorType { get; }
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Error constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -43,10 +49,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
         {
             var descriptor = new PropertyDescriptor
             {
-                Value = constructor,
-                Writable = true,
-                Enumerable = false,
-                Configurable = true
+                Value = constructor, Writable = true, Enumerable = false, Configurable = true
             };
 
             if (Prototype is IPropertyDefinitionHost definable)
@@ -67,7 +70,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
     private object ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -87,10 +90,7 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
 
         var message = args[0].IsNull ? "null" : JsOps.ToJsString(args[0]);
         instance.DefineProperty("message",
-            new PropertyDescriptor
-            {
-                Value = message, Writable = true, Enumerable = false, Configurable = true
-            });
+            new PropertyDescriptor { Value = message, Writable = true, Enumerable = false, Configurable = true });
     }
 
     private void ApplyPrototype(JsObject instance, IJsCallable target)
@@ -161,7 +161,4 @@ public abstract partial class ErrorConstructorBase(IJsObjectLike prototype, Real
                 break;
         }
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Error constructor not initialized");
 }

@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -11,15 +15,17 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 {
     // Use List to maintain insertion order for iteration
     private readonly List<object?> _insertionOrder = [];
+
     // Use Dictionary for O(1) lookups
     private readonly Dictionary<object, JsValue> _map = new(SameValueZeroComparer.Instance);
-    // Track null/undefined keys separately (can't be dictionary keys)
-    private bool _hasNullKey;
-    private JsValue _nullValue;
-    private bool _hasUndefinedKey;
-    private JsValue _undefinedValue;
 
     private readonly JsObject _properties = new();
+
+    // Track null/undefined keys separately (can't be dictionary keys)
+    private bool _hasNullKey;
+    private bool _hasUndefinedKey;
+    private JsValue _nullValue;
+    private JsValue _undefinedValue;
 
     /// <summary>
     ///     Indicates whether this Map is "plain" - i.e., has no custom properties,
@@ -31,6 +37,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     ///     Gets the number of key-value pairs in the Map.
     /// </summary>
     public int Size => _map.Count + (_hasNullKey ? 1 : 0) + (_hasUndefinedKey ? 1 : 0);
+
+    internal int EntryCount => _insertionOrder.Count;
 
     public bool IsExtensible => _properties.IsExtensible;
 
@@ -49,7 +57,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
         value = (double)Size;
         return true;
-
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -69,8 +76,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     public JsObject? Prototype => _properties.Prototype;
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
     public bool IsFrozen => _properties.IsFrozen;
@@ -90,6 +95,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             IsPlain = false;
         }
+
         _properties.SetPrototype(candidate);
     }
 
@@ -103,7 +109,14 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _properties.DeleteOwnProperty(name);
     }
 
-    internal int EntryCount => _insertionOrder.Count;
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        IsPlain = false;
+        return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     internal KeyValuePair<object?, JsValue> GetEntry(int index)
     {
@@ -130,12 +143,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        IsPlain = false;
-        return _properties.TryDefineProperty(name, descriptor);
-    }
-
     /// <summary>
     ///     Sets the value for the key in the Map. Returns the Map object to allow chaining.
     /// </summary>
@@ -149,6 +156,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 _hasNullKey = true;
                 _insertionOrder.Add(null);
             }
+
             _nullValue = value;
             return this;
         }
@@ -161,6 +169,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 _hasUndefinedKey = true;
                 _insertionOrder.Add(Symbol.Undefined);
             }
+
             _undefinedValue = value;
             return this;
         }
@@ -171,6 +180,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             _insertionOrder.Add(keyObj);
         }
+
         _map[keyObj] = value;
         return this;
     }
@@ -228,7 +238,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle null key
         if (key.IsNull)
         {
-            if (!_hasNullKey) return false;
+            if (!_hasNullKey)
+            {
+                return false;
+            }
+
             _hasNullKey = false;
             _nullValue = JsValue.Undefined;
             _insertionOrder.Remove(null);
@@ -238,7 +252,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle undefined key
         if (key.IsUndefined)
         {
-            if (!_hasUndefinedKey) return false;
+            if (!_hasUndefinedKey)
+            {
+                return false;
+            }
+
             _hasUndefinedKey = false;
             _undefinedValue = JsValue.Undefined;
             _insertionOrder.Remove(Symbol.Undefined);
@@ -247,7 +265,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
         // Regular key - use dictionary
         var keyObj = ExtractKeyObject(key);
-        if (!_map.Remove(keyObj)) return false;
+        if (!_map.Remove(keyObj))
+        {
+            return false;
+        }
+
         _insertionOrder.Remove(keyObj);
         return true;
     }
@@ -273,8 +295,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         return key.Kind switch
         {
-            JsValueKind.Boolean => key.NumberValue != 0,  // Box boolean
-            JsValueKind.Number => key.NumberValue,         // Box number
+            JsValueKind.Boolean => key.NumberValue != 0, // Box boolean
+            JsValueKind.Number => key.NumberValue, // Box number
             JsValueKind.String => key.ObjectValue ?? string.Empty,
             JsValueKind.Symbol => key.ObjectValue ?? throw new InvalidOperationException("Symbol key cannot be null"),
             JsValueKind.BigInt => key.ObjectValue ?? throw new InvalidOperationException("BigInt key cannot be null"),
@@ -333,16 +355,25 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         public static readonly SameValueZeroComparer Instance = new();
 
-        private SameValueZeroComparer() { }
+        private SameValueZeroComparer()
+        {
+        }
 
         public new bool Equals(object? x, object? y)
         {
             // Handle null (shouldn't happen - we handle null/undefined separately)
-            if (x == null && y == null) return true;
-            if (x == null || y == null) return false;
+            if (x == null && y == null)
+            {
+                return true;
+            }
+
+            if (x == null || y == null)
+            {
+                return false;
+            }
 
             // Handle NaN (NaN is equal to NaN in SameValueZero)
-            if (x is double and Double.NaN && y is double and Double.NaN)
+            if (x is double and double.NaN && y is double and double.NaN)
             {
                 return true;
             }
@@ -366,7 +397,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         public int GetHashCode(object obj)
         {
             // Handle NaN - all NaN values should hash the same
-            if (obj is double and Double.NaN)
+            if (obj is double and double.NaN)
             {
                 return 0; // All NaN values get the same hash
             }

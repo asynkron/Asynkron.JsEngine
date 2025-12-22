@@ -1,9 +1,14 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using static Asynkron.JsEngine.StdLib.DateHelper;
+
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Date", ToStringTag = "Date")]
@@ -278,7 +283,7 @@ public sealed partial class DatePrototype
         var minute = args.Count > 1 ? JsOps.ToNumber(args[1]) : MinFromTime(time);
         var sec = args.Count > 2 ? JsOps.ToNumber(args[2]) : SecFromTime(time);
         var ms = args.Count > 3 ? JsOps.ToNumber(args[3]) : MsFromTime(time);
-        var clipped = SetTimeComponents(time, Realm, hour: hour, minute: minute, second: sec, millisecond: ms);
+        var clipped = SetTimeComponents(time, Realm, hour, minute, sec, ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -291,8 +296,8 @@ public sealed partial class DatePrototype
         var minute = args.Count > 1 ? JsOps.ToNumber(args[1]) : MinFromTime(timeValue);
         var sec = args.Count > 2 ? JsOps.ToNumber(args[2]) : SecFromTime(timeValue);
         var ms = args.Count > 3 ? JsOps.ToNumber(args[3]) : MsFromTime(timeValue);
-        var clipped = SetTimeComponents(timeValue, Realm, hour: hour, minute: minute, second: sec,
-            millisecond: ms, inputIsUtc: true);
+        var clipped = SetTimeComponents(timeValue, Realm, hour, minute, sec,
+            ms, true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }

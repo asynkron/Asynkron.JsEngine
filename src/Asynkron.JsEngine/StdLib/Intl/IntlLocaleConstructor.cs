@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -13,12 +17,10 @@ public sealed partial class IntlLocaleConstructor(IJsObjectLike prototype, Realm
         "h11", "h12", "h23", "h24"
     };
 
-    private static readonly HashSet<string> CaseFirstValues = new(StringComparer.Ordinal)
-    {
-        "upper", "lower", "false"
-    };
+    private static readonly HashSet<string> CaseFirstValues = new(StringComparer.Ordinal) { "upper", "lower", "false" };
 
-    internal static JsObject CreateLocaleFromCanonical(string canonicalTag, RealmState realm, JsObject? prototype = null)
+    internal static JsObject CreateLocaleFromCanonical(string canonicalTag, RealmState realm,
+        JsObject? prototype = null)
     {
         var instance = new JsObject(prototype ?? realm.ObjectPrototype);
         InitializeLocaleSlots(instance, canonicalTag, realm);

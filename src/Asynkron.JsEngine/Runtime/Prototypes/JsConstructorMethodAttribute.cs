@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 /// - (IReadOnlyList&lt;JsValue&gt;) - receives args only
 /// - () - no parameters
 /// </summary>
-[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method, Inherited = false)]
 public sealed class JsConstructorMethodAttribute(string propertyName) : Attribute
 {
     /// <summary>

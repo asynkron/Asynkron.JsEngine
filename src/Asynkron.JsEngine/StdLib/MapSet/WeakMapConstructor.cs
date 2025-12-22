@@ -1,15 +1,23 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("WeakMap", PrototypeType = typeof(WeakMapPrototype), Length = 0d, DisplayName = "WeakMap")]
-public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("WeakMap constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -18,7 +26,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
             return JsValue.FromObjectUnsafe(ConstructWeakMap(args, _constructor ?? ConstructFallback));
         }
 
-        throw StandardLibrary.ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
+        throw ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -31,7 +39,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
         {
             if (!newTarget.TryGetObject<IJsCallable>(out var callable))
             {
-                throw StandardLibrary.ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
+                throw ThrowTypeError("Constructor WeakMap requires 'new'", realm: Realm);
             }
 
             var target = _constructor ?? constructor;
@@ -41,7 +49,7 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
 
     private object ConstructWeakMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
     {
-        var proto = ReflectHelper.ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
+        var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
         var instance = new JsWeakMap();
         instance.SetPrototype(proto);
         PopulateWeakMap(instance, args);
@@ -77,7 +85,4 @@ public sealed partial class WeakMapConstructor(IJsObjectLike prototype, RealmSta
             }
         }
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("WeakMap constructor not initialized");
 }

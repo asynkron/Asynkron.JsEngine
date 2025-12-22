@@ -1,7 +1,12 @@
+#region
+
+using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ObjectHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -86,7 +91,8 @@ public static class ReflectHelper
              ReferenceEquals(hostCtor, realm.SharedArrayBufferConstructor)))
         {
             var constructContext = realm.CreateContext(pushScope: false);
-            return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext, JsValue.FromObjectUnsafe(newTarget));
+            return hostCtor.InvokeWithContext(argList, JsValue.Undefined, constructContext,
+                JsValue.FromObjectUnsafe(newTarget));
         }
 
         var proto = ResolveConstructPrototype(newTarget, target, realm);
@@ -109,7 +115,9 @@ public static class ReflectHelper
             }
 
             var result = target.Invoke(argList, JsValue.FromObjectUnsafe(arrayInstance));
-            return result.TryGetObject<JsObject>(out var jsObj) ? new JsValue(jsObj) : JsValue.FromObjectUnsafe(arrayInstance);
+            return result.TryGetObject<JsObject>(out var jsObj)
+                ? new JsValue(jsObj)
+                : JsValue.FromObjectUnsafe(arrayInstance);
         }
 
         var instance = new JsObject();
@@ -130,10 +138,11 @@ public static class ReflectHelper
                 var constructContext = realm.CreateContext(pushScope: false);
                 try
                 {
-                    var invokeResult = invokeWithContext.Invoke(target, [argList, new JsValue(instance), constructContext, JsValue.FromObjectUnsafe(newTarget)]);
+                    var invokeResult = invokeWithContext.Invoke(target,
+                        [argList, new JsValue(instance), constructContext, JsValue.FromObjectUnsafe(newTarget)]);
                     constructed = invokeResult is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(invokeResult);
                 }
-                catch (System.Reflection.TargetInvocationException tie) when (tie.InnerException is ThrowSignal)
+                catch (TargetInvocationException tie) when (tie.InnerException is ThrowSignal)
                 {
                     throw tie.InnerException;
                 }
@@ -311,7 +320,7 @@ public static class ReflectHelper
         if (target is IJsPropertyAccessor accessor)
         {
             var ordered = new JsArray(realm);
-            foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            foreach (var key in accessor.GetOwnPropertyKeysInOrder(true, true))
             {
                 if (key.StartsWith("__getter__", StringComparison.Ordinal) ||
                     key.StartsWith("__setter__", StringComparison.Ordinal) ||
@@ -465,7 +474,8 @@ public static class ReflectHelper
         return null;
     }
 
-    private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target, out IJsObjectLike? prototype)
+    private static bool TryResolveRealmDefaultPrototype(object newTarget, IJsCallable target,
+        out IJsObjectLike? prototype)
     {
         prototype = null;
         if (!TryGetRealmInfo(newTarget, out var realmState, out var realmObject))
@@ -520,7 +530,8 @@ public static class ReflectHelper
         return false;
     }
 
-    private static bool TryGetPrototypeFromRealmState(string ctorName, RealmState realmState, out IJsObjectLike? prototype)
+    private static bool TryGetPrototypeFromRealmState(string ctorName, RealmState realmState,
+        out IJsObjectLike? prototype)
     {
         prototype = ctorName switch
         {

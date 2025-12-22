@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -486,6 +490,7 @@ public sealed partial class ArrayPrototype
             {
                 throw ThrowTypeError("Array.prototype.sort comparefn must be callable", realm: realm);
             }
+
             compareFn = callable;
         }
 
@@ -559,10 +564,12 @@ public sealed partial class ArrayPrototype
                 {
                     throw new ThrowSignal(ctx.FlowValue);
                 }
+
                 if (double.IsNaN(num))
                 {
                     return a.OriginalIndex.CompareTo(b.OriginalIndex);
                 }
+
                 var cmp = num > 0 ? 1 : num < 0 ? -1 : 0;
                 return cmp != 0 ? cmp : a.OriginalIndex.CompareTo(b.OriginalIndex);
             }
@@ -571,7 +578,11 @@ public sealed partial class ArrayPrototype
             var bUndef = ReferenceEquals(bVal, Symbol.Undefined);
             if (aUndef || bUndef)
             {
-                if (aUndef && bUndef) return a.OriginalIndex.CompareTo(b.OriginalIndex);
+                if (aUndef && bUndef)
+                {
+                    return a.OriginalIndex.CompareTo(b.OriginalIndex);
+                }
+
                 return aUndef ? 1 : -1;
             }
 

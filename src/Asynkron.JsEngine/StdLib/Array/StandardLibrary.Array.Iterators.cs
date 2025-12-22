@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -50,6 +54,7 @@ public static partial class StandardLibrary
             {
                 lenVal = JsValue.Zero;
             }
+
             var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lenVal), 0), uint.MaxValue);
             var result = new JsObject(realm?.ObjectPrototype);
             if (index < length)

@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -24,7 +28,8 @@ public static class PromiseHelper
         return promise;
     }
 
-    internal static void ApplyPromisePrototype(JsPromise promise, RealmState realm, IJsObjectLike? prototypeOverride = null)
+    internal static void ApplyPromisePrototype(JsPromise promise, RealmState realm,
+        IJsObjectLike? prototypeOverride = null)
     {
         var prototype = prototypeOverride ?? realm.PromisePrototype;
         if (prototype is not null && promise.JsObject.Prototype is null)

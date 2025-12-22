@@ -1,9 +1,13 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -198,7 +202,11 @@ public sealed partial class NumberPrototype
     private static string FormatExponentialForJs(string netExponential)
     {
         var eIndex = netExponential.IndexOf('e', StringComparison.Ordinal);
-        if (eIndex < 0) return netExponential;
+        if (eIndex < 0)
+        {
+            return netExponential;
+        }
+
         var mantissa = netExponential[..(eIndex + 1)];
         var exponent = netExponential[(eIndex + 1)..];
         var sign = "";
@@ -209,7 +217,11 @@ public sealed partial class NumberPrototype
         }
 
         exponent = exponent.TrimStart('0');
-        if (exponent.Length == 0) exponent = "0";
+        if (exponent.Length == 0)
+        {
+            exponent = "0";
+        }
+
         return mantissa + sign + exponent;
     }
 }

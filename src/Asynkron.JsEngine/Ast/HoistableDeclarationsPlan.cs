@@ -2,12 +2,12 @@ namespace Asynkron.JsEngine.Ast;
 
 internal sealed class HoistableDeclarationsPlan
 {
-    internal bool HasHoistableDeclarations { get; }
-
     private HoistableDeclarationsPlan(bool hasHoistableDeclarations)
     {
         HasHoistableDeclarations = hasHoistableDeclarations;
     }
+
+    internal bool HasHoistableDeclarations { get; }
 
     internal static HoistableDeclarationsPlan Build(BlockStatement block)
     {

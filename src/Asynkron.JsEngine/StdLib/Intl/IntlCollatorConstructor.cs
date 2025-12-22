@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.IntlHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -10,6 +14,23 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
+    private static readonly HashSet<string> SupportedCollations = new(StringComparer.Ordinal)
+    {
+        "default",
+        "phonebk",
+        "stroke",
+        "compat",
+        "dict",
+        "ducet",
+        "gb2312",
+        "pinyin",
+        "reformed",
+        "traditional",
+        "unihan",
+        "zhuyin",
+        "emoji"
+    };
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var slots = CreateInternalSlots(args.GetArgument(0), args.GetArgument(1));
@@ -41,13 +62,13 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
 
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
-        var result = IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
+        var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
         return JsValue.FromObjectUnsafe(result);
     }
 
     private IntlCollatorInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)
     {
-        var (_, resolvedLocale) = IntlHelper.ResolveIntlLocales(localesArg, Realm);
+        var (_, resolvedLocale) = ResolveIntlLocales(localesArg, Realm);
         var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
         var extensionKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(resolvedLocale);
 
@@ -105,16 +126,16 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             return string.Empty;
         }
 
-        var text = StandardLibrary.JsValueToString(rawValue, Realm);
+        var text = JsValueToString(rawValue, Realm);
         if (string.IsNullOrEmpty(text))
         {
-            throw StandardLibrary.ThrowRangeError("Intl.Collator collation option cannot be empty", realm: Realm);
+            throw ThrowRangeError("Intl.Collator collation option cannot be empty", realm: Realm);
         }
 
         var normalized = NormalizeCollationValue(text);
         if (string.IsNullOrEmpty(normalized))
         {
-            throw StandardLibrary.ThrowRangeError(
+            throw ThrowRangeError(
                 $"Unsupported collation '{text}' for Intl.Collator", realm: Realm);
         }
 
@@ -228,21 +249,4 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
 
         return SupportedCollations.Contains(normalized) ? normalized : string.Empty;
     }
-
-    private static readonly HashSet<string> SupportedCollations = new(StringComparer.Ordinal)
-    {
-        "default",
-        "phonebk",
-        "stroke",
-        "compat",
-        "dict",
-        "ducet",
-        "gb2312",
-        "pinyin",
-        "reformed",
-        "traditional",
-        "unihan",
-        "zhuyin",
-        "emoji"
-    };
 }

@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -22,17 +26,34 @@ public static partial class TypedAstEvaluator
 
             // Hot path - explicit type checks for best inlining
             if (statement is ExpressionStatement expressionStatement)
+            {
                 return expressionStatement.Expression.EvaluateExpression(environment, context);
+            }
+
             if (statement is BlockStatement block)
+            {
                 return block.EvaluateBlockJsValue(environment, context);
+            }
+
             if (statement is IfStatement ifStatement)
+            {
                 return ifStatement.EvaluateIfJsValue(environment, context);
+            }
+
             if (statement is ReturnStatement returnStatement)
+            {
                 return returnStatement.EvaluateReturnJsValue(environment, context);
+            }
+
             if (statement is ForStatement forStatement)
+            {
                 return forStatement.EvaluateForJsValue(environment, context, activeLabel);
+            }
+
             if (statement is EmptyStatement)
+            {
                 return JsValue.Unit;
+            }
 
             return statement.EvaluateStatementJsValueSlow(environment, context, activeLabel);
         }
@@ -102,7 +123,9 @@ public static partial class TypedAstEvaluator
                     case BlockStatement block:
                         block.HoistVarDeclarationsPass(environment,
                             context,
-                            hoistFunctionValues, block.MergeLexicalNames(lexicalNames), block.MergeCatchNames(catchParameterNames), block.MergeSimpleCatchNames(simpleCatchParameterNames),
+                            hoistFunctionValues, block.MergeLexicalNames(lexicalNames),
+                            block.MergeCatchNames(catchParameterNames),
+                            block.MergeSimpleCatchNames(simpleCatchParameterNames),
                             pass,
                             true);
                         break;
@@ -166,19 +189,28 @@ public static partial class TypedAstEvaluator
                         statement = labeled.Statement;
                         continue;
                     case TryStatement tryStatement:
-                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, false, tryStatement.TryBlock.MergeLexicalNames(lexicalNames), tryStatement.TryBlock.MergeCatchNames(catchParameterNames), tryStatement.TryBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
+                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, false,
+                            tryStatement.TryBlock.MergeLexicalNames(lexicalNames),
+                            tryStatement.TryBlock.MergeCatchNames(catchParameterNames),
+                            tryStatement.TryBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
                             pass,
                             true);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            catchClause.Body.HoistVarDeclarationsPass(environment, context, false, catchClause.Body.MergeLexicalNames(lexicalNames), catchClause.Body.MergeCatchNames(catchParameterNames), catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
+                            catchClause.Body.HoistVarDeclarationsPass(environment, context, false,
+                                catchClause.Body.MergeLexicalNames(lexicalNames),
+                                catchClause.Body.MergeCatchNames(catchParameterNames),
+                                catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
                                 true);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)
                         {
-                            finallyBlock.HoistVarDeclarationsPass(environment, context, false, finallyBlock.MergeLexicalNames(lexicalNames), finallyBlock.MergeCatchNames(catchParameterNames), finallyBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
+                            finallyBlock.HoistVarDeclarationsPass(environment, context, false,
+                                finallyBlock.MergeLexicalNames(lexicalNames),
+                                finallyBlock.MergeCatchNames(catchParameterNames),
+                                finallyBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
                                 true);
                         }
@@ -187,7 +219,10 @@ public static partial class TypedAstEvaluator
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            switchCase.Body.HoistVarDeclarationsPass(environment, context, false, switchCase.Body.MergeLexicalNames(lexicalNames), switchCase.Body.MergeCatchNames(catchParameterNames), switchCase.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
+                            switchCase.Body.HoistVarDeclarationsPass(environment, context, false,
+                                switchCase.Body.MergeLexicalNames(lexicalNames),
+                                switchCase.Body.MergeCatchNames(catchParameterNames),
+                                switchCase.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
                                 true);
                         }
@@ -265,10 +300,10 @@ public static partial class TypedAstEvaluator
                     case ClassDeclaration classDeclaration:
                         names.Add(classDeclaration.Name);
                         break;
-                case FunctionDeclaration:
-                    // Function declarations are handled separately for hoisting;
-                    // they are not treated as lexical bindings here.
-                    break;
+                    case FunctionDeclaration:
+                        // Function declarations are handled separately for hoisting;
+                        // they are not treated as lexical bindings here.
+                        break;
                     case IfStatement ifStatement:
                         ifStatement.Then.CollectLexicalNamesFromStatement(names);
                         if (ifStatement.Else is { } elseBranch)
@@ -290,7 +325,8 @@ public static partial class TypedAstEvaluator
                     case ForStatement forStatement:
                         if (forStatement.Initializer is VariableDeclaration
                             {
-                                Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                                Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
+                                or VariableKind.AwaitUsing
                             } decl)
                         {
                             foreach (var declarator in decl.Declarators)

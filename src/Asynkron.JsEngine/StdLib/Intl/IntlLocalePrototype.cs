@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -21,6 +25,7 @@ public sealed partial class IntlLocalePrototype
     private static readonly string[] DefaultCalendars = ["gregory"];
     private static readonly string[] DefaultNumberingSystems = ["latn"];
     private static readonly int[] DefaultWeekend = [6, 7];
+
     private static readonly Dictionary<string, int> WeekdayMap = new(StringComparer.Ordinal)
     {
         ["sun"] = 7,
@@ -43,7 +48,8 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetLanguage(JsValue thisValue)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var language = locale.TryGetProperty(LanguageSlot, out var value) && value.TryGetString(out var lang) && lang.Length > 0
+        var language = locale.TryGetProperty(LanguageSlot, out var value) && value.TryGetString(out var lang) &&
+                       lang.Length > 0
             ? lang
             : "und";
         return language;
@@ -228,7 +234,8 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetTextInfo(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var direction = locale.TryGetProperty(TextDirectionSlot, out var value) && value.TryGetString(out var dir) && dir.Length > 0
+        var direction = locale.TryGetProperty(TextDirectionSlot, out var value) && value.TryGetString(out var dir) &&
+                        dir.Length > 0
             ? dir
             : "ltr";
         var info = new JsObject(Realm.ObjectPrototype);
@@ -240,7 +247,8 @@ public sealed partial class IntlLocalePrototype
     private JsValue GetTimeZones(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var locale = ValidateLocaleReceiver(thisValue);
-        var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) && regionValue.TryGetString(out var region) &&
+        var hasRegion = locale.TryGetProperty(RegionSlot, out var regionValue) &&
+                        regionValue.TryGetString(out var region) &&
                         region.Length > 0;
         if (!hasRegion)
         {
@@ -304,7 +312,8 @@ public sealed partial class IntlLocalePrototype
     internal static bool TryBuildLocaleIdentifier(JsObject candidate, out string identifier)
     {
         identifier = string.Empty;
-        if (!candidate.TryGetProperty(BrandKey, out var marker) || !marker.TryGetBoolean(out var isBranded) || !isBranded)
+        if (!candidate.TryGetProperty(BrandKey, out var marker) || !marker.TryGetBoolean(out var isBranded) ||
+            !isBranded)
         {
             return false;
         }
@@ -321,7 +330,8 @@ public sealed partial class IntlLocalePrototype
 
     private JsObject ValidateLocaleReceiver(JsValue thisValue)
     {
-        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty(BrandKey, out var marker) && marker.TryGetBoolean(out var isBranded) && isBranded)
+        if (thisValue.TryGetObject<JsObject>(out var obj) && obj.TryGetProperty(BrandKey, out var marker) &&
+            marker.TryGetBoolean(out var isBranded) && isBranded)
         {
             return obj;
         }
@@ -344,7 +354,8 @@ public sealed partial class IntlLocalePrototype
 
     internal static Dictionary<string, string> GetLocaleKeywords(JsObject locale)
     {
-        if (locale.TryGetProperty(KeywordsSlot, out var value) && value.TryGetObject<Dictionary<string, string>>(out var dictionary))
+        if (locale.TryGetProperty(KeywordsSlot, out var value) &&
+            value.TryGetObject<Dictionary<string, string>>(out var dictionary))
         {
             return dictionary;
         }
@@ -368,7 +379,8 @@ public sealed partial class IntlLocalePrototype
 
     internal static string BuildBaseName(JsObject locale)
     {
-        var language = locale.TryGetProperty(LanguageSlot, out var langValue) && langValue.TryGetString(out var lang) && lang.Length > 0
+        var language = locale.TryGetProperty(LanguageSlot, out var langValue) && langValue.TryGetString(out var lang) &&
+                       lang.Length > 0
             ? lang
             : "und";
 

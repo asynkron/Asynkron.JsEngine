@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -8,12 +12,14 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
 {
-    private readonly JsObject _properties = new();
-
     // Use List to maintain insertion order for iteration
     private readonly List<object?> _insertionOrder = [];
+
+    private readonly JsObject _properties = new();
+
     // Use HashSet for O(1) lookups
     private readonly HashSet<object> _set = new(SameValueZeroComparer.Instance);
+
     // Track null/undefined separately (can't be HashSet members with our comparer)
     private bool _hasNull;
     private bool _hasUndefined;
@@ -28,6 +34,8 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     ///     Gets the number of values in the Set.
     /// </summary>
     public int Size => _set.Count + (_hasNull ? 1 : 0) + (_hasUndefined ? 1 : 0);
+
+    internal int ValueCount => _insertionOrder.Count;
 
     public bool IsExtensible => _properties.IsExtensible;
 
@@ -65,8 +73,6 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     public JsObject? Prototype => _properties.Prototype;
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
     public bool IsFrozen => _properties.IsFrozen;
@@ -86,6 +92,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             IsPlain = false;
         }
+
         _properties.SetPrototype(candidate);
     }
 
@@ -99,17 +106,18 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         return _properties.DeleteOwnProperty(name);
     }
 
-    internal int ValueCount => _insertionOrder.Count;
-
-    internal JsValue GetValue(int index)
-    {
-        return JsValue.FromObjectUnsafe(_insertionOrder[index]);
-    }
-
     public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
     {
         IsPlain = false;
         return _properties.TryDefineProperty(name, descriptor);
+    }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
+
+    internal JsValue GetValue(int index)
+    {
+        return JsValue.FromObjectUnsafe(_insertionOrder[index]);
     }
 
     /// <summary>
@@ -126,6 +134,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 _hasNull = true;
                 _insertionOrder.Add(null);
             }
+
             return this;
         }
 
@@ -137,6 +146,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 _hasUndefined = true;
                 _insertionOrder.Add(Symbol.Undefined);
             }
+
             return this;
         }
 
@@ -146,6 +156,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             _insertionOrder.Add(value);
         }
+
         return this;
     }
 
@@ -180,7 +191,11 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle null
         if (jsValue.IsNull)
         {
-            if (!_hasNull) return false;
+            if (!_hasNull)
+            {
+                return false;
+            }
+
             _hasNull = false;
             _insertionOrder.Remove(null);
             return true;
@@ -189,7 +204,11 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle undefined
         if (jsValue.IsUndefined)
         {
-            if (!_hasUndefined) return false;
+            if (!_hasUndefined)
+            {
+                return false;
+            }
+
             _hasUndefined = false;
             _insertionOrder.Remove(Symbol.Undefined);
             return true;
@@ -197,7 +216,11 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
         // Regular value - use HashSet
         var value = ExtractValueObject(jsValue);
-        if (!_set.Remove(value)) return false;
+        if (!_set.Remove(value))
+        {
+            return false;
+        }
+
         _insertionOrder.Remove(value);
         return true;
     }
@@ -210,12 +233,15 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         return jsValue.Kind switch
         {
-            JsValueKind.Boolean => jsValue.NumberValue != 0,  // Box boolean
-            JsValueKind.Number => jsValue.NumberValue,         // Box number
+            JsValueKind.Boolean => jsValue.NumberValue != 0, // Box boolean
+            JsValueKind.Number => jsValue.NumberValue, // Box number
             JsValueKind.String => jsValue.ObjectValue ?? string.Empty,
-            JsValueKind.Symbol => jsValue.ObjectValue ?? throw new InvalidOperationException("Symbol value cannot be null"),
-            JsValueKind.BigInt => jsValue.ObjectValue ?? throw new InvalidOperationException("BigInt value cannot be null"),
-            JsValueKind.Object => jsValue.ObjectValue ?? throw new InvalidOperationException("Object value cannot be null"),
+            JsValueKind.Symbol => jsValue.ObjectValue ??
+                                  throw new InvalidOperationException("Symbol value cannot be null"),
+            JsValueKind.BigInt => jsValue.ObjectValue ??
+                                  throw new InvalidOperationException("BigInt value cannot be null"),
+            JsValueKind.Object => jsValue.ObjectValue ??
+                                  throw new InvalidOperationException("Object value cannot be null"),
             _ => throw new InvalidOperationException($"Unexpected value kind: {jsValue.Kind}")
         };
     }
@@ -288,16 +314,25 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         public static readonly SameValueZeroComparer Instance = new();
 
-        private SameValueZeroComparer() { }
+        private SameValueZeroComparer()
+        {
+        }
 
         public new bool Equals(object? x, object? y)
         {
             // Handle null (shouldn't happen - we handle null/undefined separately)
-            if (x == null && y == null) return true;
-            if (x == null || y == null) return false;
+            if (x == null && y == null)
+            {
+                return true;
+            }
+
+            if (x == null || y == null)
+            {
+                return false;
+            }
 
             // Handle NaN (NaN is equal to NaN in SameValueZero)
-            if (x is double and Double.NaN && y is double and Double.NaN)
+            if (x is double and double.NaN && y is double and double.NaN)
             {
                 return true;
             }
@@ -321,7 +356,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         public int GetHashCode(object obj)
         {
             // Handle NaN - all NaN values should hash the same
-            if (obj is double and Double.NaN)
+            if (obj is double and double.NaN)
             {
                 return 0; // All NaN values get the same hash
             }

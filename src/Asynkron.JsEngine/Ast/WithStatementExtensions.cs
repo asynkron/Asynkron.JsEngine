@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -18,7 +22,7 @@ public static partial class TypedAstEvaluator
             // and throwing for null/undefined. Must properly box primitives for ToObjectForDestructuring.
             var objValue = objValueJs.Kind switch
             {
-                JsValueKind.Boolean => (object?)(objValueJs.NumberValue != 0),
+                JsValueKind.Boolean => objValueJs.NumberValue != 0,
                 JsValueKind.Number => objValueJs.NumberValue,
                 JsValueKind.String => objValueJs.ObjectValue,
                 JsValueKind.Symbol => objValueJs.ObjectValue,

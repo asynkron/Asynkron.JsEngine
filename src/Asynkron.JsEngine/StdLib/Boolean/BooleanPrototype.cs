@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -36,7 +40,8 @@ public sealed partial class BooleanPrototype
             return flag;
         }
 
-        if (receiver.TryGetObject<JsObject>(out var obj) && obj is not null && obj.TryGetProperty("__value__", out var inner))
+        if (receiver.TryGetObject<JsObject>(out var obj) && obj is not null &&
+            obj.TryGetProperty("__value__", out var inner))
         {
             if (inner.TryGetBoolean(out var boolVal))
             {
@@ -44,7 +49,8 @@ public sealed partial class BooleanPrototype
             }
         }
 
-        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor.TryGetProperty("__value__", out var innerVal))
+        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+            accessor.TryGetProperty("__value__", out var innerVal))
         {
             if (innerVal.TryGetBoolean(out var boolVal))
             {

@@ -1,6 +1,10 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -25,8 +29,8 @@ internal sealed class SyncGeneratorIrBuilder
     private int _catchSlotCounter;
     private string? _failureReason;
     private int _resumeSlotCounter;
-    private int _yieldStarStateCounter;
     private int _withScopeSlotCounter;
+    private int _yieldStarStateCounter;
 
     private SyncGeneratorIrBuilder()
     {
@@ -283,7 +287,8 @@ internal sealed class SyncGeneratorIrBuilder
                     when IsSimpleForOfBinding(forEachStatement):
                     // For async functions, we need to check for await as well as yield,
                     // since await expressions require proper suspension/resumption handling.
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing &&
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                            or VariableKind.AwaitUsing &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.StatementContainsAwait(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable) &&
@@ -349,7 +354,8 @@ internal sealed class SyncGeneratorIrBuilder
                     if (ClassDefinitionContainsYield(classDeclaration.Definition))
                     {
                         entryIndex = -1;
-                        _failureReason ??= "Class declaration contains yield in computed property names or extends clause.";
+                        _failureReason ??=
+                            "Class declaration contains yield in computed property names or extends clause.";
                         return false;
                     }
 
@@ -702,7 +708,8 @@ internal sealed class SyncGeneratorIrBuilder
                 new IdentifierExpression(statement.Source, matchIndexSymbol),
                 new LiteralExpression(statement.Source, caseIndex));
             var matchGuard = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchSet, matchReached);
-            var execCondition = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, notDoneExec, matchGuard);
+            var execCondition =
+                new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, notDoneExec, matchGuard);
 
             var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             var copyCount = breakIndex == -1 ? bodyStatements.Length : breakIndex;
@@ -773,20 +780,25 @@ internal sealed class SyncGeneratorIrBuilder
 
         // First, create the iterator instructions to get the slot symbol
         var iteratorInstructions =
-            IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan, -1); // breakIndex will be LeaveTry
+            IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan,
+                -1); // breakIndex will be LeaveTry
 
         // EndFinally - this is the end of the finally block
         var endFinallyIndex = Append(new EndFinallyInstruction(nextIndex));
 
         // IteratorClose - the finally block content
-        var iteratorCloseIndex = Append(new IteratorCloseInstruction(iteratorInstructions.IteratorSlot, endFinallyIndex));
+        var iteratorCloseIndex =
+            Append(new IteratorCloseInstruction(iteratorInstructions.IteratorSlot, endFinallyIndex));
 
         // LeaveTry - normal exit from the loop
         var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
 
         // Now update the MoveNext break target to point to LeaveTry
         _instructions[iteratorInstructions.MoveNextIndex] =
-            (IteratorMoveNextInstruction)_instructions[iteratorInstructions.MoveNextIndex] with { BreakIndex = leaveTryIndex };
+            (IteratorMoveNextInstruction)_instructions[iteratorInstructions.MoveNextIndex] with
+            {
+                BreakIndex = leaveTryIndex
+            };
 
         // Build the loop body
         var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
@@ -808,7 +820,8 @@ internal sealed class SyncGeneratorIrBuilder
         IteratorInstructionTemplate.Wire(iteratorInstructions, iterationEntry, _instructions);
 
         // EnterTry - wraps the loop in a try/finally
-        var enterTryIndex = Append(new EnterTryInstruction(iteratorInstructions.MoveNextIndex, -1, null, iteratorCloseIndex));
+        var enterTryIndex =
+            Append(new EnterTryInstruction(iteratorInstructions.MoveNextIndex, -1, null, iteratorCloseIndex));
 
         // Wire IteratorInit to point to EnterTry
         _instructions[iteratorInstructions.InitIndex] =

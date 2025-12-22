@@ -1,6 +1,11 @@
+#region
+
 using System.Collections.Concurrent;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Runtime;
 
@@ -24,6 +29,7 @@ public sealed class RealmState
     /// The key is the TaggedTemplateExpression AST node reference.
     /// </summary>
     internal Dictionary<object, object> TemplateObjectCache { get; } = new(ReferenceEqualityComparer.Instance);
+
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }
     public IJsObjectLike? ArrayPrototype { get; set; }
@@ -138,14 +144,15 @@ public sealed class RealmState
         JsEnvironment? enclosing,
         bool isFunctionScope,
         bool isStrict,
-        Parser.SourceReference? creatingSource = null,
+        SourceReference? creatingSource = null,
         string? description = null,
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
         if (_environmentPool.TryPop(out var env))
         {
-            env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment, isBodyEnvironment);
+            env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
+                isBodyEnvironment);
             return env;
         }
 

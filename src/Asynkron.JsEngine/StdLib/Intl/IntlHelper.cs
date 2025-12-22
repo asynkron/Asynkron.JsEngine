@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib.Intl;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -13,20 +17,11 @@ public static class IntlHelper
 
         var toStringTagKey = SymbolKeys.ToStringTag;
         intl.DefineProperty(toStringTagKey,
-            new PropertyDescriptor
-            {
-                Value = "Intl",
-                Writable = false,
-                Enumerable = false,
-                Configurable = true
-            });
+            new PropertyDescriptor { Value = "Intl", Writable = false, Enumerable = false, Configurable = true });
 
         var localeCtor = IntlLocaleConstructor.CreateConstructor(realm);
         intl.DefineProperty("Locale",
-            new PropertyDescriptor
-            {
-                Value = localeCtor, Writable = true, Enumerable = false, Configurable = true
-            });
+            new PropertyDescriptor { Value = localeCtor, Writable = true, Enumerable = false, Configurable = true });
 
         var durationFormatCtor = IntlDurationFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("DurationFormat",
@@ -67,8 +62,9 @@ public static class IntlHelper
                 Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
-        var getCanonicalLocales = new HostFunction(args => JsValue.FromObjectUnsafe(CreateCanonicalLocalesResult(args)), realm,
-            isConstructor: false);
+        var getCanonicalLocales = new HostFunction(args => JsValue.FromObjectUnsafe(CreateCanonicalLocalesResult(args)),
+            realm,
+            false);
         getCanonicalLocales.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         getCanonicalLocales.DefineProperty("name",
@@ -85,7 +81,7 @@ public static class IntlHelper
             });
 
         var supportedValuesOf =
-            new HostFunction(args => JsValue.FromObjectUnsafe(CreateSupportedValuesResult(args)), realm, isConstructor: false);
+            new HostFunction(args => JsValue.FromObjectUnsafe(CreateSupportedValuesResult(args)), realm, false);
         supportedValuesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedValuesOf.DefineProperty("name",
@@ -120,6 +116,7 @@ public static class IntlHelper
             {
                 result.Push(value);
             }
+
             return result;
         }
     }
@@ -175,6 +172,7 @@ public static class IntlHelper
             {
                 instance = existingInstance;
             }
+
             instance.SetPrototype(durationPrototype);
             if (args.Count == 0 || !args[0].TryGetObject<JsObject>(out var source))
             {
@@ -203,6 +201,7 @@ public static class IntlHelper
             {
                 input = new JsObject();
             }
+
             var result = durationCtor.Invoke([new JsValue(input)], JsValue.Undefined);
             JsObject instance;
             if (!result.TryGetObject<JsObject>(out var resultObj))
@@ -213,14 +212,16 @@ public static class IntlHelper
             {
                 instance = resultObj;
             }
+
             instance.SetPrototype(durationPrototype);
             return new JsValue(instance);
-        }, realm, isConstructor: false);
+        }, realm, false);
 
         durationCtor.DefineProperty("from",
             new PropertyDescriptor { Value = durationFrom, Writable = true, Enumerable = false, Configurable = true });
 
-        var durationToLocaleString = new HostFunction(args => DurationToLocaleString(JsValue.Undefined, args), realm, isConstructor: false);
+        var durationToLocaleString =
+            new HostFunction(args => DurationToLocaleString(JsValue.Undefined, args), realm, false);
         durationPrototype.SetProperty("toLocaleString", durationToLocaleString);
 
         durationCtor.DefineProperty("prototype",

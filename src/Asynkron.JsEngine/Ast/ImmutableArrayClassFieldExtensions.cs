@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -12,7 +16,7 @@ public static partial class TypedAstEvaluator
     {
         using var classFieldInitScope = context.EnterClassFieldInitializer();
         var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
-        initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, isConst: true, isLexical: true,
+        initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexical: true,
             blocksFunctionScopeOverride: true);
         var resultValue = expression.EvaluateExpression(initEnv, context);
         if (resultValue.ObjectValue is TypedFunction { IsArrowFunction: true } typedFunction &&
@@ -31,10 +35,10 @@ public static partial class TypedAstEvaluator
     {
         // Per ES spec, static blocks are evaluated like function bodies - var declarations
         // should be scoped to the block, not leak to outer environments
-        var initEnv = new JsEnvironment(environment, isFunctionScope: true, isStrict: true);
+        var initEnv = new JsEnvironment(environment, true, true);
         initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(constructorAccessor));
         // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
-        initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, isConst: true, isLexical: true,
+        initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexical: true,
             blocksFunctionScopeOverride: true);
         if (environment.TryGetJsValue(Symbol.Arguments, out var argumentsValue))
         {
@@ -44,7 +48,7 @@ public static partial class TypedAstEvaluator
         superBinding = ResolveStaticInitializationSuperBinding(constructorAccessor);
         if (superBinding is not null)
         {
-            initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding), isConst: true, isLexical: true,
+            initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding), true, isLexical: true,
                 blocksFunctionScopeOverride: true);
         }
 
@@ -72,6 +76,7 @@ public static partial class TypedAstEvaluator
             return null;
         }
 
-        return new SuperBinding(superConstructor, prototypeAccessor, JsValue.FromObjectUnsafe(constructorAccessor), true);
+        return new SuperBinding(superConstructor, prototypeAccessor, JsValue.FromObjectUnsafe(constructorAccessor),
+            true);
     }
 }

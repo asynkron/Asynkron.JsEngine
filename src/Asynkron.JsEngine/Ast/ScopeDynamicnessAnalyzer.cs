@@ -1,4 +1,8 @@
+#region
+
 using System.Collections.Immutable;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -303,8 +307,6 @@ public static partial class TypedAstEvaluator
                 case ExportAllStatement:
                 case ExportNamespaceAsStatement:
                     break;
-                default:
-                    break;
             }
         }
 
@@ -337,59 +339,96 @@ public static partial class TypedAstEvaluator
                     {
                         work.Push(inner);
                     }
+
                     break;
                 case ExpressionStatement expressionStatement:
                     if (ContainsArgumentsReference(expressionStatement.Expression))
+                    {
                         return true;
+                    }
+
                     break;
                 case ReturnStatement returnStatement:
                     if (returnStatement.Expression is not null &&
                         ContainsArgumentsReference(returnStatement.Expression))
+                    {
                         return true;
+                    }
+
                     break;
                 case ThrowStatement throwStatement:
                     if (ContainsArgumentsReference(throwStatement.Expression))
+                    {
                         return true;
+                    }
+
                     break;
                 case VariableDeclaration declaration:
                     foreach (var declarator in declaration.Declarators)
                     {
                         if (declarator.Initializer is not null &&
                             ContainsArgumentsReference(declarator.Initializer))
+                        {
                             return true;
+                        }
                     }
+
                     break;
                 case IfStatement ifStatement:
                     if (ContainsArgumentsReference(ifStatement.Condition))
+                    {
                         return true;
+                    }
+
                     work.Push(ifStatement.Then);
                     if (ifStatement.Else is not null)
+                    {
                         work.Push(ifStatement.Else);
+                    }
+
                     break;
                 case WhileStatement whileStatement:
                     if (ContainsArgumentsReference(whileStatement.Condition))
+                    {
                         return true;
+                    }
+
                     work.Push(whileStatement.Body);
                     break;
                 case DoWhileStatement doWhileStatement:
                     if (ContainsArgumentsReference(doWhileStatement.Condition))
+                    {
                         return true;
+                    }
+
                     work.Push(doWhileStatement.Body);
                     break;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is not null)
+                    {
                         work.Push(forStatement.Initializer);
+                    }
+
                     if (forStatement.Condition is not null &&
                         ContainsArgumentsReference(forStatement.Condition))
+                    {
                         return true;
+                    }
+
                     if (forStatement.Increment is not null &&
                         ContainsArgumentsReference(forStatement.Increment))
+                    {
                         return true;
+                    }
+
                     work.Push(forStatement.Body);
                     break;
                 case ForEachStatement forEachStatement:
                     if (ContainsArgumentsReference(forEachStatement.Iterable))
+                    {
                         return true;
+                    }
+
                     work.Push(forEachStatement.Body);
                     break;
                 case LabeledStatement labeledStatement:
@@ -398,19 +437,32 @@ public static partial class TypedAstEvaluator
                 case TryStatement tryStatement:
                     work.Push(tryStatement.TryBlock);
                     if (tryStatement.Catch is { } catchClause)
+                    {
                         work.Push(catchClause.Body);
+                    }
+
                     if (tryStatement.Finally is not null)
+                    {
                         work.Push(tryStatement.Finally);
+                    }
+
                     break;
                 case SwitchStatement switchStatement:
                     if (ContainsArgumentsReference(switchStatement.Discriminant))
+                    {
                         return true;
+                    }
+
                     foreach (var switchCase in switchStatement.Cases)
                     {
                         if (switchCase.Test is not null && ContainsArgumentsReference(switchCase.Test))
+                        {
                             return true;
+                        }
+
                         work.Push(switchCase.Body);
                     }
+
                     break;
                 // Skip function declarations - they have their own arguments
                 case FunctionDeclaration:
@@ -446,7 +498,10 @@ public static partial class TypedAstEvaluator
                 case CallExpression call:
                     work.Push(call.Callee);
                     foreach (var argument in call.Arguments)
+                    {
                         work.Push(argument.Expression);
+                    }
+
                     break;
                 case BinaryExpression binary:
                     work.Push(binary.Left);
@@ -463,7 +518,10 @@ public static partial class TypedAstEvaluator
                 case NewExpression newExpression:
                     work.Push(newExpression.Constructor);
                     foreach (var argument in newExpression.Arguments)
+                    {
                         work.Push(argument.Expression);
+                    }
+
                     break;
                 case MemberExpression member:
                     work.Push(member.Target);
@@ -490,33 +548,51 @@ public static partial class TypedAstEvaluator
                     foreach (var element in array.Elements)
                     {
                         if (element.Expression is not null)
+                        {
                             work.Push(element.Expression);
+                        }
                     }
+
                     break;
                 case ObjectExpression obj:
                     foreach (var member in obj.Members)
                     {
                         if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
+                        {
                             work.Push(keyExpression);
+                        }
+
                         if (member.Value is not null)
+                        {
                             work.Push(member.Value);
+                        }
                     }
+
                     break;
                 case TemplateLiteralExpression template:
                     foreach (var part in template.Parts)
                     {
                         if (part.Expression is not null)
+                        {
                             work.Push(part.Expression);
+                        }
                     }
+
                     break;
                 case TaggedTemplateExpression tagged:
                     work.Push(tagged.Tag);
                     foreach (var expr in tagged.Expressions)
+                    {
                         work.Push(expr);
+                    }
+
                     break;
                 case YieldExpression yield:
                     if (yield.Expression is not null)
+                    {
                         work.Push(yield.Expression);
+                    }
+
                     break;
                 case AwaitExpression awaitExpression:
                     work.Push(awaitExpression.Expression);
@@ -712,8 +788,6 @@ public static partial class TypedAstEvaluator
                 case ThisExpression:
                 case SuperExpression:
                     break;
-                default:
-                    break;
             }
         }
 
@@ -784,8 +858,6 @@ public static partial class TypedAstEvaluator
                     }
 
                     break;
-                default:
-                    break;
             }
         }
 
@@ -802,7 +874,7 @@ public static partial class TypedAstEvaluator
         return ContainsInnerFunctionExpression(function.Body);
     }
 
-      internal static bool ContainsInnerFunctionExpression(BlockStatement block)
+    internal static bool ContainsInnerFunctionExpression(BlockStatement block)
     {
         if (block.TryGetContainsInnerFunction(out var cached))
         {
@@ -822,6 +894,7 @@ public static partial class TypedAstEvaluator
                     {
                         work.Push(inner);
                     }
+
                     break;
                 case ExpressionStatement expressionStatement:
                     if (ContainsInnerFunctionExpression(expressionStatement.Expression))
@@ -829,6 +902,7 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     break;
                 case ReturnStatement returnStatement:
                     if (returnStatement.Expression is not null &&
@@ -837,6 +911,7 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     break;
                 case ThrowStatement throwStatement:
                     if (ContainsInnerFunctionExpression(throwStatement.Expression))
@@ -844,6 +919,7 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     break;
                 case VariableDeclaration declaration:
                     foreach (var declarator in declaration.Declarators)
@@ -855,6 +931,7 @@ public static partial class TypedAstEvaluator
                             return true;
                         }
                     }
+
                     break;
                 case IfStatement ifStatement:
                     if (ContainsInnerFunctionExpression(ifStatement.Condition))
@@ -862,9 +939,13 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     work.Push(ifStatement.Then);
                     if (ifStatement.Else is not null)
+                    {
                         work.Push(ifStatement.Else);
+                    }
+
                     break;
                 case WhileStatement whileStatement:
                     if (ContainsInnerFunctionExpression(whileStatement.Condition))
@@ -872,6 +953,7 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     work.Push(whileStatement.Body);
                     break;
                 case DoWhileStatement doWhileStatement:
@@ -880,23 +962,29 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     work.Push(doWhileStatement.Body);
                     break;
                 case ForStatement forStatement:
                     if (forStatement.Initializer is not null)
+                    {
                         work.Push(forStatement.Initializer);
+                    }
+
                     if (forStatement.Condition is not null &&
                         ContainsInnerFunctionExpression(forStatement.Condition))
                     {
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     if (forStatement.Increment is not null &&
                         ContainsInnerFunctionExpression(forStatement.Increment))
                     {
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     work.Push(forStatement.Body);
                     break;
                 case ForEachStatement forEachStatement:
@@ -905,6 +993,7 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     work.Push(forEachStatement.Body);
                     break;
                 case LabeledStatement labeledStatement:
@@ -913,9 +1002,15 @@ public static partial class TypedAstEvaluator
                 case TryStatement tryStatement:
                     work.Push(tryStatement.TryBlock);
                     if (tryStatement.Catch is { } catchClause)
+                    {
                         work.Push(catchClause.Body);
+                    }
+
                     if (tryStatement.Finally is not null)
+                    {
                         work.Push(tryStatement.Finally);
+                    }
+
                     break;
                 case SwitchStatement switchStatement:
                     if (ContainsInnerFunctionExpression(switchStatement.Discriminant))
@@ -923,6 +1018,7 @@ public static partial class TypedAstEvaluator
                         block.CacheContainsInnerFunction(true);
                         return true;
                     }
+
                     foreach (var switchCase in switchStatement.Cases)
                     {
                         if (switchCase.Test is not null && ContainsInnerFunctionExpression(switchCase.Test))
@@ -930,8 +1026,10 @@ public static partial class TypedAstEvaluator
                             block.CacheContainsInnerFunction(true);
                             return true;
                         }
+
                         work.Push(switchCase.Body);
                     }
+
                     break;
                 // FunctionDeclaration creates a closure - the function itself captures the environment
                 case FunctionDeclaration:
@@ -955,10 +1053,10 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-      internal static bool ContainsInnerFunctionExpression(ExpressionNode expression)
-      {
-          var work = new Stack<ExpressionNode>();
-          work.Push(expression);
+    internal static bool ContainsInnerFunctionExpression(ExpressionNode expression)
+    {
+        var work = new Stack<ExpressionNode>();
+        work.Push(expression);
 
         while (work.Count > 0)
         {
@@ -992,7 +1090,10 @@ public static partial class TypedAstEvaluator
                 case NewExpression newExpression:
                     work.Push(newExpression.Constructor);
                     foreach (var argument in newExpression.Arguments)
+                    {
                         work.Push(argument.Expression);
+                    }
+
                     break;
                 case MemberExpression member:
                     work.Push(member.Target);
@@ -1019,37 +1120,58 @@ public static partial class TypedAstEvaluator
                     foreach (var element in array.Elements)
                     {
                         if (element.Expression is not null)
+                        {
                             work.Push(element.Expression);
+                        }
                     }
+
                     break;
                 case ObjectExpression obj:
                     foreach (var member in obj.Members)
                     {
                         if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
+                        {
                             work.Push(keyExpression);
+                        }
+
                         // Methods in object literals are FunctionExpressions - check Value
                         if (member.Value is not null)
+                        {
                             work.Push(member.Value);
+                        }
+
                         // Getters/setters are functions too
                         if (member.Function is not null)
+                        {
                             return true;
+                        }
                     }
+
                     break;
                 case TemplateLiteralExpression template:
                     foreach (var part in template.Parts)
                     {
                         if (part.Expression is not null)
+                        {
                             work.Push(part.Expression);
+                        }
                     }
+
                     break;
                 case TaggedTemplateExpression tagged:
                     work.Push(tagged.Tag);
                     foreach (var expr in tagged.Expressions)
+                    {
                         work.Push(expr);
+                    }
+
                     break;
                 case YieldExpression yield:
                     if (yield.Expression is not null)
+                    {
                         work.Push(yield.Expression);
+                    }
+
                     break;
                 case AwaitExpression awaitExpression:
                     work.Push(awaitExpression.Expression);
@@ -1077,7 +1199,8 @@ public static partial class TypedAstEvaluator
     /// that is not one of the function's parameters. This detects recursive calls and calls
     /// to closure-captured functions which cannot use environment reuse optimization.
     /// </summary>
-    internal static bool ContainsNonParameterCalleeIdentifier(FunctionExpression function, HashSet<Symbol> parameterNames)
+    internal static bool ContainsNonParameterCalleeIdentifier(FunctionExpression function,
+        HashSet<Symbol> parameterNames)
     {
         var work = new Stack<AstNode>();
         work.Push(function.Body);
@@ -1089,20 +1212,29 @@ public static partial class TypedAstEvaluator
             {
                 case BlockStatement block:
                     foreach (var stmt in block.Statements)
+                    {
                         work.Push(stmt);
+                    }
+
                     break;
                 case ExpressionStatement exprStmt:
                     work.Push(exprStmt.Expression);
                     break;
                 case ReturnStatement ret:
                     if (ret.Expression is not null)
+                    {
                         work.Push(ret.Expression);
+                    }
+
                     break;
                 case IfStatement ifStmt:
                     work.Push(ifStmt.Condition);
                     work.Push(ifStmt.Then);
                     if (ifStmt.Else is not null)
+                    {
                         work.Push(ifStmt.Else);
+                    }
+
                     break;
                 case WhileStatement whileStmt:
                     work.Push(whileStmt.Condition);
@@ -1114,11 +1246,20 @@ public static partial class TypedAstEvaluator
                     break;
                 case ForStatement forStmt:
                     if (forStmt.Initializer is not null)
+                    {
                         work.Push(forStmt.Initializer);
+                    }
+
                     if (forStmt.Condition is not null)
+                    {
                         work.Push(forStmt.Condition);
+                    }
+
                     if (forStmt.Increment is not null)
+                    {
                         work.Push(forStmt.Increment);
+                    }
+
                     work.Push(forStmt.Body);
                     break;
                 case ForEachStatement forEachStmt:
@@ -1129,24 +1270,37 @@ public static partial class TypedAstEvaluator
                     foreach (var declarator in varDecl.Declarators)
                     {
                         if (declarator.Initializer is not null)
+                        {
                             work.Push(declarator.Initializer);
+                        }
                     }
+
                     break;
                 case TryStatement tryStmt:
                     work.Push(tryStmt.TryBlock);
                     if (tryStmt.Catch is { } catchClause)
+                    {
                         work.Push(catchClause.Body);
+                    }
+
                     if (tryStmt.Finally is not null)
+                    {
                         work.Push(tryStmt.Finally);
+                    }
+
                     break;
                 case SwitchStatement switchStmt:
                     work.Push(switchStmt.Discriminant);
                     foreach (var switchCase in switchStmt.Cases)
                     {
                         if (switchCase.Test is not null)
+                        {
                             work.Push(switchCase.Test);
+                        }
+
                         work.Push(switchCase.Body);
                     }
+
                     break;
                 case ThrowStatement throwStmt:
                     work.Push(throwStmt.Expression);
@@ -1164,9 +1318,13 @@ public static partial class TypedAstEvaluator
                         // to a closure-captured function (like recursive calls or outer variables)
                         return true;
                     }
+
                     work.Push(call.Callee);
                     foreach (var arg in call.Arguments)
+                    {
                         work.Push(arg.Expression);
+                    }
+
                     break;
 
                 // Other expressions - continue walking
@@ -1202,23 +1360,35 @@ public static partial class TypedAstEvaluator
                 case NewExpression newExpr:
                     work.Push(newExpr.Constructor);
                     foreach (var arg in newExpr.Arguments)
+                    {
                         work.Push(arg.Expression);
+                    }
+
                     break;
                 case ArrayExpression array:
                     foreach (var elem in array.Elements)
                     {
                         if (elem.Expression is not null)
+                        {
                             work.Push(elem.Expression);
+                        }
                     }
+
                     break;
                 case ObjectExpression obj:
                     foreach (var member in obj.Members)
                     {
                         if (member.Value is not null)
+                        {
                             work.Push(member.Value);
+                        }
+
                         if (member.Function is not null)
+                        {
                             continue; // Skip inner functions - they have their own scope
+                        }
                     }
+
                     break;
                 case SequenceExpression seq:
                     work.Push(seq.Left);
@@ -1228,20 +1398,29 @@ public static partial class TypedAstEvaluator
                     foreach (var part in template.Parts)
                     {
                         if (part.Expression is not null)
+                        {
                             work.Push(part.Expression);
+                        }
                     }
+
                     break;
                 case TaggedTemplateExpression tagged:
                     work.Push(tagged.Tag);
                     foreach (var expr in tagged.Expressions)
+                    {
                         work.Push(expr);
+                    }
+
                     break;
                 case AwaitExpression awaitExpr:
                     work.Push(awaitExpr.Expression);
                     break;
                 case YieldExpression yieldExpr:
                     if (yieldExpr.Expression is not null)
+                    {
                         work.Push(yieldExpr.Expression);
+                    }
+
                     break;
 
                 // Skip inner functions - they have their own scope

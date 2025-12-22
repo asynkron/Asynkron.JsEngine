@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -35,7 +39,7 @@ public static partial class TypedAstEvaluator
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
             target.WalkBindingTargets(id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
-                    isLexical: true, blocksFunctionScopeOverride: true));
+                isLexical: true, blocksFunctionScopeOverride: true));
         }
 
         private void CollectSymbolsFromBinding(HashSet<Symbol> names)
@@ -48,15 +52,15 @@ public static partial class TypedAstEvaluator
             HashSet<Symbol>? lexicalNames = null)
         {
             target.WalkBindingTargets(identifier =>
+            {
+                if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)
                 {
-                    if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)
-                    {
-                        return;
-                    }
+                    return;
+                }
 
-                    environment.DefineFunctionScoped(identifier.Name, JsValue.Undefined, false, context: context,
-                        canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
-                });
+                environment.DefineFunctionScoped(identifier.Name, JsValue.Undefined, false, context: context,
+                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
+            });
         }
 
         private void WalkBindingTargets(Action<IdentifierBinding> onIdentifier)

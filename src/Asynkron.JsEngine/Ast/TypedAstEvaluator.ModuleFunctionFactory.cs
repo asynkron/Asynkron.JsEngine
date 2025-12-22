@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -30,11 +34,13 @@ public static partial class TypedAstEvaluator
         {
             if (funcExpr.IsAsync)
             {
-                var asyncGen = new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+                var asyncGen =
+                    new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
-                    asyncGen.EnsureHasName(functionName, overwriteExisting: true);
+                    asyncGen.EnsureHasName(functionName, true);
                 }
+
                 result = asyncGen;
             }
             else
@@ -42,20 +48,23 @@ public static partial class TypedAstEvaluator
                 var gen = new TypedGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
-                    gen.EnsureHasName(functionName, overwriteExisting: true);
+                    gen.EnsureHasName(functionName, true);
                 }
+
                 result = gen;
             }
         }
         else
         {
-            var fn = new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment, true);
+            var fn = new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
             if (functionName != null)
             {
-                fn.EnsureHasName(functionName, overwriteExisting: true);
+                fn.EnsureHasName(functionName, true);
             }
+
             result = fn;
         }
+
         return result;
     }
 }

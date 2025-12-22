@@ -1,6 +1,13 @@
+#region
+
 using System.Collections.Immutable;
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -12,15 +19,13 @@ public static partial class TypedAstEvaluator
     {
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
-        private readonly bool _isLexicallyStrict;
         private readonly bool _hasFunctionNameEnvironment;
+        private readonly bool _isLexicallyStrict;
         private readonly Dictionary<string, JsValue> _privateSlots = new(StringComparer.Ordinal);
         private readonly JsObject _properties = new();
-        private readonly RealmState _realmState;
-        private bool _isConstructorEnabled;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
-        private PrivateNameScope? _privateNameScope;
         private IJsObjectLike? _homeObject;
+        private bool _isConstructorEnabled;
 
         public TypedGeneratorFactory(
             FunctionExpression function,
@@ -37,12 +42,18 @@ public static partial class TypedAstEvaluator
 
             _function = function;
             _closure = closure;
-            _realmState = realmState;
+            RealmState = realmState;
             _isLexicallyStrict = isLexicallyStrict;
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
             _isConstructorEnabled = isConstructorFunction;
             InitializeProperties();
         }
+
+        public PrivateNameScope? PrivateNameScope { get; private set; }
+
+        public bool IsArrowFunction => false;
+        public bool DisallowConstruct => true;
+        public RealmState RealmState { get; }
 
         public bool IsExtensible => _properties.IsExtensible;
 
@@ -104,11 +115,11 @@ public static partial class TypedAstEvaluator
                 arguments,
                 thisValue,
                 this,
-                _realmState,
+                RealmState,
                 _isLexicallyStrict,
                 _hasFunctionNameEnvironment,
                 _homeObject,
-                _privateNameScope,
+                PrivateNameScope,
                 _capturedPrivateNameScopes);
             instance.Initialize();
             return (JsValue)instance.CreateGeneratorObject();
@@ -118,10 +129,6 @@ public static partial class TypedAstEvaluator
 
         public bool IsSealed => _properties.IsSealed;
         public bool IsFrozen => _properties.IsFrozen;
-
-        public bool IsArrowFunction => false;
-        public bool DisallowConstruct => true;
-        public RealmState RealmState => _realmState;
 
         public IEnumerable<string> Keys => _properties.Keys;
 
@@ -138,34 +145,6 @@ public static partial class TypedAstEvaluator
         public void Seal()
         {
             _properties.Seal();
-        }
-
-        public PrivateNameScope? PrivateNameScope => _privateNameScope;
-
-        public void SetPrivateNameScope(PrivateNameScope? scope)
-        {
-            _privateNameScope = scope;
-        }
-
-        public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
-        {
-            _capturedPrivateNameScopes = scopes;
-        }
-
-        public void DisableConstruction()
-        {
-            if (!_isConstructorEnabled)
-            {
-                return;
-            }
-
-            _isConstructorEnabled = false;
-            _properties.DeleteOwnProperty("prototype");
-        }
-
-        public void SetHomeObject(IJsObjectLike homeObject)
-        {
-            _homeObject = homeObject;
         }
 
         public bool Delete(string name)
@@ -211,8 +190,10 @@ public static partial class TypedAstEvaluator
                             {
                                 converted[i] = items[i];
                             }
+
                             argList = converted;
                         }
+
                         return callable.Invoke(argList, thisArg);
                     });
                     return true;
@@ -228,18 +209,28 @@ public static partial class TypedAstEvaluator
                         return (JsValue)new HostFunction((_, innerArgs) =>
                         {
                             if (boundArgs.Count == 0)
+                            {
                                 return callable.Invoke(innerArgs, boundThis);
+                            }
+
                             if (innerArgs.Count == 0)
+                            {
                                 return callable.Invoke(boundArgs, boundThis);
+                            }
 
                             var finalArgs = new JsValue[boundArgs.Count + innerArgs.Count];
                             for (var i = 0; i < boundArgs.Count; i++)
+                            {
                                 finalArgs[i] = boundArgs[i];
+                            }
+
                             for (var i = 0; i < innerArgs.Count; i++)
+                            {
                                 finalArgs[boundArgs.Count + i] = innerArgs[i];
+                            }
 
                             return callable.Invoke(finalArgs, boundThis);
-                        }, _realmState, isConstructor: false) { DisallowConstruct = true };
+                        }, RealmState, false) { DisallowConstruct = true };
                     });
                     return true;
             }
@@ -308,6 +299,32 @@ public static partial class TypedAstEvaluator
             return _properties.TryDefineProperty(name, descriptor);
         }
 
+        public void SetPrivateNameScope(PrivateNameScope? scope)
+        {
+            PrivateNameScope = scope;
+        }
+
+        public void SetCapturedPrivateNameScopes(ImmutableArray<PrivateNameScope> scopes)
+        {
+            _capturedPrivateNameScopes = scopes;
+        }
+
+        public void DisableConstruction()
+        {
+            if (!_isConstructorEnabled)
+            {
+                return;
+            }
+
+            _isConstructorEnabled = false;
+            _properties.DeleteOwnProperty("prototype");
+        }
+
+        public void SetHomeObject(IJsObjectLike homeObject)
+        {
+            _homeObject = homeObject;
+        }
+
         public override string ToString()
         {
             return _function.Name is { } name
@@ -321,30 +338,30 @@ public static partial class TypedAstEvaluator
             // if they haven't been created yet.
 
             // First create %GeneratorPrototype% if needed
-            if (_realmState.GeneratorPrototype is null)
+            if (RealmState.GeneratorPrototype is null)
             {
                 var generatorProto = new JsObject();
                 // %GeneratorPrototype% inherits from %IteratorPrototype%, which inherits from %Object.prototype%
                 // For now, we'll just inherit from Object.prototype directly
-                if (_realmState.ObjectPrototype is not null)
+                if (RealmState.ObjectPrototype is not null)
                 {
-                    generatorProto.SetPrototype(_realmState.ObjectPrototype);
+                    generatorProto.SetPrototype(RealmState.ObjectPrototype);
                 }
 
-                _realmState.GeneratorPrototype = generatorProto;
+                RealmState.GeneratorPrototype = generatorProto;
             }
 
             // Then create %GeneratorFunction.prototype% and link it to %GeneratorPrototype%
-            if (_realmState.GeneratorFunctionPrototype is null && _realmState.FunctionPrototype is not null)
+            if (RealmState.GeneratorFunctionPrototype is null && RealmState.FunctionPrototype is not null)
             {
                 var genFuncProto = new JsObject();
-                genFuncProto.SetPrototype(_realmState.FunctionPrototype);
+                genFuncProto.SetPrototype(RealmState.FunctionPrototype);
 
                 // %GeneratorFunction.prototype% should have a .prototype property pointing to %GeneratorPrototype%
                 genFuncProto.DefineProperty("prototype",
                     new PropertyDescriptor
                     {
-                        Value = _realmState.GeneratorPrototype,
+                        Value = RealmState.GeneratorPrototype,
                         Writable = false,
                         Enumerable = false,
                         Configurable = true,
@@ -354,13 +371,13 @@ public static partial class TypedAstEvaluator
                         HasConfigurable = true
                     });
 
-                _realmState.GeneratorFunctionPrototype = genFuncProto;
+                RealmState.GeneratorFunctionPrototype = genFuncProto;
 
                 // Create the GeneratorFunction constructor if we have access to the engine
-                if (_realmState is { Engine: { } engine, GeneratorFunctionConstructor: null })
+                if (RealmState is { Engine: { } engine, GeneratorFunctionConstructor: null })
                 {
-                    var generatorFunctionConstructor = CreateGeneratorFunctionConstructor(engine, _realmState);
-                    _realmState.GeneratorFunctionConstructor = generatorFunctionConstructor;
+                    var generatorFunctionConstructor = CreateGeneratorFunctionConstructor(engine, RealmState);
+                    RealmState.GeneratorFunctionConstructor = generatorFunctionConstructor;
 
                     // Set GeneratorFunctionPrototype.constructor = GeneratorFunction
                     genFuncProto.DefineProperty("constructor",
@@ -377,7 +394,7 @@ public static partial class TypedAstEvaluator
                         });
 
                     // GeneratorFunction.__proto__ === Function (inherit from Function)
-                    if (_realmState.FunctionPrototype is { } functionPrototype)
+                    if (RealmState.FunctionPrototype is { } functionPrototype)
                     {
                         generatorFunctionConstructor.Properties.SetPrototype(functionPrototype);
                     }
@@ -405,11 +422,12 @@ public static partial class TypedAstEvaluator
                 {
                     targetCallable = callable;
                 }
+
                 return GeneratorFunctionConstructorBody(args, targetCallable, engine, realm);
             });
 
-            StdLib.StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "length", 1d, configurable: true);
-            StdLib.StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "name", "GeneratorFunction", configurable: true);
+            StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "length", 1d, true);
+            StandardLibrary.DefineConstantProperty(generatorFunctionConstructor, "name", "GeneratorFunction", true);
 
             return generatorFunctionConstructor;
         }
@@ -440,20 +458,17 @@ public static partial class TypedAstEvaluator
 
             // Per ES spec, Generator constructor parses with Script goal, which means
             // import.meta is not allowed (it's only valid in Module goal).
-            var scriptGoalOptions = new JsEngineOptions
-            {
-                AllowImportMeta = false
-            };
+            var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
 
             ProgramNode program;
             try
             {
                 program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
             }
-            catch (Parser.ParseException parseException)
+            catch (ParseException parseException)
             {
                 var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(StdLib.StandardLibrary.CreateSyntaxError(message, evalContext, realm));
+                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
             }
 
             var createdObj = engine.ExecuteProgram(
@@ -467,7 +482,7 @@ public static partial class TypedAstEvaluator
             if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {
                 // Resolve the prototype from the newTarget
-                var proto = StdLib.ReflectHelper.ResolveConstructPrototype(
+                var proto = ReflectHelper.ResolveConstructPrototype(
                     newTarget,
                     realm.GeneratorFunctionConstructor!,
                     realm);
@@ -502,7 +517,7 @@ public static partial class TypedAstEvaluator
 
             if (primitive.TryUnwrap(out Symbol? _) || primitive.TryUnwrap(out TypedAstSymbol? _))
             {
-                throw StdLib.StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
             }
 
             if (primitive.TryGetBoolean(out var flag))
@@ -517,23 +532,32 @@ public static partial class TypedAstEvaluator
 
             if (primitive.TryUnwrap(out JsBigInt? bigInt))
             {
-                return bigInt.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return bigInt.Value.ToString(CultureInfo.InvariantCulture);
             }
 
             if (primitive.TryGetDouble(out var d))
             {
                 if (double.IsNaN(d))
+                {
                     return "NaN";
+                }
+
                 if (double.IsPositiveInfinity(d))
+                {
                     return "Infinity";
+                }
+
                 if (double.IsNegativeInfinity(d))
+                {
                     return "-Infinity";
-                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                return d.ToString(CultureInfo.InvariantCulture);
             }
 
             // At this point, all primitive types have been handled above;
             // remaining cases are objects, so use ObjectValue directly.
-            return Convert.ToString(primitive.ObjectValue, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+            return Convert.ToString(primitive.ObjectValue, CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private void InitializeProperties()
@@ -543,11 +567,11 @@ public static partial class TypedAstEvaluator
             // which in turn inherits from %Function.prototype%.
             EnsureGeneratorIntrinsics();
 
-            if (_realmState.GeneratorFunctionPrototype is { } genFuncProto)
+            if (RealmState.GeneratorFunctionPrototype is { } genFuncProto)
             {
                 _properties.SetPrototype(genFuncProto);
             }
-            else if (_realmState.FunctionPrototype is { } functionPrototype)
+            else if (RealmState.FunctionPrototype is { } functionPrototype)
             {
                 _properties.SetPrototype(functionPrototype);
             }
@@ -555,7 +579,7 @@ public static partial class TypedAstEvaluator
             // Per ES spec 15.5.4: Generator functions ALWAYS have a prototype property,
             // regardless of whether they are used as constructors or methods.
             // This is different from regular methods/arrow functions.
-            if (_realmState.GeneratorPrototype is not null)
+            if (RealmState.GeneratorPrototype is not null)
             {
                 // Set up the generator function's .prototype property.
                 // Each generator function instance gets its own .prototype object that inherits
@@ -563,7 +587,7 @@ public static partial class TypedAstEvaluator
                 // Per spec 25.2.4.2: The prototype property is created as a plain object with
                 // no own properties (the constructor property is inherited from %GeneratorPrototype%).
                 var generatorPrototype = new JsObject();
-                generatorPrototype.SetPrototype(_realmState.GeneratorPrototype);
+                generatorPrototype.SetPrototype(RealmState.GeneratorPrototype);
                 _properties.DefineProperty("prototype",
                     new PropertyDescriptor
                     {

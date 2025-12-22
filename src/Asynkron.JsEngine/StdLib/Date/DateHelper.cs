@@ -1,22 +1,26 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 public static class DateHelper
 {
-    public static HostFunction CreateDateConstructor(RealmState realm)
-    {
-        return DateConstructor.CreateConstructor(realm);
-    }
-
     private const double MsPerDay = 86400000d;
     private const double MsPerHour = 3600000d;
     internal const double MsPerMinute = 60000d;
     private const double MsPerSecond = 1000d;
+
+    public static HostFunction CreateDateConstructor(RealmState realm)
+    {
+        return DateConstructor.CreateConstructor(realm);
+    }
 
     internal static double ComputeDateTimeValue(
         IReadOnlyList<JsValue> args,
@@ -31,7 +35,8 @@ public static class DateHelper
         if (args.Count == 1)
         {
             var arg = args[0];
-            if (arg.TryGetString(out var dateStr) && DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture, out var parsed))
+            if (arg.TryGetString(out var dateStr) &&
+                DateTimeOffset.TryParse(dateStr, CultureInfo.InvariantCulture, out var parsed))
             {
                 return TimeClip(parsed.ToUnixTimeMilliseconds());
             }
@@ -105,7 +110,6 @@ public static class DateHelper
 
         obj = candidate;
         return timeValue;
-
     }
 
     internal static JsObject RequireDateObject(JsValue thisVal, RealmState realm)

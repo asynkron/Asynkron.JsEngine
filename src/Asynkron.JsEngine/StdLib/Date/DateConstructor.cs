@@ -1,16 +1,23 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.DateHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Date", PrototypeType = typeof(DatePrototype), Length = 7d, DisplayName = "Date")]
 public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Date constructor not initialized");
     // Static methods registered via code generation
 
     [JsConstructorMethod("now", Length = 0d)]
@@ -27,7 +34,10 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
             return JsValue.NaN;
         }
 
-        static double ToNumberOrNaN(JsValue v) => v.TryGetDouble(out var d) ? d : double.NaN;
+        static double ToNumberOrNaN(JsValue v)
+        {
+            return v.TryGetDouble(out var d) ? d : double.NaN;
+        }
 
         var y = ToNumberOrNaN(args[0]);
         var m = args.Count > 1 ? ToNumberOrNaN(args[1]) : 0;
@@ -81,8 +91,6 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
             : JsValue.NaN;
     }
 
-    private HostFunction? _constructor;
-
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var targetCtor = _constructor ?? ConstructFallback;
@@ -120,7 +128,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
         JsObject? providedThis,
         EvaluationContext? context)
     {
-        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, false);
         instance.RealmState ??= Realm;
 
         if (instance.Prototype is null)
@@ -136,7 +144,4 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
         StoreInternalDateValue(instance, timeValue);
         return instance;
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Date constructor not initialized");
 }

@@ -1,3 +1,5 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -6,17 +8,23 @@ using static Asynkron.JsEngine.StdLib.DataViewHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("DataView", PrototypeType = typeof(DataViewPrototype), Length = 1d, DisplayName = "DataView")]
-public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("DataView constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = _constructor ?? ConstructFallback;
-        var providedThis = thisValue.IsObject ? thisValue.AsObject() as JsObject : null;
+        var providedThis = thisValue.IsObject ? thisValue.AsObject() : null;
         return JsValue.FromObjectUnsafe(ConstructDataView(args, target, providedThis));
     }
 
@@ -75,7 +83,7 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
             return dataView;
         }
 
-        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(providedThis != null ? new JsValue(providedThis) : JsValue.Undefined, false);
         if (proto is not null)
         {
             instance.SetPrototype(proto);
@@ -84,7 +92,4 @@ public sealed partial class DataViewConstructor(IJsObjectLike prototype, RealmSt
         StoreInternalDataView(instance, dataView);
         return instance;
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("DataView constructor not initialized");
 }

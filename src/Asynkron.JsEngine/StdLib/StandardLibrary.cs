@@ -86,7 +86,8 @@ public static partial class StandardLibrary
             if (!hasCtor && errorValue.TryGetObject<JsObject>(out var jsObj))
             {
                 var realmState = realm ?? context?.RealmState;
-                IJsCallable? ctor = realmState?.ReferenceErrorConstructor ?? context?.RealmState.ReferenceErrorConstructor;
+                IJsCallable? ctor = realmState?.ReferenceErrorConstructor ??
+                                    context?.RealmState.ReferenceErrorConstructor;
                 if (ctor is null)
                 {
                     if (realmState?.Engine?.GlobalObject.TryGetValue("ReferenceError", out var ctorValue) == true &&
@@ -99,16 +100,15 @@ public static partial class StandardLibrary
 
                 if (ctor is not null)
                 {
-                    jsObj.DefineProperty("constructor", new PropertyDescriptor
-                    {
-                        Value = ctor,
-                        Writable = true,
-                        Enumerable = false,
-                        Configurable = true,
-                    });
+                    jsObj.DefineProperty("constructor",
+                        new PropertyDescriptor
+                        {
+                            Value = ctor, Writable = true, Enumerable = false, Configurable = true
+                        });
                 }
             }
         }
+
         return new ThrowSignal(errorValue);
     }
 
@@ -207,22 +207,27 @@ public static partial class StandardLibrary
                     {
                         throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
                     }
+
                     if (jsValue is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt directBigInt })
                     {
                         return directBigInt;
                     }
+
                     if (jsValue.Kind == JsValueKind.Boolean)
                     {
                         return jsValue.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero;
                     }
+
                     if (jsValue is { Kind: JsValueKind.String, ObjectValue: string strValue })
                     {
                         return new JsBigInt(ParseBigIntString(strValue, localContext, realmState));
                     }
+
                     if (jsValue.Kind == JsValueKind.Number)
                     {
                         return ConvertNumberToBigInt(jsValue.NumberValue, localContext, realmState);
                     }
+
                     // For objects and other types, use ObjectValue
                     value = jsValue.ObjectValue;
                     continue;
@@ -271,19 +276,23 @@ public static partial class StandardLibrary
 
         return value.Kind switch
         {
-            JsValueKind.Undefined => throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState),
+            JsValueKind.Undefined => throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext,
+                realmState),
             JsValueKind.Null => throw ThrowTypeError("Cannot convert null to a BigInt", localContext, realmState),
             JsValueKind.Boolean => value.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero,
-            JsValueKind.BigInt => value.ObjectValue as JsBigInt ?? throw ThrowTypeError("Invalid BigInt value", localContext, realmState),
+            JsValueKind.BigInt => value.ObjectValue as JsBigInt ??
+                                  throw ThrowTypeError("Invalid BigInt value", localContext, realmState),
             JsValueKind.Number => ConvertNumberToBigInt(value.NumberValue, localContext, realmState),
-            JsValueKind.String => new JsBigInt(ParseBigIntString(value.ObjectValue as string ?? string.Empty, localContext, realmState)),
+            JsValueKind.String => new JsBigInt(ParseBigIntString(value.ObjectValue as string ?? string.Empty,
+                localContext, realmState)),
             JsValueKind.Symbol => throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState),
             JsValueKind.Object => ToBigInt(value.ObjectValue, localContext, realmState),
             _ => throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState)
         };
     }
 
-    private static JsBigInt ConvertNumberToBigInt(double numberValue, EvaluationContext? context, RealmState? realmState)
+    private static JsBigInt ConvertNumberToBigInt(double numberValue, EvaluationContext? context,
+        RealmState? realmState)
     {
         if (double.IsNaN(numberValue) || double.IsInfinity(numberValue) ||
             Math.Floor(numberValue) != numberValue)
@@ -447,7 +456,8 @@ public static partial class StandardLibrary
         RealmState? realm,
         out JsValue formatted)
     {
-        return TryFormatWithIntlNumberFormatJsValue(new JsValue(numericValue), localesArg, optionsArg, realm, out formatted);
+        return TryFormatWithIntlNumberFormatJsValue(new JsValue(numericValue), localesArg, optionsArg, realm,
+            out formatted);
     }
 
     /// <summary>

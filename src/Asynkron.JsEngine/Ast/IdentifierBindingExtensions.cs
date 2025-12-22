@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -15,7 +19,8 @@ public static partial class TypedAstEvaluator
             bool allowNameInference,
             bool skipBlockedBindingLookup = false)
         {
-            if (allowNameInference && value is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            if (allowNameInference && value is
+                    { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
             {
                 nameTarget.EnsureHasName(identifier.Name.Name);
             }
@@ -32,7 +37,8 @@ public static partial class TypedAstEvaluator
                     environment.AssignJsValue(identifier.Name, value);
                     break;
                 case BindingMode.DefineLet:
-                    environment.DefineJsValue(identifier.Name, value, isLexical: true, blocksFunctionScopeOverride: true);
+                    environment.DefineJsValue(identifier.Name, value, isLexical: true,
+                        blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineConst:
                     environment.DefineJsValue(identifier.Name, value, true, blocksFunctionScopeOverride: true);
@@ -51,7 +57,6 @@ public static partial class TypedAstEvaluator
 
                         if (skipBlockedBindingLookup)
                         {
-                            return;
                         }
 
                         return;

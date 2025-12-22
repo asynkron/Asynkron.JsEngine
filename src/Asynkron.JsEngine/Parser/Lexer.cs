@@ -1,20 +1,16 @@
+#region
+
 using System.Globalization;
 using System.Numerics;
 using System.Text;
 using Asynkron.JsEngine.JsTypes;
 
+#endregion
+
 namespace Asynkron.JsEngine.Parser;
 
 public sealed class Lexer(string source, bool allowHtmlComments = true)
 {
-    private readonly record struct DigitRun(int Start, int Length, bool HasSeparator)
-    {
-        public ReadOnlySpan<char> Slice(string source)
-        {
-            return source.AsSpan(Start, Length);
-        }
-    }
-
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
     {
         ["let"] = TokenType.Let,
@@ -64,21 +60,26 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
     private readonly bool _allowHtmlComments = allowHtmlComments;
 
+    // Track brace context: ObjectLiteral/FunctionBody → division; StatementBlock → regex
+    private readonly Stack<BraceKind> _braceKindStack = new();
+
     private readonly string _source = source ?? string.Empty;
     private readonly List<Token> _tokens = [];
     private int _column = 1;
     private int _current;
+
+    private BraceKind _lastPoppedBraceKind;
     private int _line = 1;
     private int _start;
     private int _startColumn = 1;
     private int _startLine = 1;
 
-    // Track brace context: ObjectLiteral/FunctionBody → division; StatementBlock → regex
-    private readonly Stack<BraceKind> _braceKindStack = new();
-
     private bool IsAtEnd => _current >= _source.Length;
 
-    private string SliceText(int start, int length) => new(_source.AsSpan(start, length));
+    private string SliceText(int start, int length)
+    {
+        return new string(_source.AsSpan(start, length));
+    }
 
     public IReadOnlyList<Token> Tokenize()
     {
@@ -122,6 +123,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 {
                     _lastPoppedBraceKind = BraceKind.StatementBlock; // Default to statement block for safety
                 }
+
                 AddToken(TokenType.RightBrace);
                 break;
             case '[':
@@ -733,14 +735,17 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         isPureOctal = false;
                         break;
                     }
+
                     idx++;
                 }
+
                 // If it's a pure octal (no 8 or 9), and not followed by . e E n, throw
                 if (isPureOctal && idx > _current)
                 {
                     if (idx >= _source.Length || _source[idx] is not ('.' or 'e' or 'E' or 'n'))
                     {
-                        throw new ParseException($"Legacy octal literals are not allowed. Use 0o prefix for octal literals on line {_line} column {_column}.");
+                        throw new ParseException(
+                            $"Legacy octal literals are not allowed. Use 0o prefix for octal literals on line {_line} column {_column}.");
                     }
                 }
             }
@@ -1519,8 +1524,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         return _lastPoppedBraceKind == BraceKind.StatementBlock;
     }
 
-    private BraceKind _lastPoppedBraceKind;
-
     /// <summary>
     /// Determines the kind of brace context for the current {.
     /// This is used to decide if / after the corresponding } should be regex or division.
@@ -1567,19 +1570,19 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         // Tokens that indicate { is an OBJECT LITERAL (not a block):
         // After these tokens, { starts an object literal expression
         var isObjectLiteralContext = lastToken is
-            TokenType.Equal or           // x = { }
-            TokenType.Colon or           // case x: { } or { a: { } }
-            TokenType.LeftParen or       // f({ }) or ({ })
-            TokenType.LeftBracket or     // [{ }]
-            TokenType.Comma or           // [a, { }] or f(a, { })
-            TokenType.Question or        // x ? { } : y
+            TokenType.Equal or // x = { }
+            TokenType.Colon or // case x: { } or { a: { } }
+            TokenType.LeftParen or // f({ }) or ({ })
+            TokenType.LeftBracket or // [{ }]
+            TokenType.Comma or // [a, { }] or f(a, { })
+            TokenType.Question or // x ? { } : y
             TokenType.QuestionQuestion or // x ?? { }
-            TokenType.Return or          // return { }
-            TokenType.Throw or           // throw { }
-            TokenType.New or             // new X({ })
-            TokenType.PipePipe or        // x || { }
-            TokenType.AmpAmp or          // x && { }
-            TokenType.Plus or            // x + { } (weird but valid)
+            TokenType.Return or // return { }
+            TokenType.Throw or // throw { }
+            TokenType.New or // new X({ })
+            TokenType.PipePipe or // x || { }
+            TokenType.AmpAmp or // x && { }
+            TokenType.Plus or // x + { } (weird but valid)
             TokenType.Minus or
             TokenType.Star or
             TokenType.Slash or
@@ -1602,7 +1605,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             TokenType.In or
             TokenType.Instanceof or
             TokenType.Of or
-            TokenType.Typeof or          // typeof { } (weird)
+            TokenType.Typeof or // typeof { } (weird)
             TokenType.Void or
             TokenType.Delete or
             // Assignment operators
@@ -1664,6 +1667,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                             // Check if it's a declaration (can't be - anonymous functions are expressions)
                             return (true, false);
                         }
+
                         // function name(...) pattern
                         if (beforeParen is TokenType.Identifier)
                         {
@@ -1677,6 +1681,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                     var isDecl = IsDeclarationContext(i - 2);
                                     return (true, isDecl);
                                 }
+
                                 if (beforeIdent is TokenType.Star && i > 2)
                                 {
                                     // *name() or function *name() { } - generator
@@ -1686,15 +1691,18 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                         var isDecl = IsDeclarationContext(i - 3);
                                         return (true, isDecl);
                                     }
+
                                     // Method generator: * name() in class/object
                                     return (true, false);
                                 }
+
                                 if (beforeIdent is TokenType.Async)
                                 {
                                     // async name() { }
                                     var isDecl = IsDeclarationContext(i - 2);
                                     return (true, isDecl);
                                 }
+
                                 // async function name(...)
                                 if (beforeIdent is TokenType.Identifier && i > 2 &&
                                     _tokens[i - 3].Type is TokenType.Async)
@@ -1705,18 +1713,22 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                         var isDecl = IsDeclarationContext(i - 3);
                                         return (true, isDecl);
                                     }
+
                                     return (true, false);
                                 }
                             }
+
                             // Method syntax: name(...) { } in object/class
                             // Methods are never declarations at the top level
                             return (true, false);
                         }
+
                         // get/set accessor: get name() or set name()
                         if (beforeParen is TokenType.Get or TokenType.Set)
                         {
                             return (true, false); // Accessors are always in objects/classes
                         }
+
                         // Static method: static name(...)
                         if (beforeParen is TokenType.Static)
                         {
@@ -1725,10 +1737,12 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         // Arrow function with params: (...) => {}
                         // This is handled separately via Arrow token
                     }
+
                     break;
                 }
             }
         }
+
         return (false, false);
     }
 
@@ -1751,6 +1765,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 var isDeclaration = IsDeclarationContext(i);
                 return (true, isDeclaration);
             }
+
             // Stop looking if we hit something that couldn't be part of a class header
             if (token is TokenType.Semicolon or TokenType.LeftBrace or TokenType.RightBrace or
                 TokenType.Function or TokenType.Return or TokenType.If or TokenType.For or
@@ -1759,6 +1774,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 return (false, false);
             }
         }
+
         return (false, false);
     }
 
@@ -1954,7 +1970,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         if (i + 3 < rawString.Length)
                         {
                             var hexSpan = rawString.AsSpan(i + 2, 2);
-                            if (int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+                            if (int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                                    out var value))
                             {
                                 result.Append((char)value);
                                 i += 4;
@@ -2008,7 +2025,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                         if (i + 5 < rawString.Length)
                         {
                             var hexSpan = rawString.AsSpan(i + 2, 4);
-                            if (int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+                            if (int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                                    out var value))
                             {
                                 result.Append((char)value);
                                 i += 6;
@@ -2101,6 +2119,14 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             }
 
             return (value, length);
+        }
+    }
+
+    private readonly record struct DigitRun(int Start, int Length, bool HasSeparator)
+    {
+        public ReadOnlySpan<char> Slice(string source)
+        {
+            return source.AsSpan(Start, Length);
         }
     }
 }

@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -38,7 +42,8 @@ public static partial class TypedAstEvaluator
                 // Check for null/undefined using JsValue.Kind
                 if (iterableJsValue.IsNull || iterableJsValue.IsUndefined)
                 {
-                    throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, context.RealmState);
+                    throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context,
+                        context.RealmState);
                 }
             }
 
@@ -88,8 +93,8 @@ public static partial class TypedAstEvaluator
                 {
                     try
                     {
-                        return plan.ExecuteIteratorDriverJsValue(iterator: null,
-                            enumerator: fastEnumerator,
+                        return plan.ExecuteIteratorDriverJsValue(null,
+                            fastEnumerator,
                             loopEnvironment,
                             environment,
                             context,
@@ -107,7 +112,7 @@ public static partial class TypedAstEvaluator
                 if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
                 {
                     return plan.ExecuteIteratorDriverJsValue(iterator,
-                        enumerator: null,
+                        null,
                         loopEnvironment,
                         environment,
                         context,
@@ -152,18 +157,18 @@ public static partial class TypedAstEvaluator
                         ? rentLoopIterationEnv()
                         : new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
                             description: "for-each-iteration")
-                : loopEnvironment;
+                    : loopEnvironment;
 
                 statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
-                statement.DeclarationKind);
+                    statement.DeclarationKind);
 
                 IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
 
-            // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
-            // Only update V (completion value) if result.[[Value]] is not empty
-            var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
-            if (!bodyResult.IsUnit)
-            {
+                // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                // Only update V (completion value) if result.[[Value]] is not empty
+                var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
+                if (!bodyResult.IsUnit)
+                {
                     lastValueJs = bodyResult;
                 }
 
@@ -209,7 +214,8 @@ public static partial class TypedAstEvaluator
             // Check for null/undefined using JsValue.Kind instead of ToObject()
             if (iterableJs.IsNull || iterableJs.IsUndefined)
             {
-                throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, context.RealmState);
+                throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context,
+                    context.RealmState);
             }
 
             var loopEnvironment =
@@ -237,8 +243,8 @@ public static partial class TypedAstEvaluator
             {
                 try
                 {
-                    return plan.ExecuteIteratorDriverJsValue(iterator: null,
-                        enumerator: fastEnumerator,
+                    return plan.ExecuteIteratorDriverJsValue(null,
+                        fastEnumerator,
                         loopEnvironment,
                         environment,
                         context,
@@ -256,7 +262,7 @@ public static partial class TypedAstEvaluator
             if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
             {
                 return plan.ExecuteIteratorDriverJsValue(iterator,
-                    enumerator: null,
+                    null,
                     loopEnvironment,
                     environment,
                     context,

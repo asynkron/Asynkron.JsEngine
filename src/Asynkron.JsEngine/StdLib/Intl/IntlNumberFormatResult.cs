@@ -2,6 +2,9 @@ namespace Asynkron.JsEngine.StdLib.Intl;
 
 internal sealed class IntlNumberFormatResult
 {
+    public string Formatted { get; set; } = string.Empty;
+    public List<NumberFormatPart>? Parts { get; set; }
+
     public static IntlNumberFormatResult FromLiteral(string value)
     {
         return new IntlNumberFormatResult { Formatted = value };
@@ -11,7 +14,4 @@ internal sealed class IntlNumberFormatResult
     {
         return new IntlNumberFormatResult { Formatted = value, Parts = parts };
     }
-
-    public string Formatted { get; set; } = string.Empty;
-    public List<NumberFormatPart>? Parts { get; set; }
 }

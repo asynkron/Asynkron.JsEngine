@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -8,7 +12,8 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     WeakMaps hold key-value pairs where keys must be objects and are held weakly.
 ///     Unlike Map, WeakMap does not prevent garbage collection of keys and does not support iteration.
 /// </summary>
-public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
+    IPrototypeAccessorProvider
 {
     // Use ConditionalWeakTable for weak reference semantics
     // Keys must be objects, values stored as object? (boxing unavoidable due to ConditionalWeakTable constraint)
@@ -42,8 +47,6 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     }
 
     public JsObject? Prototype => _properties.Prototype;
-    public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     public bool IsSealed => _properties.IsSealed;
     public bool IsFrozen => _properties.IsFrozen;
@@ -74,6 +77,9 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     {
         return _properties.TryDefineProperty(name, descriptor);
     }
+
+    public IJsPropertyAccessor? PrototypeAccessor =>
+        _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
     /// <summary>
     ///     Sets the value for the key in the WeakMap. Returns the WeakMap object to allow chaining.
@@ -106,12 +112,15 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         {
             JsValueKind.Undefined => Symbol.Undefined,
             JsValueKind.Null => null,
-            JsValueKind.Boolean => value.NumberValue != 0,  // Box boolean
-            JsValueKind.Number => value.NumberValue,         // Box number
+            JsValueKind.Boolean => value.NumberValue != 0, // Box boolean
+            JsValueKind.Number => value.NumberValue, // Box number
             JsValueKind.String => value.ObjectValue ?? string.Empty,
-            JsValueKind.Symbol => value.ObjectValue ?? throw new InvalidOperationException("Symbol value cannot be null"),
-            JsValueKind.BigInt => value.ObjectValue ?? throw new InvalidOperationException("BigInt value cannot be null"),
-            JsValueKind.Object => value.ObjectValue ?? throw new InvalidOperationException("Object value cannot be null"),
+            JsValueKind.Symbol => value.ObjectValue ??
+                                  throw new InvalidOperationException("Symbol value cannot be null"),
+            JsValueKind.BigInt => value.ObjectValue ??
+                                  throw new InvalidOperationException("BigInt value cannot be null"),
+            JsValueKind.Object => value.ObjectValue ??
+                                  throw new InvalidOperationException("Object value cannot be null"),
             _ => throw new InvalidOperationException($"Unexpected value kind: {value.Kind}")
         };
     }

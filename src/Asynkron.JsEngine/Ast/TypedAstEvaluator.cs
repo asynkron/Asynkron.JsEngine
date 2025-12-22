@@ -1,3 +1,5 @@
+#region
+
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Converters;
@@ -7,6 +9,8 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -89,7 +93,8 @@ public static partial class TypedAstEvaluator
 
     [Obsolete("Use JsValue overloads instead to avoid boxing")]
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
-    private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context, out IJsObjectLike? iterator)
+    private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context,
+        out IJsObjectLike? iterator)
     {
         iterator = null;
         if (iterable is not IJsPropertyAccessor accessor)
@@ -326,6 +331,7 @@ public static partial class TypedAstEvaluator
                             // Property was deleted since we collected the keys
                             continue;
                         }
+
                         if (desc is { Enumerable: false })
                         {
                             continue;
@@ -443,7 +449,8 @@ public static partial class TypedAstEvaluator
         }
 
         var logger = context.RealmState?.Logger;
-        logger?.LogInformation("EnumerateSpread start valueKind={Kind} hasIterator={HasIterator} hasEnumerator={HasEnum}",
+        logger?.LogInformation(
+            "EnumerateSpread start valueKind={Kind} hasIterator={HasIterator} hasEnumerator={HasEnum}",
             value.Kind,
             iterator is not null,
             enumerator is not null);
@@ -514,6 +521,7 @@ public static partial class TypedAstEvaluator
                     return false;
             }
         }
+
         return false;
     }
 
@@ -582,7 +590,7 @@ public static partial class TypedAstEvaluator
 
         if (numeric is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt bigInt })
         {
-            return (JsValue)(~bigInt);
+            return (JsValue)~bigInt;
         }
 
         var int32Val = JsNumericConversions.ToInt32(JsOps.ToNumber(numeric, context));
@@ -940,6 +948,7 @@ public static partial class TypedAstEvaluator
                 {
                     throw typedArray.CreateOutOfBoundsTypeError();
                 }
+
                 enumerator = EnumerateTypedArrayValues(typedArray);
                 return true;
             }
@@ -964,7 +973,8 @@ public static partial class TypedAstEvaluator
                 // Fallback: treat objects with a callable `next` as iterators even if
                 // @@iterator is missing so generator objects still participate in
                 // destructuring when their symbol lookup fails.
-                if (propertyAccessor.TryGetProperty("next", out var nextVal) && nextVal.TryGetObject<IJsCallable>(out _))
+                if (propertyAccessor.TryGetProperty("next", out var nextVal) &&
+                    nextVal.TryGetObject<IJsCallable>(out _))
                 {
                     iterator = objValue as IJsObjectLike;
                     return iterator is not null;
@@ -1032,6 +1042,7 @@ public static partial class TypedAstEvaluator
                 {
                     yield break;
                 }
+
                 yield return typedArray.GetValueForIndex(i);
             }
         }

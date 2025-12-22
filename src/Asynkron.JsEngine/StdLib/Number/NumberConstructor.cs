@@ -1,3 +1,5 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -6,11 +8,18 @@ using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
+#endregion
+
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Number", PrototypeType = typeof(NumberPrototype), Length = 1d, DisplayName = "Number")]
-public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Number constructor not initialized");
     // Static methods registered via code generation
 
     [JsConstructorMethod("isInteger", Length = 1d)]
@@ -185,8 +194,6 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(parsed * sign);
     }
 
-    private HostFunction? _constructor;
-
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
@@ -229,7 +236,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         if (instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -264,9 +271,6 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         DefineConstantProperty(constructor, "NEGATIVE_INFINITY", double.NegativeInfinity);
         DefineConstantProperty(constructor, "NaN", double.NaN);
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Number constructor not initialized");
 
     private void ApplyPrototype(JsObject instance, IJsCallable target)
     {

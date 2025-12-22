@@ -1,8 +1,11 @@
-using Asynkron.JsEngine.Ast;
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -16,6 +19,7 @@ public sealed partial class FunctionPrototype
         {
             return new JsValue("function() { [native code] }");
         }
+
         return new JsValue("function undefined() { [native code] }");
     }
 
@@ -79,7 +83,7 @@ public sealed partial class FunctionPrototype
 
         if (Prototype is IJsPropertyAccessor accessor)
         {
-            DefineConstantProperty(accessor, "length", 0d, configurable: true);
+            DefineConstantProperty(accessor, "length", 0d, true);
         }
 
         AttachArgumentsPoison();
@@ -92,8 +96,10 @@ public sealed partial class FunctionPrototype
         // on Function.prototype that throw TypeError when accessed.
         // See ECMA-262 AddRestrictedFunctionProperties
         var thrower = new HostFunction((_, _) =>
-            throw ThrowTypeError("'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.", realm: Realm), Realm,
-            isConstructor: false);
+                throw ThrowTypeError(
+                    "'caller' and 'arguments' are restricted function properties and cannot be accessed in this context.",
+                    realm: Realm), Realm,
+            false);
         var poisonDescriptor = new PropertyDescriptor
         {
             Get = thrower, Set = thrower, Enumerable = false, Configurable = true

@@ -1,7 +1,11 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -36,15 +40,16 @@ public sealed partial record FunctionExpression(
 
 public sealed partial record FunctionExpression
 {
-    private FunctionParameterNamesPlan? _cachedParameterNames;
     private GeneratorPlanCache? _cachedGeneratorPlan;
+    private FunctionParameterNamesPlan? _cachedParameterNames;
 
     internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
         ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
 
     FunctionParameterNamesPlan IAstCacheable<FunctionParameterNamesPlan>.GetOrCreateCache()
     {
-        return AstCache.GetOrCreate(ref _cachedParameterNames, this, static function => FunctionParameterNamesPlan.Build(function));
+        return AstCache.GetOrCreate(ref _cachedParameterNames, this,
+            static function => FunctionParameterNamesPlan.Build(function));
     }
 
     GeneratorPlanCache IAstCacheable<GeneratorPlanCache>.GetOrCreateCache()
@@ -62,6 +67,6 @@ public sealed partial record FunctionExpression
     internal void WarmGeneratorPlanCache()
     {
         _ = AstCache.GetOrCreate(ref _cachedGeneratorPlan, this,
-            static function => GeneratorPlanCache.Build(function, reportDiagnostics: false));
+            static function => GeneratorPlanCache.Build(function, false));
     }
 }

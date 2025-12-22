@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -30,6 +34,7 @@ public static partial class TypedAstEvaluator
                 context.SetThrow(signal.ThrownValue);
                 result = signal.ThrownValue;
             }
+
             if (context.IsThrow && statement.Catch is not null)
             {
                 context.RealmState.Logger?.LogInformation(

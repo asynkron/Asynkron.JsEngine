@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
-[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class JsConstructorAttribute(string intrinsicName) : Attribute
 {
     /// <summary>

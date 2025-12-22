@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -18,7 +22,7 @@ public static class JsPropertyAccessorExtensions
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
-        var fn = new HostFunction(args => handler(args, realmState), realmState, isConstructor: false);
+        var fn = new HostFunction(args => handler(args, realmState), realmState, false);
         accessor.SetProperty(name, (JsValue)fn);
     }
 
@@ -32,7 +36,7 @@ public static class JsPropertyAccessorExtensions
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
-        var fn = new HostFunction((thisVal, args) => handler(thisVal, args, realmState), realmState, isConstructor: false);
+        var fn = new HostFunction((thisVal, args) => handler(thisVal, args, realmState), realmState, false);
         accessor.SetProperty(name, (JsValue)fn);
     }
 
@@ -59,7 +63,7 @@ public static class JsPropertyAccessorExtensions
             var result = handler(thisVal.ToObject(), args, realmState);
             // Handle case where handler returns a boxed JsValue
             return result is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(result);
-        }, realmState, isConstructor: false);
+        }, realmState, false);
         accessor.SetProperty(name, (JsValue)fn);
     }
 

@@ -1,15 +1,22 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Boolean", PrototypeType = typeof(BooleanPrototype), Length = 1d, DisplayName = "Boolean")]
-public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("Boolean constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -21,7 +28,6 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         ApplyPrototype(constructing, _constructor ?? ConstructFallback);
         InitializeBooleanWrapper(constructing, args);
         return new JsValue(constructing);
-
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -49,7 +55,7 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
             ResolveConstructPrototype(newTarget, targetCtor, Realm) ??
             Prototype;
 
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         if (instance.Prototype is null)
         {
             instance.SetPrototype(resolvedProto);
@@ -64,8 +70,6 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         var value = JsOps.ToBoolean(args.GetArgument(0));
         wrapper.SetProperty("__value__", value);
     }
-
-    private HostFunction ConstructFallback => _constructor ?? throw new InvalidOperationException("Boolean constructor not initialized");
 
     private void ApplyPrototype(JsObject instance, IJsCallable target)
     {

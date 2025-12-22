@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ArrayHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -81,7 +85,8 @@ public static partial class StandardLibrary
             return CreateDefaultArray();
         }
 
-        if (!constructor.TryGetObject<IJsCallable>(out var callable) || !JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
+        if (!constructor.TryGetObject<IJsCallable>(out var callable) ||
+            !JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
         {
             throw ThrowTypeError("Array species constructor must be a constructor", realm: realm);
         }
@@ -128,7 +133,8 @@ public static partial class StandardLibrary
     internal static IJsObjectLike CreateArrayFromResult(JsValue constructorCandidate, RealmState? realm, long length,
         bool passLengthToConstructor, string methodName)
     {
-        if (constructorCandidate.TryGetObject<IJsCallable>(out var callable) && JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
+        if (constructorCandidate.TryGetObject<IJsCallable>(out var callable) &&
+            JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable)))
         {
             var constructorRealm = GetConstructorRealm(callable, realm) ?? realm;
             if (constructorRealm is null)
@@ -137,7 +143,7 @@ public static partial class StandardLibrary
             }
 
             var args = passLengthToConstructor
-                ? new JsValue[] { new JsValue((double)Math.Max(length, 0)) }
+                ? new[] { new JsValue((double)Math.Max(length, 0)) }
                 : Array.Empty<JsValue>();
             // Use Construct to properly invoke the constructor with new.target semantics
             var constructed = Construct(callable, args, callable, constructorRealm);
@@ -269,7 +275,8 @@ public static partial class StandardLibrary
         var inspected = UnwrapProxy(candidate, realm, "Array.isArray");
         if (inspected.TryGetObject<JsArray>(out var jsArray))
         {
-            if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs.TryGetBoolean(out var isArgsValue) && isArgsValue)
+            if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs.TryGetBoolean(out var isArgsValue) &&
+                isArgsValue)
             {
                 return false;
             }
@@ -336,7 +343,8 @@ public static partial class StandardLibrary
         {
             if (inspected.TryGetObject<JsArray>(out var array))
             {
-                return !array.TryGetProperty("__arguments__", out var isArgs) || !isArgs.TryGetBoolean(out var isArgsValue) || !isArgsValue;
+                return !array.TryGetProperty("__arguments__", out var isArgs) ||
+                       !isArgs.TryGetBoolean(out var isArgsValue) || !isArgsValue;
             }
 
             if (inspected.TryGetObject<JsProxy>(out var proxy))
@@ -391,12 +399,12 @@ public static partial class StandardLibrary
                 mapped = mapper.Invoke([element, new JsValue((double)k), JsValue.FromObjectUnsafe(source)], thisArg);
             }
 
-        IJsPropertyAccessor? mappedAccessor = null;
-        var spreadable = depth > 0 && TryGetArrayForFlatten(mapped, realm, out mappedAccessor);
+            IJsPropertyAccessor? mappedAccessor = null;
+            var spreadable = depth > 0 && TryGetArrayForFlatten(mapped, realm, out mappedAccessor);
 
-        if (spreadable && mappedAccessor is not null)
-        {
-            var newDepth = depth == double.PositiveInfinity ? depth : depth - 1;
+            if (spreadable && mappedAccessor is not null)
+            {
+                var newDepth = depth == double.PositiveInfinity ? depth : depth - 1;
                 var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
                 var elementLength = (long)ToLengthOrZero(elementLengthValue);
                 var nextMapper = mapper is not null ? null : mapper;

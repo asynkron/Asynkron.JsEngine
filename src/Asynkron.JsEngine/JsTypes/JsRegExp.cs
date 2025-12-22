@@ -1,3 +1,5 @@
+#region
+
 using System.Buffers;
 using System.Globalization;
 using System.Text;
@@ -5,6 +7,8 @@ using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -675,6 +679,7 @@ public class JsRegExp
                                         builder.Append(normalizedName);
                                         builder.Append(">|)");
                                     }
+
                                     i = endBracket;
                                     continue;
                                 }

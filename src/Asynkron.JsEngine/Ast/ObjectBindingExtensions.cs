@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -54,7 +58,8 @@ public static partial class TypedAstEvaluator
                 }
 
                 usedKeys.Add(propertyName);
-                var hasProperty = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(obj), propertyName, out var propertyValueJs, context);
+                var hasProperty = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(obj), propertyName,
+                    out var propertyValueJs, context);
                 if (context.ShouldStopEvaluation)
                 {
                     throw new ThrowSignal(context.FlowValue);
@@ -77,7 +82,8 @@ public static partial class TypedAstEvaluator
                 }
 
                 if (usedDefault &&
-                    property is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } && defaultExpression.IsAnonymousFunctionDefinition() &&
+                    property is { Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression } &&
+                    defaultExpression.IsAnonymousFunctionDefinition() &&
                     propertyValueJs.TryGetObject<IFunctionNameTarget>(out var nameTarget))
                 {
                     nameTarget.EnsureHasName(identifierTarget.Name.Name);
@@ -108,7 +114,7 @@ public static partial class TypedAstEvaluator
                 restObject.SetPrototype(context.RealmState.ObjectPrototype);
             }
 
-            foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            foreach (var key in obj.GetOwnPropertyKeysInOrder(true, true))
             {
                 if (usedKeys.Contains(key))
                 {
@@ -131,7 +137,8 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restObject), environment, context, mode, allowNameInference: false);
+            binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restObject), environment, context, mode,
+                allowNameInference: false);
         }
     }
 }

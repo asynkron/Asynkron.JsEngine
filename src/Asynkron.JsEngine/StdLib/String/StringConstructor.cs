@@ -1,3 +1,5 @@
+#region
+
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
@@ -5,14 +7,20 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using static Asynkron.JsEngine.StdLib.StringHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("String", PrototypeType = typeof(StringPrototype), Length = 1d, DisplayName = "String")]
-public sealed partial class StringConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class StringConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("String constructor not initialized");
     // Static methods registered via code generation
 
     [JsConstructorMethod("fromCodePoint", Length = 1d)]
@@ -90,7 +98,8 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
             return new JsValue("");
         }
 
-        if (!template.TryGetProperty("raw", out var rawValue) || !rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
+        if (!template.TryGetProperty("raw", out var rawValue) ||
+            !rawValue.TryGetObject<IJsPropertyAccessor>(out var rawAccessor))
         {
             return new JsValue("");
         }
@@ -111,6 +120,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
                     items.Add(item);
                 }
             }
+
             rawItems = items;
         }
 
@@ -185,14 +195,13 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
                     {
                         result.Append(ch);
                     }
+
                     break;
             }
         }
 
         return new JsValue(result.ToString());
     }
-
-    private HostFunction? _constructor;
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -229,7 +238,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
     private JsValue ConstructWithNewTarget(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         if (proto is not null && instance.Prototype is null)
         {
             instance.SetPrototype(proto);
@@ -267,9 +276,6 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
 
         return str;
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("String constructor not initialized");
 
     private void ApplyPrototype(JsObject instance, IJsCallable target)
     {

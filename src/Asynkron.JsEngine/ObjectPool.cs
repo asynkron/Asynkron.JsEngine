@@ -1,4 +1,8 @@
+#region
+
 using System.Runtime.CompilerServices;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -23,6 +27,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
                 return item;
             }
         }
+
         return factory();
     }
 

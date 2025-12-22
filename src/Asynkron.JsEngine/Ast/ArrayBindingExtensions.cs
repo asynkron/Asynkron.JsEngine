@@ -1,10 +1,66 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private static Symbol? GetArrayPatternStateKey(ArrayBinding binding)
+    {
+        if (binding.Source is null)
+        {
+            return Symbol.Intern($"__array_pattern_state_{binding.GetHashCode()}");
+        }
+
+        return Symbol.Intern(
+            $"__array_pattern_state_{binding.Source.StartPosition}_{binding.Source.EndPosition}");
+    }
+
+    private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,
+        IJsObjectLike? iterator,
+        IEnumerator<JsValue>? enumerator,
+        bool iteratorDone,
+        int nextElementIndex,
+        object? pendingValue,
+        bool pendingDone,
+        bool consumingRest,
+        JsArray? restArray,
+        bool hasPendingElement)
+    {
+        var state = environment.TryGetObject<ArrayPatternState>(stateKey, out var existingState)
+            ? existingState
+            : new ArrayPatternState();
+
+        state.Iterator = iterator;
+        state.Enumerator = enumerator;
+        state.IteratorDone = iteratorDone;
+        state.NextElementIndex = nextElementIndex;
+        state.HasPendingElement = hasPendingElement;
+        state.PendingValue = pendingValue;
+        state.PendingDone = pendingDone;
+        state.RestArray = restArray;
+        state.ConsumingRest = consumingRest;
+
+        if (environment.HasOwnBinding(stateKey))
+        {
+            environment.AssignJsValue(stateKey, JsValue.FromObjectUnsafe(state));
+        }
+        else
+        {
+            environment.DefineJsValue(stateKey, JsValue.FromObjectUnsafe(state), false, isLexical: true,
+                canDelete: true);
+        }
+    }
+
+    private static void ClearArrayPatternState(Symbol stateKey, JsEnvironment environment)
+    {
+        environment.DeleteBinding(stateKey);
+    }
+
     extension(ArrayBinding binding)
     {
         private void BindArrayPattern(JsValue value, JsEnvironment environment,
@@ -60,7 +116,7 @@ public static partial class TypedAstEvaluator
                             (e, env, ctx) => e.EvaluateExpression(env, ctx));
                         if (context.ShouldStopEvaluation)
                         {
-                            if (context.IsYield && stateKey is { })
+                            if (context.IsYield && stateKey is not null)
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                     elementIndex, pendingValue, pendingDone, false, null, false);
@@ -97,12 +153,13 @@ public static partial class TypedAstEvaluator
                             iteratorThrew = true;
                             throw;
                         }
+
                         if (!throwBeforeNext && context.IsThrow)
                         {
                             iteratorThrew = true;
                         }
 
-                        if (context.IsYield && stateKey is { })
+                        if (context.IsYield && stateKey is not null)
                         {
                             SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                 elementIndex, next.Item1, next.Item2, false, null, false);
@@ -114,7 +171,7 @@ public static partial class TypedAstEvaluator
                     iteratorDone = done;
                     if (context.ShouldStopEvaluation)
                     {
-                        if (context.IsYield && stateKey is { })
+                        if (context.IsYield && stateKey is not null)
                         {
                             SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                 elementIndex, nextValue, done, false, null, false);
@@ -146,7 +203,7 @@ public static partial class TypedAstEvaluator
                         elementValue = element.DefaultValue.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (context.IsYield && stateKey is { })
+                            if (context.IsYield && stateKey is not null)
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                     elementIndex, elementValue, done, false, null, true);
@@ -167,7 +224,7 @@ public static partial class TypedAstEvaluator
                             Target: IdentifierBinding identifierTarget, DefaultValue: { } defaultExpression
                         } && defaultExpression.IsAnonymousFunctionDefinition())
                     {
-                        IFunctionNameTarget? nameTarget = elementValue switch
+                        var nameTarget = elementValue switch
                         {
                             JsValue jsv when jsv.TryGetObject<IFunctionNameTarget>(out var fn) => fn,
                             IFunctionNameTarget fn => fn,
@@ -184,7 +241,8 @@ public static partial class TypedAstEvaluator
                     else
                     {
                         // FromObjectUnsafe handles boxed JsValue correctly
-                        element.Target.ApplyBindingTarget(JsValue.FromObjectUnsafe(elementValue), environment, context, mode,
+                        element.Target.ApplyBindingTarget(JsValue.FromObjectUnsafe(elementValue), environment, context,
+                            mode,
                             allowNameInference: false);
                     }
 
@@ -193,7 +251,7 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    if (context.IsYield && stateKey is { })
+                    if (context.IsYield && stateKey is not null)
                     {
                         SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                             elementIndex, elementValue, iteratorDone, false, null, true);
@@ -218,7 +276,7 @@ public static partial class TypedAstEvaluator
                             (e, env, ctx) => e.EvaluateExpression(env, ctx));
                         if (context.ShouldStopEvaluation)
                         {
-                            if (context.IsYield && stateKey is { })
+                            if (context.IsYield && stateKey is not null)
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                     binding.Elements.Length, null, iteratorDone, true, null, false);
@@ -256,12 +314,13 @@ public static partial class TypedAstEvaluator
                                 iteratorThrew = true;
                                 throw;
                             }
+
                             if (!throwBeforeNext && context.IsThrow)
                             {
                                 iteratorThrew = true;
                             }
 
-                            if (context.IsYield && stateKey is { })
+                            if (context.IsYield && stateKey is not null)
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                     binding.Elements.Length, restNext.Item1, restNext.Item2, true, restArray, true);
@@ -273,7 +332,7 @@ public static partial class TypedAstEvaluator
                         iteratorDone = done;
                         if (context.ShouldStopEvaluation)
                         {
-                            if (context.IsYield && stateKey is { })
+                            if (context.IsYield && stateKey is not null)
                             {
                                 SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                                     binding.Elements.Length, restValue, done, true, restArray, true);
@@ -300,7 +359,8 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restArray), environment, context, mode,
+                        binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restArray), environment,
+                            context, mode,
                             allowNameInference: false);
                     }
                 }
@@ -338,7 +398,7 @@ public static partial class TypedAstEvaluator
                 // When inside a generator context, don't close the iterator immediately.
                 // Instead, save the state so CloseActiveArrayPatternIterators can find it
                 // when the generator completes/returns.
-                if (context.InGeneratorContext && stateKey is { })
+                if (context.InGeneratorContext && stateKey is not null)
                 {
                     SaveArrayPatternState(stateKey, environment, iterator, enumerator, iteratorDone,
                         binding.Elements.Length, null, iteratorDone, false, null, false);
@@ -348,7 +408,7 @@ public static partial class TypedAstEvaluator
                 CloseIterator(context.IsThrow);
             }
 
-            if (stateKey is { })
+            if (stateKey is not null)
             {
                 ClearArrayPatternState(stateKey, environment);
             }
@@ -387,57 +447,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    private static Symbol? GetArrayPatternStateKey(ArrayBinding binding)
-    {
-        if (binding.Source is null)
-        {
-            return Symbol.Intern($"__array_pattern_state_{binding.GetHashCode()}");
-        }
-
-        return Symbol.Intern(
-            $"__array_pattern_state_{binding.Source.StartPosition}_{binding.Source.EndPosition}");
-    }
-
-    private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,
-        IJsObjectLike? iterator,
-        IEnumerator<JsValue>? enumerator,
-        bool iteratorDone,
-        int nextElementIndex,
-        object? pendingValue,
-        bool pendingDone,
-        bool consumingRest,
-        JsArray? restArray,
-        bool hasPendingElement)
-    {
-        var state = environment.TryGetObject<ArrayPatternState>(stateKey, out var existingState)
-            ? existingState
-            : new ArrayPatternState();
-
-        state.Iterator = iterator;
-        state.Enumerator = enumerator;
-        state.IteratorDone = iteratorDone;
-        state.NextElementIndex = nextElementIndex;
-        state.HasPendingElement = hasPendingElement;
-        state.PendingValue = pendingValue;
-        state.PendingDone = pendingDone;
-        state.RestArray = restArray;
-        state.ConsumingRest = consumingRest;
-
-        if (environment.HasOwnBinding(stateKey))
-        {
-            environment.AssignJsValue(stateKey, JsValue.FromObjectUnsafe(state));
-        }
-        else
-        {
-            environment.DefineJsValue(stateKey, JsValue.FromObjectUnsafe(state), isConst: false, isLexical: true, canDelete: true);
-        }
-    }
-
-    private static void ClearArrayPatternState(Symbol stateKey, JsEnvironment environment)
-    {
-        environment.DeleteBinding(stateKey);
-    }
-
     private sealed class ArrayPatternState
     {
         public bool ConsumingRest { get; set; }
@@ -458,5 +467,4 @@ public static partial class TypedAstEvaluator
 
         public JsArray? RestArray { get; set; }
     }
-
 }

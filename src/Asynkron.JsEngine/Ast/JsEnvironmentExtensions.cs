@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -35,13 +39,15 @@ public static partial class TypedAstEvaluator
 
         private GeneratorPendingCompletion GetGeneratorPendingCompletion()
         {
-            if (environment.TryGetObject<GeneratorPendingCompletion>(Symbol.GeneratorPendingCompletionSymbol, out var pending))
+            if (environment.TryGetObject<GeneratorPendingCompletion>(Symbol.GeneratorPendingCompletionSymbol,
+                    out var pending))
             {
                 return pending;
             }
 
             var created = new GeneratorPendingCompletion();
-            environment.DefineFunctionScoped(Symbol.GeneratorPendingCompletionSymbol, JsValue.FromObjectUnsafe(created), true);
+            environment.DefineFunctionScoped(Symbol.GeneratorPendingCompletionSymbol, JsValue.FromObjectUnsafe(created),
+                true);
             return created;
         }
 
@@ -74,18 +80,19 @@ public static partial class TypedAstEvaluator
                 }
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError: this is not defined",
-                         StringComparison.Ordinal))
+                                                           StringComparison.Ordinal))
             {
                 // Super access before 'this' is initialised (e.g. during synthetic ctor setup).
-                var placeholder = new SuperBinding(null, null, JsValue.Undefined, false);
-                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(placeholder), isConst: false, isLexical: true, blocksFunctionScopeOverride: true);
+                var placeholder = new SuperBinding(null, null, JsValue.Undefined);
+                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(placeholder), isLexical: true,
+                    blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized placeholder after ReferenceError for 'this'");
                 return placeholder;
             }
 
             if (environment.TryCreateSuperBindingFromThis(context, out var synthesized))
             {
-                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(synthesized), false, isLexical: true,
+                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(synthesized), isLexical: true,
                     blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized from this protoNull={ProtoNull} thisInit={ThisInit}",
                     synthesized.Prototype is null,
@@ -95,16 +102,17 @@ public static partial class TypedAstEvaluator
 
             // Fall back to a best-effort binding so evaluation order (property/key/value)
             // can proceed before any prototype-based errors are raised.
-            JsValue thisValue = JsValue.Undefined;
+            var thisValue = JsValue.Undefined;
             try
             {
                 environment.TryGetJsValue(Symbol.This, out thisValue);
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                         StringComparison.Ordinal))
+                                                           StringComparison.Ordinal))
             {
                 logger?.LogInformation("SuperBinding: fallback with uninitialized 'this'");
             }
+
             IJsPropertyAccessor? prototypeGuess = null;
             if (thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
             {
@@ -114,7 +122,8 @@ public static partial class TypedAstEvaluator
             }
 
             var fallbackBinding = new SuperBinding(null, prototypeGuess, thisValue, context.IsThisInitialized);
-            environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fallbackBinding), false, isLexical: true, blocksFunctionScopeOverride: true);
+            environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fallbackBinding), isLexical: true,
+                blocksFunctionScopeOverride: true);
             logger?.LogInformation("SuperBinding: placeholder created protoNull={ProtoNull} thisInit={ThisInit}",
                 fallbackBinding.Prototype is null,
                 fallbackBinding.IsThisInitialized);
@@ -137,7 +146,7 @@ public static partial class TypedAstEvaluator
                 }
             }
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                         StringComparison.Ordinal))
+                                                           StringComparison.Ordinal))
             {
                 logger?.LogInformation("SuperBinding: 'this' binding not yet initialized");
                 return false;
@@ -175,7 +184,8 @@ public static partial class TypedAstEvaluator
         internal Exception CreateSuperReferenceError(EvaluationContext context,
             Exception? inner)
         {
-            environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}", context.IsThisInitialized);
+            environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}",
+                context.IsThisInitialized);
             var message = $"Super is not available in this context.{context.GetSourceInfo()}";
             return StandardLibrary.ThrowReferenceError(message, context, context.RealmState);
         }
@@ -193,7 +203,8 @@ public static partial class TypedAstEvaluator
                     logger?.LogInformation("SuperBinding: bump thisInit -> true env={Env}",
                         environment.GetHashCode());
                     environment.AssignJsValue(Symbol.Super,
-                        JsValue.FromObjectUnsafe(new SuperBinding(binding.Constructor, binding.Prototype, binding.thisValue, true)));
+                        JsValue.FromObjectUnsafe(new SuperBinding(binding.Constructor, binding.Prototype,
+                            binding.thisValue, true)));
                 }
 
                 logger?.LogInformation("ThisInitialized updated to {Initialized} env={Env}",
@@ -202,7 +213,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            environment.DefineJsValue(Symbol.ThisInitialized, initialized ? JsValue.True : JsValue.False, isLexical: true,
+            environment.DefineJsValue(Symbol.ThisInitialized, initialized ? JsValue.True : JsValue.False,
+                isLexical: true,
                 blocksFunctionScopeOverride: true);
             logger?.LogInformation("ThisInitialized defined to {Initialized} env={Env}",
                 initialized,

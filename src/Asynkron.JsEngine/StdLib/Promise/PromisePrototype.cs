@@ -1,7 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.PromiseHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -45,7 +48,7 @@ public sealed partial class PromisePrototype
         {
             onFinally.Invoke([], JsValue.Undefined);
             return wrapperArgs.GetArgument(0);
-        }, Realm, isConstructor: false);
+        }, Realm, false);
 
         var result = promise.Then(wrapper, wrapper);
         ApplyPromisePrototype(result, Realm);

@@ -1,8 +1,12 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ArrayHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -239,7 +243,10 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    accumulator = callback.Invoke([accumulator, value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], JsValue.Undefined);
+                    accumulator =
+                        callback.Invoke(
+                            [accumulator, value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)],
+                            JsValue.Undefined);
                 }
             }
 
@@ -322,7 +329,8 @@ public static partial class StandardLibrary
         return EnsureArrayLikeReceiverObject(receiver, methodName, realm);
     }
 
-    private static IJsPropertyAccessor EnsureArrayLikeReceiverObject(object? receiver, string methodName, RealmState? realm)
+    private static IJsPropertyAccessor EnsureArrayLikeReceiverObject(object? receiver, string methodName,
+        RealmState? realm)
     {
         if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
         {
@@ -433,10 +441,7 @@ public static partial class StandardLibrary
     {
         var descriptor = new PropertyDescriptor
         {
-            Value = value,
-            Writable = true,
-            Enumerable = true,
-            Configurable = true
+            Value = value, Writable = true, Enumerable = true, Configurable = true
         };
 
         if (target is IPropertyDefinitionHost definitionHost)
@@ -461,10 +466,7 @@ public static partial class StandardLibrary
     {
         var descriptor = new PropertyDescriptor
         {
-            JsValue = value,
-            Writable = true,
-            Enumerable = true,
-            Configurable = true
+            JsValue = value, Writable = true, Enumerable = true, Configurable = true
         };
 
         if (target is IPropertyDefinitionHost definitionHost)

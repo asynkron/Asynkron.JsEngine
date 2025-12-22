@@ -1,5 +1,9 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -18,78 +22,83 @@ public static partial class TypedAstEvaluator
             // enumerable: true, writable: false, configurable: false
             for (var i = 0; i < stringsArray.Items.Count; i++)
             {
-                templateObject.DefineProperty(i.ToString(CultureInfo.InvariantCulture), new PropertyDescriptor
+                templateObject.DefineProperty(i.ToString(CultureInfo.InvariantCulture),
+                    new PropertyDescriptor
+                    {
+                        Value = stringsArray.Items[i],
+                        Writable = false,
+                        Enumerable = true,
+                        Configurable = false,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+            }
+
+            // Define length property
+            // enumerable: false, writable: false, configurable: false
+            templateObject.DefineProperty("length",
+                new PropertyDescriptor
                 {
-                    Value = stringsArray.Items[i],
+                    Value = (double)stringsArray.Items.Count,
                     Writable = false,
-                    Enumerable = true,
+                    Enumerable = false,
                     Configurable = false,
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
                     HasConfigurable = true
                 });
-            }
-
-            // Define length property
-            // enumerable: false, writable: false, configurable: false
-            templateObject.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = (double)stringsArray.Items.Count,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
-            });
 
             // Create and configure the raw array - also needs to be a JsArray
             var rawArray = new JsArray(rawStringsArray.Items, realmState);
             for (var i = 0; i < rawStringsArray.Items.Count; i++)
             {
-                rawArray.DefineProperty(i.ToString(CultureInfo.InvariantCulture), new PropertyDescriptor
+                rawArray.DefineProperty(i.ToString(CultureInfo.InvariantCulture),
+                    new PropertyDescriptor
+                    {
+                        Value = rawStringsArray.Items[i],
+                        Writable = false,
+                        Enumerable = true,
+                        Configurable = false,
+                        HasValue = true,
+                        HasWritable = true,
+                        HasEnumerable = true,
+                        HasConfigurable = true
+                    });
+            }
+
+            rawArray.DefineProperty("length",
+                new PropertyDescriptor
                 {
-                    Value = rawStringsArray.Items[i],
+                    Value = (double)rawStringsArray.Items.Count,
                     Writable = false,
-                    Enumerable = true,
+                    Enumerable = false,
                     Configurable = false,
                     HasValue = true,
                     HasWritable = true,
                     HasEnumerable = true,
                     HasConfigurable = true
                 });
-            }
-
-            rawArray.DefineProperty("length", new PropertyDescriptor
-            {
-                Value = (double)rawStringsArray.Items.Count,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
-            });
 
             // Freeze the raw array
             rawArray.Freeze();
 
             // Define raw property on template object
             // enumerable: false, writable: false, configurable: false
-            templateObject.DefineProperty("raw", new PropertyDescriptor
-            {
-                Value = rawArray,
-                Writable = false,
-                Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
-            });
+            templateObject.DefineProperty("raw",
+                new PropertyDescriptor
+                {
+                    Value = rawArray,
+                    Writable = false,
+                    Enumerable = false,
+                    Configurable = false,
+                    HasValue = true,
+                    HasWritable = true,
+                    HasEnumerable = true,
+                    HasConfigurable = true
+                });
 
             // Freeze the template object
             templateObject.Freeze();

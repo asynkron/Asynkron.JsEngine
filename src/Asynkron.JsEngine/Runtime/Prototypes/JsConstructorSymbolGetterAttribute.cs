@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Runtime.Prototypes;
 /// Marks a static method as a symbol-keyed getter on the constructor (e.g., [Symbol.species] on Array).
 /// The symbol name should be the well-known symbol name without the "Symbol." prefix (e.g., "species").
 /// </summary>
-[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+[AttributeUsage(AttributeTargets.Method, Inherited = false)]
 public sealed class JsConstructorSymbolGetterAttribute(string symbolName) : Attribute
 {
     /// <summary>

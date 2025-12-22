@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -107,7 +111,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                var reference = CreatePropertyReference(targetJs, propertyName, context, allowPrivate: true);
+                var reference = CreatePropertyReference(targetJs, propertyName, context, true);
                 if (TryEvaluateCompoundAssignmentJsValue(null, expression.Value, reference, environment, context,
                         out var compoundValueJs, out var shouldAssign))
                 {
@@ -144,7 +148,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var finalReference = CreatePropertyReference(targetJs, finalPropertyName, context, allowPrivate: true);
+            var finalReference = CreatePropertyReference(targetJs, finalPropertyName, context, true);
             finalReference.SetValue(assignedValueJs);
             return assignedValueJs;
         }

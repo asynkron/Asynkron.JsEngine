@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -24,15 +28,17 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
             }
 
-            var done = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(result), "done", out var doneValue, context) &&
-                       JsOps.ToBoolean(doneValue);
+            var done =
+                JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(result), "done", out var doneValue, context) &&
+                JsOps.ToBoolean(doneValue);
 
             if (done)
             {
                 return (JsValue.Undefined, true);
             }
 
-            var value = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(result), "value", out var yieldedValue, context)
+            var value = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(result), "value", out var yieldedValue,
+                context)
                 ? yieldedValue
                 : JsValue.Undefined;
 

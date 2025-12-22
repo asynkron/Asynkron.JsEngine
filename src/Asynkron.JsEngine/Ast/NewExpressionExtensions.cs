@@ -1,8 +1,12 @@
+#region
+
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -18,6 +22,7 @@ public static partial class TypedAstEvaluator
             {
                 return JsValue.Undefined;
             }
+
             // Constructors must be objects - extract ObjectValue directly
             var constructor = constructorJsValue.Kind == JsValueKind.Object ? constructorJsValue.ObjectValue : null;
 
@@ -100,7 +105,8 @@ public static partial class TypedAstEvaluator
                 (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")], JsValue.Null)
+                    ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")],
+                        JsValue.Null)
                     : JsValue.FromObjectUnsafe(new InvalidOperationException(
                         hostFunction.ConstructErrorMessage ?? "Target is not a constructor."));
                 throw new ThrowSignal(errorJs);
@@ -125,8 +131,10 @@ public static partial class TypedAstEvaluator
             if (constructor is TypedGeneratorFactory)
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"], JsValue.Null)
-                    : JsValue.FromObjectUnsafe(new InvalidOperationException("Generator functions cannot be constructed with 'new'."));
+                    ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"],
+                        JsValue.Null)
+                    : JsValue.FromObjectUnsafe(
+                        new InvalidOperationException("Generator functions cannot be constructed with 'new'."));
                 throw new ThrowSignal(errorJs);
             }
 

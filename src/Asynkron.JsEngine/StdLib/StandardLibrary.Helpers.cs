@@ -1,3 +1,5 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -6,6 +8,8 @@ using static Asynkron.JsEngine.StdLib.BooleanHelper;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StringHelper;
 using static Asynkron.JsEngine.StdLib.SymbolHelper;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -28,11 +32,13 @@ public static partial class StandardLibrary
                         candidate = objVal;
                         continue;
                     }
+
                     if (jsValue.IsNullOrUndefined)
                     {
                         accessor = null!;
                         return false;
                     }
+
                     // For primitives, use ObjectValue which contains the wrapped value
                     candidate = jsValue.ObjectValue;
                     continue;
@@ -87,6 +93,7 @@ public static partial class StandardLibrary
                     accessor = CreateSymbolWrapper(symbol, realm: realm);
                     return true;
                 }
+
                 accessor = null!;
                 return false;
             case JsValueKind.BigInt:
@@ -95,6 +102,7 @@ public static partial class StandardLibrary
                     accessor = CreateBigIntWrapper(bigInt, realm: realm);
                     return true;
                 }
+
                 accessor = null!;
                 return false;
             case JsValueKind.Object:
@@ -103,6 +111,7 @@ public static partial class StandardLibrary
                     accessor = objectLike;
                     return true;
                 }
+
                 accessor = null!;
                 return false;
             default:

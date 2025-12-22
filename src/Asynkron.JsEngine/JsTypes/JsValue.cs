@@ -1,6 +1,11 @@
+#region
+
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
+
+#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -53,6 +58,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             cache[i] = new JsValue((double)i);
         }
+
         return cache;
     }
 
@@ -72,6 +78,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             return IntegerCache[i];
         }
+
         return new JsValue(value);
     }
 
@@ -90,6 +97,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         {
             return ref IntegerCache[i];
         }
+
         // Fallback: store in scratch and return ref to it
         scratch = new JsValue(value);
         return ref scratch;
@@ -346,36 +354,57 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Gets the double value. Only valid when IsNumber is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public double AsDouble() => NumberValue;
+    public double AsDouble()
+    {
+        return NumberValue;
+    }
 
     /// <summary>Gets the boolean value. Only valid when IsBoolean is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool AsBoolean() => NumberValue != 0.0;
+    public bool AsBoolean()
+    {
+        return NumberValue != 0.0;
+    }
 
     /// <summary>Gets the string value. Only valid when IsString is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public string AsString() => ObjectValue switch
+    public string AsString()
     {
-        string s => s,
-        JsRopeString rope => rope.Flatten(),
-        _ => string.Empty
-    };
+        return ObjectValue switch
+        {
+            string s => s,
+            JsRopeString rope => rope.Flatten(),
+            _ => string.Empty
+        };
+    }
 
     /// <summary>Gets the BigInt value. Only valid when IsBigInt is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public JsBigInt AsBigInt() => (JsBigInt)ObjectValue!;
+    public JsBigInt AsBigInt()
+    {
+        return (JsBigInt)ObjectValue!;
+    }
 
     /// <summary>Gets the Symbol value. Only valid when IsSymbol is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Symbol AsSymbol() => (Symbol)ObjectValue!;
+    public Symbol AsSymbol()
+    {
+        return (Symbol)ObjectValue!;
+    }
 
     /// <summary>Gets the object value. Only valid when IsObject is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public JsObject? AsObject() => (JsObject)ObjectValue!;
+    public JsObject? AsObject()
+    {
+        return (JsObject)ObjectValue!;
+    }
 
     /// <summary>Gets the object value as a specific type. Only valid when IsObject is true.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T AsObject<T>() where T : class => (T)ObjectValue!;
+    public T AsObject<T>() where T : class
+    {
+        return (T)ObjectValue!;
+    }
 
     #endregion
 
@@ -390,6 +419,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = NumberValue;
             return true;
         }
+
         value = 0;
         return false;
     }
@@ -403,13 +433,14 @@ public readonly struct JsValue : IEquatable<JsValue>
             value = NumberValue != 0.0;
             return true;
         }
+
         value = false;
         return false;
     }
 
     /// <summary>Tries to get the string value. Returns true if this is a string.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetString([NotNullWhen(true)]out string? value)
+    public bool TryGetString([NotNullWhen(true)] out string? value)
     {
         if (Kind == JsValueKind.String)
         {
@@ -421,71 +452,77 @@ public readonly struct JsValue : IEquatable<JsValue>
             };
             return true;
         }
+
         value = null;
         return false;
     }
 
     /// <summary>Tries to get the Symbol value. Returns true if this is a Symbol.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetSymbol([NotNullWhen(true)]out Symbol? value)
+    public bool TryGetSymbol([NotNullWhen(true)] out Symbol? value)
     {
         if (Kind == JsValueKind.Symbol)
         {
             value = (Symbol)ObjectValue!;
             return true;
         }
+
         value = null;
         return false;
     }
 
     /// <summary>Tries to get the BigInt value. Returns true if this is a BigInt.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetBigInt([NotNullWhen(true)]out JsBigInt? value)
+    public bool TryGetBigInt([NotNullWhen(true)] out JsBigInt? value)
     {
         if (Kind == JsValueKind.BigInt)
         {
             value = (JsBigInt)ObjectValue!;
             return true;
         }
+
         value = null;
         return false;
     }
 
     /// <summary>Tries to get the object value. Returns true if this is an object.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetObject([NotNullWhen(true)]out JsObject? value)
+    public bool TryGetObject([NotNullWhen(true)] out JsObject? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsObject obj)
         {
             value = obj;
             return true;
         }
+
         value = null;
         return false;
     }
 
     /// <summary>Tries to get the object value as a specific type. Returns true if this is an object of that type.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetObject<T>([NotNullWhen(true)]out T? value) where T : class
+    public bool TryGetObject<T>([NotNullWhen(true)] out T? value) where T : class
     {
         if (Kind == JsValueKind.Object && ObjectValue is T obj)
         {
             value = obj;
             return true;
         }
+
         value = null;
         return false;
     }
 
     /// <summary>Tries to unwrap the value to a specific type from ObjectValue. Works for any kind.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryUnwrap<T>([NotNullWhen(true)]out T? value) where T : class
+    public bool TryUnwrap<T>([NotNullWhen(true)] out T? value) where T : class
     {
         if (ObjectValue is T obj)
         {
             value = obj;
             return true;
         }
+
         value = null;
         return false;
     }
@@ -495,13 +532,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// This is more efficient than TryGetObject&lt;IJsCallable&gt; in hot paths.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetCallable([NotNullWhen(true)]out IJsCallable? value)
+    public bool TryGetCallable([NotNullWhen(true)] out IJsCallable? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is IJsCallable callable)
         {
             value = callable;
             return true;
         }
+
         value = null;
         return false;
     }
@@ -511,13 +549,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// This is more efficient than TryGetObject&lt;IJsPropertyAccessor&gt; in hot paths.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetPropertyAccessor([NotNullWhen(true)]out IJsPropertyAccessor? value)
+    public bool TryGetPropertyAccessor([NotNullWhen(true)] out IJsPropertyAccessor? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is IJsPropertyAccessor accessor)
         {
             value = accessor;
             return true;
         }
+
         value = null;
         return false;
     }
@@ -527,13 +566,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// This is more efficient than TryGetObject&lt;IJsObjectLike&gt; in hot paths.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetObjectLike([NotNullWhen(true)]out IJsObjectLike? value)
+    public bool TryGetObjectLike([NotNullWhen(true)] out IJsObjectLike? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is IJsObjectLike objLike)
         {
             value = objLike;
             return true;
         }
+
         value = null;
         return false;
     }
@@ -542,13 +582,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Tries to get the value as a JsPromise. Uses enum check first to avoid runtime type checks for non-objects.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetPromise([NotNullWhen(true)]out JsPromise? value)
+    public bool TryGetPromise([NotNullWhen(true)] out JsPromise? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsPromise promise)
         {
             value = promise;
             return true;
         }
+
         value = null;
         return false;
     }
@@ -557,13 +598,14 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Tries to get the value as a JsArray. Uses enum check first to avoid runtime type checks for non-objects.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetArray([NotNullWhen(true)]out JsArray? value)
+    public bool TryGetArray([NotNullWhen(true)] out JsArray? value)
     {
         if (Kind == JsValueKind.Object && ObjectValue is JsArray array)
         {
             value = array;
             return true;
         }
+
         value = null;
         return false;
     }
@@ -661,7 +703,10 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     /// <summary>Creates a boolean JsValue.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsValue FromBoolean(bool value) => value ? True : False;
+    public static JsValue FromBoolean(bool value)
+    {
+        return value ? True : False;
+    }
 
     /// <summary>Creates a number JsValue, using cache for common values.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -711,9 +756,16 @@ public readonly struct JsValue : IEquatable<JsValue>
         get
         {
             // Fast path for boolean (most common in loop conditions)
-            if (Kind == JsValueKind.Boolean) return NumberValue != 0.0;
+            if (Kind == JsValueKind.Boolean)
+            {
+                return NumberValue != 0.0;
+            }
+
             // Fast path for objects (always truthy)
-            if (Kind == JsValueKind.Object) return true;
+            if (Kind == JsValueKind.Object)
+            {
+                return true;
+            }
 
             return Kind switch
             {
@@ -756,7 +808,10 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     public bool Equals(JsValue other)
     {
-        if (Kind != other.Kind) return false;
+        if (Kind != other.Kind)
+        {
+            return false;
+        }
 
         return Kind switch
         {
@@ -768,11 +823,14 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.String => string.Equals(AsString(), other.AsString(), StringComparison.Ordinal),
             JsValueKind.BigInt => ((JsBigInt)ObjectValue!).Equals((JsBigInt)other.ObjectValue!),
             JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(ObjectValue, other.ObjectValue),
-            _ => false,
+            _ => false
         };
     }
 
-    public override bool Equals(object? obj) => obj is JsValue other && Equals(other);
+    public override bool Equals(object? obj)
+    {
+        return obj is JsValue other && Equals(other);
+    }
 
     public override int GetHashCode()
     {
@@ -789,8 +847,15 @@ public readonly struct JsValue : IEquatable<JsValue>
         };
     }
 
-    public static bool operator ==(JsValue left, JsValue right) => left.Equals(right);
-    public static bool operator !=(JsValue left, JsValue right) => !left.Equals(right);
+    public static bool operator ==(JsValue left, JsValue right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(JsValue left, JsValue right)
+    {
+        return !left.Equals(right);
+    }
 
     #endregion
 
@@ -804,7 +869,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             JsValueKind.Null => "null",
             JsValueKind.Unit => "unit",
             JsValueKind.Boolean => NumberValue != 0.0 ? "true" : "false",
-            JsValueKind.Number => NumberValue.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsValueKind.Number => NumberValue.ToString(CultureInfo.InvariantCulture),
             JsValueKind.String => $"\"{AsString()}\"",
             JsValueKind.BigInt => $"{ObjectValue}n",
             JsValueKind.Symbol => ObjectValue?.ToString() ?? "Symbol()",
@@ -818,28 +883,97 @@ public readonly struct JsValue : IEquatable<JsValue>
     #region Implicit Conversions (for convenience)
 
     // Primitive conversions
-    public static implicit operator JsValue(double value) => new(value);
-    public static implicit operator JsValue(int value) => new((double)value);
-    public static implicit operator JsValue(long value) => new((double)value);
-    public static implicit operator JsValue(bool value) => value ? True : False;
-    public static implicit operator JsValue(string value) => new(value);
+    public static implicit operator JsValue(double value)
+    {
+        return new JsValue(value);
+    }
+
+    public static implicit operator JsValue(int value)
+    {
+        return new JsValue((double)value);
+    }
+
+    public static implicit operator JsValue(long value)
+    {
+        return new JsValue((double)value);
+    }
+
+    public static implicit operator JsValue(bool value)
+    {
+        return value ? True : False;
+    }
+
+    public static implicit operator JsValue(string value)
+    {
+        return new JsValue(value);
+    }
 
     // Object type conversions - reduces JsValue.FromObjectUnsafe() boilerplate
-    public static implicit operator JsValue(JsObject value) => new(value);
-    public static implicit operator JsValue(JsBigInt value) => new(value);
-    public static implicit operator JsValue(Symbol value) => new(value);
-    public static implicit operator JsValue(TypedAstSymbol value) => new(JsValueKind.Symbol, 0.0, value);
+    public static implicit operator JsValue(JsObject value)
+    {
+        return new JsValue(value);
+    }
+
+    public static implicit operator JsValue(JsBigInt value)
+    {
+        return new JsValue(value);
+    }
+
+    public static implicit operator JsValue(Symbol value)
+    {
+        return new JsValue(value);
+    }
+
+    public static implicit operator JsValue(TypedAstSymbol value)
+    {
+        return new JsValue(JsValueKind.Symbol, 0.0, value);
+    }
 
     // Non-JsObject types that implement IJsObjectLike or are wrapped as objects
-    public static implicit operator JsValue(HostFunction value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(TypedArrayBase value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsPromise value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsRegExp value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsDataView value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsMap value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsSet value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsWeakMap value) => new(JsValueKind.Object, 0.0, value);
-    public static implicit operator JsValue(JsWeakSet value) => new(JsValueKind.Object, 0.0, value);
+    public static implicit operator JsValue(HostFunction value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(TypedArrayBase value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsPromise value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsRegExp value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsDataView value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsMap value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsSet value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsWeakMap value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
+
+    public static implicit operator JsValue(JsWeakSet value)
+    {
+        return new JsValue(JsValueKind.Object, 0.0, value);
+    }
 
     #endregion
 }

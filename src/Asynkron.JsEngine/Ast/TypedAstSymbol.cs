@@ -1,8 +1,12 @@
+#region
+
 using System.Collections.Concurrent;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -18,7 +22,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     private static readonly ConcurrentDictionary<int, string> PropertyKeyCache = new();
     private static int NextId;
 
-    private static readonly HostFunction SymbolToStringFunction = new((JsValue thisValue, IReadOnlyList<JsValue> _) =>
+    private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
     {
         // Use TryUnwrap instead of TryGetObject because Symbol JsValues have Kind=Symbol, not Object
         if (thisValue.TryUnwrap<TypedAstSymbol>(out var typed))
@@ -55,14 +59,14 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
 
         if (string.Equals(name, "valueOf", StringComparison.Ordinal))
         {
-            value = (JsValue)new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => (JsValue)Unbox(thisValue), isConstructor: false);
+            value = (JsValue)new HostFunction((thisValue, _) => (JsValue)Unbox(thisValue), isConstructor: false);
             return true;
         }
 
         var toPrimitiveKey = PropertyKey(Symbols.ToPrimitive);
         if (string.Equals(name, toPrimitiveKey, StringComparison.Ordinal))
         {
-            value = (JsValue)new HostFunction((JsValue thisValue, IReadOnlyList<JsValue> _) => (JsValue)Unbox(thisValue), isConstructor: false);
+            value = (JsValue)new HostFunction((thisValue, _) => (JsValue)Unbox(thisValue), isConstructor: false);
             return true;
         }
 
@@ -83,6 +87,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             {
                 return sym;
             }
+
             // For boxed symbols: Kind=Object, ObjectValue=JsObject with __value__
             if (receiver.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("__value__", out var inner) &&
@@ -90,6 +95,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             {
                 return innerSym;
             }
+
             throw StandardLibrary.ThrowTypeError("Symbol.prototype valueOf called on incompatible receiver");
         }
     }

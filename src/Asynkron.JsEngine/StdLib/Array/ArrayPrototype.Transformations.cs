@@ -1,9 +1,13 @@
+#region
+
 using System.Text;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ArrayHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -324,6 +328,7 @@ public sealed partial class ArrayPrototype
         {
             depth = (long)depthNum;
         }
+
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
 
@@ -342,6 +347,7 @@ public sealed partial class ArrayPrototype
         {
             throw ThrowTypeError("Array.prototype.flatMap expects a callable mapper", realm: Realm);
         }
+
         var thisArg = args.Count > 1 ? args[1] : JsValue.Undefined;
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var sourceLength = (long)ToLengthOrZero(lengthValue);
@@ -460,7 +466,6 @@ public sealed partial class ArrayPrototype
                 }
 
                 return d > 0 ? 1 : d < 0 ? -1 : 0;
-
             });
         }
         else

@@ -1,13 +1,63 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
+#endregion
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private static JsValue ResolveThisValue(JsEnvironment environment, EvaluationContext context)
+    {
+        try
+        {
+            // Check if we're in an arrow function that has a lexical this environment.
+            // If so, read `this` from the original owning environment, not the arrow's local copy.
+            // This ensures that after super() updates the constructor's `this`, subsequent
+            // reads of `this` inside the arrow function see the updated value.
+            if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _,
+                    out var lexicalEnvValue) &&
+                lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
+            {
+                return lexicalThisEnv.GetJsValue(Symbol.This);
+            }
+
+            return environment.GetJsValue(Symbol.This);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                       StringComparison.Ordinal))
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+        }
+    }
+
+    /// <summary>
+    ///     Evaluates an import.meta expression. Returns the import.meta object for the current module.
+    /// </summary>
+    private static JsValue EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
+    {
+        // Try to get the import.meta object from the environment
+        // If running in module context, this should be set by the module loader
+        if (environment.TryGetJsValue(Symbol.ImportMeta, out var importMeta))
+        {
+            return importMeta;
+        }
+
+        // Return a basic import.meta object with a url property
+        var metaObject = new JsObject();
+        metaObject.RealmState = context.RealmState;
+        metaObject.SetPrototype(null);
+        // Set a default URL if we can determine it from the environment
+        metaObject.SetProperty("url", string.Empty);
+        return (JsValue)metaObject;
+    }
+
     extension(ExpressionNode? extendsExpression)
     {
         private (IJsEnvironmentAwareCallable? Constructor, IJsPropertyAccessor? Prototype) ResolveSuperclass(
@@ -137,11 +187,15 @@ public static partial class TypedAstEvaluator
             {
                 RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
                 ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
-                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(functionExpression.CreateFunctionValue(environment, context,
-                    createFunctionNameEnvironment: true)),
-                DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment.EvaluateDestructuringAssignment(environment, context),
-                PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(environment, context),
-                IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment, context),
+                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
+                    functionExpression.CreateFunctionValue(environment, context,
+                        true)),
+                DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment
+                    .EvaluateDestructuringAssignment(environment, context),
+                PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(
+                    environment, context),
+                IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment,
+                    context),
                 SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
                 NewExpression newExpression => newExpression.EvaluateNew(environment, context),
                 NewTargetExpression => environment.TryGetJsValue(Symbol.NewTarget, out var newTarget)
@@ -175,7 +229,10 @@ public static partial class TypedAstEvaluator
             };
         }
 
-        private bool IsAnonymousFunctionDefinition() => ExpressionNode.IsAnonymousFunctionDefinitionNode(expression);
+        private bool IsAnonymousFunctionDefinition()
+        {
+            return ExpressionNode.IsAnonymousFunctionDefinitionNode(expression);
+        }
 
         internal static bool IsAnonymousFunctionDefinitionNode(ExpressionNode node)
         {
@@ -220,7 +277,8 @@ public static partial class TypedAstEvaluator
                     case BinaryExpression binary:
                         return binary.Left.ContainsDirectEvalCall() || binary.Right.ContainsDirectEvalCall();
                     case ConditionalExpression cond:
-                        return cond.Test.ContainsDirectEvalCall() || cond.Consequent.ContainsDirectEvalCall() || cond.Alternate.ContainsDirectEvalCall();
+                        return cond.Test.ContainsDirectEvalCall() || cond.Consequent.ContainsDirectEvalCall() ||
+                               cond.Alternate.ContainsDirectEvalCall();
                     case MemberExpression member:
                         return member.Target.ContainsDirectEvalCall() || member.Property.ContainsDirectEvalCall();
                     case UnaryExpression unary:
@@ -264,7 +322,8 @@ public static partial class TypedAstEvaluator
 
                         return false;
                     case TaggedTemplateExpression tagged:
-                        if (tagged.Tag.ContainsDirectEvalCall() || tagged.StringsArray.ContainsDirectEvalCall() || tagged.RawStringsArray.ContainsDirectEvalCall())
+                        if (tagged.Tag.ContainsDirectEvalCall() || tagged.StringsArray.ContainsDirectEvalCall() ||
+                            tagged.RawStringsArray.ContainsDirectEvalCall())
                         {
                             return true;
                         }
@@ -286,7 +345,6 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
-
     }
 
     extension(ExpressionNode callee)
@@ -395,7 +453,8 @@ public static partial class TypedAstEvaluator
                     {
                         IdentifierExpression id => id.Name.Name,
                         LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
-                        _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context), context)
+                        _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context),
+                            context)
                     };
                 }
 
@@ -440,7 +499,7 @@ public static partial class TypedAstEvaluator
                     propertyName,
                     context,
                     context.CurrentScope.IsStrict,
-                    allowPrivate: !member.IsComputed);
+                    !member.IsComputed);
                 var value = handle.GetJsValue();
                 if (context.ShouldStopEvaluation)
                 {
@@ -459,7 +518,8 @@ public static partial class TypedAstEvaluator
                         var withValue = JsEnvironment.GetWithBindingValueJsValue(withBinding);
                         return (withValue, JsValue.FromObjectUnsafe(withBinding.BindingObject), false);
                     }
-                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
+                    catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                                   StringComparison.Ordinal))
                     {
                         // Convert to JavaScript ReferenceError so it can be caught by JavaScript try-catch
                         var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
@@ -530,7 +590,7 @@ public static partial class TypedAstEvaluator
                         propertyValueJs,
                         context,
                         context.CurrentScope.IsStrict,
-                        allowPrivate: !member.IsComputed);
+                        !member.IsComputed);
                     return handle.Delete();
                 }
                 case IdentifierExpression identifier when context.CurrentScope.IsStrict:
@@ -562,49 +622,5 @@ public static partial class TypedAstEvaluator
                 _ => property.GetType().Name
             };
         }
-    }
-
-    private static JsValue ResolveThisValue(JsEnvironment environment, EvaluationContext context)
-    {
-        try
-        {
-            // Check if we're in an arrow function that has a lexical this environment.
-            // If so, read `this` from the original owning environment, not the arrow's local copy.
-            // This ensures that after super() updates the constructor's `this`, subsequent
-            // reads of `this` inside the arrow function see the updated value.
-            if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, allowUninitialized: true, out _, out var lexicalEnvValue) &&
-                lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
-            {
-                return lexicalThisEnv.GetJsValue(Symbol.This);
-            }
-            return environment.GetJsValue(Symbol.This);
-        }
-        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                     StringComparison.Ordinal))
-        {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
-        }
-    }
-
-    /// <summary>
-    ///     Evaluates an import.meta expression. Returns the import.meta object for the current module.
-    /// </summary>
-    private static JsValue EvaluateImportMeta(JsEnvironment environment, EvaluationContext context)
-    {
-        // Try to get the import.meta object from the environment
-        // If running in module context, this should be set by the module loader
-        if (environment.TryGetJsValue(Symbol.ImportMeta, out var importMeta))
-        {
-            return importMeta;
-        }
-
-        // Return a basic import.meta object with a url property
-        var metaObject = new JsObject();
-        metaObject.RealmState = context.RealmState;
-        metaObject.SetPrototype(null);
-        // Set a default URL if we can determine it from the environment
-        metaObject.SetProperty("url", string.Empty);
-        return (JsValue)metaObject;
     }
 }

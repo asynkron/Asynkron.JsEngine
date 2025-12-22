@@ -1,16 +1,19 @@
+#region
+
 using System.Collections.Immutable;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
 internal sealed class FunctionParameterNamesPlan
 {
-    internal ImmutableArray<Symbol> ParameterNames { get; }
-
     private FunctionParameterNamesPlan(ImmutableArray<Symbol> parameterNames)
     {
         ParameterNames = parameterNames;
     }
+
+    internal ImmutableArray<Symbol> ParameterNames { get; }
 
     internal static FunctionParameterNamesPlan Build(FunctionExpression function)
     {

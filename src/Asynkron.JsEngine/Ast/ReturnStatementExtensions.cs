@@ -1,5 +1,9 @@
+#region
+
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -8,45 +12,6 @@ public static partial class TypedAstEvaluator
     // Debug counters - remove after testing
     public static long PreEvalPathCount;
     public static long NormalPathCount;
-
-    extension(ReturnStatement statement)
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue EvaluateReturnJsValue(
-            JsEnvironment environment,
-            EvaluationContext context)
-        {
-            JsValue jsValue;
-
-            // Use specialized pre-evaluation path for binary expressions with multiple calls
-            if (statement is { UseArgumentPreEvaluation: true, Expression: BinaryExpression { Left: CallExpression leftCall, Right: CallExpression rightCall } binary })
-            {
-                Interlocked.Increment(ref PreEvalPathCount);
-                jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
-            }
-            // Use specialized pre-evaluation path for call * identifier pattern
-            else if (statement is { UseArgumentPreEvaluation: true, Expression: BinaryExpression { Left: CallExpression callLeft, Right: IdentifierExpression idRight } binaryCallId })
-            {
-                Interlocked.Increment(ref PreEvalPathCount);
-                jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);
-            }
-            else
-            {
-                Interlocked.Increment(ref NormalPathCount);
-                jsValue = statement.Expression is null
-                    ? JsValue.Undefined
-                    : statement.Expression.EvaluateExpression(environment, context);
-            }
-
-            if (context.ShouldStopEvaluation)
-            {
-                return jsValue;
-            }
-
-            context.SetReturn(jsValue);
-            return jsValue;
-        }
-    }
 
     /// <summary>
     /// Specialized evaluator for binary expressions with pre-evaluated arguments.
@@ -77,7 +42,10 @@ public static partial class TypedAstEvaluator
         if (leftCall.Arguments is [{ IsSpread: false }, ..])
         {
             leftArg0 = leftCall.Arguments[0].Expression.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation) return JsValue.Undefined;
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
         }
 
         // Right call arguments
@@ -85,15 +53,24 @@ public static partial class TypedAstEvaluator
         if (rightCall.Arguments is [{ IsSpread: false }, ..])
         {
             rightArg0 = rightCall.Arguments[0].Expression.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation) return JsValue.Undefined;
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
         }
 
         // Phase 2: Resolve callees
         var leftCalleeValue = leftCall.Callee.EvaluateExpression(environment, context);
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         var rightCalleeValue = rightCall.Callee.EvaluateExpression(environment, context);
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         // Check if both are TypedFunctions with 1 argument (optimal case)
         if (!leftCalleeValue.TryGetObject<TypedFunction>(out var leftFunc) ||
@@ -117,7 +94,10 @@ public static partial class TypedAstEvaluator
 
         var leftResult = leftFunc.InvokeWithContext1Reuse(leftArg0, JsValue.Undefined, context, environment);
         context.CallDepth--;
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         if (++context.CallDepth > context.MaxCallDepth)
         {
@@ -126,7 +106,10 @@ public static partial class TypedAstEvaluator
 
         var rightResult = rightFunc.InvokeWithContext1Reuse(rightArg0, JsValue.Undefined, context, environment);
         context.CallDepth--;
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         // Phase 4: Apply the binary operator
         return ApplyBinaryOperator(binary.Operator, leftResult, rightResult, context);
@@ -152,16 +135,25 @@ public static partial class TypedAstEvaluator
         if (call.Arguments is [{ IsSpread: false }, ..])
         {
             callArg0 = call.Arguments[0].Expression.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation) return JsValue.Undefined;
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
         }
 
         // Pre-evaluate the identifier (the right side of the binary expression)
         var identifierValue = identifier.EvaluateIdentifier(environment, context);
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         // Phase 2: Resolve callee
         var calleeValue = call.Callee.EvaluateExpression(environment, context);
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         // Check if it's a TypedFunction with 1 argument (optimal case)
         if (!calleeValue.TryGetObject<TypedFunction>(out var func) ||
@@ -181,7 +173,10 @@ public static partial class TypedAstEvaluator
 
         var callResult = func.InvokeWithContext1Reuse(callArg0, JsValue.Undefined, context, environment);
         context.CallDepth--;
-        if (context.ShouldStopEvaluation) return JsValue.Undefined;
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
 
         // Phase 4: Apply the binary operator using pre-evaluated identifier value
         return ApplyBinaryOperator(binary.Operator, callResult, identifierValue, context);
@@ -203,7 +198,8 @@ public static partial class TypedAstEvaluator
     /// Applies a binary operator to two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static JsValue ApplyBinaryOperator(BinaryOperator op, JsValue left, JsValue right, EvaluationContext context)
+    private static JsValue ApplyBinaryOperator(BinaryOperator op, JsValue left, JsValue right,
+        EvaluationContext context)
     {
         return op switch
         {
@@ -229,5 +225,58 @@ public static partial class TypedAstEvaluator
             BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
             _ => throw new NotSupportedException($"Operator '{op}' is not supported in pre-evaluated path.")
         };
+    }
+
+    extension(ReturnStatement statement)
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue EvaluateReturnJsValue(
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            JsValue jsValue;
+
+            // Use specialized pre-evaluation path for binary expressions with multiple calls
+            if (statement is
+                {
+                    UseArgumentPreEvaluation: true,
+                    Expression: BinaryExpression
+                    {
+                        Left: CallExpression leftCall, Right: CallExpression rightCall
+                    } binary
+                })
+            {
+                Interlocked.Increment(ref PreEvalPathCount);
+                jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
+            }
+            // Use specialized pre-evaluation path for call * identifier pattern
+            else if (statement is
+                     {
+                         UseArgumentPreEvaluation: true,
+                         Expression: BinaryExpression
+                         {
+                             Left: CallExpression callLeft, Right: IdentifierExpression idRight
+                         } binaryCallId
+                     })
+            {
+                Interlocked.Increment(ref PreEvalPathCount);
+                jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);
+            }
+            else
+            {
+                Interlocked.Increment(ref NormalPathCount);
+                jsValue = statement.Expression is null
+                    ? JsValue.Undefined
+                    : statement.Expression.EvaluateExpression(environment, context);
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                return jsValue;
+            }
+
+            context.SetReturn(jsValue);
+            return jsValue;
+        }
     }
 }

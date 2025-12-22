@@ -1,4 +1,7 @@
+#region
+
 using System.Buffers;
+using System.Collections;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
@@ -7,53 +10,27 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
+#endregion
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
 public class JsObject : IDictionary<string, object?>, IJsObjectLike,
-        IPrivateBrandHolder,
-        IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
-    {
+    IPrivateBrandHolder,
+    IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+{
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
-
-    private sealed class JsObjectState
-    {
-        internal readonly HybridDictionary<JsValue> Storage = new();
-        internal readonly Dictionary<string, PropertyDescriptor> Descriptors = new(StringComparer.Ordinal);
-        internal readonly HashSet<object> PrivateBrands = new(ReferenceEqualityComparer<object>.Instance);
-        internal readonly Dictionary<string, object?> PrivateFields = new(StringComparer.Ordinal);
-        internal readonly LinkedList<string> PropertyInsertionOrder = [];
-        internal readonly Dictionary<string, LinkedListNode<string>> PropertyInsertionNodes = new(StringComparer.Ordinal);
-    }
+    private JsPromise? _promiseSlot;
 
     private JsObjectState? _state;
-
-    internal int MutationVersion { get; private set; }
-
-    private void MarkMutated()
-    {
-        unchecked
-        {
-            MutationVersion++;
-        }
-    }
     private bool _trackArrayLength;
     private double _trackedArrayLength;
 
     private IVirtualPropertyProvider? _virtualPropertyProvider;
-    private JsPromise? _promiseSlot;
-
-    private JsObjectState State => _state ??= new JsObjectState();
-
-    internal RealmState? RealmState { get; set; }
-
-    public bool IsFrozen { get; private set; }
-    public bool IsExtensible { get; private set; } = true;
-    internal bool IsConstructing { get; private set; }
 
     public JsObject(object? prototype = null)
     {
@@ -63,8 +40,352 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
+    internal int MutationVersion { get; private set; }
+
+    private JsObjectState State => _state ??= new JsObjectState();
+
+    internal RealmState? RealmState { get; set; }
+    internal bool IsConstructing { get; private set; }
+
     // Host-only metadata to help debugging prototype wiring without leaking into JS state.
     public string? Origin { get; set; }
+
+    // IDictionary<string, object?> implementation - wraps JsValue storage
+    public ICollection<string> Keys => _state?.Storage.Keys ?? Array.Empty<string>();
+    public ICollection<object?> Values => _state?.Storage.Values.Select(v => v.ToObject()).ToList() ?? [];
+    public int Count => _state?.Storage.Count ?? 0;
+    public bool IsReadOnly => false;
+
+    // External API uses object? for compatibility
+    public object? this[string key]
+    {
+        get
+        {
+            if (_state is null || !_state.Storage.TryGetValue(key, out var jsValue))
+            {
+                throw new KeyNotFoundException();
+            }
+
+            return jsValue.ToObject();
+        }
+        set
+        {
+            MarkMutated();
+            State.Storage[key] = JsValue.FromObjectUnsafe(value);
+        }
+    }
+
+    public void Add(string key, object? value)
+    {
+        MarkMutated();
+        State.Storage.Add(key, JsValue.FromObjectUnsafe(value));
+    }
+
+    public bool ContainsKey(string key)
+    {
+        return _state?.Storage.ContainsKey(key) ?? false;
+    }
+
+    public bool Remove(string key)
+    {
+        if (_state is null)
+        {
+            return false;
+        }
+
+        var removed = _state.Storage.Remove(key);
+        if (removed)
+        {
+            MarkMutated();
+        }
+
+        return removed;
+    }
+
+    public bool TryGetValue(string key, out object? value)
+    {
+        if (_state is not null && _state.Storage.TryGetValue(key, out var jsValue))
+        {
+            value = jsValue.ToObject();
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item)
+    {
+        MarkMutated();
+        State.Storage.Add(item.Key, JsValue.FromObjectUnsafe(item.Value));
+    }
+
+    public void Clear()
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        MarkMutated();
+        _state.Storage.Clear();
+    }
+
+    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item)
+    {
+        return _state is not null &&
+               _state.Storage.TryGetValue(item.Key, out var v) &&
+               Equals(v.ToObject(), item.Value);
+    }
+
+    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex)
+    {
+        if (_state is null)
+        {
+            return;
+        }
+
+        foreach (var kvp in _state.Storage)
+        {
+            array[arrayIndex++] = new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject());
+        }
+    }
+
+    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item)
+    {
+        if (_state is null ||
+            !_state.Storage.TryGetValue(item.Key, out var v) ||
+            !Equals(v.ToObject(), item.Value) ||
+            !_state.Storage.Remove(item.Key))
+        {
+            return false;
+        }
+
+        MarkMutated();
+        return true;
+    }
+
+    public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
+    {
+        return (_state?.Storage ?? [])
+            .Select(kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject()))
+            .GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    public bool IsExtensible { get; private set; } = true;
+
+    public void PreventExtensions()
+    {
+        MarkMutated();
+        IsExtensible = false;
+    }
+
+    public bool IsFrozen { get; private set; }
+
+    public JsObject? Prototype { get; private set; }
+
+    public bool IsSealed { get; private set; }
+
+    IEnumerable<string> IJsObjectLike.Keys => _state?.Storage.Keys ?? Array.Empty<string>();
+
+    public void SetPrototype(object? candidate)
+    {
+        MarkMutated();
+        var previous = PrototypeAccessor ?? Prototype;
+        PrototypeAccessor = candidate as IJsPropertyAccessor;
+        Prototype = candidate as JsObject;
+
+        if (!ReferenceEquals(previous, candidate))
+        {
+            RealmState?.Logger?.LogInformation(
+                "Prototype reassigned on {ObjectId}: {OldPrototype} -> {NewPrototype}",
+                RuntimeHelpers.GetHashCode(this),
+                DescribePrototype(previous),
+                DescribePrototype(candidate));
+        }
+    }
+
+    public void DefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        DefinePropertyInternal(name, descriptor);
+    }
+
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
+    {
+        if (name.IsPrivateSlotName())
+        {
+            return null;
+        }
+
+        var state = _state;
+        if (state is not null && state.Descriptors.TryGetValue(name, out var descriptor))
+        {
+            return descriptor;
+        }
+
+        if (_virtualPropertyProvider is not null &&
+            (state is null || !state.Descriptors.ContainsKey(name)) &&
+            !ContainsKey(name) &&
+            _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
+        {
+            return virtualDescriptor;
+        }
+
+        // If no explicit descriptor but property exists, return default descriptor
+        if (TryGetValue(name, out var existingValue))
+        {
+            return new PropertyDescriptor
+            {
+                Value = existingValue, Writable = true, Enumerable = true, Configurable = true
+            };
+        }
+
+        return null;
+    }
+
+    // IJsPropertyAccessor interface implementation with JsValue
+    public void SetProperty(string name, JsValue value)
+    {
+        SetPropertyJsValue(name, value, JsValue.FromObjectUnsafe(this));
+    }
+
+    public void SetProperty(string name, JsValue value, JsValue receiver)
+    {
+        SetPropertyJsValue(name, value, receiver);
+    }
+
+    public void Seal()
+    {
+        MarkMutated();
+        PreventExtensions();
+        IsSealed = true;
+
+        var state = _state;
+        if (state is null)
+        {
+            return;
+        }
+
+        // Update all existing descriptors to be non-configurable
+        foreach (var key in state.Storage.Keys.ToArray())
+        {
+            if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
+                key.StartsWith(SetterPrefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (state.Descriptors.TryGetValue(key, out var desc))
+            {
+                desc.Configurable = false;
+            }
+            else
+            {
+                state.Descriptors[key] = new PropertyDescriptor
+                {
+                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
+                };
+            }
+        }
+    }
+
+    // IJsPropertyAccessor interface implementation with JsValue
+    public virtual bool TryGetProperty(string name, out JsValue value)
+    {
+        // Super-fast path: direct storage access for simple data properties
+        // This bypasses descriptors and virtual providers when they don't apply
+        if (_virtualPropertyProvider is null &&
+            !(_state?.Descriptors.ContainsKey(name) ?? false) &&
+            !name.IsPrivateSlotName())
+        {
+            if (TryGetJsValue(name, out value))
+            {
+                return true;
+            }
+
+            // Check prototype chain if we have one
+            if (Prototype is JsObject protoObj)
+            {
+                return protoObj.TryGetProperty(name, out value);
+            }
+
+            if (PrototypeAccessor is IJsPropertyAccessor protoAccessor)
+            {
+                return protoAccessor.TryGetProperty(name, out value);
+            }
+
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        // Slow path: full property lookup with descriptors, virtual providers, etc.
+        // Use JsValue version to avoid boxing
+        return TryGetPropertyInternalJsValue(name, out value);
+    }
+
+    public virtual bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+    {
+        // Use JsValue version to avoid boxing
+        return TryGetPropertyJsValue(name, receiver, 0, null, out value);
+    }
+
+    public IEnumerable<string> GetOwnPropertyNames()
+    {
+        foreach (var key in EnumerateOwnKeysInOrder(false, true))
+        {
+            yield return key;
+        }
+    }
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
+    {
+        return EnumerateOwnKeysInOrder(includeSymbols, includeNonEnumerable);
+    }
+
+    public bool Delete(string name)
+    {
+        return DeleteOwnProperty(name);
+    }
+
+    public IEnumerable<string> GetEnumerablePropertyNames()
+    {
+        foreach (var key in EnumerateOwnKeysInOrder(false, false))
+        {
+            yield return key;
+        }
+    }
+
+    public void AddPrivateBrand(object brand)
+    {
+        MarkMutated();
+        State.PrivateBrands.Add(brand);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool HasPrivateBrand(object brand)
+    {
+        return _state?.PrivateBrands.Contains(brand) ?? false;
+    }
+
+    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
+    {
+        return DefinePropertyInternal(name, descriptor);
+    }
+
+    public IJsPropertyAccessor? PrototypeAccessor { get; private set; }
+
+    private void MarkMutated()
+    {
+        unchecked
+        {
+            MutationVersion++;
+        }
+    }
 
     internal void SetPromiseSlot(JsPromise promise)
     {
@@ -94,43 +415,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         IsConstructing = false;
     }
 
-    public void PreventExtensions()
-    {
-        MarkMutated();
-        IsExtensible = false;
-    }
-
-    public JsObject? Prototype { get; private set; }
-    public IJsPropertyAccessor? PrototypeAccessor { get; private set; }
-
-    public bool IsSealed { get; private set; }
-
-    IEnumerable<string> IJsObjectLike.Keys => _state?.Storage.Keys ?? Array.Empty<string>();
-
-    // IDictionary<string, object?> implementation - wraps JsValue storage
-    public ICollection<string> Keys => _state?.Storage.Keys ?? Array.Empty<string>();
-    public ICollection<object?> Values => _state?.Storage.Values.Select(v => v.ToObject()).ToList() ?? [];
-    public int Count => _state?.Storage.Count ?? 0;
-    public bool IsReadOnly => false;
-
-    // External API uses object? for compatibility
-    public object? this[string key]
-    {
-        get
-        {
-            if (_state is null || !_state.Storage.TryGetValue(key, out var jsValue))
-            {
-                throw new KeyNotFoundException();
-            }
-            return jsValue.ToObject();
-        }
-        set
-        {
-            MarkMutated();
-            State.Storage[key] = JsValue.FromObjectUnsafe(value);
-        }
-    }
-
     // Internal fast path - no boxing
     internal JsValue GetJsValue(string key)
     {
@@ -138,13 +422,16 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             throw new KeyNotFoundException();
         }
+
         return jsValue;
     }
+
     internal void SetJsValue(string key, JsValue value)
     {
         MarkMutated();
         State.Storage[key] = value;
     }
+
     internal bool TryGetJsValue(string key, out JsValue value)
     {
         if (_state is not null)
@@ -154,50 +441,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         value = default;
         return false;
-    }
-
-    public void Add(string key, object? value)
-    {
-        MarkMutated();
-        State.Storage.Add(key, JsValue.FromObjectUnsafe(value));
-    }
-    public bool ContainsKey(string key) => _state?.Storage.ContainsKey(key) ?? false;
-    public bool Remove(string key)
-    {
-        if (_state is null)
-        {
-            return false;
-        }
-        var removed = _state.Storage.Remove(key);
-        if (removed)
-        {
-            MarkMutated();
-        }
-        return removed;
-    }
-    public bool TryGetValue(string key, out object? value)
-    {
-        if (_state is not null && _state.Storage.TryGetValue(key, out var jsValue))
-        {
-            value = jsValue.ToObject();
-            return true;
-        }
-        value = null;
-        return false;
-    }
-    void ICollection<KeyValuePair<string, object?>>.Add(KeyValuePair<string, object?> item)
-    {
-        MarkMutated();
-        State.Storage.Add(item.Key, JsValue.FromObjectUnsafe(item.Value));
-    }
-    public void Clear()
-    {
-        if (_state is null)
-        {
-            return;
-        }
-        MarkMutated();
-        _state.Storage.Clear();
     }
 
     internal void CloneFromSnapshot(
@@ -289,96 +532,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         RealmState = original.RealmState is null ? null : newRealm;
         MutationVersion = original.MutationVersion;
     }
-    bool ICollection<KeyValuePair<string, object?>>.Contains(KeyValuePair<string, object?> item) =>
-        _state is not null &&
-        _state.Storage.TryGetValue(item.Key, out var v) &&
-        Equals(v.ToObject(), item.Value);
-
-    void ICollection<KeyValuePair<string, object?>>.CopyTo(KeyValuePair<string, object?>[] array, int arrayIndex)
-    {
-        if (_state is null)
-        {
-            return;
-        }
-
-        foreach (var kvp in _state.Storage)
-        {
-            array[arrayIndex++] = new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject());
-        }
-    }
-
-    bool ICollection<KeyValuePair<string, object?>>.Remove(KeyValuePair<string, object?> item)
-    {
-        if (_state is null ||
-            !_state.Storage.TryGetValue(item.Key, out var v) ||
-            !Equals(v.ToObject(), item.Value) ||
-            !_state.Storage.Remove(item.Key))
-        {
-            return false;
-        }
-        MarkMutated();
-        return true;
-    }
-    public IEnumerator<KeyValuePair<string, object?>> GetEnumerator() =>
-        (_state?.Storage ?? [])
-        .Select(kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject()))
-        .GetEnumerator();
-    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-
-    public void SetPrototype(object? candidate)
-    {
-        MarkMutated();
-        var previous = PrototypeAccessor ?? Prototype;
-        PrototypeAccessor = candidate as IJsPropertyAccessor;
-        Prototype = candidate as JsObject;
-
-        if (!ReferenceEquals(previous, candidate))
-        {
-            RealmState?.Logger?.LogInformation(
-                "Prototype reassigned on {ObjectId}: {OldPrototype} -> {NewPrototype}",
-                RuntimeHelpers.GetHashCode(this),
-                DescribePrototype(previous),
-                DescribePrototype(candidate));
-        }
-    }
-
-    public void DefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        DefinePropertyInternal(name, descriptor);
-    }
-
-    public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-    {
-        if (name.IsPrivateSlotName())
-        {
-            return null;
-        }
-
-        var state = _state;
-        if (state is not null && state.Descriptors.TryGetValue(name, out var descriptor))
-        {
-            return descriptor;
-        }
-
-        if (_virtualPropertyProvider is not null &&
-            (state is null || !state.Descriptors.ContainsKey(name)) &&
-            !ContainsKey(name) &&
-            _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
-        {
-            return virtualDescriptor;
-        }
-
-        // If no explicit descriptor but property exists, return default descriptor
-        if (TryGetValue(name, out var existingValue))
-        {
-            return new PropertyDescriptor
-            {
-                Value = existingValue, Writable = true, Enumerable = true, Configurable = true
-            };
-        }
-
-        return null;
-    }
 
     /// <summary>
     /// Returns true if any descriptor key is a numeric array index.
@@ -391,6 +544,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             return false;
         }
+
         foreach (var key in state.Descriptors.Keys)
         {
             if (uint.TryParse(key, out _))
@@ -398,18 +552,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 return true;
             }
         }
+
         return false;
-    }
-
-    // IJsPropertyAccessor interface implementation with JsValue
-    public void SetProperty(string name, JsValue value)
-    {
-        SetPropertyJsValue(name, value, JsValue.FromObjectUnsafe(this));
-    }
-
-    public void SetProperty(string name, JsValue value, JsValue receiver)
-    {
-        SetPropertyJsValue(name, value, receiver);
     }
 
     // Fast path for JsValue that avoids boxing entirely
@@ -442,6 +586,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 TrackPropertyInsertion(name);
             }
+
             return;
         }
 
@@ -452,8 +597,16 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     private void TrackArrayWriteJsValue(string name)
     {
-        if (!_trackArrayLength) return;
-        if (!uint.TryParse(name, out var idx)) return;
+        if (!_trackArrayLength)
+        {
+            return;
+        }
+
+        if (!uint.TryParse(name, out var idx))
+        {
+            return;
+        }
+
         if (!(idx >= _trackedArrayLength))
         {
             return;
@@ -518,7 +671,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        inheritedDesc.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
+                        inheritedDesc.Set.Invoke([JsValue.FromObjectUnsafe(value)],
+                            JsValue.FromObjectUnsafe(receiver ?? this));
                         return;
                     }
 
@@ -621,80 +775,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
-    public void Seal()
-    {
-        MarkMutated();
-        PreventExtensions();
-        IsSealed = true;
-
-        var state = _state;
-        if (state is null)
-        {
-            return;
-        }
-
-        // Update all existing descriptors to be non-configurable
-        foreach (var key in state.Storage.Keys.ToArray())
-        {
-            if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) || key.StartsWith(SetterPrefix, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (state.Descriptors.TryGetValue(key, out var desc))
-            {
-                desc.Configurable = false;
-            }
-            else
-            {
-                state.Descriptors[key] = new PropertyDescriptor
-                {
-                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
-                };
-            }
-        }
-    }
-
-    // IJsPropertyAccessor interface implementation with JsValue
-    public virtual bool TryGetProperty(string name, out JsValue value)
-    {
-        // Super-fast path: direct storage access for simple data properties
-        // This bypasses descriptors and virtual providers when they don't apply
-        if (_virtualPropertyProvider is null &&
-            !(_state?.Descriptors.ContainsKey(name) ?? false) &&
-            !name.IsPrivateSlotName())
-        {
-            if (TryGetJsValue(name, out value))
-            {
-                return true;
-            }
-
-            // Check prototype chain if we have one
-            if (Prototype is JsObject protoObj)
-            {
-                return protoObj.TryGetProperty(name, out value);
-            }
-
-            if (PrototypeAccessor is IJsPropertyAccessor protoAccessor)
-            {
-                return protoAccessor.TryGetProperty(name, out value);
-            }
-
-            value = JsValue.Undefined;
-            return false;
-        }
-
-        // Slow path: full property lookup with descriptors, virtual providers, etc.
-        // Use JsValue version to avoid boxing
-        return TryGetPropertyInternalJsValue(name, out value);
-    }
-
-    public virtual bool TryGetProperty(string name, JsValue receiver, out JsValue value)
-    {
-        // Use JsValue version to avoid boxing
-        return TryGetPropertyJsValue(name, receiver, 0, null, out value);
-    }
-
     /// <summary>
     /// JsValue version of TryGetPropertyInternal that avoids boxing.
     /// </summary>
@@ -708,7 +788,9 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         // Fast path: check own property first without allocating HashSet
         if (TryGetOwnPropertyJsValue(name, JsValue.FromObjectUnsafe(this), null, out value))
+        {
             return true;
+        }
 
         // Fast path: no prototype chain to walk
         if (Prototype is null && PrototypeAccessor is null)
@@ -753,7 +835,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                         [],
                                         receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
                                         context,
-                                        ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
+                                        ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine
+                                            ?.GlobalEnvironment);
                                 }
                                 catch (ThrowSignal signal)
                                 {
@@ -819,19 +902,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return false;
     }
 
-    public IEnumerable<string> GetOwnPropertyNames()
-    {
-        foreach (var key in EnumerateOwnKeysInOrder(false, true))
-        {
-            yield return key;
-        }
-    }
-
-    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true)
-    {
-        return EnumerateOwnKeysInOrder(includeSymbols, includeNonEnumerable);
-    }
-
     internal void SeedOwnPropertyInsertion(string name)
     {
         TrackPropertyInsertion(name);
@@ -849,36 +919,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             SeedOwnPropertyInsertion(existing);
         }
-    }
-
-    public bool Delete(string name)
-    {
-        return DeleteOwnProperty(name);
-    }
-
-    public IEnumerable<string> GetEnumerablePropertyNames()
-    {
-        foreach (var key in EnumerateOwnKeysInOrder(false, false))
-        {
-            yield return key;
-        }
-    }
-
-    public void AddPrivateBrand(object brand)
-    {
-        MarkMutated();
-        State.PrivateBrands.Add(brand);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasPrivateBrand(object brand)
-    {
-        return _state?.PrivateBrands.Contains(brand) ?? false;
-    }
-
-    public bool TryDefineProperty(string name, PropertyDescriptor descriptor)
-    {
-        return DefinePropertyInternal(name, descriptor);
     }
 
     /// <summary>
@@ -965,6 +1005,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     TrackArrayIndexWriteIfNeeded(name);
                 }
             }
+
             return true;
         }
 
@@ -996,6 +1037,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 TrackArrayIndexWriteIfNeeded(name);
             }
         }
+
         return true;
     }
 
@@ -1061,6 +1103,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     TrackArrayIndexWriteIfNeeded(name);
                 }
             }
+
             return true;
         }
 
@@ -1092,6 +1135,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 TrackArrayIndexWriteIfNeeded(name);
             }
         }
+
         return true;
     }
 
@@ -1636,7 +1680,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         // Update all existing descriptors to be non-writable and non-configurable
         foreach (var key in state.Storage.Keys.ToArray())
         {
-            if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) || key.StartsWith(SetterPrefix, StringComparison.Ordinal))
+            if (key.StartsWith(GetterPrefix, StringComparison.Ordinal) ||
+                key.StartsWith(SetterPrefix, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -1667,7 +1712,9 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         // Fast path: check own property first without allocating HashSet
         if (TryGetOwnProperty(name, receiver ?? this, context, out value))
+        {
             return true;
+        }
 
         // Fast path: no prototype chain to walk
         if (Prototype is null && PrototypeAccessor is null)
@@ -1712,7 +1759,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
 
             // Continue traversal with depth limit (cycles shouldn't exist in prototype chains)
-            return TryGetPropertyFromPrototypeChain(prototype, name, effectiveReceiver, visitedCount + 1, context, out value);
+            return TryGetPropertyFromPrototypeChain(prototype, name, effectiveReceiver, visitedCount + 1, context,
+                out value);
         }
         finally
         {
@@ -1811,37 +1859,37 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     case PropertyDescriptor desc:
                         if (desc.IsAccessorDescriptor)
                         {
-                        if (desc.Get != null)
-                        {
-                            try
+                            if (desc.Get != null)
                             {
-                                var result = TypedAstEvaluator.InvokeCallableJsValue(
-                                    desc.Get,
-                                    [],
-                                    JsValue.FromObjectUnsafe(receiver ?? this),
-                                    context,
-                                    ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
-                                value = result.IsObject ? result.ObjectValue : result.ToObject();
-                            }
-                            catch (ThrowSignal signal)
-                            {
-                                if (context is not null)
+                                try
                                 {
-                                    context.SetThrow(signal.ThrownValue);
-                                    value = signal.ThrownValue;
-                                    return true;
+                                    var result = TypedAstEvaluator.InvokeCallableJsValue(
+                                        desc.Get,
+                                        [],
+                                        JsValue.FromObjectUnsafe(receiver ?? this),
+                                        context,
+                                        ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+                                    value = result.IsObject ? result.ObjectValue : result.ToObject();
+                                }
+                                catch (ThrowSignal signal)
+                                {
+                                    if (context is not null)
+                                    {
+                                        context.SetThrow(signal.ThrownValue);
+                                        value = signal.ThrownValue;
+                                        return true;
+                                    }
+
+                                    throw;
                                 }
 
-                                throw;
+                                return true;
                             }
 
-                            return true;
+                            throw StandardLibrary.ThrowTypeError(
+                                "Private accessor does not have a getter",
+                                realm: ResolveRealmState(receiver));
                         }
-
-                    throw StandardLibrary.ThrowTypeError(
-                        "Private accessor does not have a getter",
-                        realm: ResolveRealmState(receiver));
-                }
 
                         value = desc.HasValue ? desc.Value : Symbol.Undefined;
                         return true;
@@ -1872,6 +1920,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             prototype = accessor;
         }
+
         while (prototype is not null && depth++ < maxDepth)
         {
             if (prototype is JsObject jsProto)
@@ -1895,9 +1944,9 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
             if (prototype is IJsObjectLike { Prototype: { } objProto })
             {
-        prototype = objProto;
-        continue;
-    }
+                prototype = objProto;
+                continue;
+            }
 
             if (prototype is JsObject { Prototype: { } jsObjProto })
             {
@@ -1950,7 +1999,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
 
             return true;
-
         }
 
         if (_state is not null && _state.Descriptors.TryGetValue(name, out var descriptor))
@@ -2066,7 +2114,8 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                             [],
                             receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
                             context,
-                            ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
+                            ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine
+                                ?.GlobalEnvironment);
                     }
                     catch (ThrowSignal signal)
                     {
@@ -2285,5 +2334,18 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         return null;
+    }
+
+    private sealed class JsObjectState
+    {
+        internal readonly Dictionary<string, PropertyDescriptor> Descriptors = new(StringComparer.Ordinal);
+        internal readonly HashSet<object> PrivateBrands = new(ReferenceEqualityComparer<object>.Instance);
+        internal readonly Dictionary<string, object?> PrivateFields = new(StringComparer.Ordinal);
+
+        internal readonly Dictionary<string, LinkedListNode<string>> PropertyInsertionNodes =
+            new(StringComparer.Ordinal);
+
+        internal readonly LinkedList<string> PropertyInsertionOrder = [];
+        internal readonly HybridDictionary<JsValue> Storage = new();
     }
 }

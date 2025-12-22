@@ -1,4 +1,8 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -16,6 +20,7 @@ public static partial class TypedAstEvaluator
             {
                 return context.FlowValue;
             }
+
             context.SetThrow(jsValue);
             return jsValue;
         }

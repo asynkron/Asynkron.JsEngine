@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -71,6 +75,7 @@ public static partial class TypedAstEvaluator
                             callable = jsCallable;
                             return true;
                         }
+
                         candidate = jsVal.ObjectValue;
                     }
 
@@ -126,7 +131,8 @@ public static partial class TypedAstEvaluator
     {
         private JsObject EnsurePrototype(RealmState realm)
         {
-            if (constructor.TryGetProperty("prototype", out var prototypeValue) && prototypeValue.TryGetObject<JsObject>(out var prototype))
+            if (constructor.TryGetProperty("prototype", out var prototypeValue) &&
+                prototypeValue.TryGetObject<JsObject>(out var prototype))
             {
                 if (prototype.Prototype is null && realm.ObjectPrototype is not null)
                 {
@@ -137,10 +143,7 @@ public static partial class TypedAstEvaluator
                 return prototype;
             }
 
-            var created = new JsObject(realm.ObjectPrototype)
-            {
-                Origin = "constructor.prototype (auto-created)"
-            };
+            var created = new JsObject(realm.ObjectPrototype) { Origin = "constructor.prototype (auto-created)" };
 
             constructor.SetProperty("prototype", (JsValue)created);
             return created;

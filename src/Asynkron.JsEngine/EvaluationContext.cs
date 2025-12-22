@@ -1,9 +1,13 @@
+#region
+
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+
+#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -16,21 +20,33 @@ public sealed class EvaluationContext(
     CancellationToken cancellationToken = default,
     ExecutionKind executionKind = ExecutionKind.Script)
 {
+    private readonly Stack<Symbol> _functionNameHints = new();
+
     /// <summary>
     ///     Stack of enclosing labels (innermost first). Used to determine if a labeled
     ///     break/continue should be handled by the current statement.
     /// </summary>
     private readonly Stack<Symbol> _labelStack = new();
 
+    private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
+
     /// <summary>
     ///     Tracks the active private name scopes (innermost first) so private member
     ///     lookups can be mapped to their class-specific brands.
     /// </summary>
     private readonly Stack<PrivateNameScope> _privateNameScopes = new();
+
     private readonly Stack<ScopeFrame> _scopeStack = new();
-    private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
-    private readonly Stack<Symbol> _functionNameHints = new();
     private int _classFieldInitializerDepth;
+
+    // Fast path for returns - avoids allocating ReturnCompletionSignal
+    private JsValue _returnValue;
+
+    /// <summary>
+    ///     Scratch slot for JsValue to avoid struct copies in hot paths.
+    ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
+    /// </summary>
+    public JsValue ScratchValue;
 
     /// <summary>
     ///     Enables per-context identifier binding caches when the current scope
@@ -38,18 +54,6 @@ public sealed class EvaluationContext(
     ///     Disabled by default for safety; set by the caller.
     /// </summary>
     internal bool AllowIdentifierCache { get; set; }
-
-    /// <summary>
-    /// Resolves an identifier using the appropriate path based on whether 'with' statements
-    /// are in scope. This branches once instead of checking per-identifier access.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal JsValue GetIdentifier(JsEnvironment environment, Symbol name)
-    {
-        return AllowIdentifierCache
-            ? environment.GetIdentifierJsValueDirect(name, this)
-            : environment.GetIdentifierJsValueWithScope(name, this);
-    }
 
     /// <summary>
     ///     Realm-specific state (prototypes/constructors) for the current execution.
@@ -74,10 +78,6 @@ public sealed class EvaluationContext(
     /// </summary>
     public ICompletionSignal? CurrentSignal { get; private set; }
 
-    // Fast path for returns - avoids allocating ReturnCompletionSignal
-    private bool _isReturn;
-    private JsValue _returnValue;
-
     /// <summary>
     ///     The yield slot index that produced the most recent suspension.
     /// </summary>
@@ -87,12 +87,6 @@ public sealed class EvaluationContext(
     ///     Tracks dynamic call depth to guard against uncontrolled recursion.
     /// </summary>
     public int CallDepth { get; set; }
-
-    /// <summary>
-    ///     Scratch slot for JsValue to avoid struct copies in hot paths.
-    ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
-    /// </summary>
-    public JsValue ScratchValue;
 
     /// <summary>
     ///     Maximum allowed dynamic call depth before we bail out.
@@ -135,7 +129,11 @@ public sealed class EvaluationContext(
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            if (_isReturn) return _returnValue;
+            if (IsReturn)
+            {
+                return _returnValue;
+            }
+
             return CurrentSignal switch
             {
                 ThrowFlowCompletionSignal ts => ts.JsValue,
@@ -151,7 +149,7 @@ public sealed class EvaluationContext(
     public bool ShouldStopEvaluation
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _isReturn || CurrentSignal is not null;
+        get => IsReturn || CurrentSignal is not null;
     }
 
     /// <summary>
@@ -160,7 +158,8 @@ public sealed class EvaluationContext(
     public bool IsReturn
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _isReturn;
+        get;
+        private set;
     }
 
     /// <summary>
@@ -206,6 +205,20 @@ public sealed class EvaluationContext(
 
     public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
 
+    public object? LastConstructedThis { get; set; }
+
+    /// <summary>
+    /// Resolves an identifier using the appropriate path based on whether 'with' statements
+    /// are in scope. This branches once instead of checking per-identifier access.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal JsValue GetIdentifier(JsEnvironment environment, Symbol name)
+    {
+        return AllowIdentifierCache
+            ? environment.GetIdentifierJsValueDirect(name, this)
+            : environment.GetIdentifierJsValueWithScope(name, this);
+    }
+
     public ImmutableArray<PrivateNameScope> CapturePrivateNameScopes()
     {
         // Stack enumerates from top to bottom; reverse to preserve outer-to-inner order.
@@ -241,8 +254,6 @@ public sealed class EvaluationContext(
     {
         IsThisInitialized = true;
     }
-
-    public object? LastConstructedThis { get; set; }
 
     /// <summary>
     ///     Throws if the current evaluation has been cancelled (e.g. timed out).
@@ -313,7 +324,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetReturn(JsValue value)
     {
-        _isReturn = true;
+        IsReturn = true;
         _returnValue = value;
     }
 
@@ -338,7 +349,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetThrow(JsValue value)
     {
-        _isReturn = false;  // Clear return state so FlowValue uses CurrentSignal
+        IsReturn = false; // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = new ThrowFlowCompletionSignal(value);
     }
 
@@ -347,7 +358,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetPendingAwait()
     {
-        _isReturn = false;  // Clear return state so FlowValue uses CurrentSignal
+        IsReturn = false; // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = PendingAwaitCompletionSignal.Instance;
     }
 
@@ -431,7 +442,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ClearReturn()
     {
-        _isReturn = false;
+        IsReturn = false;
         _returnValue = default;
     }
 
@@ -440,7 +451,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void Clear()
     {
-        _isReturn = false;
+        IsReturn = false;
         _returnValue = default;
         CurrentSignal = null;
     }
@@ -451,7 +462,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public CompletionState SaveCompletionState()
     {
-        return new CompletionState(_isReturn, _returnValue, CurrentSignal);
+        return new CompletionState(IsReturn, _returnValue, CurrentSignal);
     }
 
     /// <summary>
@@ -460,7 +471,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RestoreCompletionState(in CompletionState state)
     {
-        _isReturn = state.IsReturn;
+        IsReturn = state.IsReturn;
         _returnValue = state.ReturnValue;
         CurrentSignal = state.Signal;
     }
@@ -478,7 +489,7 @@ public sealed class EvaluationContext(
         _classFieldInitializerDepth = 0;
         AllowIdentifierCache = false;
         IsStrictSource = false;
-        _isReturn = false;
+        IsReturn = false;
         _returnValue = default;
         CurrentSignal = null;
         LastYieldIndex = -1;
@@ -487,6 +498,29 @@ public sealed class EvaluationContext(
         IsThisInitialized = true;
         SourceReference = null;
         LastConstructedThis = null;
+    }
+
+    internal void PushClassFieldInitializer(PendingClassFieldInitialization initializer)
+    {
+        _pendingClassFieldInitializers.Push(initializer);
+    }
+
+    internal bool TryPopClassFieldInitializer(out PendingClassFieldInitialization initializer)
+    {
+        return _pendingClassFieldInitializers.TryPop(out initializer);
+    }
+
+    internal void RemovePendingClassFieldInitializer(object function)
+    {
+        if (_pendingClassFieldInitializers.Count == 0)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_pendingClassFieldInitializers.Peek().Constructor, function))
+        {
+            _pendingClassFieldInitializers.Pop();
+        }
     }
 
     private sealed class PrivateNameScopeHandle(Stack<PrivateNameScope> scopes, int count = 1) : IDisposable
@@ -567,29 +601,6 @@ public sealed class EvaluationContext(
             }
 
             _disposed = true;
-        }
-    }
-
-    internal void PushClassFieldInitializer(PendingClassFieldInitialization initializer)
-    {
-        _pendingClassFieldInitializers.Push(initializer);
-    }
-
-    internal bool TryPopClassFieldInitializer(out PendingClassFieldInitialization initializer)
-    {
-        return _pendingClassFieldInitializers.TryPop(out initializer);
-    }
-
-    internal void RemovePendingClassFieldInitializer(object function)
-    {
-        if (_pendingClassFieldInitializers.Count == 0)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(_pendingClassFieldInitializers.Peek().Constructor, function))
-        {
-            _pendingClassFieldInitializers.Pop();
         }
     }
 }

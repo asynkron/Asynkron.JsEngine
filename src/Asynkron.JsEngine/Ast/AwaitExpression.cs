@@ -1,5 +1,9 @@
+#region
+
 using System.Globalization;
 using Asynkron.JsEngine.Parser;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

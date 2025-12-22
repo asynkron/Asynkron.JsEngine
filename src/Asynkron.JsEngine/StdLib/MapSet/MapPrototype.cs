@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -9,13 +13,6 @@ namespace Asynkron.JsEngine.StdLib;
 [JsSymbolAlias("iterator", "entries")]
 public sealed partial class MapPrototype
 {
-    private enum MapIterationKind
-    {
-        Entries,
-        Keys,
-        Values
-    }
-
     [JsHostMethod("set", Length = 2d)]
     public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -163,5 +160,12 @@ public sealed partial class MapPrototype
         pair.SetElement(0, first);
         pair.SetElement(1, second);
         return pair;
+    }
+
+    private enum MapIterationKind
+    {
+        Entries,
+        Keys,
+        Values
     }
 }

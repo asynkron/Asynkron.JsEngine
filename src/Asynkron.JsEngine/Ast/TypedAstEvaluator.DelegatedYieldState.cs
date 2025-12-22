@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -12,11 +16,13 @@ public static partial class TypedAstEvaluator
         private readonly IEnumerator<JsValue>? _enumerator;
         private readonly bool _isGeneratorObject;
         private readonly IJsObjectLike? _iterator;
-        private IJsCallable? _nextMethod;
 
         // Cached result from the last MoveNext call that hasn't been consumed yet
-        private (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject)? _cachedResult;
+        private (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike?
+            IteratorResultObject)? _cachedResult;
+
         private bool _hasCachedResult;
+        private IJsCallable? _nextMethod;
 
         private DelegatedYieldState(IJsObjectLike? iterator, IEnumerator<JsValue>? enumerator, bool isGeneratorObject)
         {
@@ -38,13 +44,14 @@ public static partial class TypedAstEvaluator
         /// Gets the next result, either from cache or by advancing the iterator.
         /// The result is cached until ConsumeResult is called.
         /// </summary>
-        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) GetOrFetchNext(
-            JsValue sendValue,
-            bool hasSendValue,
-            bool propagateThrow,
-            bool propagateReturn,
-            EvaluationContext context,
-            out bool awaitedPromise)
+        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike?
+            IteratorResultObject) GetOrFetchNext(
+                JsValue sendValue,
+                bool hasSendValue,
+                bool propagateThrow,
+                bool propagateReturn,
+                EvaluationContext context,
+                out bool awaitedPromise)
         {
             // If we have a pending send value (throw/return), we always need to advance
             // because the send value needs to be passed to the inner iterator
@@ -70,12 +77,13 @@ public static partial class TypedAstEvaluator
             return new DelegatedYieldState(null, enumerable.GetEnumerator(), false);
         }
 
-        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike? IteratorResultObject) MoveNext(
-            JsValue sendValue,
-            bool propagateThrow,
-            bool propagateReturn,
-            EvaluationContext context,
-            out bool awaitedPromise)
+        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike?
+            IteratorResultObject) MoveNext(
+                JsValue sendValue,
+                bool propagateThrow,
+                bool propagateReturn,
+                EvaluationContext context,
+                out bool awaitedPromise)
         {
             awaitedPromise = false;
             if (_iterator is not null)
@@ -108,7 +116,8 @@ public static partial class TypedAstEvaluator
                         // should always be called with an argument - even if it's undefined.
                         // This ensures arguments.length === 1 inside the next() method.
                         // Use JsValue.Undefined for undefined sendValue to match JavaScript undefined semantics.
-                        candidate = _iterator.InvokeIteratorNext(_nextMethod, sendValue.IsUndefined ? JsValue.Undefined : sendValue, true, context);
+                        candidate = _iterator.InvokeIteratorNext(_nextMethod,
+                            sendValue.IsUndefined ? JsValue.Undefined : sendValue, true, context);
                     }
 
                     // Per spec: if return method is undefined, return Completion(received)
@@ -124,7 +133,7 @@ public static partial class TypedAstEvaluator
                     if (propagateThrow && !methodInvoked)
                     {
                         // Call IteratorClose before throwing - this calls the return method if it exists
-                        _iterator.IteratorClose(context, preserveExistingThrow: false);
+                        _iterator.IteratorClose(context, false);
 
                         // Throw TypeError as per spec - this will be caught below and returned as delegated completion
                         throw StandardLibrary.ThrowTypeError(
@@ -143,9 +152,12 @@ public static partial class TypedAstEvaluator
                         throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);
                     }
 
-                    var nextCandidate = candidate.IsUndefined ? throw new InvalidOperationException("Iterator result missing.") : candidate;
+                    var nextCandidate = candidate.IsUndefined
+                        ? throw new InvalidOperationException("Iterator result missing.")
+                        : candidate;
                     JsValue awaitedCandidate;
-                    if (nextCandidate.TryGetObject<IJsObjectLike>(out var promiseCandidate) && IsPromiseLike(nextCandidate))
+                    if (nextCandidate.TryGetObject<IJsObjectLike>(out var promiseCandidate) &&
+                        IsPromiseLike(nextCandidate))
                     {
                         awaitedPromise = true;
                         if (!AwaitScheduler.TryAwaitPromiseSync(
@@ -183,6 +195,7 @@ public static partial class TypedAstEvaluator
                     // Getter threw - return as delegated completion to be handled by generator's try/catch
                     return (context.FlowValue, true, true, true, null);
                 }
+
                 var done = gotDone && JsOps.ToBoolean(doneValue);
                 // Per ES spec 14.4.14, only read `value` when iteration is complete (done is true).
                 // When done is false, yield the innerResult directly without accessing `value`.
@@ -196,6 +209,7 @@ public static partial class TypedAstEvaluator
                         // Getter threw - return as delegated completion to be handled by generator's try/catch
                         return (context.FlowValue, true, true, true, null);
                     }
+
                     value = gotValue ? yielded : JsValue.Undefined;
                 }
                 else
@@ -220,7 +234,7 @@ public static partial class TypedAstEvaluator
                 // 2. We propagated return AND inner iterator completed (done: true) - even for non-generator iterators
                 // Use reportedDone for delegated completion check to avoid early completion when Promise was awaited
                 var delegatedCompletion = (_isGeneratorObject && (propagateThrow || propagateReturn)) ||
-                                         (propagateReturn && reportedDone);
+                                          (propagateReturn && reportedDone);
                 var propagateThrowResult = propagateThrow && reportedDone;
                 return (value, reportedDone, delegatedCompletion, propagateThrowResult, nextResult);
             }

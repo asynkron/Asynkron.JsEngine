@@ -1,7 +1,11 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 
@@ -34,7 +38,8 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Only extract for IFunctionNameTarget check - keep as JsValue otherwise
-                if (superAssignedValueJs is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget superNameTarget } &&
+                if (superAssignedValueJs is
+                        { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget superNameTarget } &&
                     expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                 {
                     superNameTarget.EnsureHasName(string.Empty);
@@ -103,7 +108,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                var reference = CreatePropertyReference(targetJs, propertyName, context, allowPrivate: false);
+                var reference = CreatePropertyReference(targetJs, propertyName, context, false);
 
                 if (TryEvaluateCompoundAssignmentJsValue(null, expression.Value, reference, environment, context,
                         out var compoundValueJs, out var shouldAssign))
@@ -147,7 +152,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var finalReference = CreatePropertyReference(targetJs, finalPropertyName, context, allowPrivate: false);
+            var finalReference = CreatePropertyReference(targetJs, finalPropertyName, context, false);
             finalReference.SetValue(assignedValueJs);
             return assignedValueJs;
         }

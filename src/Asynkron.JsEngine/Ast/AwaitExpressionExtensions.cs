@@ -1,5 +1,9 @@
+#region
+
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

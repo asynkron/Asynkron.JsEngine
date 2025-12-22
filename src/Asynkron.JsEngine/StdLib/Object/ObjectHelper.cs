@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -52,7 +56,9 @@ public static class ObjectHelper
 
             descriptor.Get = getterValue.IsUndefined
                 ? null
-                : getterValue.TryGetObject<IJsCallable>(out var getter) ? getter : null;
+                : getterValue.TryGetObject<IJsCallable>(out var getter)
+                    ? getter
+                    : null;
         }
 
         if (descriptorObject.TryGetProperty("set", out var setterValue))
@@ -64,7 +70,9 @@ public static class ObjectHelper
 
             descriptor.Set = setterValue.IsUndefined
                 ? null
-                : setterValue.TryGetObject<IJsCallable>(out var setter) ? setter : null;
+                : setterValue.TryGetObject<IJsCallable>(out var setter)
+                    ? setter
+                    : null;
         }
 
         if (descriptor is { IsAccessorDescriptor: true, IsDataDescriptor: true })
@@ -89,9 +97,13 @@ public static class ObjectHelper
         if (descriptor.IsAccessorDescriptor)
         {
             result.SetProperty("get",
-                descriptor is { HasGet: true, Get: not null } ? JsValue.FromObjectUnsafe(descriptor.Get) : JsValue.Undefined);
+                descriptor is { HasGet: true, Get: not null }
+                    ? JsValue.FromObjectUnsafe(descriptor.Get)
+                    : JsValue.Undefined);
             result.SetProperty("set",
-                descriptor is { HasSet: true, Set: not null } ? JsValue.FromObjectUnsafe(descriptor.Set) : JsValue.Undefined);
+                descriptor is { HasSet: true, Set: not null }
+                    ? JsValue.FromObjectUnsafe(descriptor.Set)
+                    : JsValue.Undefined);
         }
         else
         {

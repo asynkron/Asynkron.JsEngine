@@ -1,4 +1,8 @@
+#region
+
 using System.Text.Json;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
@@ -16,8 +20,8 @@ internal static class IntlLikelySubtagsData
         var assembly = typeof(IntlLikelySubtagsData).Assembly;
         const string resourceName = "Asynkron.JsEngine.StdLib.Intl.IntlLikelySubtags.json";
         using var stream = assembly.GetManifestResourceStream(resourceName)
-                        ?? throw new InvalidOperationException(
-                            "Could not load embedded Intl likely-subtags data.");
+                           ?? throw new InvalidOperationException(
+                               "Could not load embedded Intl likely-subtags data.");
 
         var data = JsonSerializer.Deserialize<Dictionary<string, string>>(stream)
                    ?? throw new InvalidOperationException(

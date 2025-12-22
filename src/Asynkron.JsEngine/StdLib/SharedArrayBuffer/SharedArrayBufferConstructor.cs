@@ -1,8 +1,12 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
@@ -12,6 +16,9 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
     : JsConstructor(prototype, realm)
 {
     private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("SharedArrayBuffer constructor not initialized");
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -40,7 +47,10 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
     }
 
     [JsConstructorSymbolGetter("species")]
-    public static JsValue GetSpecies(JsValue thisValue) => thisValue;
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
 
     private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget)
     {
@@ -63,12 +73,12 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         {
             var allocLength = RequireAllocatableLength(byteLength);
             int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
-            var directBuffer = new JsArrayBuffer(allocLength, allocMax, Realm, isShared: true);
+            var directBuffer = new JsArrayBuffer(allocLength, allocMax, Realm, true);
             directBuffer.SetPrototype(Prototype);
             return directBuffer;
         }
 
-        var instance = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        var instance = PrepareThisObject(JsValue.Undefined, false);
         var proto = ReflectHelper.ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm) ?? Prototype;
         if (proto is not null)
         {
@@ -77,7 +87,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
         var derivedLength = RequireAllocatableLength(byteLength);
         int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
-        var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, isShared: true);
+        var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, true);
         ArrayBufferHelper.StoreInternalArrayBuffer(instance, buffer);
         return instance;
     }
@@ -122,7 +132,4 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
         return NumberHelper.ToIndexAsLong(maxVal, Realm);
     }
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("SharedArrayBuffer constructor not initialized");
 }

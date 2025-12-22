@@ -13,6 +13,7 @@ internal enum EvalValidationFlags
     ContainsArguments = 1 << 3,
     ContainsIllegalReturn = 1 << 4,
     ContainsIllegalBreakOrContinue = 1 << 5,
+
     // Flags for includeFunctionBodies=true variants
     ContainsNewTargetInFunctions = 1 << 6,
     ContainsSuperReferenceInFunctions = 1 << 7,

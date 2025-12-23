@@ -10,7 +10,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("DataView", ToStringTag = "DataView", InstanceType = typeof(JsDataView), TryGetMethod = "TryGetInternal")]
-public sealed partial class DataViewPrototype : JsPrototype
+public sealed partial class DataViewPrototype
 {
     [JsHostGetter("buffer")]
     public JsValue Buffer(JsValue thisValue)

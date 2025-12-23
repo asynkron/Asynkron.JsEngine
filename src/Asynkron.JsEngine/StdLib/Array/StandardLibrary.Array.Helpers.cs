@@ -14,7 +14,7 @@ public static partial class StandardLibrary
 {
     internal static bool IsTruthy(JsValue value)
     {
-        return JsOps.IsTruthy(value);
+        return JsOps.ToBoolean(in value);
     }
 
     internal static bool AreStrictlyEqual(JsValue left, JsValue right)

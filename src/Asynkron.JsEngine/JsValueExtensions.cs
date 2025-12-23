@@ -141,7 +141,7 @@ internal static class JsValueExtensions
                 case IJsPropertyAccessor accessor:
                 {
 #pragma warning disable CS0618 // Extension method on object? uses object? API
-                    var primitive = JsOps.ToPrimitive(accessor, ToPrimitiveHint.String, context);
+                    var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
 #pragma warning restore CS0618
                     return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString(context, realmState);
                 }

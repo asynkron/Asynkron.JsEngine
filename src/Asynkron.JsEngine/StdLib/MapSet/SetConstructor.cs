@@ -23,7 +23,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
         {
             return JsValue.FromObjectUnsafe(ConstructSet(args, _constructor ?? ConstructFallback,
-                _constructor ?? ConstructFallback, constructing));
+                _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
@@ -47,8 +47,7 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         });
     }
 
-    private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
-        JsObject? providedThis = null)
+    private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = new JsSet();

@@ -20,10 +20,10 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true })
         {
             return JsValue.FromObjectUnsafe(ConstructMap(args, _constructor ?? ConstructFallback,
-                _constructor ?? ConstructFallback, constructing));
+                _constructor ?? ConstructFallback));
         }
 
         throw ThrowTypeError("Constructor Map requires 'new'", realm: Realm);
@@ -47,8 +47,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         });
     }
 
-    private object ConstructMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
-        JsObject? providedThis = null)
+    private object ConstructMap(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = new JsMap();

@@ -237,7 +237,7 @@ public class MicrotaskDrainingTests
 /// </summary>
 public class ForAwaitOfBugTests
 {
-    [Fact(Timeout = 5000, Skip = "Known bug: for await...of in IIFE doesn't drain correctly")]
+    [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_DoesNotComplete()
     {
         // BUG: for await...of inside an async IIFE doesn't complete
@@ -262,10 +262,34 @@ public class ForAwaitOfBugTests
         Assert.Equal(15.0, result);
     }
 
-    [Fact(Timeout = 5000, Skip = "Known bug: for await...of in IIFE doesn't drain correctly")]
+    [Fact(Timeout = 5000)]
+    public async Task ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete2()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+                                                   'use strict'
+                                                   var finalSum = 0;
+                                                   const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+                                                   (async function() {
+                                                       let sum = 0;
+                                                       for (let i = 0; i < 5000; i++) {
+                                                           for await (const n of arr) {
+                                                          sum += n;
+                                                           }
+                                                       }
+                                                       finalSum = sum;
+                                                   })();
+                                                   finalSum;
+                                                   """);
+
+        // Expected: 275 (55 * 5000)
+        Assert.Equal(275000.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete()
     {
-        // BUG: for await...of in IIFE doesn't complete even with multiple iterations
         await using var engine = new JsEngine();
 
         var result = await engine.EvaluateAndAwait("""

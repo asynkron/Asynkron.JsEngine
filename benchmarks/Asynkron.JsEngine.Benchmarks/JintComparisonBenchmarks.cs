@@ -2,6 +2,7 @@ using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using BenchmarkDotNet.Attributes;
 using Jint;
+using Jint.Native;
 
 namespace Asynkron.JsEngine.Benchmarks;
 
@@ -109,11 +110,10 @@ public class JintComparisonBenchmarks
             }
 
             // Test Jint
-            object? jintResult = null;
             string jintStatus;
             try
             {
-                jintResult = jintFn();
+                var jintResult = jintFn();
                 jintStatus = $"OK ({FormatResult(jintResult)})";
             }
             catch (Exception e)
@@ -124,12 +124,14 @@ public class JintComparisonBenchmarks
             Console.WriteLine($"Asynkron: {asynkronStatus,-35} Jint: {jintStatus}");
 
             // Verify against expected if available
-            if (ExpectedResults.TryGetValue(name, out var expected))
+            if (!ExpectedResults.TryGetValue(name, out var expected))
             {
-                if (asynkronResult is double ad && expected is double ed && Math.Abs(ad - ed) > 0.001)
-                {
-                    Console.WriteLine($"    WARNING: Asynkron result {ad} != expected {ed}");
-                }
+                continue;
+            }
+
+            if (asynkronResult is double ad && expected is double ed && Math.Abs(ad - ed) > 0.001)
+            {
+                Console.WriteLine($"    WARNING: Asynkron result {ad} != expected {ed}");
             }
         }
 
@@ -142,7 +144,7 @@ public class JintComparisonBenchmarks
         {
             null => "null",
             double d => d.ToString("N0", CultureInfo.InvariantCulture),
-            _ => result.ToString()?.Substring(0, Math.Min(30, result.ToString()?.Length ?? 0)) ?? "null"
+            _ => result.ToString()?[..Math.Min(30, result.ToString()?.Length ?? 0)] ?? "null"
         };
     }
 
@@ -152,6 +154,7 @@ public class JintComparisonBenchmarks
 
     // Jint engine
     private Engine _jintEngine = null!;
+    private readonly Dictionary<string, Prepared<Acornima.Ast.Script>> _jintPrepared = new(StringComparer.Ordinal);
 
     // Test scripts
     private string _simpleArithmetic = null!;
@@ -545,7 +548,7 @@ public class JintComparisonBenchmarks
         // Uses EvaluateAndAwait which drains microtasks, so finalSum is updated
         _asyncForOf = """
             'use strict'
-            let finalSum = 0;
+            var finalSum = 0;
             const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
             (async function() {
                 let sum = 0;
@@ -642,6 +645,34 @@ public class JintComparisonBenchmarks
         CacheParsed("asyncAwaitResolvedReused", _asyncAwaitResolvedReused);
         CacheParsed("asyncAwaitPending", _asyncAwaitPending);
         CacheParsed("forOfIteration", _forOfIteration);
+
+        // Pre-parse Jint scripts for fair comparison (same as Asynkron)
+        CacheJintPrepared("simpleArithmetic", _simpleArithmetic);
+        CacheJintPrepared("fibonacci", _fibonacci);
+        CacheJintPrepared("forLoop", _forLoop);
+        CacheJintPrepared("whileLoop", _whileLoop);
+        CacheJintPrepared("objectCreation", _objectCreation);
+        CacheJintPrepared("arrayOperations", _arrayOperations);
+        CacheJintPrepared("stringOperations", _stringOperations);
+        CacheJintPrepared("functionCalls", _functionCalls);
+        CacheJintPrepared("closures", _closures);
+        CacheJintPrepared("recursion", _recursion);
+        CacheJintPrepared("propertyAccess", _propertyAccess);
+        CacheJintPrepared("classDefinition", _classDefinition);
+        CacheJintPrepared("destructuring", _destructuring);
+        CacheJintPrepared("spreadOperator", _spreadOperator);
+        CacheJintPrepared("mapSet", _mapSet);
+        CacheJintPrepared("jsonOperations", _jsonOperations);
+        CacheJintPrepared("regexOperations", _regexOperations);
+        CacheJintPrepared("promiseBasic", _promiseBasic);
+        CacheJintPrepared("asyncAwait", _asyncAwait);
+        CacheJintPrepared("generatorFunction", _generatorFunction);
+        CacheJintPrepared("asyncGeneratorFunction", _asyncGeneratorFunction);
+        CacheJintPrepared("asyncForOf", _asyncForOf);
+        CacheJintPrepared("asyncAwaitResolved", _asyncAwaitResolved);
+        CacheJintPrepared("asyncAwaitResolvedReused", _asyncAwaitResolvedReused);
+        CacheJintPrepared("asyncAwaitPending", _asyncAwaitPending);
+        CacheJintPrepared("forOfIteration", _forOfIteration);
     }
 
     [GlobalCleanup]
@@ -674,7 +705,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Arithmetic")]
     public object Jint_SimpleArithmetic()
     {
-        return _jintEngine.Evaluate(_simpleArithmetic).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["simpleArithmetic"]).ToObject()!;
     }
 
     // ==================== Fibonacci ====================
@@ -689,7 +720,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Recursion")]
     public object Jint_Fibonacci()
     {
-        return _jintEngine.Evaluate(_fibonacci).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["fibonacci"]).ToObject()!;
     }
 
     // ==================== For Loop ====================
@@ -704,7 +735,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Loop")]
     public object Jint_ForLoop()
     {
-        return _jintEngine.Evaluate(_forLoop).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["forLoop"]).ToObject()!;
     }
 
     // ==================== While Loop ====================
@@ -719,7 +750,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Loop")]
     public object Jint_WhileLoop()
     {
-        return _jintEngine.Evaluate(_whileLoop).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["whileLoop"]).ToObject()!;
     }
 
     // ==================== Object Creation ====================
@@ -734,7 +765,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Object")]
     public object Jint_ObjectCreation()
     {
-        return _jintEngine.Evaluate(_objectCreation).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["objectCreation"]).ToObject()!;
     }
 
     // ==================== Array Operations ====================
@@ -749,7 +780,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Array")]
     public object Jint_ArrayOperations()
     {
-        return _jintEngine.Evaluate(_arrayOperations).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["arrayOperations"]).ToObject()!;
     }
 
     // ==================== String Operations ====================
@@ -764,7 +795,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("String")]
     public object Jint_StringOperations()
     {
-        return _jintEngine.Evaluate(_stringOperations).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["stringOperations"]).ToObject()!;
     }
 
     // ==================== Function Calls ====================
@@ -779,7 +810,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Function")]
     public object Jint_FunctionCalls()
     {
-        return _jintEngine.Evaluate(_functionCalls).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["functionCalls"]).ToObject()!;
     }
 
     // ==================== Closures ====================
@@ -794,7 +825,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Function")]
     public object Jint_Closures()
     {
-        return _jintEngine.Evaluate(_closures).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["closures"]).ToObject()!;
     }
 
     // ==================== Recursion ====================
@@ -809,7 +840,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Recursion")]
     public object Jint_Recursion()
     {
-        return _jintEngine.Evaluate(_recursion).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["recursion"]).ToObject()!;
     }
 
     // ==================== Property Access ====================
@@ -824,7 +855,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Property")]
     public object Jint_PropertyAccess()
     {
-        return _jintEngine.Evaluate(_propertyAccess).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["propertyAccess"]).ToObject()!;
     }
 
     // ==================== Class Definition ====================
@@ -839,7 +870,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Class")]
     public object Jint_ClassDefinition()
     {
-        return _jintEngine.Evaluate(_classDefinition).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["classDefinition"]).ToObject()!;
     }
 
     // ==================== Destructuring ====================
@@ -854,7 +885,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("ES6")]
     public object Jint_Destructuring()
     {
-        return _jintEngine.Evaluate(_destructuring).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["destructuring"]).ToObject()!;
     }
 
     // ==================== Spread Operator ====================
@@ -869,7 +900,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("ES6")]
     public object Jint_SpreadOperator()
     {
-        return _jintEngine.Evaluate(_spreadOperator).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["spreadOperator"]).ToObject()!;
     }
 
     // ==================== Map/Set ====================
@@ -884,7 +915,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Collections")]
     public object Jint_MapSet()
     {
-        return _jintEngine.Evaluate(_mapSet).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["mapSet"]).ToObject()!;
     }
 
     // ==================== JSON Operations ====================
@@ -899,7 +930,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("JSON")]
     public object Jint_JsonOperations()
     {
-        return _jintEngine.Evaluate(_jsonOperations).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["jsonOperations"]).ToObject()!;
     }
 
     // ==================== Regex Operations ====================
@@ -914,7 +945,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Regex")]
     public object Jint_RegexOperations()
     {
-        return _jintEngine.Evaluate(_regexOperations).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["regexOperations"]).ToObject()!;
     }
 
     // ==================== Promise Basic ====================
@@ -929,7 +960,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public object Jint_PromiseBasic()
     {
-        return _jintEngine.Evaluate(_promiseBasic).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["promiseBasic"]).ToObject()!;
     }
 
     // ==================== Async/Await ====================
@@ -944,7 +975,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public object Jint_AsyncAwait()
     {
-        return _jintEngine.Evaluate(_asyncAwait).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["asyncAwait"]).ToObject()!;
     }
 
     // ==================== Generator Function ====================
@@ -959,7 +990,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Generator")]
     public object Jint_GeneratorFunction()
     {
-        return _jintEngine.Evaluate(_generatorFunction).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["generatorFunction"]).ToObject()!;
     }
 
     // ==================== Async Generator Function ====================
@@ -974,7 +1005,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("AsyncGenerator")]
     public object Jint_AsyncGeneratorFunction()
     {
-        return _jintEngine.Evaluate(_asyncGeneratorFunction).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["asyncGeneratorFunction"]).ToObject()!;
     }
 
     // ==================== Async For-Of ====================
@@ -989,7 +1020,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("AsyncIteration")]
     public object Jint_AsyncForOf()
     {
-        return _jintEngine.Evaluate(_asyncForOf).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["asyncForOf"]).ToObject()!;
     }
 
     // ==================== Async/Await Resolved (already completed promises) ====================
@@ -1004,7 +1035,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public object Jint_AsyncAwaitResolved()
     {
-        return _jintEngine.Evaluate(_asyncAwaitResolved).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["asyncAwaitResolved"]).ToObject()!;
     }
 
     // ==================== Async/Await Resolved (reused promise) ====================
@@ -1019,7 +1050,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public object Jint_AsyncAwaitResolvedReused()
     {
-        return _jintEngine.Evaluate(_asyncAwaitResolvedReused).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["asyncAwaitResolvedReused"]).ToObject()!;
     }
 
     // ==================== Async/Await Pending (promises needing microtask) ====================
@@ -1034,7 +1065,7 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public object Jint_AsyncAwaitPending()
     {
-        return _jintEngine.Evaluate(_asyncAwaitPending).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["asyncAwaitPending"]).ToObject()!;
     }
 
     // ==================== For-Of Iteration (baseline) ====================
@@ -1049,11 +1080,16 @@ public class JintComparisonBenchmarks
     [BenchmarkCategory("Iteration")]
     public object Jint_ForOfIteration()
     {
-        return _jintEngine.Evaluate(_forOfIteration).ToObject()!;
+        return _jintEngine.Evaluate(_jintPrepared["forOfIteration"]).ToObject()!;
     }
 
     private void CacheParsed(string key, string source)
     {
         _parsedPrograms[key] = _asynkronEngine.ParseProgram(source);
+    }
+
+    private void CacheJintPrepared(string key, string source)
+    {
+        _jintPrepared[key] = Engine.PrepareScript(source);
     }
 }

@@ -25,6 +25,7 @@ internal static class JsOps
     private static readonly string[] StringHintMethods = ["toString", "valueOf"];
     private static readonly string[] DefaultHintMethods = ["valueOf", "toString"];
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static double MathPow(double baseValue, double exponent)
     {
         switch (exponent)
@@ -118,7 +119,6 @@ internal static class JsOps
 
     /// <summary>
     ///     ECMAScript-like ToBoolean semantics for engine values.
-    ///     Kept in sync with <see cref="IsTruthy" /> which is the legacy name used throughout the codebase.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool ToBoolean(in JsValue value)
@@ -137,6 +137,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double ToNumber(in JsValue value, EvaluationContext? context = null)
     {
         return ToNumberWithContext(in value, context);
@@ -161,12 +162,11 @@ internal static class JsOps
             JsValueKind.Undefined => JsValue.NaN,
             JsValueKind.Null => JsValue.Zero,
             JsValueKind.Boolean => new JsValue(value.NumberValue),
-#pragma warning disable CS0618 // Transitional: delegates to object? core for complex types
             _ => ToNumericCore(value.ObjectValue, context)
-#pragma warning restore CS0618
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double ToNumberWithContext(in JsValue value, EvaluationContext? context = null)
     {
         var result = ToNumericAsJsValue(in value, context);
@@ -183,7 +183,8 @@ internal static class JsOps
         return double.NaN;
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static JsValue ToNumericCore(
         object? value,
         EvaluationContext? context)
@@ -378,7 +379,7 @@ internal static class JsOps
                 if (IsPrimitiveValue(valueOfResult))
                 {
 #pragma warning disable CS0618 // Transitional wrapper returns object?
-                    primitive = valueOfResult.IsObject ? valueOfResult.ObjectValue : valueOfResult.ToObject();
+                    primitive = valueOfResult.ToObject();
 #pragma warning restore CS0618
                     return true;
                 }
@@ -401,7 +402,7 @@ internal static class JsOps
                 if (IsPrimitiveValue(toStringResult))
                 {
 #pragma warning disable CS0618 // Transitional wrapper returns object?
-                    primitive = toStringResult.IsObject ? toStringResult.ObjectValue : toStringResult.ToObject();
+                    primitive = toStringResult.ToObject();
 #pragma warning restore CS0618
                     return true;
                 }
@@ -433,6 +434,7 @@ internal static class JsOps
     /// <summary>
     /// JsValue overload for ToPrimitive. Returns object? since primitives can be various types.
     /// </summary>
+    [Obsolete("Use IJsPropertyAccessor overload for better performance and correctness.")]
     public static object? ToPrimitive(JsValue value, ToPrimitiveHint hint, EvaluationContext? context = null)
     {
         // Fast path: already a primitive
@@ -586,6 +588,7 @@ internal static class JsOps
         return value.ObjectValue;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string ToJsString(in JsValue value, EvaluationContext? context = null)
     {
         var realm = context?.RealmState;
@@ -675,6 +678,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LooseEquals(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for same-type comparisons
@@ -782,6 +786,7 @@ internal static class JsOps
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         return left.Kind switch
@@ -795,6 +800,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         return left.Kind switch
@@ -808,6 +814,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         return left.Kind switch
@@ -821,6 +828,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         return left.Kind switch
@@ -834,6 +842,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool PerformComparisonOperation(
         JsValue left,
         JsValue right,
@@ -1074,6 +1083,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     // Helper method to compare a BigInteger to a double without precision loss
     private static int CompareBigIntToDouble(BigInteger bigInt, double number)
     {
@@ -1106,6 +1116,7 @@ internal static class JsOps
         return -1;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string? ToPropertyName(JsValue value, EvaluationContext? context = null)
     {
         while (true)
@@ -1154,7 +1165,6 @@ internal static class JsOps
                 }
                 case JsValueKind.Unit:
                 case JsValueKind.Uninitialized:
-                    return JsValueCache.UndefinedString;
                 default:
                     return JsValueCache.UndefinedString;
             }
@@ -1226,6 +1236,7 @@ internal static class JsOps
         return $"{sign}{mantissa}e{expStr}";
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryInvokePropertyMethodJsValue(IJsPropertyAccessor accessor, string methodName,
         out JsValue result,
         EvaluationContext? context)
@@ -1256,6 +1267,7 @@ internal static class JsOps
     /// Primitives are: undefined, null, boolean, number, string, symbol, bigint.
     /// Objects wrapped as JsValue with ObjectValue being Symbol or TypedAstSymbol are also considered primitives.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsPrimitiveValue(JsValue value)
     {
         return value.Kind switch
@@ -1270,6 +1282,7 @@ internal static class JsOps
     /// <summary>
     /// JsValue overload for GetPrototypePointer.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static IJsPropertyAccessor? GetPrototypePointer(JsValue value)
     {
         // Only objects have prototypes
@@ -1369,6 +1382,7 @@ internal static class JsOps
     /// <summary>
     /// JsValue overload for GetTypeofString. Returns the typeof string for a JsValue.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetTypeofString(JsValue value)
     {
         return value.Kind switch
@@ -1391,6 +1405,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static JsValueType GetJsType(JsValue value)
     {
         // Special case: IIsHtmlDda objects report as undefined for typeof
@@ -1413,6 +1428,7 @@ internal static class JsOps
         };
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool NumberEqualsBigInt(JsValue numberValue, JsBigInt bigInt)
     {
         var num = ToNumber(numberValue, null);
@@ -1429,6 +1445,7 @@ internal static class JsOps
         return new BigInteger(num) == bigInt.Value;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryParseJsBigInt(string text, out JsBigInt? value)
     {
         value = null;
@@ -1460,6 +1477,7 @@ internal static class JsOps
 
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryParsePrefixedBigInt(ReadOnlySpan<char> span, int radix, NumberStyles styles,
         out BigInteger value)
     {
@@ -1496,7 +1514,6 @@ internal static class JsOps
 
         var padded = $"0{digits.ToString()}";
         return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
-
     }
 
     private static bool TryParseBinaryBigInt(ReadOnlySpan<char> span, out BigInteger value)
@@ -1531,6 +1548,7 @@ internal static class JsOps
         return true;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryParseOctalBigInt(ReadOnlySpan<char> span, out BigInteger value)
     {
         value = BigInteger.Zero;
@@ -1564,6 +1582,7 @@ internal static class JsOps
     /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
     /// it does NOT invoke getters like [[Get]] would.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool HasProperty(JsValue target, string propertyName)
     {
         // Fast path: only objects can have properties via prototype chain
@@ -1616,6 +1635,7 @@ internal static class JsOps
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool TryGetPropertyValue(JsValue target, string propertyName, out JsValue value,
         EvaluationContext? context = null)
     {
@@ -1662,6 +1682,7 @@ internal static class JsOps
     /// JsValue overload for property access with JsValue property key.
     /// Avoids boxing when both target and key are JsValue.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool TryGetPropertyValueJsValue(JsValue target, JsValue propertyKey, out JsValue value,
         EvaluationContext? context = null)
     {
@@ -1709,6 +1730,7 @@ internal static class JsOps
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryGetArrayLikeValueJsValue(JsValue target, JsValue propertyKey, out JsValue value,
         EvaluationContext? context)
     {
@@ -1744,6 +1766,7 @@ internal static class JsOps
         return false;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryResolveArrayIndexJsValue(JsValue propertyKey, out int index, EvaluationContext? context)
     {
         // Fast path for numbers

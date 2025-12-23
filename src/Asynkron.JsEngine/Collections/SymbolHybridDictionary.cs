@@ -29,12 +29,6 @@ public sealed class SymbolHybridDictionary<TValue>
     // Small storage - array of key-value pairs
     private Entry[]? _entries;
 
-    public int Count
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _dictionary?.Count ?? _count;
-    }
-
     public TValue this[Symbol key]
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -67,11 +61,13 @@ public sealed class SymbolHybridDictionary<TValue>
             // Try to find existing entry using reference equality
             for (var i = 0; i < _count; i++)
             {
-                if (ReferenceEquals(_entries![i].Key, key))
+                if (!ReferenceEquals(_entries![i].Key, key))
                 {
-                    _entries[i].Value = value;
-                    return;
+                    continue;
                 }
+
+                _entries[i].Value = value;
+                return;
             }
 
             // Not found, add new
@@ -96,37 +92,6 @@ public sealed class SymbolHybridDictionary<TValue>
 
             return keys;
         }
-    }
-
-    public IEnumerable<TValue> Values
-    {
-        get
-        {
-            if (_dictionary is not null)
-            {
-                return _dictionary.Values;
-            }
-
-            var values = new TValue[_count];
-            for (var i = 0; i < _count; i++)
-            {
-                values[i] = _entries![i].Value;
-            }
-
-            return values;
-        }
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Add(Symbol key, TValue value)
-    {
-        if (_dictionary is not null)
-        {
-            _dictionary.Add(key, value);
-            return;
-        }
-
-        AddInternal(key, value);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -257,24 +222,6 @@ public sealed class SymbolHybridDictionary<TValue>
         }
 
         _count = 0;
-    }
-
-    public IEnumerable<KeyValuePair<Symbol, TValue>> GetEntries()
-    {
-        if (_dictionary is not null)
-        {
-            foreach (var kvp in _dictionary)
-            {
-                yield return kvp;
-            }
-
-            yield break;
-        }
-
-        for (var i = 0; i < _count; i++)
-        {
-            yield return new KeyValuePair<Symbol, TValue>(_entries![i].Key, _entries[i].Value);
-        }
     }
 
     public IEnumerator<KeyValuePair<Symbol, TValue>> GetEnumerator()

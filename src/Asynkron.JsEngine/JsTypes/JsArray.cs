@@ -925,6 +925,19 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.SetProperty(iteratorKey, (JsValue)iteratorFunction);
     }
 
+    /// <summary>
+    /// Creates a values iterator directly, bypassing Symbol.iterator lookup.
+    /// This is an optimization for iteration - the iterator created is equivalent
+    /// to calling array.values() / array[Symbol.iterator]().
+    /// </summary>
+    internal IJsObjectLike GetValuesIterator()
+    {
+        return (IJsObjectLike)StdLib.StandardLibrary.CreateArrayIteratorObject(
+            this,
+            idx => GetElement(idx),
+            RealmState);
+    }
+
     private static bool TryParseArrayIndex(string propertyName, out uint index)
     {
         index = 0;

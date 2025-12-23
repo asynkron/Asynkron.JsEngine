@@ -326,6 +326,33 @@ public sealed class JsEnvironment
     }
 
     /// <summary>
+    /// Defines or assigns a value in a single dictionary lookup.
+    /// Use this when you don't know if the binding exists yet and want to avoid
+    /// the overhead of HasBinding + Assign/Define pattern.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void DefineOrAssignJsValue(Symbol name, JsValue value)
+    {
+        ref var binding = ref Values.GetValueRefOrNullRef(name);
+        if (!Unsafe.IsNullRef(ref binding))
+        {
+            // Binding exists - update it (unless it's const)
+            if (!binding.IsConst && !binding.IsGlobalConstant)
+            {
+                binding.JsValue = value;
+                TrySetSlot(name, value);
+            }
+        }
+        else
+        {
+            // Binding doesn't exist - create it as a mutable lexical binding
+            Values[name] = new Binding(value, isConst: false, isGlobalConstant: false,
+                isLexical: true, blocksFunctionScopeOverride: false, canDelete: false);
+            TrySetSlot(name, value);
+        }
+    }
+
+    /// <summary>
     /// Fast path for defining function parameters. Assumes:
     /// - Environment is fresh (no existing bindings)
     /// - Not defining GlobalConstants

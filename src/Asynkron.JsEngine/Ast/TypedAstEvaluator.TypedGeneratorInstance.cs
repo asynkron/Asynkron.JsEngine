@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -337,6 +338,21 @@ public static partial class TypedAstEvaluator
             IteratorDriverKind kind,
             EvaluationContext context)
         {
+            // FAST PATH: Use IEnumerator<JsValue> for arrays to avoid iterator object allocation.
+            // This bypasses creating iterator objects with next() methods for JsArray.
+            var fastEnumerator = TryGetFastEnumeratorForIteration(iterable);
+            if (fastEnumerator is not null)
+            {
+                return new IteratorDriverState
+                {
+                    IteratorObject = null,
+                    Enumerator = fastEnumerator,
+                    IsAsyncIterator = kind == IteratorDriverKind.Await,
+                    NextMethod = null
+                };
+            }
+
+            // SLOW PATH: Full iterator protocol for custom iterables
             var iteratorTarget = NormalizeIterableTarget(iterable, context);
 
             if (!TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) || iterator is null)
@@ -354,31 +370,20 @@ public static partial class TypedAstEvaluator
             };
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
             // Handle case where value is already a boxed JsValue
             var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-            if (environment.HasBinding(symbol))
-            {
-                environment.AssignJsValue(symbol, jsVal);
-            }
-            else
-            {
-                environment.DefineJsValue(symbol, jsVal);
-            }
+            // Single lookup - defines if not exists, assigns if exists
+            environment.DefineOrAssignJsValue(symbol, jsVal);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
-            //TODO: fix duplicate lookup
-            if (environment.HasBinding(symbol))
-            {
-                environment.AssignJsValue(symbol, value);
-            }
-            else
-            {
-                environment.DefineJsValue(symbol, value);
-            }
+            // Single lookup - defines if not exists, assigns if exists
+            environment.DefineOrAssignJsValue(symbol, value);
         }
 
         private static bool TryGetSymbolValueJsValue(JsEnvironment environment, Symbol symbol, out JsValue value)

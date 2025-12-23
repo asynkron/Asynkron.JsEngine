@@ -1018,7 +1018,7 @@ public sealed partial class StringPrototype
             throw new ThrowSignal(numericContext.FlowValue);
         }
 
-        var number = JsOps.ToNumberWithContext(primitive, numericContext);
+        var number = JsOps.ToNumberWithContext(JsValue.FromObjectUnsafe(primitive), numericContext);
         if (numericContext?.IsThrow == true)
         {
             var flowValue = numericContext.FlowValue;

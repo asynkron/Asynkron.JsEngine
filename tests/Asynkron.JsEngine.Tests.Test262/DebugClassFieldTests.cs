@@ -179,9 +179,9 @@ public class DebugClassFieldTests
         Assert.That(check["d2"], Is.EqualTo(5d));
         Assert.That(check["s1"], Is.EqualTo(3d));
         Assert.That(check["protoMatch"], Is.EqualTo(true));
-        Assert.That(JsOps.ToBoolean(check["dHas1"]), Is.EqualTo(false));
-        Assert.That(JsOps.ToBoolean(check["DHas0"]), Is.EqualTo(false));
-        Assert.That(JsOps.ToBoolean(check["DHas2"]), Is.EqualTo(false));
+        Assert.That(JsOps.ToBoolean(JsValue.FromObjectUnsafe(check["dHas1"])), Is.EqualTo(false));
+        Assert.That(JsOps.ToBoolean(JsValue.FromObjectUnsafe(check["DHas0"])), Is.EqualTo(false));
+        Assert.That(JsOps.ToBoolean(JsValue.FromObjectUnsafe(check["DHas2"])), Is.EqualTo(false));
         Assert.That(JoinKeys(check["instanceKeys"]), Is.EqualTo("0,2"));
         Assert.That(JoinKeys(check["protoKeys"]), Is.EqualTo("constructor"));
         Assert.That(JoinKeys(check["staticKeys"]), Is.EqualTo("1,length,name,prototype"));

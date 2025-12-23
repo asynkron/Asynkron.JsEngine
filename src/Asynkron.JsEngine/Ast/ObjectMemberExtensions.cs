@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -35,7 +36,7 @@ public static partial class TypedAstEvaluator
                 return string.Empty;
             }
 
-            var propertyNameFromKey = JsOps.GetRequiredPropertyName(member.Key, context);
+            var propertyNameFromKey = JsOps.GetRequiredPropertyName(JsValue.FromObjectUnsafe(member.Key), context);
             return context.ShouldStopEvaluation ? string.Empty : propertyNameFromKey;
         }
     }

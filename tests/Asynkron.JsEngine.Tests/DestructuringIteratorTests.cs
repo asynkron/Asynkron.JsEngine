@@ -23,7 +23,7 @@ namespace Asynkron.JsEngine.Tests;
             if (ex.ThrownValue.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("name", out var name))
             {
-                thrownName = JsOps.ToJsString(name.ToObject());
+                thrownName = JsOps.ToJsString(JsValue.FromObjectUnsafe(name.ToObject()), null);
             }
             Assert.Equal("Error", thrownName);
         }
@@ -47,7 +47,7 @@ namespace Asynkron.JsEngine.Tests;
             if (ex.ThrownValue.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("name", out var name))
             {
-                thrownName = JsOps.ToJsString(name.ToObject());
+                thrownName = JsOps.ToJsString(JsValue.FromObjectUnsafe(name.ToObject()), null);
             }
             Assert.Equal("Error", thrownName);
         }

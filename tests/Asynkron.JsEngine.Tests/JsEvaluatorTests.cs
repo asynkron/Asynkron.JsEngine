@@ -522,19 +522,19 @@ public class JsEvaluatorTests
         var prototypeDescriptor = await engine.Evaluate("Object.getOwnPropertyDescriptor(C, 'prototype')");
         Assert.IsType<JsObject>(prototypeDescriptor);
 
-        var protoHasX = JsOps.ToBoolean(await engine.Evaluate("Object.prototype.hasOwnProperty.call(C.prototype, 'x')"));
+        var protoHasX = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.prototype.hasOwnProperty.call(C.prototype, 'x')")));
         Assert.True(protoHasX);
 
         var typeOfX = await engine.Evaluate("typeof C.prototype.x");
         Assert.Equal("function", typeOfX as string);
 
-        var cHasX = JsOps.ToBoolean(await engine.Evaluate("Object.prototype.hasOwnProperty.call(c, 'x')"));
+        var cHasX = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.prototype.hasOwnProperty.call(c, 'x')")));
         Assert.False(cHasX);
 
-        var protoMatches = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === C.prototype"));
-        var protoIsObjectProto = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === Object.prototype"));
-        var protoIsNull = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === null"));
-        var protoIsUndefined = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === undefined"));
+        var protoMatches = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === C.prototype")));
+        var protoIsObjectProto = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === Object.prototype")));
+        var protoIsNull = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === null")));
+        var protoIsUndefined = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === undefined")));
         var protoType = await engine.Evaluate("typeof Object.getPrototypeOf(c)");
         var protoValue = await engine.Evaluate("Object.getPrototypeOf(c)");
         var protoObject = Assert.IsAssignableFrom<JsObject>(protoValue);
@@ -546,10 +546,10 @@ public class JsEvaluatorTests
         var cValue = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("c"));
         var protoFromInstance = cValue.Prototype ?? cValue.PrototypeAccessor as JsObject;
         var protoCtorName = await engine.Evaluate("Object.getPrototypeOf(c)?.constructor?.name");
-        var protoIsSelf = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(c) === c"));
+        var protoIsSelf = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === c")));
         var protoKeys = string.Join(",", protoObject.Keys);
         var matchesInstanceProto = ReferenceEquals(protoFromInstance, protoObject);
-        var protoProtoIsNull = JsOps.ToBoolean(await engine.Evaluate("Object.getPrototypeOf(Object.getPrototypeOf(c)) === null"));
+        var protoProtoIsNull = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(Object.getPrototypeOf(c)) === null")));
         var protoProto = protoObject.Prototype ?? protoObject.PrototypeAccessor as JsObject;
         var protoProtoKeys = protoProto is null ? "null" : string.Join(",", protoProto.Keys);
         var logSummary = string.Join(" | ", fakeLogger.Collector.Snapshot().Select(r => r.Message));
@@ -557,9 +557,9 @@ public class JsEvaluatorTests
             $"Prototype link missing. Proto is Object.prototype? {protoIsObjectProto}; null? {protoIsNull}; undefined? {protoIsUndefined}; typeof={protoType}; protoHasXOnValue={protoHasXOnValue}; sameAsClassProto={sameAsClassProto}; sameAsObjectProto={sameAsObjectProto}; instanceProtoNull={protoFromInstance is null}; protoCtorName={protoCtorName}; protoIsSelf={protoIsSelf}; protoKeys={protoKeys}; matchesInstanceProto={matchesInstanceProto}; protoProtoIsNull={protoProtoIsNull}; protoProtoKeys={protoProtoKeys}; ctorProtoHash={ctorProtoHash}; protoObjectHash={RuntimeHelpers.GetHashCode(protoObject)}; proxyProtoHash={proxyProtoHash}; instanceHash={RuntimeHelpers.GetHashCode(cValue)}; lastLog={fakeLogger.Collector.LatestRecord?.Message ?? "none"}; logs={logSummary}");
 
         var result = await engine.Evaluate("c.x()");
-        Assert.Equal(1d, JsOps.ToNumber(result));
+        Assert.Equal(1d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
 
-        var proxyThrows = JsOps.ToBoolean(await engine.Evaluate("(function(){ try { p.x(); return false; } catch (e) { return e instanceof TypeError; } })()"));
+        var proxyThrows = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("(function(){ try { p.x(); return false; } catch (e) { return e instanceof TypeError; } })()")));
         Assert.True(proxyThrows);
     }
 
@@ -594,9 +594,9 @@ public class JsEvaluatorTests
             Assert.Equal(4d, result["c0"]);
             Assert.Equal(5d, result["c2"]);
             Assert.Equal(3d, result["s1"]);
-            Assert.False(JsOps.ToBoolean(result["cHas1"]));
-            Assert.False(JsOps.ToBoolean(result["sHas0"]));
-            Assert.False(JsOps.ToBoolean(result["sHas2"]));
+            Assert.False(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result["cHas1"])));
+            Assert.False(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result["sHas0"])));
+            Assert.False(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result["sHas2"])));
         }
 
         var declarationOutcome = await engine.Evaluate("""
@@ -1941,10 +1941,10 @@ public class JsEvaluatorTests
                                            """);
 
         var obj = Assert.IsType<JsObject>(result);
-        var a = JsOps.ToBoolean(obj["a"]);
-        var b = JsOps.ToBoolean(obj["b"]);
-        var proto = JsOps.ToBoolean(obj["proto"]);
-        var parentProto = JsOps.ToBoolean(obj["parentProto"]);
+        var a = JsOps.ToBoolean(JsValue.FromObjectUnsafe(obj["a"]));
+        var b = JsOps.ToBoolean(JsValue.FromObjectUnsafe(obj["b"]));
+        var proto = JsOps.ToBoolean(JsValue.FromObjectUnsafe(obj["proto"]));
+        var parentProto = JsOps.ToBoolean(JsValue.FromObjectUnsafe(obj["parentProto"]));
 
         Assert.True(a, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");
         Assert.True(b, $"a={a}, b={b}, proto={proto}, parentProto={parentProto}");

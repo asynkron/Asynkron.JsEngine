@@ -71,7 +71,7 @@ public sealed partial class FunctionPrototype
             }
 
 #pragma warning disable CS0618 // Intentional: cursor is IJsPropertyAccessor? from previous call
-            cursor = JsOps.GetPrototypePointer(cursor);
+            cursor = JsOps.GetPrototypePointer(JsValue.FromObjectUnsafe(cursor));
 #pragma warning restore CS0618
         }
 

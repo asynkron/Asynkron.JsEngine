@@ -288,7 +288,9 @@ public static partial class StandardLibrary
             JsValueKind.String => new JsBigInt(ParseBigIntString(value.ObjectValue as string ?? string.Empty,
                 localContext, realmState)),
             JsValueKind.Symbol => throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState),
+#pragma warning disable CS0618 // Transitional: delegates to object? overload for ToPrimitive handling
             JsValueKind.Object => ToBigInt(value.ObjectValue, localContext, realmState),
+#pragma warning restore CS0618
             _ => throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState)
         };
     }

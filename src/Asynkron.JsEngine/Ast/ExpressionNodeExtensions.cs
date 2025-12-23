@@ -90,7 +90,7 @@ public static partial class TypedAstEvaluator
 
             // Proxy cannot be subclassed because its prototype is undefined.
             if (baseValue is IJsPropertyAccessor accessorWithMarker &&
-                TryGetPropertyValue(accessorWithMarker, "__proxyHasNoPrototype__", out var marker, context) &&
+                JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessorWithMarker), "__proxyHasNoPrototype__", out var marker, context) &&
                 JsOps.ToBoolean(marker))
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError(
@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
                     "Class extends value is not a constructor or null", context, context.RealmState));
             }
 
-            var hasPrototype = TryGetPropertyValue(baseValue, "prototype", out var prototypeValue, context);
+            var hasPrototype = JsOps.TryGetPropertyValue(baseJsValue, "prototype", out var prototypeValue, context);
             if (context.ShouldStopEvaluation)
             {
                 return (null, null);
@@ -120,12 +120,13 @@ public static partial class TypedAstEvaluator
                     context.RealmState));
             }
 
-            if (prototypeValue is null)
+            // Per ES spec 15.7.14 step 7.c.iii: only null is acceptable, not undefined
+            if (prototypeValue.IsNull)
             {
                 return (callable, null);
             }
 
-            if (prototypeValue is IJsPropertyAccessor prototype)
+            if (prototypeValue.TryGetObject<IJsPropertyAccessor>(out var prototype))
             {
                 return (callable, prototype);
             }

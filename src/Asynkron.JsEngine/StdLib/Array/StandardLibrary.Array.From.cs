@@ -313,8 +313,10 @@ public static partial class StandardLibrary
     {
         var jsCandidate = candidate is JsValue value ? value : JsValue.FromObjectUnsafe(candidate);
         return TryAwaitPromiseLikeJsValue(jsCandidate,
+#pragma warning disable CS0618 // Transitional: legacy callbacks require object? conversion
             resolved => onFulfilled(resolved.ToObject()),
             rejected => onRejected(rejected.ToObject()));
+#pragma warning restore CS0618
     }
 
     /// <summary>

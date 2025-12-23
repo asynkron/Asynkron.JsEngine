@@ -175,7 +175,7 @@ public class StrictModeTests
         if (value.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty("message", out var msg))
         {
-            return JsOps.ToJsString(msg.ToObject());
+            return JsOps.ToJsString(JsValue.FromObjectUnsafe(msg.ToObject()), null);
         }
 
         if (value.TryGetString(out var str))

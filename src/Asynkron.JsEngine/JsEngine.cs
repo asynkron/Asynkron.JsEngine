@@ -521,22 +521,23 @@ public sealed class JsEngine : IAsyncDisposable
     {
         timeoutCts = null;
 
-        if (ExecutionTimeout is { } timeout && timeout > TimeSpan.Zero &&
-            timeout != Timeout.InfiniteTimeSpan)
+        if (ExecutionTimeout is not { } timeout || timeout <= TimeSpan.Zero ||
+            timeout == Timeout.InfiniteTimeSpan)
         {
-            var cts = cancellationToken.CanBeCanceled
-                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
-                : new CancellationTokenSource();
-
-            cts.CancelAfter(timeout);
-            timeoutCts = cts;
-            return cts.Token;
+            return cancellationToken;
         }
 
-        return cancellationToken;
+        var cts = cancellationToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : new CancellationTokenSource();
+
+        cts.CancelAfter(timeout);
+        timeoutCts = cts;
+        return cts.Token;
+
     }
 
-    internal void StartEventLoop()
+    private void StartEventLoop()
     {
         if (_eventQueue is not null)
         {
@@ -553,7 +554,7 @@ public sealed class JsEngine : IAsyncDisposable
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
 
-    internal async Task DrainEventLoopAsync(CancellationToken cancellationToken)
+    private async Task DrainEventLoopAsync(CancellationToken cancellationToken)
     {
         // Check if already drained
         if (IsEventLoopDrained())
@@ -680,7 +681,9 @@ public sealed class JsEngine : IAsyncDisposable
 
     private static object? UnwrapResult(object? result)
     {
+#pragma warning disable CS0618 // Public API boundary: must return object? for external callers
         return result is JsValue jsValue ? jsValue.ToObject() : result;
+#pragma warning restore CS0618
     }
 
     /// <summary>
@@ -4943,26 +4946,6 @@ public sealed class JsEngine : IAsyncDisposable
             return true;
         }
 
-        /// <summary>
-        /// Converts JsValue to object? for compatibility with APIs that haven't been migrated yet.
-        /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
-        /// </summary>
-        private static object? ConvertJsValueToObject(JsValue value)
-        {
-            return value.Kind switch
-            {
-                JsValueKind.Undefined => Symbol.Undefined,
-                JsValueKind.Null => null,
-                JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
-                JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
-                JsValueKind.BigInt => value.ObjectValue,
-                JsValueKind.String => value.ObjectValue,
-                JsValueKind.Symbol => value.ObjectValue,
-                JsValueKind.Object => value.ObjectValue,
-                _ => Symbol.Undefined
-            };
-        }
-
         private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<JsValue> onFulfilled,
             JsEnvironment environment)
         {
@@ -5380,10 +5363,9 @@ public sealed class JsEngine : IAsyncDisposable
                     JsValue calleeValue;
                     try
                     {
-                        var propertyKey = ConvertJsValueToObject(propertyResolved);
-                        calleeValue = JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val,
+                        calleeValue = JsOps.TryGetPropertyValueJsValue(thisValue, propertyResolved, out var val,
                             _engine.RealmState?.CreateContext())
-                            ? JsValue.FromObjectUnsafe(val)
+                            ? val
                             : JsValue.Undefined;
                     }
                     catch (ThrowSignal signal)
@@ -5435,19 +5417,19 @@ public sealed class JsEngine : IAsyncDisposable
         {
             var targetValue = _engine.ExecuteTypedExpression(memberExpression.Target, env, isStrict);
             var thisValue = JsValue.FromObjectUnsafe(targetValue);
-            object? propertyKey;
+            JsValue propertyKey;
             if (memberExpression.Property is IdentifierExpression identifier)
             {
-                propertyKey = identifier.Name.Name;
+                propertyKey = new JsValue(identifier.Name.Name);
             }
             else
             {
-                propertyKey = _engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict);
+                propertyKey = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict));
             }
 
             var calleeValue =
-                JsOps.TryGetPropertyValue(thisValue, propertyKey, out var val, _engine.RealmState?.CreateContext())
-                    ? JsValue.FromObjectUnsafe(val)
+                JsOps.TryGetPropertyValueJsValue(thisValue, propertyKey, out var val, _engine.RealmState?.CreateContext())
+                    ? val
                     : JsValue.Undefined;
 
             return (calleeValue, thisValue);

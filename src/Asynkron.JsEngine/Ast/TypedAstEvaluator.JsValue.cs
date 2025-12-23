@@ -296,15 +296,15 @@ public static partial class TypedAstEvaluator
             JsValueKind.String => new JsValue(JsOps.ToNumber(value.AsString(), context)),
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number",
                 context),
-            JsValueKind.Object => ToNumericValueFromObject(value.ObjectValue, context),
+            JsValueKind.Object => ToNumericValueFromObject(value, context),
             _ => JsValue.NaN
         };
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static JsValue ToNumericValueFromObject(object? obj, EvaluationContext context)
+    private static JsValue ToNumericValueFromObject(JsValue value, EvaluationContext context)
     {
-        var primitive = JsOps.ToPrimitive(obj, ToPrimitiveHint.Number, context);
+        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, context);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;

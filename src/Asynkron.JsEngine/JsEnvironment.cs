@@ -2425,7 +2425,7 @@ public sealed class JsEnvironment
             iterations++;
 
             // Collect dictionary variables
-            var dictVars = new Dictionary<string, object?>();
+            var dictVars = new Dictionary<string, object?>(StringComparer.Ordinal);
             if (current._values is not null)
             {
                 foreach (var kvp in current._values)
@@ -2812,17 +2812,19 @@ public sealed class JsEnvironment
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void InitializeSlots(int slotCount)
     {
-        if (slotCount > 0)
+        if (slotCount <= 0)
         {
-            // Reuse existing array if it's big enough, otherwise allocate
-            if (_slots is null || _slots.Length < slotCount)
-            {
-                _slots = new JsValue[slotCount];
-            }
-
-            // Initialize all slots to undefined
-            Array.Fill(_slots, JsValue.Undefined);
+            return;
         }
+
+        // Reuse existing array if it's big enough, otherwise allocate
+        if (_slots is null || _slots.Length < slotCount)
+        {
+            _slots = new JsValue[slotCount];
+        }
+
+        // Initialize all slots to undefined
+        Array.Fill(_slots, JsValue.Undefined);
     }
 
     /// <summary>
@@ -2835,17 +2837,19 @@ public sealed class JsEnvironment
     public void InitializeSlots(int slotCount, int scopeId)
     {
         ScopeId = scopeId;
-        if (slotCount > 0)
+        if (slotCount <= 0)
         {
-            // Reuse existing array if it's big enough, otherwise allocate
-            if (_slots is null || _slots.Length < slotCount)
-            {
-                _slots = new JsValue[slotCount];
-            }
-
-            // Initialize all slots to undefined
-            Array.Fill(_slots, JsValue.Undefined);
+            return;
         }
+
+        // Reuse existing array if it's big enough, otherwise allocate
+        if (_slots is null || _slots.Length < slotCount)
+        {
+            _slots = new JsValue[slotCount];
+        }
+
+        // Initialize all slots to undefined
+        Array.Fill(_slots, JsValue.Undefined);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

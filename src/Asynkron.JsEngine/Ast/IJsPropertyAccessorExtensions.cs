@@ -65,21 +65,15 @@ public static partial class TypedAstEvaluator
 
             bool TryGetCallable(object propertyKey, out IJsCallable? callable)
             {
-                if (JsOps.TryGetPropertyValue(target, propertyKey, out var candidate, context))
+                if (JsOps.TryGetPropertyValueJsValue(JsValue.FromObjectUnsafe(target), JsValue.FromObjectUnsafe(propertyKey), out var candidate, context))
                 {
-                    // Unwrap JsValue if present
-                    if (candidate is JsValue jsVal)
+                    if (candidate.TryGetObject<IJsCallable>(out var jsCallable))
                     {
-                        if (jsVal.TryGetObject<IJsCallable>(out var jsCallable))
-                        {
-                            callable = jsCallable;
-                            return true;
-                        }
-
-                        candidate = jsVal.ObjectValue;
+                        callable = jsCallable;
+                        return true;
                     }
 
-                    if (candidate is IJsCallable found)
+                    if (candidate.ObjectValue is IJsCallable found)
                     {
                         callable = found;
                         return true;
@@ -92,7 +86,7 @@ public static partial class TypedAstEvaluator
                     return true;
                 }
 
-                if (candidate is not null && !ReferenceEquals(candidate, Symbol.Undefined))
+                if (!candidate.IsUndefined)
                 {
                     var error = StandardLibrary.CreateTypeError("Iterator method is not callable", context, realm);
                     context.SetThrow(JsValue.FromObjectUnsafe(error));

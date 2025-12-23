@@ -22,40 +22,35 @@ public static partial class TypedAstEvaluator
 
     private static readonly object GeneratorBrandMarker = new();
 
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     private static bool TryConvertToWithBindingObject(
-        object? value,
+        JsValue value,
         EvaluationContext context,
         out IJsObjectLike? bindingObject)
     {
-        switch (value)
+        if (value.TryGetObject<IJsObjectLike>(out var objectLike))
         {
-            case IJsObjectLike objectLike:
-                bindingObject = objectLike;
-                return true;
-            case null:
-            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-            case IIsHtmlDda:
-            {
-                var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
-                    context.RealmState);
-                context.SetThrow(JsValue.FromObjectUnsafe(error));
-                bindingObject = null;
-                return false;
-            }
-            default:
-            {
-                var converted = ToObjectForDestructuring(value, context);
-                if (context.IsThrow)
-                {
-                    bindingObject = null;
-                    return false;
-                }
-
-                bindingObject = converted;
-                return true;
-            }
+            bindingObject = objectLike;
+            return true;
         }
+
+        if (value.IsNullOrUndefined || value.TryGetObject<IIsHtmlDda>(out _))
+        {
+            var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
+                context.RealmState);
+            context.SetThrow(JsValue.FromObjectUnsafe(error));
+            bindingObject = null;
+            return false;
+        }
+
+        var converted = ToObjectForDestructuringJsValue(value, context);
+        if (context.IsThrow)
+        {
+            bindingObject = null;
+            return false;
+        }
+
+        bindingObject = converted;
+        return true;
     }
 
     /// <summary>
@@ -81,39 +76,32 @@ public static partial class TypedAstEvaluator
 
         // Strings - Unicode code point enumeration (handles surrogate pairs)
         // Strings are immutable so no modification concerns
-        if (value is { Kind: JsValueKind.String, ObjectValue: string s })
-        {
-            return EnumerateStringCharacters(s);
-        }
-
-        // Fall back to null - caller should use full iterator protocol
-        // TypedArray: resizable buffer shrink needs proper error propagation
-        return null;
+        return value is { Kind: JsValueKind.String, ObjectValue: string s } ? EnumerateStringCharacters(s) :
+            // Fall back to null - caller should use full iterator protocol
+            // TypedArray: resizable buffer shrink needs proper error propagation
+            null;
     }
 
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
-    private static bool TryGetIteratorFromProtocols(object? iterable, EvaluationContext context,
+    private static bool TryGetIteratorFromProtocols(JsValue iterableValue, EvaluationContext context,
         out IJsObjectLike? iterator)
     {
         iterator = null;
-        if (iterable is not IJsPropertyAccessor accessor)
+        if (!iterableValue.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return false;
         }
 
-        var logger = context.RealmState?.Logger;
+        var logger = context.RealmState.Logger;
         var iteratorKey = SymbolKeys.Iterator;
         logger?.LogInformation("TryGetIteratorFromProtocols start targetType={Type} iteratorKey={Key}",
-            iterable?.GetType().Name ?? "null",
+            accessor.GetType().Name,
             iteratorKey);
         if (accessor is IJsObjectLike objectLike)
         {
             var keysPreview = string.Join(',', objectLike.Keys.Take(8));
             logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
         }
-
-        var iterableValue = JsValue.FromObjectUnsafe(iterable);
         if (accessor.TryInvokeSymbolMethod(iterableValue, Symbols.AsyncIterator, context, out var asyncIterator))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} kind={IterKind}",
@@ -153,7 +141,6 @@ public static partial class TypedAstEvaluator
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
             context.SetThrow(JsValue.FromObjectUnsafe(typeError));
-            return false;
         }
 
         return false;
@@ -167,7 +154,7 @@ public static partial class TypedAstEvaluator
 
     // ToObject for iteration lookup: primitives must be wrapped so @@iterator can be
     // found on their prototypes (ES2024 GetIterator/ToObject step).
-    private static object NormalizeIterableTarget(JsValue jsValue, EvaluationContext context)
+    private static JsValue NormalizeIterableTarget(JsValue jsValue, EvaluationContext context)
     {
         if (jsValue.IsNull || jsValue.IsUndefined)
         {
@@ -175,14 +162,14 @@ public static partial class TypedAstEvaluator
             throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context, realm);
         }
 
-        // For objects, check if already an IJsPropertyAccessor
-        if (jsValue is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor accessor })
+        // For objects, check if already an IJsPropertyAccessor - return as-is
+        if (jsValue is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor })
         {
-            return accessor;
+            return jsValue;
         }
 
         // Use the JsValue overload for proper type handling
-        return ToObjectForDestructuringJsValue(jsValue, context);
+        return JsValue.FromObjectUnsafe(ToObjectForDestructuringJsValue(jsValue, context));
     }
 
     // WAITING ON FULL ASYNC/AWAIT + ASYNC GENERATOR IR SUPPORT:
@@ -448,7 +435,7 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(context.FlowValue);
         }
 
-        var logger = context.RealmState?.Logger;
+        var logger = context.RealmState.Logger;
         logger?.LogInformation(
             "EnumerateSpread start valueKind={Kind} hasIterator={HasIterator} hasEnumerator={HasEnum}",
             value.Kind,
@@ -766,19 +753,6 @@ public static partial class TypedAstEvaluator
         return JsValue.FromDouble(int32Op(leftIntVal, rightIntVal));
     }
 
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
-    private static bool TryGetPropertyValue(object? target, string propertyName, out object? value)
-    {
-        return JsOps.TryGetPropertyValue(target, propertyName, out value);
-    }
-
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
-    private static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value,
-        EvaluationContext? context = null)
-    {
-        return JsOps.TryGetPropertyValue(target, propertyKey, out value, context);
-    }
-
     /// <summary>
     /// JsValue overload for 'in' operator - avoids boxing.
     /// </summary>
@@ -903,7 +877,9 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            current = JsOps.GetPrototypePointer(current);
+#pragma warning disable CS0618 // Need object? version for prototype chain traversal
+            current = JsOps.GetPrototypePointer(JsValue.FromObjectUnsafe(current));
+#pragma warning restore CS0618
         }
 
         return false;
@@ -945,7 +921,7 @@ public static partial class TypedAstEvaluator
             // tests that modify Array.prototype[Symbol.iterator])
             if (objValue is IJsPropertyAccessor propertyAccessor)
             {
-                var gotIterator = TryGetIteratorFromProtocols(propertyAccessor, context, out var iteratorCandidate);
+                var gotIterator = TryGetIteratorFromProtocols(JsValue.FromObjectUnsafe(propertyAccessor), context, out var iteratorCandidate);
                 if (context.ShouldStopEvaluation)
                 {
                     return false;
@@ -1068,41 +1044,6 @@ public static partial class TypedAstEvaluator
 
         var obj = new JsObject();
         if (realm.ObjectPrototype is not null)
-        {
-            obj.SetPrototype(realm.ObjectPrototype);
-        }
-
-        return obj;
-    }
-
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
-    private static IJsObjectLike ToObjectForDestructuring(object? value, EvaluationContext context)
-    {
-        var realm = context.RealmState;
-
-        // Handle boxed JsValue structs - unwrap and check for null/undefined
-        if (value is JsValue jsValue)
-        {
-            return ToObjectForDestructuringJsValue(jsValue, context);
-        }
-
-        switch (value)
-        {
-            case null:
-            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-            case IIsHtmlDda:
-                throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
-            case IJsObjectLike objectLike:
-                return objectLike;
-        }
-
-        if (StandardLibrary.TryGetObject(value, realm, out var coerced))
-        {
-            return coerced;
-        }
-
-        var obj = new JsObject();
-        if (realm?.ObjectPrototype is not null)
         {
             obj.SetPrototype(realm.ObjectPrototype);
         }

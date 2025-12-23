@@ -188,19 +188,20 @@ public static class JsValueCache
     {
         // Check for common integer values first
         // Note: Must check for negative zero first since -0.0 >= 0 is true
-        if (value is >= 0 and < IntegerCacheSize && value == Math.Truncate(value))
+        if (value is < 0 or >= IntegerCacheSize || value != Math.Truncate(value))
         {
-            // Preserve negative zero (don't use cache for -0)
-            if (value == 0 && double.IsNegative(value))
-            {
-                return value;
-            }
-
-            return CachedIntegersJsValue[(int)value];
+            return value;
         }
 
+        // Preserve negative zero (don't use cache for -0)
+        if (value == 0 && double.IsNegative(value))
+        {
+            return value;
+        }
+
+        return CachedIntegersJsValue[(int)value];
+
         // No need to special-case NaN/Infinity/etc for JsValue since there's no boxing benefit
-        return value;
     }
 
     /// <summary>
@@ -302,7 +303,7 @@ public static class JsValueCache
     public static void ReturnArgumentArray(object?[] array)
     {
         var length = array.Length;
-        if (length == 0 || length > 4)
+        if (length is 0 or > 4)
         {
             return;
         }
@@ -396,7 +397,7 @@ public static class JsValueCache
     public static void ReturnJsValueArray(JsValue[] array)
     {
         var length = array.Length;
-        if (length == 0 || length > 4)
+        if (length is 0 or > 4)
         {
             return;
         }

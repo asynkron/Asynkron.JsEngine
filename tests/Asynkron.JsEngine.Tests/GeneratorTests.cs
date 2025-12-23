@@ -756,7 +756,7 @@ public class GeneratorTests
         if (signal.ThrownValue.TryGetObject<JsObject>(out var obj) &&
             obj.TryGetProperty("message", out var message))
         {
-            Assert.Equal("Iterator result is not an object.", JsOps.ToJsString(message.ToObject()));
+            Assert.Equal("Iterator result is not an object.", JsOps.ToJsString(JsValue.FromObjectUnsafe(message.ToObject()), null));
             return;
         }
 

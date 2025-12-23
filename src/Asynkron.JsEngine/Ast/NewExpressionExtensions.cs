@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -172,8 +173,8 @@ public static partial class TypedAstEvaluator
                             isDerivedClassCtor);
                     }
                 }
-                else if (TryGetPropertyValue(constructor, "prototype", out var prototype) &&
-                         prototype is IJsPropertyAccessor protoAccessor)
+                else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var prototypeJs, context) &&
+                         prototypeJs.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
                 {
                     instance.SetPrototype(protoAccessor);
                     logger?.LogInformation(
@@ -258,8 +259,8 @@ public static partial class TypedAstEvaluator
                             isDerivedClassCtor);
                     }
                 }
-                else if (TryGetPropertyValue(constructor, "prototype", out var finalPrototype, context) &&
-                         finalPrototype is IJsPropertyAccessor finalProtoAccessor)
+                else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var finalPrototypeJs, context) &&
+                         finalPrototypeJs.TryGetObject<IJsPropertyAccessor>(out var finalProtoAccessor))
                 {
                     if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoAccessor))
                     {

@@ -57,6 +57,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     // Host-only metadata to help debugging prototype wiring without leaking into JS state.
     public string? Origin { get; set; }
 
+#pragma warning disable CS0618 // IDictionary<string, object?> implementation requires ToObject() at API boundary
     // IDictionary<string, object?> implementation - wraps JsValue storage
     public ICollection<string> Keys => _state?.Storage.Keys ?? Array.Empty<string>();
     public ICollection<object?> Values => _state?.Storage.Values.Select(static v => v.ToObject()).ToList() ?? [];
@@ -182,6 +183,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+#pragma warning restore CS0618
     }
 
     public bool IsExtensible { get; private set; } = true;
@@ -487,7 +489,9 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     continue;
                 }
 
+#pragma warning disable CS0618 // cloneValue callback requires object?
                 var clonedValue = cloneValue(kv.Value.ToObject());
+#pragma warning restore CS0618
                 _state.Storage[kv.Key] = JsValue.FromObjectUnsafe(clonedValue);
             }
 
@@ -1289,7 +1293,9 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         double coerced;
         try
         {
-            coerced = value is double d ? d : JsOps.ToNumber(value);
+#pragma warning disable CS0618 // Method accepts object?, ToNumber converts appropriately
+            coerced = value is double d ? d : JsOps.ToNumber(JsValue.FromObjectUnsafe(value), null);
+#pragma warning restore CS0618
         }
         catch (ThrowSignal)
         {
@@ -1708,6 +1714,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
+#pragma warning disable CS0618 // TryGetProperty returns object? for compatibility, requires ToObject() conversions
     internal bool TryGetProperty(string name, object? receiver, EvaluationContext? context,
         out object? value)
     {
@@ -2060,6 +2067,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         value = null;
         return false;
     }
+#pragma warning restore CS0618
 
     /// <summary>
     /// JsValue version of TryGetOwnProperty that avoids boxing for primitives.

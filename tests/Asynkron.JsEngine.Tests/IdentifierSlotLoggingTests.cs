@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging.Testing;
 
@@ -31,7 +32,7 @@ public class IdentifierSlotLoggingTests
             run();
             """);
 
-        Assert.Equal(45d, JsOps.ToNumber(result));
+        Assert.Equal(45d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
         var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
         var readMisses = messages.Where(m => m.Contains("Identifier slot read miss", StringComparison.Ordinal)).ToArray();
         var writeMisses = messages.Where(m => m.Contains("Identifier slot write miss", StringComparison.Ordinal)).ToArray();
@@ -71,7 +72,7 @@ public class IdentifierSlotLoggingTests
             run();
             """);
 
-        Assert.Equal(45d, JsOps.ToNumber(result));
+        Assert.Equal(45d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
         var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
         var readMisses = messages.Where(m => m.Contains("Identifier slot read miss", StringComparison.Ordinal)).ToArray();
         var writeMisses = messages.Where(m => m.Contains("Identifier slot write miss", StringComparison.Ordinal)).ToArray();

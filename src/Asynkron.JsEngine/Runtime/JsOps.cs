@@ -116,19 +116,6 @@ internal static class JsOps
         return dividend % divisor;
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsNullish(this object? value)
-    {
-        if (value is JsValue jsValue)
-        {
-            return jsValue.IsNullOrUndefined;
-        }
-
-        return value is null ||
-               (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined));
-    }
-
     /// <summary>
     ///     ECMAScript-like ToBoolean semantics for engine values.
     ///     Kept in sync with <see cref="IsTruthy" /> which is the legacy name used throughout the codebase.
@@ -150,28 +137,6 @@ internal static class JsOps
         };
     }
 
-    /// <summary>
-    ///     ECMAScript-like ToBoolean semantics for engine values (object? overload for backward compatibility).
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool ToBoolean(object? value)
-    {
-        return value switch
-        {
-            null => false,
-            JsValue jsValue => ToBoolean(jsValue),
-            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => false,
-            IIsHtmlDda => false,
-            bool b => b,
-            double d => !double.IsNaN(d) && d != 0,
-            float f => !float.IsNaN(f) && f != 0,
-            string s => s.Length > 0,
-            JsBigInt bi => !bi.Value.IsZero,
-            _ => true
-        };
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool IsTruthy(in JsValue value)
     {
@@ -183,33 +148,9 @@ internal static class JsOps
         return ToNumberWithContext(in value, context);
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static double ToNumber(object? value, EvaluationContext? context = null)
-    {
-        return ToNumberWithContext(value, context);
-    }
-
     public static JsValue ToNumeric(in JsValue value, EvaluationContext? context = null)
     {
         return ToNumericAsJsValue(in value, context);
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static object ToNumeric(object? value, EvaluationContext? context = null)
-    {
-        var result = ToNumericAsJsValue(value, context);
-        // Important: explicit casts to object to avoid implicit JsValue conversions
-        if (result.IsNumber)
-        {
-            return result;
-        }
-
-        if (result.IsBigInt)
-        {
-            return result.AsBigInt();
-        }
-
-        return result;
     }
 
     /// <summary>
@@ -231,26 +172,9 @@ internal static class JsOps
             JsValueKind.Undefined => JsValue.NaN,
             JsValueKind.Null => JsValue.Zero,
             JsValueKind.Boolean => new JsValue(value.NumberValue),
+#pragma warning disable CS0618 // Transitional: delegates to object? core for complex types
             _ => ToNumericCore(value.ObjectValue, context)
-        };
-    }
-
-    /// <summary>
-    /// Converts a value to numeric as JsValue without boxing. Use this for internal arithmetic operations.
-    /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static JsValue ToNumericAsJsValue(object? value, EvaluationContext? context = null)
-    {
-        return value switch
-        {
-            // Fast paths for already-numeric types (avoid full conversion)
-            double d => new JsValue(d),
-            JsBigInt bi => new JsValue(bi),
-            int i => new JsValue((double)i),
-            JsValue jsv => ToNumericAsJsValue(jsv, context),
-            _ => ToNumericCore(value, context)
+#pragma warning restore CS0618
         };
     }
 
@@ -271,22 +195,6 @@ internal static class JsOps
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static double ToNumberWithContext(object? value, EvaluationContext? context = null)
-    {
-        var result = ToNumericAsJsValue(value, context);
-        if (result.IsNumber)
-        {
-            return result.NumberValue;
-        }
-
-        if (result.IsBigInt)
-        {
-            return (double)result.AsBigInt().Value;
-        }
-
-        return double.NaN;
-    }
-
     private static JsValue ToNumericCore(
         object? value,
         EvaluationContext? context)
@@ -333,7 +241,7 @@ internal static class JsOps
                 case Symbol:
                 case TypedAstSymbol:
                 {
-                    var error = CreateTypeError("Cannot convert a Symbol value to a number", context);
+                    var error = StandardLibrary.CreateTypeError("Cannot convert a Symbol value to a number", context, context?.RealmState);
                     if (context is null)
                     {
                         throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
@@ -409,7 +317,7 @@ internal static class JsOps
                         return JsValue.Undefined; // Error state - caller should check context.IsThrow
                     }
 
-                    var error = CreateTypeError("Cannot convert object to primitive value", context);
+                    var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
                     if (context is null)
                     {
                         throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
@@ -494,7 +402,7 @@ internal static class JsOps
         }
 
         // Check if toString exists and track whether we attempted to use it
-        var toStringExists = accessor.TryGetProperty("toString", out var toStringMethod);
+        var toStringExists = accessor.TryGetProperty("toString", out _);
         if (toStringExists)
         {
             attempted = true;
@@ -522,7 +430,7 @@ internal static class JsOps
         }
 
         // OrdinaryToPrimitive failure path should be an abrupt completion.
-        var error = CreateTypeError("Cannot convert object to primitive value", context);
+        var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
         if (context is null)
         {
             throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
@@ -570,7 +478,7 @@ internal static class JsOps
                 return value;
             }
 
-            if (!toPrimitive.IsNullish() && toPrimitive is not IJsCallable)
+            if (!JsValue.FromObjectUnsafe(toPrimitive).IsNullOrUndefined && toPrimitive is not IJsCallable)
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
             }
@@ -670,6 +578,7 @@ internal static class JsOps
     /// <summary>
     /// JsValue overload for ToPrimitive. Returns object? since primitives can be various types.
     /// </summary>
+    /// [Obsolete("Use JsValue overload for better performance and correctness.")]
     public static object? ToPrimitive(JsValue value, ToPrimitiveHint hint, EvaluationContext? context = null)
     {
         // Fast path: already a primitive
@@ -687,12 +596,6 @@ internal static class JsOps
 #pragma warning restore CS0618
             _ => value.ObjectValue
         };
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static string ToJsString(object? value, EvaluationContext? context = null)
-    {
-        return value.ToJsString(context, context?.RealmState);
     }
 
     public static string ToJsString(in JsValue value, EvaluationContext? context = null)
@@ -784,51 +687,6 @@ internal static class JsOps
         };
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static bool StrictEquals(object? left, object? right)
-    {
-        // Fast path for JsValue
-        if (left is JsValue ljv && right is JsValue rjv)
-        {
-            return StrictEquals(ljv, rjv);
-        }
-
-        if (ReferenceEquals(left, right))
-        {
-            return left is not (double and double.NaN);
-        }
-
-        if (left is null || right is null)
-        {
-            return false;
-        }
-
-        if (left is JsBigInt lbi && right is JsBigInt rbi)
-        {
-            return lbi == rbi;
-        }
-
-        if ((left is JsBigInt && IsNumeric(right)) || (IsNumeric(left) && right is JsBigInt))
-        {
-            return false;
-        }
-
-        if (!IsNumeric(left) || !IsNumeric(right))
-        {
-            return left.GetType() == right.GetType() && Equals(left, right);
-        }
-
-        var ln = ToNumber(left);
-        var rn = ToNumber(right);
-        if (double.IsNaN(ln) || double.IsNaN(rn))
-        {
-            return false;
-        }
-
-        return ln.Equals(rn);
-    }
-
     public static bool LooseEquals(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for same-type comparisons
@@ -874,7 +732,7 @@ internal static class JsOps
 
             if (leftType == rightType)
             {
-                return StrictEquals(left1, right1);
+                return StrictEquals(JsValue.FromObjectUnsafe(left1), JsValue.FromObjectUnsafe(right1));
             }
 
             if ((leftType == JsValueType.Null && rightType == JsValueType.Undefined) ||
@@ -891,27 +749,27 @@ internal static class JsOps
             switch (leftType)
             {
                 case JsValueType.Number when rightType == JsValueType.String:
-                    right1 = ToNumber(right1, context);
+                    right1 = ToNumber(JsValue.FromObjectUnsafe(right1), context);
                     continue;
                 case JsValueType.String when rightType == JsValueType.Number:
-                    left1 = ToNumber(left1, context);
+                    left1 = ToNumber(JsValue.FromObjectUnsafe(left1), context);
                     continue;
                 case JsValueType.BigInt when rightType == JsValueType.String:
                 {
-                    return TryParseJsBigInt((string)right1!, out var parsed) && StrictEquals(left1, parsed);
+                    return TryParseJsBigInt((string)right1!, out var parsed) && StrictEquals(JsValue.FromObjectUnsafe(left1), JsValue.FromObjectUnsafe(parsed));
                 }
                 case JsValueType.String when rightType == JsValueType.BigInt:
                 {
-                    return TryParseJsBigInt((string)left1!, out var parsed) && StrictEquals(parsed, right1);
+                    return TryParseJsBigInt((string)left1!, out var parsed) && StrictEquals(JsValue.FromObjectUnsafe(parsed), JsValue.FromObjectUnsafe(right1));
                 }
                 case JsValueType.Boolean:
-                    left1 = ToNumber(left1, context);
+                    left1 = ToNumber(JsValue.FromObjectUnsafe(left1), context);
                     continue;
             }
 
             if (rightType == JsValueType.Boolean)
             {
-                right1 = ToNumber(right1, context);
+                right1 = ToNumber(JsValue.FromObjectUnsafe(right1), context);
                 continue;
             }
 
@@ -1004,6 +862,7 @@ internal static class JsOps
     /// Extracts the underlying value from a JsValue for use in comparison operations.
     /// For numbers and booleans, returns a boxed value. For other types, returns ObjectValue.
     /// </summary>
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     private static object? ExtractValueForComparison(in JsValue value)
     {
         return value.Kind switch
@@ -1104,25 +963,23 @@ internal static class JsOps
         }
 
         // Step 5: Otherwise, convert both to numeric values and compare
-#pragma warning disable CS0618 // Transitional method uses object? API
-        var leftNumeric = ToNumeric(leftPrimitive, context);
-#pragma warning restore CS0618
+        var leftNumericJsValue = ToNumeric(JsValue.FromObjectUnsafe(leftPrimitive), context);
         if (context?.IsThrow == true)
         {
             return false;
         }
 
-#pragma warning disable CS0618 // Transitional method uses object? API
-        var rightNumeric = ToNumeric(rightPrimitive, context);
-#pragma warning restore CS0618
+        var rightNumericJsValue = ToNumeric(JsValue.FromObjectUnsafe(rightPrimitive), context);
         if (context?.IsThrow == true)
         {
             return false;
         }
 
         // Step 5a: If both are BigInt, do BigInt comparison
-        if (leftNumeric is JsBigInt leftBigInt && rightNumeric is JsBigInt rightBigInt)
+        if (leftNumericJsValue.IsBigInt && rightNumericJsValue.IsBigInt)
         {
+            var leftBigInt = leftNumericJsValue.AsBigInt();
+            var rightBigInt = rightNumericJsValue.AsBigInt();
             return op switch
             {
                 ComparisonOperator.LessThan => leftBigInt < rightBigInt,
@@ -1134,27 +991,27 @@ internal static class JsOps
         }
 
         // Step 5b: If one is BigInt and the other is Number, do mixed-type comparison
-        // Note: ToNumeric may return a boxed JsValue for numbers (not a raw double), so we need to
-        // check both `double` and `JsValue` with IsNumber to correctly identify numeric values.
-        var leftIsNumber = TryGetNumericDouble(leftNumeric, out var leftDouble);
-        var rightIsNumber = TryGetNumericDouble(rightNumeric, out var rightDouble);
+        var leftIsNumber = leftNumericJsValue.IsNumber;
+        var rightIsNumber = rightNumericJsValue.IsNumber;
+        var leftDouble = leftNumericJsValue.IsNumber ? leftNumericJsValue.NumberValue : 0;
+        var rightDouble = rightNumericJsValue.IsNumber ? rightNumericJsValue.NumberValue : 0;
 
-        if ((leftNumeric is JsBigInt && rightIsNumber) ||
-            (leftIsNumber && rightNumeric is JsBigInt))
+        if ((leftNumericJsValue.IsBigInt && rightIsNumber) ||
+            (leftIsNumber && rightNumericJsValue.IsBigInt))
         {
             JsBigInt bigIntValue;
             double numberValue;
             bool bigIntIsLeft;
 
-            if (leftNumeric is JsBigInt)
+            if (leftNumericJsValue.IsBigInt)
             {
-                bigIntValue = (JsBigInt)leftNumeric;
+                bigIntValue = leftNumericJsValue.AsBigInt();
                 numberValue = rightDouble;
                 bigIntIsLeft = true;
             }
             else
             {
-                bigIntValue = (JsBigInt)rightNumeric;
+                bigIntValue = rightNumericJsValue.AsBigInt();
                 numberValue = leftDouble;
                 bigIntIsLeft = false;
             }
@@ -1245,10 +1102,8 @@ internal static class JsOps
         }
 
         // Step 5c: Both are Numbers, do Number comparison
-#pragma warning disable CS0618 // Transitional method uses object? API
-        var leftNum = ToNumber(leftNumeric, context);
-        var rightNum = ToNumber(rightNumeric, context);
-#pragma warning restore CS0618
+        var leftNum = leftNumericJsValue.IsNumber ? leftNumericJsValue.NumberValue : ToNumber(leftNumericJsValue, context);
+        var rightNum = rightNumericJsValue.IsNumber ? rightNumericJsValue.NumberValue : ToNumber(rightNumericJsValue, context);
         if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
         {
             return false;
@@ -1262,26 +1117,6 @@ internal static class JsOps
             ComparisonOperator.GreaterThanOrEqual => leftNum >= rightNum,
             _ => false
         };
-    }
-
-    // Helper method to extract a double from a numeric value (either raw double or boxed JsValue)
-    // Returns true if the value is a number, false otherwise.
-    private static bool TryGetNumericDouble(object? value, out double result)
-    {
-        if (value is double d)
-        {
-            result = d;
-            return true;
-        }
-
-        if (value is JsValue { IsNumber: true } jsv)
-        {
-            result = jsv.NumberValue;
-            return true;
-        }
-
-        result = 0;
-        return false;
     }
 
     // Helper method to compare a BigInteger to a double without precision loss
@@ -1316,139 +1151,60 @@ internal static class JsOps
         return -1;
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static string? ToPropertyName(object? value, EvaluationContext? context = null)
+    public static string? ToPropertyName(JsValue value, EvaluationContext? context = null)
     {
         while (true)
         {
-            switch (value)
+            switch (value.Kind)
             {
-                case null:
-                    return "null";
-                case JsValue jsValue:
-                    // Handle JsValue based on kind to avoid boxing
-                    switch (jsValue.Kind)
+                case JsValueKind.Undefined:
+                    return JsValueCache.UndefinedString;
+                case JsValueKind.Null:
+                    return JsValueCache.NullString;
+                case JsValueKind.Boolean:
+                    return value.AsBoolean() ? JsValueCache.TrueString : JsValueCache.FalseString;
+                case JsValueKind.Number:
+                    return ToCanonicalNumberString(value.NumberValue);
+                case JsValueKind.BigInt:
+                    return value.AsBigInt().Value.ToString(CultureInfo.InvariantCulture);
+                case JsValueKind.String:
+                    return value.AsString();
+                case JsValueKind.Symbol:
+                    return value.ObjectValue switch
                     {
-                        case JsValueKind.Null:
-                            return "null";
-                        case JsValueKind.Undefined:
-                            return "undefined";
-                        case JsValueKind.Boolean:
-                            return jsValue.NumberValue != 0 ? "true" : "false";
-                        case JsValueKind.Number:
-                            return ToCanonicalNumberString(jsValue.NumberValue);
-                        case JsValueKind.String:
-                            return jsValue.ObjectValue as string ?? string.Empty;
-                        case JsValueKind.BigInt:
-                            return jsValue.ObjectValue is JsBigInt bi
-                                ? bi.Value.ToString(CultureInfo.InvariantCulture)
-                                : string.Empty;
-                        case JsValueKind.Symbol:
-                            if (jsValue.ObjectValue is TypedAstSymbol sym)
-                            {
-                                return TypedAstSymbol.PropertyKey(sym);
-                            }
-
-                            if (jsValue.ObjectValue is Symbol s)
-                            {
-                                return s.Name;
-                            }
-
-                            return null;
-                        default:
-                            value = jsValue.ObjectValue;
-                            continue;
-                    }
-                case string s:
-                    return s;
-                case JsBigInt bigInt:
-                    return bigInt.Value.ToString(CultureInfo.InvariantCulture);
-                case Symbol symbol:
-                    return symbol.Name;
-                case TypedAstSymbol jsSymbol:
-                    return TypedAstSymbol.PropertyKey(jsSymbol);
-                case bool b:
-                    return b ? "true" : "false";
-                case int i:
-                    return JsValueCache.GetIndexString(i);
-                case long l:
-                    return JsValueCache.GetIndexString(l);
-                case double d:
-                    return ToCanonicalNumberString(d);
-            }
-
-            if (value is IJsPropertyAccessor accessor)
-            {
-                // ToPropertyKey delegates to ToPrimitive with string hint
-                // and then converts the resulting primitive to a property name.
-                value = ToPrimitive(accessor, ToPrimitiveHint.String, context);
-                if (context?.IsThrow == true)
+                        Symbol sym => sym.Name,
+                        TypedAstSymbol astSym => TypedAstSymbol.PropertyKey(astSym),
+                        _ => value.ObjectValue?.ToString() ?? string.Empty
+                    };
+                case JsValueKind.Object:
                 {
-                    return null;
-                }
-
-                continue;
-            }
-
-            if (context?.IsThrow == true)
-            {
-                return null;
-            }
-
-            return Convert.ToString(value, CultureInfo.InvariantCulture);
-        }
-    }
-
-    public static string? ToPropertyName(JsValue value, EvaluationContext? context = null)
-    {
-        switch (value.Kind)
-        {
-            case JsValueKind.Undefined:
-                return JsValueCache.UndefinedString;
-            case JsValueKind.Null:
-                return JsValueCache.NullString;
-            case JsValueKind.Boolean:
-                return value.AsBoolean() ? JsValueCache.TrueString : JsValueCache.FalseString;
-            case JsValueKind.Number:
-                return ToCanonicalNumberString(value.NumberValue);
-            case JsValueKind.BigInt:
-                return value.AsBigInt().Value.ToString(CultureInfo.InvariantCulture);
-            case JsValueKind.String:
-                return value.AsString();
-            case JsValueKind.Symbol:
-                return value.ObjectValue switch
-                {
-                    Symbol sym => sym.Name,
-                    TypedAstSymbol astSym => TypedAstSymbol.PropertyKey(astSym),
-                    _ => value.ObjectValue?.ToString() ?? string.Empty
-                };
-            case JsValueKind.Object:
-            {
-                if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
-                {
+                    if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                    {
 #pragma warning disable CS0618 // Delegate to object? version for object conversion
-                    var primitive = ToPrimitive(accessor, ToPrimitiveHint.String, context);
+                        var primitive = ToPrimitive(accessor, ToPrimitiveHint.String, context);
+                        if (context?.IsThrow == true)
+                        {
+                            return null;
+                        }
+
+                        value = JsValue.FromObjectUnsafe(primitive);
+                        continue;
+#pragma warning restore CS0618
+                    }
+
                     if (context?.IsThrow == true)
                     {
                         return null;
                     }
 
-                    return ToPropertyName(primitive, context);
-#pragma warning restore CS0618
+                    return Convert.ToString(value.ObjectValue, CultureInfo.InvariantCulture);
                 }
-
-                if (context?.IsThrow == true)
-                {
-                    return null;
-                }
-
-                return Convert.ToString(value.ObjectValue, CultureInfo.InvariantCulture);
+                case JsValueKind.Unit:
+                case JsValueKind.Uninitialized:
+                    return JsValueCache.UndefinedString;
+                default:
+                    return JsValueCache.UndefinedString;
             }
-            case JsValueKind.Unit:
-            case JsValueKind.Uninitialized:
-                return JsValueCache.UndefinedString;
-            default:
-                return JsValueCache.UndefinedString;
         }
     }
 
@@ -1512,7 +1268,7 @@ internal static class JsOps
         var parts = expText.Split('e');
         var mantissa = parts[0].TrimEnd('0').TrimEnd('.');
         var expVal = int.Parse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture);
-        var expStr = expVal >= 0 ? $"+{expVal}" : expVal.ToString(CultureInfo.InvariantCulture);
+        var expStr = expVal >= 0 ? $"+{expVal.ToString(CultureInfo.InvariantCulture)}" : expVal.ToString(CultureInfo.InvariantCulture);
 
         return $"{sign}{mantissa}e{expStr}";
     }
@@ -1535,13 +1291,14 @@ internal static class JsOps
         }
         catch (ThrowSignal signal)
         {
-            if (context is not null)
+            if (context is null)
             {
-                context.SetThrow(signal.ThrownValue);
-                return false;
+                throw;
             }
 
-            throw;
+            context.SetThrow(signal.ThrownValue);
+            return false;
+
         }
     }
 
@@ -1561,33 +1318,6 @@ internal static class JsOps
         };
     }
 
-    private static object CreateTypeError(string message, EvaluationContext? context)
-    {
-        var realm = context?.RealmState;
-        return StandardLibrary.CreateTypeError(message, context, realm);
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static IJsPropertyAccessor? GetPrototypePointer(object? value)
-    {
-        if (value is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
-        {
-            return protoAccessor;
-        }
-
-        if (value is IJsObjectLike { Prototype: { } proto })
-        {
-            return proto;
-        }
-
-        if (value is JsObject { Prototype: { } jsProto })
-        {
-            return jsProto;
-        }
-
-        return null;
-    }
-
     /// <summary>
     /// JsValue overload for GetPrototypePointer.
     /// </summary>
@@ -1599,21 +1329,23 @@ internal static class JsOps
             return null;
         }
 
-#pragma warning disable CS0618 // Type or member is obsolete - internal delegation
-        return GetPrototypePointer(value.ObjectValue);
-#pragma warning restore CS0618
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static string GetRequiredPropertyName(object? value, EvaluationContext? context = null)
-    {
-        var name = ToPropertyName(value, context);
-        if (context?.IsThrow == true)
+        var obj = value.ObjectValue;
+        if (obj is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor })
         {
-            return string.Empty;
+            return protoAccessor;
         }
 
-        return name ?? throw new InvalidOperationException("Property name cannot be null.");
+        if (obj is IJsObjectLike { Prototype: { } proto })
+        {
+            return proto;
+        }
+
+        if (obj is JsObject { Prototype: { } jsProto })
+        {
+            return jsProto;
+        }
+
+        return null;
     }
 
     public static string GetRequiredPropertyName(JsValue value, EvaluationContext? context = null)
@@ -1694,65 +1426,6 @@ internal static class JsOps
         }
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
-    {
-        while (true)
-        {
-            switch (candidate)
-            {
-                case int i and >= 0:
-                    index = i;
-                    return true;
-                case long l and >= 0 and <= int.MaxValue:
-                    index = (int)l;
-                    return true;
-                case double d when !double.IsNaN(d) && !double.IsInfinity(d):
-                    if (d < 0)
-                    {
-                        break;
-                    }
-
-                    var truncated = Math.Truncate(d);
-                    if (Math.Abs(truncated - d) > double.Epsilon)
-                    {
-                        break;
-                    }
-
-                    if (truncated > int.MaxValue)
-                    {
-                        break;
-                    }
-
-                    index = (int)truncated;
-                    return true;
-                case JsBigInt bigInt when bigInt.Value >= BigInteger.Zero && bigInt.Value <= int.MaxValue:
-                    index = (int)bigInt.Value;
-                    return true;
-                case string s when int.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) &&
-                                   parsed >= 0:
-                    index = parsed;
-                    return true;
-            }
-
-            if (candidate is JsObject jsObj && jsObj.TryGetValue("__value__", out var innerValue))
-            {
-                candidate = innerValue;
-                continue;
-            }
-
-            var coerced = ToPropertyName(candidate, context);
-            if (coerced is not null && !ReferenceEquals(coerced, candidate))
-            {
-                candidate = coerced;
-                continue;
-            }
-
-            index = 0;
-            return false;
-        }
-    }
-
     /// <summary>
     /// JsValue overload for GetTypeofString. Returns the typeof string for a JsValue.
     /// </summary>
@@ -1779,57 +1452,6 @@ internal static class JsOps
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static string GetTypeofString(object? value)
-    {
-        if (value is null)
-        {
-            return "object";
-        }
-
-        if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
-        {
-            return "undefined";
-        }
-
-        if (value is TypedAstSymbol)
-        {
-            return "symbol";
-        }
-
-        if (value is IIsHtmlDda)
-        {
-            return "undefined";
-        }
-
-        if (value is JsBigInt)
-        {
-            return "bigint";
-        }
-
-        // Special handling for Proxy: typeof depends on whether the TARGET is callable,
-        // not the proxy itself. Per ES spec, typeof on a revoked proxy doesn't throw -
-        // it returns "function" if the original target was callable, "object" otherwise.
-        if (value is JsProxy proxy)
-        {
-            return proxy.Target is IJsCallable ? "function" : "object";
-        }
-
-        return value switch
-        {
-            bool => "boolean",
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
-            string => "string",
-            IJsCallable => "function",
-            _ => "object"
-        };
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool IsNumeric(object? value)
-    {
-        return value is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
-    }
-
     private static JsValueType GetJsType(object? value)
     {
         return value switch
@@ -1847,10 +1469,11 @@ internal static class JsOps
         };
     }
 
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     private static bool NumberEqualsBigInt(object? numberValue, JsBigInt bigInt)
     {
 #pragma warning disable CS0618 // Transitional method uses object? API
-        var num = ToNumber(numberValue);
+        var num = ToNumber(JsValue.FromObjectUnsafe(numberValue), null);
 #pragma warning restore CS0618
         if (double.IsNaN(num) || double.IsInfinity(num))
         {
@@ -1883,21 +1506,17 @@ internal static class JsOps
             span = span[1..];
         }
 
-        if (TryParsePrefixedBigInt(span, 16, NumberStyles.AllowHexSpecifier, out var parsed) ||
-            TryParseBinaryBigInt(span, out parsed) ||
-            TryParseOctalBigInt(span, out parsed))
+        if (!TryParsePrefixedBigInt(span, 16, NumberStyles.AllowHexSpecifier, out var parsed) &&
+            !TryParseBinaryBigInt(span, out parsed) &&
+            !TryParseOctalBigInt(span, out parsed) &&
+            !BigInteger.TryParse(span, NumberStyles.None, CultureInfo.InvariantCulture, out parsed))
         {
-            value = new JsBigInt(isNegative ? BigInteger.Negate(parsed) : parsed);
-            return true;
+            return false;
         }
 
-        if (BigInteger.TryParse(span, NumberStyles.None, CultureInfo.InvariantCulture, out parsed))
-        {
-            value = new JsBigInt(isNegative ? BigInteger.Negate(parsed) : parsed);
-            return true;
-        }
+        value = new JsBigInt(isNegative ? BigInteger.Negate(parsed) : parsed);
+        return true;
 
-        return false;
     }
 
     private static bool TryParsePrefixedBigInt(ReadOnlySpan<char> span, int radix, NumberStyles styles,
@@ -1929,13 +1548,14 @@ internal static class JsOps
 
         // BigInteger.Parse interprets hex input as two's complement; prefix
         // a zero nibble so 0xFF produces 255 instead of -1.
-        if ((styles & NumberStyles.AllowHexSpecifier) != 0)
+        if ((styles & NumberStyles.AllowHexSpecifier) == NumberStyles.None)
         {
-            var padded = string.Concat("0", digits.ToString());
-            return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
+            return BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
         }
 
-        return BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
+        var padded = $"0{digits.ToString()}";
+        return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
+
     }
 
     private static bool TryParseBinaryBigInt(ReadOnlySpan<char> span, out BigInteger value)
@@ -2006,30 +1626,14 @@ internal static class JsOps
     public static bool HasProperty(JsValue target, string propertyName)
     {
         // Fast path: only objects can have properties via prototype chain
-        if (target.Kind == JsValueKind.Object)
+        if (target.Kind != JsValueKind.Object)
         {
-#pragma warning disable CS0618 // Delegate to object? version for object
-            return HasProperty(target.ObjectValue, propertyName);
-#pragma warning restore CS0618
+            return false;
         }
 
-        // Primitives boxed into objects would have gone through the object path
-        // but a raw JsValue primitive doesn't have properties to check
-        return false;
-    }
-
-    /// <summary>
-    /// Implements [[HasProperty]] internal method for the 'in' operator.
-    /// Returns true if the property exists on the object or its prototype chain.
-    /// Per ES spec, [[HasProperty]] uses [[GetOwnProperty]] to check for existence,
-    /// it does NOT invoke getters like [[Get]] would.
-    /// </summary>
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool HasProperty(object? target, string propertyName)
-    {
         // Walk the prototype chain checking for the property via [[GetOwnProperty]]
         // This does NOT invoke getters - it only checks if the property exists
-        var current = target;
+        var current = target.ObjectValue;
         while (current is not null)
         {
             if (current is IJsObjectLike objLike)
@@ -2112,9 +1716,6 @@ internal static class JsOps
                 value = numValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(numValue);
                 return true;
             }
-
-            value = JsValue.Undefined;
-            return false;
         }
 
         value = JsValue.Undefined;
@@ -2165,14 +1766,15 @@ internal static class JsOps
         }
         catch (ThrowSignal signal)
         {
-            if (context is not null)
+            if (context is null)
             {
-                context.SetThrow(signal.ThrownValue);
-                value = signal.ThrownValue;
-                return true;
+                throw;
             }
 
-            throw;
+            context.SetThrow(signal.ThrownValue);
+            value = signal.ThrownValue;
+            return true;
+
         }
     }
 
@@ -2409,63 +2011,6 @@ internal static class JsOps
         return false;
     }
 
-    [Obsolete(
-        "Use JsValue overload TryGetPropertyValue(JsValue, JsValue, out JsValue, EvaluationContext?) for better performance.")]
-    public static bool TryGetPropertyValue(object? target, object? propertyKey, out object? value,
-        EvaluationContext? context = null)
-    {
-        if (context?.IsThrow == true)
-        {
-            value = Symbol.Undefined;
-            return false;
-        }
-
-        // Special-case TypedAstSymbol keys used for @@iterator / @@asyncIterator
-        // so that non-callable values are treated as missing, allowing helpers
-        // like Babel's _createForOfIteratorHelperLoose to fall back to their
-        // Array/@@iterator code paths instead of attempting to call a symbol.
-        if (TryGetArrayLikeValueJsValue(JsValue.FromObjectUnsafe(target), JsValue.FromObjectUnsafe(propertyKey), out var jsvalue, context))
-        {
-            value = jsvalue.ToObject();
-            return true;
-        }
-
-        if (context?.IsThrow == true)
-        {
-            value = Symbol.Undefined;
-            return false;
-        }
-
-        var propertyName = ToPropertyName(propertyKey, context);
-        if (context?.IsThrow == true)
-        {
-            value = Symbol.Undefined;
-            return false;
-        }
-
-        if (propertyName is null)
-        {
-            value = Symbol.Undefined;
-            return true;
-        }
-
-        try
-        {
-            return TryGetPropertyValue(target, propertyName, out value, context);
-        }
-        catch (ThrowSignal signal)
-        {
-            if (context is not null)
-            {
-                context.SetThrow(signal.ThrownValue);
-                value = signal.ThrownValue;
-                return true;
-            }
-
-            throw;
-        }
-    }
-
     /// <summary>
     /// JsValue overload for IsConstructor. Returns true if the value is a constructor.
     /// </summary>
@@ -2498,71 +2043,6 @@ internal static class JsOps
         return false;
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool IsConstructor(object? value)
-    {
-        while (true)
-        {
-            switch (value)
-            {
-                case JsValue jsValue:
-                    // Only objects can be constructors
-                    if (jsValue.Kind != JsValueKind.Object)
-                    {
-                        return false;
-                    }
-
-                    value = jsValue.ObjectValue;
-                    continue;
-                case JsProxy proxy:
-                    value = proxy.Target;
-                    continue;
-                case HostFunction host:
-                    return host is { IsConstructor: true, DisallowConstruct: false };
-                case ICallableMetadata { IsArrowFunction: true }:
-                case ICallableMetadata { DisallowConstruct: true }:
-                    return false;
-            }
-
-            return value is IJsCallable;
-        }
-    }
-
-
-    [Obsolete(
-        "Use JsValue overload AssignPropertyValueJsValue(JsValue, JsValue, JsValue, EvaluationContext?) for better performance.")]
-    public static void AssignPropertyValue(object? target, object? propertyKey, object? value,
-        EvaluationContext? context = null)
-    {
-        try
-        {
-            if (TryAssignArrayLikeValue(target, propertyKey, value, context))
-            {
-                return;
-            }
-
-            var propertyName = GetRequiredPropertyName(propertyKey, context);
-
-            AssignPropertyValueByName(target, propertyName, value);
-        }
-        catch (ThrowSignal signal) when (context is not null)
-        {
-            context.SetThrow(signal.ThrownValue);
-        }
-    }
-
-    [Obsolete(
-        "Use JsValue overload AssignPropertyValueByNameJsValue(JsValue, string, JsValue) for better performance.")]
-    private static void AssignPropertyValueByName(object? target, string propertyName, object? value)
-    {
-        if (target is IJsPropertyAccessor accessor)
-        {
-            accessor.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(target));
-            return;
-        }
-
-        throw new InvalidOperationException($"Cannot assign property '{propertyName}' on value '{target}'.");
-    }
 
     /// <summary>
     /// JsValue overload for property assignment. Avoids boxing when all parameters are JsValue.
@@ -2583,13 +2063,12 @@ internal static class JsOps
         }
         catch (ThrowSignal signal)
         {
-            if (context is not null)
+            if (context is null)
             {
-                context.SetThrow(signal.ThrownValue);
-                return;
+                throw;
             }
 
-            throw;
+            context.SetThrow(signal.ThrownValue);
         }
     }
 
@@ -2725,7 +2204,7 @@ internal static class JsOps
                 }
 
 #pragma warning disable CS0618 // Need object? version for prototype chain traversal
-                current = GetPrototypePointer(current);
+                current = GetPrototypePointer(JsValue.FromObjectUnsafe(current));
 #pragma warning restore CS0618
             }
 
@@ -2734,228 +2213,19 @@ internal static class JsOps
 
         }
 
-        if (target.TryGetObject<TypedArrayBase>(out var typedArray) &&
-            TryResolveArrayIndexJsValue(propertyKey, out var typedIndex, context))
+        if (!target.TryGetObject<TypedArrayBase>(out var typedArray) ||
+            !TryResolveArrayIndexJsValue(propertyKey, out var typedIndex, context))
         {
-            if (typedIndex >= 0 && typedIndex < typedArray.Length)
-            {
-                typedArray.SetElement(typedIndex, ToNumber(value, context));
-            }
-
-            return true;
+            return false;
         }
 
-        return false;
-    }
-
-    private static bool TryAssignArrayLikeValue(object? target, object? propertyKey, object? value,
-        EvaluationContext? context)
-    {
-        if (target is JsArray jsArray)
+        if (typedIndex >= 0 && typedIndex < typedArray.Length)
         {
-#pragma warning disable CS0618 // Transitional method uses object? API
-            var propertyName = ToPropertyName(propertyKey, context);
-#pragma warning restore CS0618
-            if (context?.IsThrow == true)
-            {
-                return true;
-            }
-
-            if (propertyName is null)
-            {
-                return true;
-            }
-
-            if (string.Equals(propertyName, "length", StringComparison.Ordinal))
-            {
-                jsArray.SetLength(value, context);
-                return true;
-            }
-
-#pragma warning disable CS0618 // Transitional method uses object? API
-            var isArrayIndex = TryResolveArrayIndex(propertyKey, out var index, context);
-#pragma warning restore CS0618
-            var ownDescriptor = jsArray.GetOwnPropertyDescriptor(propertyName);
-
-            if (isArrayIndex)
-            {
-                if (ownDescriptor is not null)
-                {
-                    if (ownDescriptor.IsAccessorDescriptor)
-                    {
-                        if (ownDescriptor.Set is null)
-                        {
-                            if (context?.CurrentScope.IsStrict == true)
-                            {
-                                throw StandardLibrary.ThrowTypeError(
-                                    $"Cannot set property '{propertyName}' that has only a getter.",
-                                    context,
-                                    context.RealmState);
-                            }
-
-                            return true;
-                        }
-
-                        TypedAstEvaluator.InvokeCallableJsValue(ownDescriptor.Set, [JsValue.FromObjectUnsafe(value)],
-                            JsValue.FromObjectUnsafe(jsArray), context);
-                        return true;
-                    }
-
-                    if (!ownDescriptor.Writable)
-                    {
-                        if (context?.CurrentScope.IsStrict == true)
-                        {
-                            throw StandardLibrary.ThrowTypeError(
-                                $"Cannot assign to read only property '{propertyName}'.",
-                                context,
-                                context.RealmState);
-                        }
-
-                        return true;
-                    }
-
-                    jsArray.SetElement(index, value);
-                    return true;
-                }
-
-                var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
-                while (current is not null)
-                {
-                    var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
-                    if (inheritedDescriptor is not null)
-                    {
-                        if (inheritedDescriptor.IsAccessorDescriptor)
-                        {
-                            if (inheritedDescriptor.Set is null)
-                            {
-                                if (context?.CurrentScope.IsStrict == true)
-                                {
-                                    throw StandardLibrary.ThrowTypeError(
-                                        $"Cannot set property '{propertyName}' that has only a getter.",
-                                        context,
-                                        context.RealmState);
-                                }
-
-                                return true;
-                            }
-
-                            TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set,
-                                [JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(jsArray), context);
-                            return true;
-                        }
-
-                        if (!inheritedDescriptor.Writable)
-                        {
-                            if (context?.CurrentScope.IsStrict == true)
-                            {
-                                throw StandardLibrary.ThrowTypeError(
-                                    $"Cannot assign to read only property '{propertyName}'.",
-                                    context,
-                                    context.RealmState);
-                            }
-
-                            return true;
-                        }
-
-                        jsArray.DefineProperty(propertyName,
-                            new PropertyDescriptor
-                            {
-                                Value = value,
-                                Writable = true,
-                                Enumerable = inheritedDescriptor.Enumerable,
-                                Configurable = inheritedDescriptor.Configurable,
-                                HasValue = true,
-                                HasWritable = true,
-                                HasEnumerable = inheritedDescriptor.HasEnumerable,
-                                HasConfigurable = inheritedDescriptor.HasConfigurable
-                            });
-                        return true;
-                    }
-
-                    current = current switch
-                    {
-                        IJsObjectLike objectLike => objectLike.Prototype,
-                        IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                        _ => null
-                    };
-                }
-
-                jsArray.SetElement(index, value);
-                return true;
-            }
-
-            jsArray.SetProperty(propertyName, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(jsArray));
-            return true;
+            typedArray.SetElement(typedIndex, ToNumber(value, context));
         }
 
-#pragma warning disable CS0618 // Transitional method uses object? API
-        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
-#pragma warning restore CS0618
-        {
-            typedArray.SetValue(typedIndex, JsValue.FromObjectUnsafe(value));
-            return true;
-        }
-
-        return false;
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool DeletePropertyValue(object? target, object? propertyKey, EvaluationContext? context = null)
-    {
-        if (target is null || ReferenceEquals(target, Symbol.Undefined))
-        {
-            throw StandardLibrary.ThrowTypeError("Cannot delete property on null or undefined", context,
-                context?.RealmState);
-        }
-
-        if (target is JsArray jsArray)
-        {
-            var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || jsArray.Delete(propertyName);
-        }
-
-        if (target is HostFunction hostFunc)
-        {
-            var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || hostFunc.DeleteProperty(propertyName);
-        }
-
-        if (target is ModuleNamespace moduleNamespace)
-        {
-            var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || moduleNamespace.Delete(propertyName);
-        }
-
-        if (target is TypedArrayBase typedArray)
-        {
-            if (TryResolveArrayIndex(propertyKey, out _, context))
-            {
-                return false;
-            }
-
-            var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || typedArray.DeleteProperty(propertyName);
-        }
-
-        if (target is JsArgumentsObject argumentsObject)
-        {
-            var propertyName = ToPropertyName(propertyKey, context);
-            return propertyName is null || argumentsObject.Delete(propertyName);
-        }
-
-        var resolvedName = ToPropertyName(propertyKey, context);
-        if (resolvedName is null)
-        {
-            return true;
-        }
-
-        if (target is IJsObjectLike objectLike)
-        {
-            return objectLike.Delete(resolvedName);
-        }
-
-        // Deleting primitives or other non-object values is a no-op that succeeds
         return true;
+
     }
 
     /// <summary>

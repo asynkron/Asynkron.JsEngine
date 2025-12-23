@@ -135,7 +135,7 @@ public readonly struct PropertyHandle
                 _context.RealmState);
         }
 
-        var deleted = JsOps.DeletePropertyValue(_targetJsValue.ObjectValue, _propertyName, _context);
+        var deleted = JsOps.DeletePropertyValueJsValue(_targetJsValue, new JsValue(_propertyName), _context);
         if (!deleted && _isStrict)
         {
             throw StandardLibrary.ThrowTypeError("Cannot delete property", _context, _context.RealmState);

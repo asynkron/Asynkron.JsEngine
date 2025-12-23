@@ -1014,6 +1014,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         double numberLen = _length;
         if (hasValue)
         {
+#pragma warning disable CS0618 // Method takes object? parameter
             var numberForUint32 = JsOps.ToNumberWithContext(value, context);
             if (context?.IsThrow == true)
             {
@@ -1022,6 +1023,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
             var coercedUint = unchecked((uint)(long)numberForUint32);
             numberLen = JsOps.ToNumberWithContext(value, context);
+#pragma warning restore CS0618
             if (context?.IsThrow == true)
             {
                 return false;

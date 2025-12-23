@@ -5192,14 +5192,14 @@ public sealed class JsEngine : IAsyncDisposable
             return op switch
             {
                 UnaryOperator.LogicalNot => JsValue.FromBoolean(!operand.IsTruthy),
-                UnaryOperator.Plus => JsValue.FromDouble(JsOps.ToNumber(ConvertJsValueToObject(operand))),
+                UnaryOperator.Plus => JsValue.FromDouble(JsOps.ToNumber(operand)),
                 UnaryOperator.Minus => operand.Kind == JsValueKind.Number
                     ? JsValue.FromDouble(-operand.NumberValue)
-                    : JsValue.FromDouble(-JsOps.ToNumber(ConvertJsValueToObject(operand))),
-                UnaryOperator.BitwiseNot => JsValue.FromDouble(~(int)JsOps.ToNumber(ConvertJsValueToObject(operand))),
+                    : JsValue.FromDouble(-JsOps.ToNumber(operand)),
+                UnaryOperator.BitwiseNot => JsValue.FromDouble(~(int)JsOps.ToNumber(operand)),
                 UnaryOperator.Void => JsValue.Undefined,
                 UnaryOperator.TypeOf =>
-                    JsValue.FromObjectUnsafe(JsOps.GetTypeofString(ConvertJsValueToObject(operand))),
+                    new JsValue(JsOps.GetTypeofString(operand)),
                 _ => throw new NotSupportedException($"Unary operator '{op}' is not supported in async module context.")
             };
         }

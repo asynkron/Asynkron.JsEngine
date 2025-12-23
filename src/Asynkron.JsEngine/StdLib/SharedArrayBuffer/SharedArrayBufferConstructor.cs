@@ -115,7 +115,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         }
 
         var context = Realm.CreateContext();
-        if (!JsOps.TryGetPropertyValue(accessor, "maxByteLength", out var maxVal, context))
+        if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), "maxByteLength", out var maxVal, context))
         {
             return null;
         }
@@ -125,7 +125,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             throw new ThrowSignal(context.FlowValue);
         }
 
-        if (ReferenceEquals(maxVal, Symbol.Undefined))
+        if (maxVal.IsUndefined)
         {
             return null;
         }

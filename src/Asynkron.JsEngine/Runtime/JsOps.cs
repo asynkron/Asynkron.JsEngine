@@ -14,7 +14,7 @@ namespace Asynkron.JsEngine.Runtime;
 
 internal static class JsOps
 {
-    internal const double NegativeZero = -0.0d;
+    private const double NegativeZero = -0.0d;
 
     // Cached hint strings for ToPrimitive (used when calling [Symbol.toPrimitive])
     private const string HintDefault = "default";
@@ -27,15 +27,13 @@ internal static class JsOps
 
     internal static double MathPow(double baseValue, double exponent)
     {
-        if (double.IsNaN(exponent))
+        switch (exponent)
         {
-            return double.NaN;
-        }
-
-        if (exponent == 0)
-        {
-            // Covers both +0 and -0 exponents.
-            return 1;
+            case double.NaN:
+                return double.NaN;
+            case 0:
+                // Covers both +0 and -0 exponents.
+                return 1;
         }
 
         if (double.IsNaN(baseValue))
@@ -46,17 +44,12 @@ internal static class JsOps
         if (double.IsInfinity(exponent))
         {
             var abs = Math.Abs(baseValue);
-            if (abs == 1)
+            return abs switch
             {
-                return double.NaN;
-            }
-
-            if (abs > 1)
-            {
-                return exponent > 0 ? double.PositiveInfinity : 0.0;
-            }
-
-            return exponent > 0 ? 0.0 : double.PositiveInfinity;
+                1 => double.NaN,
+                > 1 => exponent > 0 ? double.PositiveInfinity : 0.0,
+                _ => exponent > 0 ? 0.0 : double.PositiveInfinity
+            };
         }
 
         if (!double.IsInfinity(baseValue))
@@ -94,7 +87,7 @@ internal static class JsOps
             return double.NaN;
         }
 
-        // If dividend is infinity, return NaN
+        // If the dividend is infinity, return NaN
         if (double.IsInfinity(dividend))
         {
             return double.NaN;
@@ -123,8 +116,9 @@ internal static class JsOps
         return dividend % divisor;
     }
 
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsNullish(this object? value)
+    private static bool IsNullish(this object? value)
     {
         if (value is JsValue jsValue)
         {
@@ -201,7 +195,7 @@ internal static class JsOps
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static object ToNumeric(object? value, EvaluationContext? context = null)
+    private static object ToNumeric(object? value, EvaluationContext? context = null)
     {
         var result = ToNumericAsJsValue(value, context);
         // Important: explicit casts to object to avoid implicit JsValue conversions
@@ -223,31 +217,22 @@ internal static class JsOps
     /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue ToNumericAsJsValue(in JsValue value, EvaluationContext? context = null)
+    private static JsValue ToNumericAsJsValue(in JsValue value, EvaluationContext? context = null)
     {
         if (value.IsNumber || value.IsBigInt)
         {
             return value;
         }
 
-        // Handle JsValue kinds that have null ObjectValue specially
-        // to avoid null being treated as 0 in ToNumericCore
-        if (value.Kind == JsValueKind.Undefined)
+        return value.Kind switch
         {
-            return JsValue.NaN;
-        }
-
-        if (value.Kind == JsValueKind.Null)
-        {
-            return JsValue.Zero;
-        }
-
-        if (value.Kind == JsValueKind.Boolean)
-        {
-            return new JsValue(value.NumberValue);
-        }
-
-        return ToNumericCore(value.ObjectValue, context);
+            // Handle JsValue kinds that have null ObjectValue specially
+            // to avoid null being treated as 0 in ToNumericCore
+            JsValueKind.Undefined => JsValue.NaN,
+            JsValueKind.Null => JsValue.Zero,
+            JsValueKind.Boolean => new JsValue(value.NumberValue),
+            _ => ToNumericCore(value.ObjectValue, context)
+        };
     }
 
     /// <summary>
@@ -255,30 +240,18 @@ internal static class JsOps
     /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue ToNumericAsJsValue(object? value, EvaluationContext? context = null)
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
+    private static JsValue ToNumericAsJsValue(object? value, EvaluationContext? context = null)
     {
-        // Fast paths for already-numeric types (avoid full conversion)
-        if (value is double d)
+        return value switch
         {
-            return new JsValue(d);
-        }
-
-        if (value is JsBigInt bi)
-        {
-            return new JsValue(bi);
-        }
-
-        if (value is int i)
-        {
-            return new JsValue((double)i);
-        }
-
-        if (value is JsValue jsv)
-        {
-            return ToNumericAsJsValue(jsv, context);
-        }
-
-        return ToNumericCore(value, context);
+            // Fast paths for already-numeric types (avoid full conversion)
+            double d => new JsValue(d),
+            JsBigInt bi => new JsValue(bi),
+            int i => new JsValue((double)i),
+            JsValue jsv => ToNumericAsJsValue(jsv, context),
+            _ => ToNumericCore(value, context)
+        };
     }
 
     public static double ToNumberWithContext(in JsValue value, EvaluationContext? context = null)
@@ -423,7 +396,9 @@ internal static class JsOps
                         }
                     }
 
+#pragma warning disable CS0618 // Transitional method uses object? API
                     if (TryConvertToNumericPrimitive(accessor, out var primitive, context))
+#pragma warning restore CS0618
                     {
                         value = primitive;
                         continue;
@@ -449,13 +424,16 @@ internal static class JsOps
         }
     }
 
+    [Obsolete("Use JsValue overload for better performance and correctness.")]
     private static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
         EvaluationContext? context)
     {
         primitive = null;
         var attempted = false;
 
+#pragma warning disable CS0618 // Transitional wrapper uses object? API
         if (TryGetPropertyValue(accessor, SymbolKeys.ToPrimitive, out var toPrimitive, context))
+#pragma warning restore CS0618
         {
             if (context?.IsThrow == true)
             {
@@ -479,7 +457,9 @@ internal static class JsOps
 
                     if (IsPrimitiveValue(result))
                     {
+#pragma warning disable CS0618 // Transitional wrapper returns object?
                         primitive = result.IsObject ? result.ObjectValue : result.ToObject();
+#pragma warning restore CS0618
                         return true;
                     }
                 }
@@ -500,7 +480,9 @@ internal static class JsOps
             {
                 if (IsPrimitiveValue(valueOfResult))
                 {
+#pragma warning disable CS0618 // Transitional wrapper returns object?
                     primitive = valueOfResult.IsObject ? valueOfResult.ObjectValue : valueOfResult.ToObject();
+#pragma warning restore CS0618
                     return true;
                 }
             }
@@ -513,16 +495,17 @@ internal static class JsOps
 
         // Check if toString exists and track whether we attempted to use it
         var toStringExists = accessor.TryGetProperty("toString", out var toStringMethod);
-        var toStringAttempted = false;
         if (toStringExists)
         {
             attempted = true;
-            toStringAttempted = TryInvokePropertyMethodJsValue(accessor, "toString", out var toStringResult, context);
+            var toStringAttempted = TryInvokePropertyMethodJsValue(accessor, "toString", out var toStringResult, context);
             if (toStringAttempted)
             {
                 if (IsPrimitiveValue(toStringResult))
                 {
+#pragma warning disable CS0618 // Transitional wrapper returns object?
                     primitive = toStringResult.IsObject ? toStringResult.ObjectValue : toStringResult.ToObject();
+#pragma warning restore CS0618
                     return true;
                 }
             }
@@ -551,33 +534,12 @@ internal static class JsOps
     }
 
     /// <summary>
-    /// Converts a value to a primitive using the specified hint string.
-    /// Prefer using the ToPrimitiveHint enum overload in hot paths.
-    /// </summary>
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static object? ToPrimitive(object? value, string hint, EvaluationContext? context = null)
-    {
-        var hintEnum = hint switch
-        {
-            "number" => ToPrimitiveHint.Number,
-            "string" => ToPrimitiveHint.String,
-            _ => ToPrimitiveHint.Default
-        };
-        return ToPrimitive(value, hintEnum, context);
-    }
-
-    /// <summary>
     /// Converts a value to a primitive using the specified hint enum (faster than string version).
     /// </summary>
     [Obsolete("Use JsValue overload for better performance and correctness.")]
     public static object? ToPrimitive(object? value, ToPrimitiveHint hint, EvaluationContext? context = null)
     {
-        if (value is TypedAstSymbol)
-        {
-            return value;
-        }
-
-        if (value is not IJsPropertyAccessor accessor)
+        if (value is TypedAstSymbol || value is not IJsPropertyAccessor accessor)
         {
             return value;
         }
@@ -720,8 +682,9 @@ internal static class JsOps
             JsValueKind.String => value.ObjectValue,
             JsValueKind.Symbol => value.ObjectValue,
             JsValueKind.BigInt => value.ObjectValue,
-            // For objects, delegate to the object? version
+#pragma warning disable CS0618 // For objects, delegate to the object? version
             JsValueKind.Object => ToPrimitive(value.ObjectValue, hint, context),
+#pragma warning restore CS0618
             _ => value.ObjectValue
         };
     }
@@ -782,19 +745,14 @@ internal static class JsOps
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool SameValueNumber(double left, double right)
     {
-        // NaN equals NaN in SameValue
-        if (double.IsNaN(left) && double.IsNaN(right))
+        return left switch
         {
-            return true;
-        }
-
-        // -0 and +0 are different in SameValue
-        if (left == 0.0 && right == 0.0)
-        {
-            return BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right);
-        }
-
-        return left == right;
+            // NaN equals NaN in SameValue
+            double.NaN when double.IsNaN(right) => true,
+            // -0 and +0 are different in SameValue
+            0.0 when right == 0.0 => BitConverter.DoubleToInt64Bits(left) == BitConverter.DoubleToInt64Bits(right),
+            _ => left == right
+        };
     }
 
     /// <summary>
@@ -828,7 +786,7 @@ internal static class JsOps
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool StrictEquals(object? left, object? right)
+    private static bool StrictEquals(object? left, object? right)
     {
         // Fast path for JsValue
         if (left is JsValue ljv && right is JsValue rjv)
@@ -838,7 +796,7 @@ internal static class JsOps
 
         if (ReferenceEquals(left, right))
         {
-            return left is not double d || !double.IsNaN(d);
+            return left is not (double and double.NaN);
         }
 
         if (left is null || right is null)
@@ -900,12 +858,9 @@ internal static class JsOps
         }
 
         // Delegate to object? version for type coercion
-        return LooseEquals(ExtractValueForComparison(in left), ExtractValueForComparison(in right), context);
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool LooseEquals(object? left, object? right, EvaluationContext? context = null)
-    {
+#pragma warning disable CS0618 // Delegate to object? version
+        var left1 = ExtractValueForComparison(in left);
+        var right1 = ExtractValueForComparison(in right);
         while (true)
         {
             if (context?.IsThrow == true)
@@ -914,12 +869,12 @@ internal static class JsOps
                 throw new ThrowSignal(context.FlowValue);
             }
 
-            var leftType = GetJsType(left);
-            var rightType = GetJsType(right);
+            var leftType = GetJsType(left1);
+            var rightType = GetJsType(right1);
 
             if (leftType == rightType)
             {
-                return StrictEquals(left, right);
+                return StrictEquals(left1, right1);
             }
 
             if ((leftType == JsValueType.Null && rightType == JsValueType.Undefined) ||
@@ -928,162 +883,121 @@ internal static class JsOps
                 return true;
             }
 
-            if (left is IIsHtmlDda || right is IIsHtmlDda)
+            if (left1 is IIsHtmlDda || right1 is IIsHtmlDda)
             {
                 return false;
             }
 
-            if (leftType == JsValueType.Number && rightType == JsValueType.String)
+            switch (leftType)
             {
-                right = ToNumber(right, context);
-                continue;
-            }
-
-            if (leftType == JsValueType.String && rightType == JsValueType.Number)
-            {
-                left = ToNumber(left, context);
-                continue;
-            }
-
-            if (leftType == JsValueType.BigInt && rightType == JsValueType.String)
-            {
-                return TryParseJsBigInt((string)right!, out var parsed) && StrictEquals(left, parsed);
-            }
-
-            if (leftType == JsValueType.String && rightType == JsValueType.BigInt)
-            {
-                return TryParseJsBigInt((string)left!, out var parsed) && StrictEquals(parsed, right);
-            }
-
-            if (leftType == JsValueType.Boolean)
-            {
-                left = ToNumber(left, context);
-                continue;
+                case JsValueType.Number when rightType == JsValueType.String:
+                    right1 = ToNumber(right1, context);
+                    continue;
+                case JsValueType.String when rightType == JsValueType.Number:
+                    left1 = ToNumber(left1, context);
+                    continue;
+                case JsValueType.BigInt when rightType == JsValueType.String:
+                {
+                    return TryParseJsBigInt((string)right1!, out var parsed) && StrictEquals(left1, parsed);
+                }
+                case JsValueType.String when rightType == JsValueType.BigInt:
+                {
+                    return TryParseJsBigInt((string)left1!, out var parsed) && StrictEquals(parsed, right1);
+                }
+                case JsValueType.Boolean:
+                    left1 = ToNumber(left1, context);
+                    continue;
             }
 
             if (rightType == JsValueType.Boolean)
             {
-                right = ToNumber(right, context);
+                right1 = ToNumber(right1, context);
                 continue;
             }
 
-            if ((leftType == JsValueType.String || leftType == JsValueType.Number || leftType == JsValueType.BigInt ||
-                 leftType == JsValueType.Symbol) && rightType == JsValueType.Object)
+            switch (leftType)
             {
-                right = ToPrimitive((IJsPropertyAccessor)right!, ToPrimitiveHint.Default, context);
-                continue;
+                case JsValueType.String or JsValueType.Number or JsValueType.BigInt or JsValueType.Symbol when rightType == JsValueType.Object:
+                    right1 = ToPrimitive((IJsPropertyAccessor)right1!, ToPrimitiveHint.Default, context);
+                    continue;
+                case JsValueType.Object when
+                    rightType is JsValueType.String or JsValueType.Number or JsValueType.BigInt or JsValueType.Symbol:
+                    left1 = ToPrimitive((IJsPropertyAccessor)left1!, ToPrimitiveHint.Default, context);
+                    continue;
+                case JsValueType.Number when rightType == JsValueType.BigInt:
+                    return NumberEqualsBigInt(left1, (JsBigInt)right1!);
+                case JsValueType.BigInt when rightType == JsValueType.Number:
+                    return NumberEqualsBigInt(right1, (JsBigInt)left1!);
+                default:
+                    return false;
             }
-
-            if (leftType == JsValueType.Object &&
-                (rightType == JsValueType.String || rightType == JsValueType.Number ||
-                 rightType == JsValueType.BigInt || rightType == JsValueType.Symbol))
-            {
-                left = ToPrimitive((IJsPropertyAccessor)left!, ToPrimitiveHint.Default, context);
-                continue;
-            }
-
-            if (leftType == JsValueType.Number && rightType == JsValueType.BigInt)
-            {
-                return NumberEqualsBigInt(left, (JsBigInt)right!);
-            }
-
-            if (leftType == JsValueType.BigInt && rightType == JsValueType.Number)
-            {
-                return NumberEqualsBigInt(right, (JsBigInt)left!);
-            }
-
-            return false;
         }
+
+#pragma warning restore CS0618
     }
 
     public static bool GreaterThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        // Fast path for comparing two numbers
-        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+#pragma warning disable CS0618 // Delegate to object? comparison for complex cases
+        return left.Kind switch
         {
-            return left.NumberValue > right.NumberValue;
-        }
-
-        // Fast path for comparing two strings
-        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-        {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
-        }
-
-        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
-            ComparisonOperator.GreaterThan, context);
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool GreaterThan(object? left, object? right, EvaluationContext? context = null)
-    {
-        return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
+            // Fast path for comparing two numbers
+            JsValueKind.Number when right.Kind == JsValueKind.Number => left.NumberValue > right.NumberValue,
+            // Fast path for comparing two strings
+            JsValueKind.String when right.Kind == JsValueKind.String => string.CompareOrdinal(
+                left.ObjectValue as string, right.ObjectValue as string) > 0,
+            _ => PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
+                ComparisonOperator.GreaterThan, context)
+        };
+#pragma warning restore CS0618
     }
 
     public static bool GreaterThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        // Fast path for comparing two numbers
-        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+#pragma warning disable CS0618 // Delegate to object? comparison for complex cases
+        return left.Kind switch
         {
-            return left.NumberValue >= right.NumberValue;
-        }
-
-        // Fast path for comparing two strings
-        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-        {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
-        }
-
-        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
-            ComparisonOperator.GreaterThanOrEqual, context);
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool GreaterThanOrEqual(object? left, object? right, EvaluationContext? context = null)
-    {
-        return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
+            // Fast path for comparing two numbers
+            JsValueKind.Number when right.Kind == JsValueKind.Number => left.NumberValue >= right.NumberValue,
+            // Fast path for comparing two strings
+            JsValueKind.String when right.Kind == JsValueKind.String => string.CompareOrdinal(
+                left.ObjectValue as string, right.ObjectValue as string) >= 0,
+            _ => PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
+                ComparisonOperator.GreaterThanOrEqual, context)
+        };
+#pragma warning restore CS0618
     }
 
     public static bool LessThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        // Fast path for comparing two numbers
-        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+#pragma warning disable CS0618 // Delegate to object? comparison for complex cases
+        return left.Kind switch
         {
-            return left.NumberValue < right.NumberValue;
-        }
-
-        // Fast path for comparing two strings
-        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-        {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
-        }
-
-        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
-            ComparisonOperator.LessThan, context);
-    }
-
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool LessThan(object? left, object? right, EvaluationContext? context = null)
-    {
-        return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
+            // Fast path for comparing two numbers
+            JsValueKind.Number when right.Kind == JsValueKind.Number => left.NumberValue < right.NumberValue,
+            // Fast path for comparing two strings
+            JsValueKind.String when right.Kind == JsValueKind.String => string.CompareOrdinal(
+                left.ObjectValue as string, right.ObjectValue as string) < 0,
+            _ => PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
+                ComparisonOperator.LessThan, context)
+        };
+#pragma warning restore CS0618
     }
 
     public static bool LessThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        // Fast path for comparing two numbers
-        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+#pragma warning disable CS0618 // Delegate to object? comparison for complex cases
+        return left.Kind switch
         {
-            return left.NumberValue <= right.NumberValue;
-        }
-
-        // Fast path for comparing two strings
-        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-        {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
-        }
-
-        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
-            ComparisonOperator.LessThanOrEqual, context);
+            // Fast path for comparing two numbers
+            JsValueKind.Number when right.Kind == JsValueKind.Number => left.NumberValue <= right.NumberValue,
+            // Fast path for comparing two strings
+            JsValueKind.String when right.Kind == JsValueKind.String => string.CompareOrdinal(
+                left.ObjectValue as string, right.ObjectValue as string) <= 0,
+            _ => PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
+                ComparisonOperator.LessThanOrEqual, context)
+        };
+#pragma warning restore CS0618
     }
 
     /// <summary>
@@ -1103,11 +1017,6 @@ internal static class JsOps
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool LessThanOrEqual(object? left, object? right, EvaluationContext? context = null)
-    {
-        return PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context);
-    }
-
     private static bool PerformComparisonOperation(
         object? left,
         object? right,
@@ -1119,7 +1028,9 @@ internal static class JsOps
         var leftPrimitive = left;
         if (left is IJsPropertyAccessor leftAccessor and not TypedAstSymbol)
         {
+#pragma warning disable CS0618 // Transitional method uses object? API
             leftPrimitive = ToPrimitive(leftAccessor, ToPrimitiveHint.Number, context);
+#pragma warning restore CS0618
             if (context?.IsThrow == true)
             {
                 return false;
@@ -1129,74 +1040,81 @@ internal static class JsOps
         var rightPrimitive = right;
         if (right is IJsPropertyAccessor rightAccessor and not TypedAstSymbol)
         {
+#pragma warning disable CS0618 // Transitional method uses object? API
             rightPrimitive = ToPrimitive(rightAccessor, ToPrimitiveHint.Number, context);
+#pragma warning restore CS0618
             if (context?.IsThrow == true)
             {
                 return false;
             }
         }
 
-        // Step 4: If both are strings, do string comparison
-        if (leftPrimitive is string leftStr && rightPrimitive is string rightStr)
+        switch (leftPrimitive)
         {
-            // String comparison: check if leftStr < rightStr lexicographically
-            var comparison = string.CompareOrdinal(leftStr, rightStr);
-            return op switch
+            // Step 4: If both are strings, do string comparison
+            case string leftStr when rightPrimitive is string rightStr:
             {
-                ComparisonOperator.LessThan => comparison < 0,
-                ComparisonOperator.LessThanOrEqual => comparison <= 0,
-                ComparisonOperator.GreaterThan => comparison > 0,
-                ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
-                _ => false
-            };
-        }
-
-        // Step 4b: If one is a string and the other is BigInt, try to convert string to BigInt
-        // Per spec: when comparing String with BigInt, convert String to BigInt, not Number
-        if (leftPrimitive is string leftString && rightPrimitive is JsBigInt rightBi)
-        {
-            if (!TryParseJsBigInt(leftString, out var leftAsBigInt))
-            {
-                // String cannot be parsed as BigInt, return undefined (false)
-                return false;
+                // String comparison: check if leftStr < rightStr lexicographically
+                var comparison = string.CompareOrdinal(leftStr, rightStr);
+                return op switch
+                {
+                    ComparisonOperator.LessThan => comparison < 0,
+                    ComparisonOperator.LessThanOrEqual => comparison <= 0,
+                    ComparisonOperator.GreaterThan => comparison > 0,
+                    ComparisonOperator.GreaterThanOrEqual => comparison >= 0,
+                    _ => false
+                };
             }
-
-            return op switch
+            // Step 4b: If one is a string and the other is BigInt, try to convert string to BigInt
+            // Per spec: when comparing String with BigInt, convert String to BigInt, not Number
+            case string leftString when rightPrimitive is JsBigInt rightBi:
             {
-                ComparisonOperator.LessThan => leftAsBigInt! < rightBi,
-                ComparisonOperator.LessThanOrEqual => leftAsBigInt! <= rightBi,
-                ComparisonOperator.GreaterThan => leftAsBigInt! > rightBi,
-                ComparisonOperator.GreaterThanOrEqual => leftAsBigInt! >= rightBi,
-                _ => false
-            };
-        }
+                if (!TryParseJsBigInt(leftString, out var leftAsBigInt))
+                {
+                    // String cannot be parsed as BigInt, return undefined (false)
+                    return false;
+                }
 
-        if (leftPrimitive is JsBigInt leftBi && rightPrimitive is string rightString)
-        {
-            if (!TryParseJsBigInt(rightString, out var rightAsBigInt))
-            {
-                // String cannot be parsed as BigInt, return undefined (false)
-                return false;
+                return op switch
+                {
+                    ComparisonOperator.LessThan => leftAsBigInt! < rightBi,
+                    ComparisonOperator.LessThanOrEqual => leftAsBigInt! <= rightBi,
+                    ComparisonOperator.GreaterThan => leftAsBigInt! > rightBi,
+                    ComparisonOperator.GreaterThanOrEqual => leftAsBigInt! >= rightBi,
+                    _ => false
+                };
             }
-
-            return op switch
+            case JsBigInt leftBi when rightPrimitive is string rightString:
             {
-                ComparisonOperator.LessThan => leftBi < rightAsBigInt!,
-                ComparisonOperator.LessThanOrEqual => leftBi <= rightAsBigInt!,
-                ComparisonOperator.GreaterThan => leftBi > rightAsBigInt!,
-                ComparisonOperator.GreaterThanOrEqual => leftBi >= rightAsBigInt!,
-                _ => false
-            };
+                if (!TryParseJsBigInt(rightString, out var rightAsBigInt))
+                {
+                    // String cannot be parsed as BigInt, return undefined (false)
+                    return false;
+                }
+
+                return op switch
+                {
+                    ComparisonOperator.LessThan => leftBi < rightAsBigInt!,
+                    ComparisonOperator.LessThanOrEqual => leftBi <= rightAsBigInt!,
+                    ComparisonOperator.GreaterThan => leftBi > rightAsBigInt!,
+                    ComparisonOperator.GreaterThanOrEqual => leftBi >= rightAsBigInt!,
+                    _ => false
+                };
+            }
         }
 
         // Step 5: Otherwise, convert both to numeric values and compare
+#pragma warning disable CS0618 // Transitional method uses object? API
         var leftNumeric = ToNumeric(leftPrimitive, context);
+#pragma warning restore CS0618
         if (context?.IsThrow == true)
         {
             return false;
         }
 
+#pragma warning disable CS0618 // Transitional method uses object? API
         var rightNumeric = ToNumeric(rightPrimitive, context);
+#pragma warning restore CS0618
         if (context?.IsThrow == true)
         {
             return false;
@@ -1327,8 +1245,10 @@ internal static class JsOps
         }
 
         // Step 5c: Both are Numbers, do Number comparison
+#pragma warning disable CS0618 // Transitional method uses object? API
         var leftNum = ToNumber(leftNumeric, context);
         var rightNum = ToNumber(rightNumeric, context);
+#pragma warning restore CS0618
         if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
         {
             return false;
@@ -1397,7 +1317,7 @@ internal static class JsOps
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static string? ToPropertyName(object? value, EvaluationContext? context = null)
+    private static string? ToPropertyName(object? value, EvaluationContext? context = null)
     {
         while (true)
         {
@@ -1506,6 +1426,7 @@ internal static class JsOps
             {
                 if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
                 {
+#pragma warning disable CS0618 // Delegate to object? version for object conversion
                     var primitive = ToPrimitive(accessor, ToPrimitiveHint.String, context);
                     if (context?.IsThrow == true)
                     {
@@ -1513,6 +1434,7 @@ internal static class JsOps
                     }
 
                     return ToPropertyName(primitive, context);
+#pragma warning restore CS0618
                 }
 
                 if (context?.IsThrow == true)
@@ -1575,7 +1497,7 @@ internal static class JsOps
         }
 
         var exponent = (int)Math.Floor(Math.Log10(abs));
-        var useExponential = exponent < -6 || exponent >= 21;
+        var useExponential = exponent is < -6 or >= 21;
 
         if (!useExponential)
         {
@@ -1773,13 +1695,13 @@ internal static class JsOps
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
-    public static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
+    private static bool TryResolveArrayIndex(object? candidate, out int index, EvaluationContext? context = null)
     {
         while (true)
         {
             switch (candidate)
             {
-                case int i when i >= 0:
+                case int i and >= 0:
                     index = i;
                     return true;
                 case long l and >= 0 and <= int.MaxValue:
@@ -1927,7 +1849,9 @@ internal static class JsOps
 
     private static bool NumberEqualsBigInt(object? numberValue, JsBigInt bigInt)
     {
+#pragma warning disable CS0618 // Transitional method uses object? API
         var num = ToNumber(numberValue);
+#pragma warning restore CS0618
         if (double.IsNaN(num) || double.IsInfinity(num))
         {
             return false;
@@ -2084,7 +2008,9 @@ internal static class JsOps
         // Fast path: only objects can have properties via prototype chain
         if (target.Kind == JsValueKind.Object)
         {
+#pragma warning disable CS0618 // Delegate to object? version for object
             return HasProperty(target.ObjectValue, propertyName);
+#pragma warning restore CS0618
         }
 
         // Primitives boxed into objects would have gone through the object path
@@ -2152,7 +2078,9 @@ internal static class JsOps
         if (target.Kind is JsValueKind.Object or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt)
         {
             var targetObj = target.ObjectValue;
+#pragma warning disable CS0618 // Delegate to object? version for object
             if (targetObj != null && TryGetPropertyValue(targetObj, propertyName, out var objValue, context))
+#pragma warning restore CS0618
             {
                 value = objValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(objValue);
                 return true;
@@ -2496,8 +2424,9 @@ internal static class JsOps
         // so that non-callable values are treated as missing, allowing helpers
         // like Babel's _createForOfIteratorHelperLoose to fall back to their
         // Array/@@iterator code paths instead of attempting to call a symbol.
-        if (TryGetArrayLikeValue(target, propertyKey, out value, context))
+        if (TryGetArrayLikeValueJsValue(JsValue.FromObjectUnsafe(target), JsValue.FromObjectUnsafe(propertyKey), out var jsvalue, context))
         {
+            value = jsvalue.ToObject();
             return true;
         }
 
@@ -2599,38 +2528,6 @@ internal static class JsOps
         }
     }
 
-    private static bool TryGetArrayLikeValue(object? target, object? propertyKey, out object? value,
-        EvaluationContext? context)
-    {
-        if (target is JsArray jsArray && TryResolveArrayIndex(propertyKey, out var arrayIndex, context))
-        {
-            if (arrayIndex >= 0 && jsArray.HasOwnIndex((uint)arrayIndex))
-            {
-                value = jsArray.GetElement(arrayIndex);
-                return true;
-            }
-
-            value = null;
-            return false;
-        }
-
-        if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
-        {
-            if (typedIndex >= 0 && typedIndex < typedArray.Length)
-            {
-                value = typedArray.GetValueForIndex(typedIndex);
-            }
-            else
-            {
-                value = Symbol.Undefined;
-            }
-
-            return true;
-        }
-
-        value = null;
-        return false;
-    }
 
     [Obsolete(
         "Use JsValue overload AssignPropertyValueJsValue(JsValue, JsValue, JsValue, EvaluationContext?) for better performance.")]
@@ -2648,21 +2545,15 @@ internal static class JsOps
 
             AssignPropertyValueByName(target, propertyName, value);
         }
-        catch (ThrowSignal signal)
+        catch (ThrowSignal signal) when (context is not null)
         {
-            if (context is not null)
-            {
-                context.SetThrow(signal.ThrownValue);
-                return;
-            }
-
-            throw;
+            context.SetThrow(signal.ThrownValue);
         }
     }
 
     [Obsolete(
         "Use JsValue overload AssignPropertyValueByNameJsValue(JsValue, string, JsValue) for better performance.")]
-    public static void AssignPropertyValueByName(object? target, string propertyName, object? value)
+    private static void AssignPropertyValueByName(object? target, string propertyName, object? value)
     {
         if (target is IJsPropertyAccessor accessor)
         {
@@ -2741,13 +2632,56 @@ internal static class JsOps
             var isArrayIndex = TryResolveArrayIndexJsValue(propertyKey, out var index, context);
             var ownDescriptor = jsArray.GetOwnPropertyDescriptor(propertyName);
 
-            if (isArrayIndex)
+            if (!isArrayIndex)
             {
-                if (ownDescriptor is not null)
+                return false;
+            }
+
+            if (ownDescriptor is not null)
+            {
+                if (ownDescriptor.IsAccessorDescriptor)
                 {
-                    if (ownDescriptor.IsAccessorDescriptor)
+                    if (ownDescriptor.Set is null)
                     {
-                        if (ownDescriptor.Set is null)
+                        if (context?.CurrentScope.IsStrict == true)
+                        {
+                            throw StandardLibrary.ThrowTypeError(
+                                $"Cannot set property '{propertyName}' that has only a getter.",
+                                context,
+                                context.RealmState);
+                        }
+
+                        return true;
+                    }
+
+                    TypedAstEvaluator.InvokeCallableJsValue(ownDescriptor.Set, [value], target, context);
+                    return true;
+                }
+
+                if (!ownDescriptor.Writable)
+                {
+                    if (context?.CurrentScope.IsStrict == true)
+                    {
+                        throw StandardLibrary.ThrowTypeError(
+                            $"Cannot assign to read only property '{propertyName}'.",
+                            context,
+                            context.RealmState);
+                    }
+
+                    return true;
+                }
+            }
+
+            // Check prototype chain for inherited setters
+            var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
+            while (current is not null)
+            {
+                var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
+                if (inheritedDescriptor is not null)
+                {
+                    if (inheritedDescriptor.IsAccessorDescriptor)
+                    {
+                        if (inheritedDescriptor.Set is null)
                         {
                             if (context?.CurrentScope.IsStrict == true)
                             {
@@ -2760,11 +2694,12 @@ internal static class JsOps
                             return true;
                         }
 
-                        TypedAstEvaluator.InvokeCallableJsValue(ownDescriptor.Set, [value], target, context);
+                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set,
+                            [value], JsValue.FromObjectUnsafe(jsArray), context);
                         return true;
                     }
 
-                    if (!ownDescriptor.Writable)
+                    if (!inheritedDescriptor.Writable)
                     {
                         if (context?.CurrentScope.IsStrict == true)
                         {
@@ -2776,70 +2711,27 @@ internal static class JsOps
 
                         return true;
                     }
+
+                    // If data descriptor, shadow it on own array
+                    jsArray.DefineProperty(propertyName,
+                        new PropertyDescriptor
+                        {
+                            Value = value,
+                            Writable = true,
+                            Enumerable = true,
+                            Configurable = true
+                        });
+                    return true;
                 }
-
-                // Check prototype chain for inherited setters
-                var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
-                while (current is not null)
-                {
-                    var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
-                    if (inheritedDescriptor is not null)
-                    {
-                        if (inheritedDescriptor.IsAccessorDescriptor)
-                        {
-                            if (inheritedDescriptor.Set is null)
-                            {
-                                if (context?.CurrentScope.IsStrict == true)
-                                {
-                                    throw StandardLibrary.ThrowTypeError(
-                                        $"Cannot set property '{propertyName}' that has only a getter.",
-                                        context,
-                                        context.RealmState);
-                                }
-
-                                return true;
-                            }
-
-                            TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set,
-                                [value], JsValue.FromObjectUnsafe(jsArray), context);
-                            return true;
-                        }
-
-                        if (!inheritedDescriptor.Writable)
-                        {
-                            if (context?.CurrentScope.IsStrict == true)
-                            {
-                                throw StandardLibrary.ThrowTypeError(
-                                    $"Cannot assign to read only property '{propertyName}'.",
-                                    context,
-                                    context.RealmState);
-                            }
-
-                            return true;
-                        }
-
-                        // If data descriptor, shadow it on own array
-                        jsArray.DefineProperty(propertyName,
-                            new PropertyDescriptor
-                            {
-                                Value = value,
-                                Writable = true,
-                                Enumerable = true,
-                                Configurable = true
-                            });
-                        return true;
-                    }
 
 #pragma warning disable CS0618 // Need object? version for prototype chain traversal
-                    current = GetPrototypePointer(current);
+                current = GetPrototypePointer(current);
 #pragma warning restore CS0618
-                }
-
-                jsArray.SetElement(index, value);
-                return true;
             }
 
-            return false;
+            jsArray.SetElement(index, value);
+            return true;
+
         }
 
         if (target.TryGetObject<TypedArrayBase>(out var typedArray) &&
@@ -2861,7 +2753,9 @@ internal static class JsOps
     {
         if (target is JsArray jsArray)
         {
+#pragma warning disable CS0618 // Transitional method uses object? API
             var propertyName = ToPropertyName(propertyKey, context);
+#pragma warning restore CS0618
             if (context?.IsThrow == true)
             {
                 return true;
@@ -2878,7 +2772,9 @@ internal static class JsOps
                 return true;
             }
 
+#pragma warning disable CS0618 // Transitional method uses object? API
             var isArrayIndex = TryResolveArrayIndex(propertyKey, out var index, context);
+#pragma warning restore CS0618
             var ownDescriptor = jsArray.GetOwnPropertyDescriptor(propertyName);
 
             if (isArrayIndex)
@@ -2992,7 +2888,9 @@ internal static class JsOps
             return true;
         }
 
+#pragma warning disable CS0618 // Transitional method uses object? API
         if (target is TypedArrayBase typedArray && TryResolveArrayIndex(propertyKey, out var typedIndex, context))
+#pragma warning restore CS0618
         {
             typedArray.SetValue(typedIndex, JsValue.FromObjectUnsafe(value));
             return true;

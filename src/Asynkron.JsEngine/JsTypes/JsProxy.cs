@@ -110,7 +110,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         foreach (var key in keys)
         {
-            var propertyName = JsOps.ToPropertyName(key);
+            var propertyName = JsOps.ToPropertyName(JsValue.FromObjectUnsafe(key));
             if (propertyName is null)
             {
                 continue;

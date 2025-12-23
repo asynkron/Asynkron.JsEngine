@@ -384,7 +384,7 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
+        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
             // Handle case where value is already a boxed JsValue
             var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
@@ -392,7 +392,7 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
+        private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
             // DefineOrAssignJsValue is O(1) on the current environment -
             // it only looks at environment.Values, no scope chain walk.
@@ -405,7 +405,7 @@ public static partial class TypedAstEvaluator
         /// Falls back to dictionary-based storage if slot index is invalid.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void StoreValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, JsValue value)
+        private static void StoreValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, JsValue value)
         {
             if (slotIndex >= 0 && environment.HasSlots)
             {

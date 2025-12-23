@@ -2778,6 +2778,63 @@ internal static class JsOps
                     }
                 }
 
+                // Check prototype chain for inherited setters
+                var current = jsArray.PrototypeAccessor ?? jsArray.Prototype;
+                while (current is not null)
+                {
+                    var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
+                    if (inheritedDescriptor is not null)
+                    {
+                        if (inheritedDescriptor.IsAccessorDescriptor)
+                        {
+                            if (inheritedDescriptor.Set is null)
+                            {
+                                if (context?.CurrentScope.IsStrict == true)
+                                {
+                                    throw StandardLibrary.ThrowTypeError(
+                                        $"Cannot set property '{propertyName}' that has only a getter.",
+                                        context,
+                                        context.RealmState);
+                                }
+
+                                return true;
+                            }
+
+                            TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set,
+                                [value], JsValue.FromObjectUnsafe(jsArray), context);
+                            return true;
+                        }
+
+                        if (!inheritedDescriptor.Writable)
+                        {
+                            if (context?.CurrentScope.IsStrict == true)
+                            {
+                                throw StandardLibrary.ThrowTypeError(
+                                    $"Cannot assign to read only property '{propertyName}'.",
+                                    context,
+                                    context.RealmState);
+                            }
+
+                            return true;
+                        }
+
+                        // If data descriptor, shadow it on own array
+                        jsArray.DefineProperty(propertyName,
+                            new PropertyDescriptor
+                            {
+                                Value = value,
+                                Writable = true,
+                                Enumerable = true,
+                                Configurable = true
+                            });
+                        return true;
+                    }
+
+#pragma warning disable CS0618 // Need object? version for prototype chain traversal
+                    current = GetPrototypePointer(current);
+#pragma warning restore CS0618
+                }
+
                 jsArray.SetElement(index, value);
                 return true;
             }

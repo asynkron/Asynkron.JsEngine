@@ -140,12 +140,12 @@ internal static class IntlUtilities
                 continue;
             }
 
-            if (!JsOps.TryGetPropertyValue(localeObject, propertyKey, out var element))
+            if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(localeObject), propertyKey, out var elementJs))
             {
                 continue;
             }
 
-            var tag = ResolveLocaleEntry(element, realm);
+            var tag = ResolveLocaleEntry(elementJs.ObjectValue, realm);
             AppendCanonicalLocale(seen, tag, realm);
         }
 
@@ -163,15 +163,15 @@ internal static class IntlUtilities
 
     private static long GetArrayLikeLength(IJsPropertyAccessor localeObject, RealmState realm)
     {
-        if (!JsOps.TryGetPropertyValue(localeObject, "length", out var lengthValue))
+        if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(localeObject), "length", out var lengthValueJs))
         {
-            lengthValue = 0d;
+            lengthValueJs = JsValue.FromDouble(0d);
         }
 
-        return ToLength(lengthValue, realm);
+        return ToLength(lengthValueJs, realm);
     }
 
-    private static long ToLength(object? value, RealmState realm)
+    private static long ToLength(JsValue value, RealmState realm)
     {
         var numericContext = realm.CreateContext();
         var number = JsOps.ToNumberWithContext(value, numericContext);

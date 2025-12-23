@@ -358,8 +358,8 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        if (TryGetPropertyValue(targetJs.ObjectValue, "formatArgs", out var innerValue) &&
-                            innerValue is IJsCallable innerFunction)
+                        if (JsOps.TryGetPropertyValue(targetJs, "formatArgs", out var innerValueJs) &&
+                            innerValueJs.TryGetObject<IJsCallable>(out var innerFunction))
                         {
                             return innerFunction.InvokeWithCall(expression.Arguments, environment, context);
                         }

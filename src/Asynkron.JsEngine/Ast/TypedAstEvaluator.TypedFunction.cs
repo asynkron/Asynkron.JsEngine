@@ -401,7 +401,7 @@ public static partial class TypedAstEvaluator
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
-                        var targetIsConstructor = JsOps.IsConstructor(callable);
+                        var targetIsConstructor = JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable));
                         return (JsValue)HostFunction.CreateBoundFunction(callable, boundThis, boundArgs,
                             targetIsConstructor,
                             RealmState);
@@ -832,16 +832,27 @@ public static partial class TypedAstEvaluator
             else
             {
                 // Non-arrow function - use object? for boundThis due to pattern matching needs
-                var boundThis = thisValue.ToObject();
+                // Inlined ToObject() conversion to avoid obsolete warning
+                var boundThis = thisValue.Kind switch
+                {
+                    JsValueKind.Undefined => (object?)Symbol.Undefined,
+                    JsValueKind.Null => null,
+                    JsValueKind.Boolean => JsValueCache.GetBoolean(thisValue.NumberValue != 0.0),
+                    JsValueKind.Number => JsValueCache.GetNumber(thisValue.NumberValue),
+                    JsValueKind.Uninitialized => JsEnvironment.Uninitialized,
+                    _ => thisValue.ObjectValue
+                };
 
                 if (IsClassConstructor &&
                     ReferenceEquals(boundThis, Symbol.Undefined) &&
                     !newTarget.IsUndefined)
                 {
                     var constructedThis = new JsObject { RealmState = RealmState };
+#pragma warning disable CS0618 // Intentional: need object? version for prototype access semantics
                     if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
                         JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
                         protoVal is IJsPropertyAccessor protoAccessor)
+#pragma warning restore CS0618
                     {
                         constructedThis.SetPrototype(protoAccessor);
                     }
@@ -870,10 +881,10 @@ public static partial class TypedAstEvaluator
                     }
 
                     if (boundThis is not IJsPropertyAccessor &&
-                        !IsNullish(boundThis) &&
+                        boundThis is not null && !ReferenceEquals(boundThis, Symbol.Undefined) &&
                         boundThis is not IIsHtmlDda)
                     {
-                        boundThis = ToObjectForDestructuring(boundThis, context);
+                        boundThis = ToObjectForDestructuringJsValue(JsValue.FromObjectUnsafe(boundThis), context);
                     }
                 }
 
@@ -1105,7 +1116,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     RealmState.Logger?.LogInformation(
                                         "Class constructor returning this={This}",
-                                        DescribeValue(currentThis.ToObject()));
+                                        DescribeValue(currentThis.ObjectValue));
                                     return currentThis;
                                 }
                             }

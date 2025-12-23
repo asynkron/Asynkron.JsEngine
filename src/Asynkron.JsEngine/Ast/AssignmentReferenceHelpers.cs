@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -22,22 +23,23 @@ public static partial class TypedAstEvaluator
             return AssignmentReference.ForDelegate(
                 () =>
                 {
-                    if (target.IsNullOrUndefined)
+                    if (!target.IsNullOrUndefined)
                     {
-                        var errorMessage = propertyName.Length > 0
-                            ? $"Cannot read property '{propertyName}' of null or undefined"
-                            : "Cannot read properties of null or undefined";
-                        var error = StandardLibrary.CreateTypeError(
-                            errorMessage,
-                            context,
-                            context.RealmState);
-                        context.SetThrow(JsValue.FromObjectUnsafe(error));
-                        return JsValue.Undefined;
+                        return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
+                            ? directValue
+                            : JsValue.Undefined;
                     }
 
-                    return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
-                        ? directValue
-                        : JsValue.Undefined;
+                    var errorMessage = propertyName.Length > 0
+                        ? $"Cannot read property '{propertyName}' of null or undefined"
+                        : "Cannot read properties of null or undefined";
+                    var error = StandardLibrary.CreateTypeError(
+                        errorMessage,
+                        context,
+                        context.RealmState);
+                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    return JsValue.Undefined;
+
                 },
                 value => AssignPropertyValueWithNullCheck(target, propertyName, value, context,
                     context.CurrentScope.IsStrict));
@@ -62,6 +64,19 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         bool isStrict)
     {
+        // Check for null/undefined using JsValue before extracting to object
+        if (target.IsNullOrUndefined)
+        {
+            context.RealmState.Logger?.LogInformation("AssignPropertyValue nullish target property={PropertyName}",
+                propertyName);
+            var error = StandardLibrary.CreateTypeError(
+                "Cannot set property on null or undefined.",
+                context,
+                context.RealmState);
+            context.SetThrow(JsValue.FromObjectUnsafe(error));
+            return;
+        }
+
         // Extract object for existing logic - primitives need proper handling
         var targetObj = target.Kind switch
         {
@@ -73,27 +88,17 @@ public static partial class TypedAstEvaluator
             JsValueKind.Object => target.ObjectValue,
             _ => null
         };
-        AssignPropertyValueWithNullCheckCore(targetObj, propertyName, value, context, isStrict);
+        AssignPropertyValueWithNullCheckCore(target, targetObj, propertyName, value, context, isStrict);
     }
 
     private static void AssignPropertyValueWithNullCheckCore(
+        JsValue originalTarget,
         object? target,
         string propertyName,
         JsValue value,
         EvaluationContext context,
         bool isStrict)
     {
-        if (IsNullish(target))
-        {
-            context.RealmState?.Logger?.LogInformation("AssignPropertyValue nullish target property={PropertyName}",
-                propertyName);
-            var error = StandardLibrary.CreateTypeError(
-                "Cannot set property on null or undefined.",
-                context,
-                context.RealmState);
-            context.SetThrow(JsValue.FromObjectUnsafe(error));
-            return;
-        }
 
         // Per ES spec, [[Set]] on module namespace always returns false without triggering evaluation
         // Handle this early to avoid GetOwnPropertyDescriptor which would trigger evaluation
@@ -187,7 +192,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        AssignPropertyValue(target, propertyName, ConvertJsValueToObject(value), context);
+        JsOps.AssignPropertyValueJsValue(originalTarget, new JsValue(propertyName), value, context);
     }
 
     /// <summary>
@@ -212,6 +217,7 @@ public static partial class TypedAstEvaluator
     ///     Converts the primitive to a wrapper object and attempts [[Set]] with the original
     ///     primitive as the receiver. The wrapper is temporary and changes don't persist.
     /// </summary>
+    /// TODO: why is this "object?" based?
     private static void AssignPrimitiveProperty(
         object? primitiveTarget,
         string propertyName,
@@ -229,7 +235,7 @@ public static partial class TypedAstEvaluator
             TypedAstSymbol sym => CreateSymbolWrapper(sym, realm),
             JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi, context, realm),
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
-                NumberHelper.CreateNumberWrapper(JsOps.ToNumber(primitiveTarget), context, realm),
+                NumberHelper.CreateNumberWrapper(Convert.ToDouble(primitiveTarget, CultureInfo.InvariantCulture), context, realm),
             _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget?.GetType()}")
         };
 
@@ -387,26 +393,6 @@ public static partial class TypedAstEvaluator
             JsBigInt => "bigint",
             double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
             _ => "primitive"
-        };
-    }
-
-    /// <summary>
-    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
-    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
-    /// </summary>
-    private static object? ConvertJsValueToObject(JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => Symbol.Undefined,
-            JsValueKind.Null => null,
-            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
-            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
-            JsValueKind.BigInt => value.ObjectValue,
-            JsValueKind.String => value.ObjectValue,
-            JsValueKind.Symbol => value.ObjectValue,
-            JsValueKind.Object => value.ObjectValue,
-            _ => Symbol.Undefined
         };
     }
 }

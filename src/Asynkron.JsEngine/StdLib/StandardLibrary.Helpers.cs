@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -58,7 +59,7 @@ public static partial class StandardLibrary
                     accessor = CreateBigIntWrapper(bigInt, realm: realm);
                     return true;
                 case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                    accessor = CreateNumberWrapper(JsOps.ToNumber(candidate), realm: realm);
+                    accessor = CreateNumberWrapper(Convert.ToDouble(candidate, CultureInfo.InvariantCulture), realm: realm);
                     return true;
                 default:
                     accessor = null!;

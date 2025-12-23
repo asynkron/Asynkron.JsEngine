@@ -2097,7 +2097,7 @@ public sealed class JsEnvironment
 
         touchedUnscopables = true;
         return unscopables.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
-               JsOps.TryGetPropertyValue(accessor, name, out var blocked) && JsOps.ToBoolean(blocked);
+               accessor.TryGetProperty(name, out var blocked) && blocked.IsTruthy;
     }
 
     private static bool TryGetFromWithJsValue(IJsObjectLike target, Symbol name, out JsValue value)
@@ -2374,6 +2374,7 @@ public sealed class JsEnvironment
     /// This API is not on the hot path and boxing here is acceptable.
     /// Do not migrate to JsValue - debuggers and inspectors expect object?.
     /// </remarks>
+#pragma warning disable CS0618 // ToObject() is intentional for debug API
     public Dictionary<string, object?> GetAllVariables()
     {
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);
@@ -2457,6 +2458,7 @@ public sealed class JsEnvironment
 
         return chain;
     }
+#pragma warning restore CS0618
 
     /// <summary>
     ///     Builds a call stack by traversing the enclosing environment chain

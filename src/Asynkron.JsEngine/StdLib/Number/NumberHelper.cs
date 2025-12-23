@@ -253,18 +253,20 @@ public static partial class NumberHelper
         const double MaxLength = 9007199254740991d; // 2^53 - 1
         var context = realm?.CreateContext();
 
-        var numeric = JsOps.ToNumeric(value, context);
+        var numericJs = JsOps.ToNumeric(JsValue.FromObjectUnsafe(value), context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }
 
-        if (numeric is JsBigInt or Symbol or TypedAstSymbol)
+        if (numericJs.Kind == JsValueKind.BigInt ||
+            numericJs.TryGetObject<Symbol>(out _) ||
+            numericJs.TryGetObject<TypedAstSymbol>(out _))
         {
             throw ThrowTypeError("Index must be a non-negative integer", context, realm);
         }
 
-        var numberValue = numeric is double d ? d : JsOps.ToNumber(numeric, context);
+        var numberValue = numericJs.Kind == JsValueKind.Number ? numericJs.NumberValue : JsOps.ToNumber(numericJs);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -362,18 +364,20 @@ public static partial class NumberHelper
         const double MaxLength = 9007199254740991d; // 2^53 - 1
         var context = realm?.CreateContext();
 
-        var numeric = JsOps.ToNumeric(value, context);
+        var numericJs = JsOps.ToNumeric(JsValue.FromObjectUnsafe(value), context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
         }
 
-        if (numeric is JsBigInt or Symbol or TypedAstSymbol)
+        if (numericJs.Kind == JsValueKind.BigInt ||
+            numericJs.TryGetObject<Symbol>(out _) ||
+            numericJs.TryGetObject<TypedAstSymbol>(out _))
         {
             throw ThrowTypeError("Index must be a non-negative integer", context, realm);
         }
 
-        var numberValue = numeric is double d ? d : JsOps.ToNumber(numeric, context);
+        var numberValue = numericJs.Kind == JsValueKind.Number ? numericJs.NumberValue : JsOps.ToNumber(numericJs);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);

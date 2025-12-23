@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -176,6 +177,7 @@ public static partial class StandardLibrary
         return (JsValue)error;
     }
 
+    [Obsolete("Migrate to JsValue based API")]
     internal static JsBigInt ToBigInt(object? value, EvaluationContext? context = null, RealmState? realmState = null)
     {
         realmState ??= context?.RealmState;
@@ -242,7 +244,7 @@ public static partial class StandardLibrary
 
                     continue;
                 case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                    var numberValue = JsOps.ToNumber(value);
+                    var numberValue = Convert.ToDouble(value, CultureInfo.InvariantCulture);
                     if (double.IsNaN(numberValue) || double.IsInfinity(numberValue) ||
                         Math.Floor(numberValue) != numberValue)
                     {

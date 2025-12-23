@@ -248,7 +248,7 @@ public static partial class TypedAstEvaluator
                         }
 
                         var desc = currentArray.GetOwnPropertyDescriptor(key);
-                        if (desc is null || desc is { Enumerable: false })
+                        if (desc is null or { Enumerable: false })
                         {
                             continue;
                         }
@@ -495,12 +495,6 @@ public static partial class TypedAstEvaluator
         }
     }
 
-
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
-    private static bool IsNullish(object? value)
-    {
-        return value.IsNullish();
-    }
 
     private static bool HasOptionalChaining(ExpressionNode? expression)
     {
@@ -783,13 +777,6 @@ public static partial class TypedAstEvaluator
         EvaluationContext? context = null)
     {
         return JsOps.TryGetPropertyValue(target, propertyKey, out value, context);
-    }
-
-    [Obsolete("Use JsValue overloads instead to avoid boxing")]
-    private static void AssignPropertyValue(object? target, object? propertyKey, object? value,
-        EvaluationContext? context = null)
-    {
-        JsOps.AssignPropertyValue(target, propertyKey, value, context);
     }
 
     /// <summary>

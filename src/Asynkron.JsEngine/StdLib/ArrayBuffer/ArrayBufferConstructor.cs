@@ -139,7 +139,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         }
 
         var context = Realm.CreateContext();
-        if (!JsOps.TryGetPropertyValue(accessor, "maxByteLength", out var maxVal, context))
+        if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), "maxByteLength", out var maxValJs, context))
         {
             return null;
         }
@@ -149,11 +149,11 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             throw new ThrowSignal(context.FlowValue);
         }
 
-        if (ReferenceEquals(maxVal, Symbol.Undefined))
+        if (maxValJs.IsUndefined)
         {
             return null;
         }
 
-        return ToIndexAsLong(JsValue.FromObjectUnsafe(maxVal), Realm);
+        return ToIndexAsLong(maxValJs, Realm);
     }
 }

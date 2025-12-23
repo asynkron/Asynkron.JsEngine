@@ -138,7 +138,8 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
     private static string ToFunctionArgumentStringFromObject(object? value, EvaluationContext evalContext,
         RealmState realmState)
     {
-        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
+        // ToPrimitive(JsValue, ...) returns object?, so primitive is already object?
+        var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(value), ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)
         {
             throw new ThrowSignal(evalContext.FlowValue);

@@ -70,7 +70,9 @@ public sealed partial class FunctionPrototype
                 return new JsValue(true);
             }
 
+#pragma warning disable CS0618 // Intentional: cursor is IJsPropertyAccessor? from previous call
             cursor = JsOps.GetPrototypePointer(cursor);
+#pragma warning restore CS0618
         }
 
         return new JsValue(false);

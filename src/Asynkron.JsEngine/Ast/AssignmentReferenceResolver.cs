@@ -246,7 +246,7 @@ internal static class AssignmentReferenceResolver
         }
 
         if (target.ObjectValue is TypedArrayBase typedArray &&
-            JsOps.TryResolveArrayIndex(ConvertJsValueToObject(propertyValue), out var typedIndex, context))
+            JsOps.TryResolveArrayIndex(propertyValue, out var typedIndex, context))
         {
             return AssignmentReference.ForDelegate(
                 () => typedIndex >= 0 && typedIndex < typedArray.Length
@@ -256,7 +256,7 @@ internal static class AssignmentReferenceResolver
                 {
                     if (typedIndex >= 0 && typedIndex < typedArray.Length)
                     {
-                        typedArray.SetElement(typedIndex, JsOps.ToNumber(ConvertJsValueToObject(newValue), context));
+                        typedArray.SetElement(typedIndex, JsOps.ToNumber(newValue, context));
                     }
                 });
         }
@@ -289,26 +289,6 @@ internal static class AssignmentReferenceResolver
     private static bool IsReferenceError(Exception ex)
     {
         return ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Converts JsValue to object? for compatibility with methods that haven't been migrated yet.
-    /// This manually expands the logic from ToObject() to avoid calling the obsolete method.
-    /// </summary>
-    private static object? ConvertJsValueToObject(JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => Symbol.Undefined,
-            JsValueKind.Null => null,
-            JsValueKind.Boolean => JsValueCache.GetBoolean(value.NumberValue != 0.0),
-            JsValueKind.Number => JsValueCache.GetNumber(value.NumberValue),
-            JsValueKind.BigInt => value.ObjectValue,
-            JsValueKind.String => value.ObjectValue,
-            JsValueKind.Symbol => value.ObjectValue,
-            JsValueKind.Object => value.ObjectValue,
-            _ => Symbol.Undefined
-        };
     }
 
     internal static void AssignObjectProperty(
@@ -484,9 +464,6 @@ internal static class AssignmentReferenceResolver
                         });
                     return;
                 }
-
-                prototypeAccessor.SetProperty(propertyName, value, receiverValue);
-                return;
             }
 
             prototypeAccessor.SetProperty(propertyName, value, receiverValue);

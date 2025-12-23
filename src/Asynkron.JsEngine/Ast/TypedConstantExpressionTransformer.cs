@@ -1147,12 +1147,12 @@ public sealed class TypedConstantExpressionTransformer
 
     private static bool LooseEquals(object? left, object? right)
     {
-        return JsOps.LooseEquals(left, right);
+        return JsOps.LooseEquals(JsValue.FromObjectUnsafe(left), JsValue.FromObjectUnsafe(right));
     }
 
     private static bool StrictEquals(object? left, object? right)
     {
-        return JsOps.StrictEquals(left, right);
+        return JsOps.StrictEquals(JsValue.FromObjectUnsafe(left), JsValue.FromObjectUnsafe(right));
     }
 
     private static int ToInt32(double value)

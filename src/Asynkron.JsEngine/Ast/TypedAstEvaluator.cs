@@ -102,15 +102,6 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        // Fast path for JsArray: bypass symbol lookup and create iterator directly.
-        // Arrays don't have Symbol.asyncIterator, and Symbol.iterator always resolves
-        // to Array.prototype.values(), so we can skip the expensive property lookups.
-        if (accessor is JsArray jsArray)
-        {
-            iterator = jsArray.GetValuesIterator();
-            return true;
-        }
-
         var logger = context.RealmState?.Logger;
         var iteratorKey = SymbolKeys.Iterator;
         logger?.LogInformation("TryGetIteratorFromProtocols start targetType={Type} iteratorKey={Key}",

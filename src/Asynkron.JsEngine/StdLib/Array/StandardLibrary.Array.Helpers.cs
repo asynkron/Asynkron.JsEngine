@@ -231,6 +231,8 @@ public static partial class StandardLibrary
 
         var k = start;
         var accumulatorSet = hasInitial;
+        // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
+        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
         while (k >= 0 && k < length)
         {
             if (TryGetExistingElement(accessor, k, out var value))
@@ -245,7 +247,7 @@ public static partial class StandardLibrary
                 {
                     accumulator =
                         callback.Invoke(
-                            [accumulator, value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)],
+                            [accumulator, value, new JsValue((double)k), accessorJsValue],
                             JsValue.Undefined);
                 }
             }
@@ -266,6 +268,8 @@ public static partial class StandardLibrary
     {
         var (accessor, length, callback, thisArg) =
             PrepareArrayIteration(thisValue, args, realm, methodName);
+        // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
+        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
 
         for (long k = 0; k < length; k++)
         {
@@ -274,7 +278,7 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), JsValue.FromObjectUnsafe(accessor)], thisArg);
+            var result = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
             if (result.IsTruthy)
             {
                 return true;

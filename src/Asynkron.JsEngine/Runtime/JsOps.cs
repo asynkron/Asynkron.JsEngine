@@ -732,7 +732,7 @@ internal static class JsOps
         return value.ToJsString(context, context?.RealmState);
     }
 
-    public static string ToJsString(JsValue value, EvaluationContext? context = null)
+    public static string ToJsString(in JsValue value, EvaluationContext? context = null)
     {
         var realm = context?.RealmState;
         return value.Kind switch
@@ -755,7 +755,7 @@ internal static class JsOps
     /// Unlike StrictEquals: NaN === NaN is true, -0 !== +0 is true.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool SameValue(JsValue left, JsValue right)
+    public static bool SameValue(in JsValue left, in JsValue right)
     {
         // Different types are never equal
         if (left.Kind != right.Kind)

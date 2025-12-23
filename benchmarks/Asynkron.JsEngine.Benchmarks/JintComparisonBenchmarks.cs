@@ -544,6 +544,7 @@ public class JintComparisonBenchmarks
         // Jint drains microtasks automatically
         // Uses EvaluateAndAwait which drains microtasks, so finalSum is updated
         _asyncForOf = """
+            'use strict'
             let finalSum = 0;
             const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
             (async function() {

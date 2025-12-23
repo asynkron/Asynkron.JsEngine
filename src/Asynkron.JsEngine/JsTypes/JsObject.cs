@@ -19,7 +19,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     IPrivateBrandHolder,
-    IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+    IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
 {
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
@@ -32,13 +32,20 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     private IVirtualPropertyProvider? _virtualPropertyProvider;
 
+    // Cached JsValue to avoid repeated struct creation
+    private readonly JsValue _cachedJsValue;
+
     public JsObject(object? prototype = null)
     {
+        _cachedJsValue = new JsValue(this);
         if (prototype is not null)
         {
             SetPrototype(prototype);
         }
     }
+
+    /// <inheritdoc />
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     internal int MutationVersion { get; private set; }
 

@@ -15,15 +15,19 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     are implemented for now; other operations fall back to the underlying target.
 /// </summary>
 public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IJsCallable,
-    IPrototypeAccessorProvider, IPrivateBrandHolder
+    IPrototypeAccessorProvider, IPrivateBrandHolder, IAsJsValue
 {
     private readonly JsObject _meta = new();
     private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
     private readonly JsObject _privateStorage = new();
     private readonly RealmState? _realm;
 
+    // Cached JsValue to avoid repeated struct creation
+    private readonly JsValue _cachedJsValue;
+
     public JsProxy(IJsObjectLike target, IJsObjectLike handler, RealmState? realm = null)
     {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Target = target ?? throw new ArgumentNullException(nameof(target));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _realm = realm;
@@ -46,6 +50,10 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public IJsObjectLike Target { get; }
 
     public IJsObjectLike? Handler { get; set; }
+
+    /// <inheritdoc />
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
+
     public bool IsExtensible => Target is IExtensibilityControl extensibility ? extensibility.IsExtensible : true;
 
     public void PreventExtensions()

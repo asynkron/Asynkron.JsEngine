@@ -10,7 +10,8 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a JavaScript Set collection.
 ///     Sets store unique values of any type and remember the original insertion order.
 /// </summary>
-public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider,
+    IAsJsValue
 {
     // Use List to maintain insertion order for iteration
     private readonly List<object?> _insertionOrder = [];
@@ -19,6 +20,14 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     // Use HashSet for O(1) lookups
     private readonly HashSet<object> _set = new(SameValueZeroComparer.Instance);
+
+    // Cached JsValue to avoid repeated struct creation
+    private readonly JsValue _cachedJsValue;
+
+    public JsSet()
+    {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+    }
 
     // Track null/undefined separately (can't be HashSet members with our comparer)
     private bool _hasNull;
@@ -38,6 +47,9 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     internal int ValueCount => _insertionOrder.Count;
 
     public bool IsExtensible => _properties.IsExtensible;
+
+    /// <inheritdoc />
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     public void PreventExtensions()
     {
@@ -276,7 +288,12 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        var values = _insertionOrder.Select(JsValue.FromObjectUnsafe).ToList();
+        var values = new List<JsValue>(_insertionOrder.Count);
+        foreach (var value in _insertionOrder)
+        {
+            values.Add(JsValue.FromObjectUnsafe(value));
+        }
+
         return new JsArray(values);
     }
 

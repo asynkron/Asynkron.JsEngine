@@ -11,7 +11,8 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Maps hold key-value pairs and remember the original insertion order of keys.
 ///     Unlike objects, Map keys can be any value (including objects and functions).
 /// </summary>
-public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider
+public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider,
+    IAsJsValue
 {
     // Use List to maintain insertion order for iteration
     private readonly List<object?> _insertionOrder = [];
@@ -20,6 +21,14 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     private readonly Dictionary<object, JsValue> _map = new(SameValueZeroComparer.Instance);
 
     private readonly JsObject _properties = new();
+
+    // Cached JsValue to avoid repeated struct creation
+    private readonly JsValue _cachedJsValue;
+
+    public JsMap()
+    {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+    }
 
     // Track null/undefined keys separately (can't be dictionary keys)
     private bool _hasNullKey;
@@ -41,6 +50,9 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     internal int EntryCount => _insertionOrder.Count;
 
     public bool IsExtensible => _properties.IsExtensible;
+
+    /// <inheritdoc />
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     public void PreventExtensions()
     {
@@ -337,7 +349,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Keys()
     {
-        var keys = _insertionOrder.Select(JsValue.FromObjectUnsafe).ToList();
+        var keys = new List<JsValue>(_insertionOrder.Count);
+        foreach (var key in _insertionOrder)
+        {
+            keys.Add(JsValue.FromObjectUnsafe(key));
+        }
+
         return new JsArray(keys);
     }
 
@@ -346,7 +363,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Values()
     {
-        var values = _insertionOrder.Select(GetByObjectKey).ToList();
+        var values = new List<JsValue>(_insertionOrder.Count);
+        foreach (var key in _insertionOrder)
+        {
+            values.Add(GetByObjectKey(key));
+        }
+
         return new JsArray(values);
     }
 

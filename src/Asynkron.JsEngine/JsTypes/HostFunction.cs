@@ -14,15 +14,19 @@ namespace Asynkron.JsEngine.JsTypes;
 /// </summary>
 public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
     IPrototypeAccessorProvider,
-    IJsEnvironmentAwareCallable
+    IJsEnvironmentAwareCallable, IAsJsValue
 {
     private bool _isConstructor = true;
+
+    // Cached JsValue to avoid repeated struct creation
+    private readonly JsValue _cachedJsValue;
 
     public HostFunction(Func<IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
         ArgumentNullException.ThrowIfNull(handler);
 
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Properties = new JsObject();
         HandlerForSnapshot = (_, args) => handler(args);
         RealmState = realmState;
@@ -33,24 +37,11 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     public HostFunction(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         HandlerForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
         Properties = new JsObject();
         RealmState = realmState;
         _isConstructor = isConstructor;
-        InitializePrototype();
-    }
-
-    public HostFunction(
-        Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler,
-        RealmState? realmState,
-        bool isConstructor = true)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-
-        Properties = new JsObject();
-        RealmState = realmState;
-        _isConstructor = isConstructor;
-        HandlerForSnapshot = (thisValue, args) => handler(thisValue, args, realmState);
         InitializePrototype();
     }
 
@@ -61,6 +52,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         bool isConstructor,
         bool initializePrototype)
     {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         HandlerForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
         Properties = properties ?? throw new ArgumentNullException(nameof(properties));
         _isConstructor = isConstructor;
@@ -152,6 +144,9 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     public bool IsExtensible => Properties.IsExtensible;
 
+    /// <inheritdoc />
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
+
     public void PreventExtensions()
     {
         Properties.PreventExtensions();
@@ -179,11 +174,10 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
 
         // Non-constructor functions should not have a "prototype" property
-        // Only return undefined if no user-defined getter was found
         if (!_isConstructor && string.Equals(name, "prototype", StringComparison.Ordinal))
         {
             value = JsValue.Undefined;
-            return true;
+            return false;
         }
 
         // Provide minimal Function.prototype-style helpers for host functions:
@@ -411,39 +405,40 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         {
             var finalArgs = Combine(boundArgs, invokeArgs);
 
-            if (!newTarget.IsUndefined)
+            if (newTarget.IsUndefined)
             {
-                if (!targetIsConstructor || !newTarget.TryGetObject<IJsCallable>(out var newTargetCtor))
-                {
-                    var error = StandardLibrary.CreateTypeError(
-                        "Target is not a constructor",
-                        context,
-                        context?.RealmState ?? realmState);
-                    throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
-                }
-
-                var realm = context?.RealmState ?? realmState;
-                if (realm is null && target is ICallableMetadata metadata)
-                {
-                    realm = metadata.RealmState;
-                }
-
-                if (realm is null)
-                {
-                    return target.Invoke(finalArgs, boundThis);
-                }
-
-                // Per ES spec 10.4.1.2 [[Construct]] step 5:
-                // If SameValue(F, newTarget) is true, set newTarget to target.
-                // When the bound function is used as new.target, substitute the original target.
-                var effectiveNewTarget = ReferenceEquals(newTargetCtor, boundFunction)
-                    ? target
-                    : newTargetCtor;
-
-                return Construct(target, finalArgs, effectiveNewTarget, realm);
+                return target.Invoke(finalArgs, boundThis);
             }
 
-            return target.Invoke(finalArgs, boundThis);
+            if (!targetIsConstructor || !newTarget.TryGetObject<IJsCallable>(out var newTargetCtor))
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Target is not a constructor",
+                    context,
+                    context?.RealmState ?? realmState);
+                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+            }
+
+            var realm = context?.RealmState ?? realmState;
+            if (realm is null && target is ICallableMetadata metadata)
+            {
+                realm = metadata.RealmState;
+            }
+
+            if (realm is null)
+            {
+                return target.Invoke(finalArgs, boundThis);
+            }
+
+            // Per ES spec 10.4.1.2 [[Construct]] step 5:
+            // If SameValue(F, newTarget) is true, set newTarget to target.
+            // When the bound function is used as new.target, substitute the original target.
+            var effectiveNewTarget = ReferenceEquals(newTargetCtor, boundFunction)
+                ? target
+                : newTargetCtor;
+
+            return Construct(target, finalArgs, effectiveNewTarget, realm);
+
         });
 
         return boundFunction;

@@ -54,10 +54,11 @@ public static partial class TypedAstEvaluator
                 }
 
                 // Get value as JsValue and extract callable
+                // Class methods are non-constructors, so pass isConstructorFunction: false
                 var valueJs = member.Function is { } functionExpression
                     ? JsValue.FromObjectUnsafe(functionExpression.CreateFunctionValue(environment, context,
-                        true,
-                        false))
+                        isConstructorFunction: false,
+                        skipInternalNameBinding: false))
                     : member.Function.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {

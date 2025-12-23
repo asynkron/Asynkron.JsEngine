@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
     /// NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.
     /// </summary>
     [MustDisposeResource]
-    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(JsValue value)
+    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(in JsValue value)
     {
         // JsArray - fast path only if no custom indexed properties (getters/setters)
         // Arrays with Object.defineProperty on numeric indices need full iterator protocol
@@ -795,7 +795,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for 'in' operator - avoids boxing.
     /// </summary>
-    private static bool InOperatorJsValue(JsValue property, JsValue target, EvaluationContext context)
+    private static bool InOperatorJsValue(in JsValue property, in JsValue target, EvaluationContext context)
     {
         // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
         if (target.Kind != JsValueKind.Object || target.ObjectValue is not IJsPropertyAccessor accessor)
@@ -835,7 +835,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for 'instanceof' operator - avoids boxing.
     /// </summary>
-    private static bool InstanceofOperatorJsValue(JsValue left, JsValue right, EvaluationContext context)
+    private static bool InstanceofOperatorJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         if (right.Kind != JsValueKind.Object || right.ObjectValue is not IJsPropertyAccessor)
         {
@@ -887,7 +887,7 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    private static bool OrdinaryHasInstanceJsValue(JsValue candidate, JsValue constructor, EvaluationContext context)
+    private static bool OrdinaryHasInstanceJsValue(in JsValue candidate, in JsValue constructor, EvaluationContext context)
     {
         if (constructor.ObjectValue is not IJsCallable)
         {

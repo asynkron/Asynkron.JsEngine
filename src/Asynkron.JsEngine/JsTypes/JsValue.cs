@@ -695,6 +695,13 @@ public readonly struct JsValue : IEquatable<JsValue>
         };
     }
 
+    /// <summary>
+    /// Typed overload for IAsJsValue - returns the cached JsValue directly without runtime type checks.
+    /// Use this when you know the type implements IAsJsValue at compile time.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue FromObjectUnsafe(IAsJsValue value) => value.AsJsValue;
+
     #endregion
 
     #endregion

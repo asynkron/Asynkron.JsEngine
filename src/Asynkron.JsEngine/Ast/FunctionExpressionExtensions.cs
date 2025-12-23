@@ -22,24 +22,33 @@ public static partial class TypedAstEvaluator
         {
             var mapped = !isStrict && function.IsSimpleParameterList();
             var mappedParameters = new Symbol?[arguments.Count];
-            if (mapped)
+            if (!mapped)
             {
-                var parameterSymbols = function.Parameters
-                    .Where(static p => p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
-                    .Select(static p => p.Name!)
-                    .ToArray();
+                return new JsArgumentsObject(
+                    arguments,
+                    mappedParameters,
+                    environment,
+                    mapped,
+                    realmState,
+                    callee,
+                    isStrict);
+            }
 
-                var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-                for (var i = Math.Min(mappedParameters.Length, parameterSymbols.Length) - 1; i >= 0; i--)
+            var parameterSymbols = function.Parameters
+                .Where(static p => p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
+                .Select(static p => p.Name!)
+                .ToArray();
+
+            var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            for (var i = Math.Min(mappedParameters.Length, parameterSymbols.Length) - 1; i >= 0; i--)
+            {
+                var symbol = parameterSymbols[i];
+                if (!seen.Add(symbol))
                 {
-                    var symbol = parameterSymbols[i];
-                    if (symbol is null || !seen.Add(symbol))
-                    {
-                        continue;
-                    }
-
-                    mappedParameters[i] = symbol;
+                    continue;
                 }
+
+                mappedParameters[i] = symbol;
             }
 
             return new JsArgumentsObject(
@@ -74,10 +83,7 @@ public static partial class TypedAstEvaluator
                     names.Add(parameter.Name);
                 }
 
-                if (parameter.Pattern is not null)
-                {
-                    parameter.Pattern.WalkBindingTargets(id => names.Add(id.Name));
-                }
+                parameter.Pattern?.WalkBindingTargets(id => names.Add(id.Name));
             }
         }
 
@@ -178,93 +184,111 @@ public static partial class TypedAstEvaluator
                     "Param bind name={Name} envScope={ScopeId} valueKind={Kind}",
                     parameter.Name.Name,
                     environment.ScopeId,
-                    value is JsValue v ? v.Kind : JsValue.FromObjectUnsafe(value).Kind);
+                    value.Kind);
             }
 
             return;
 
             static bool DefaultReferencesParameter(ExpressionNode expression, Symbol parameterName)
             {
-                switch (expression)
+                while (true)
                 {
-                    case IdentifierExpression ident:
-                        return ReferenceEquals(ident.Name, parameterName);
-                    case AssignmentExpression assign:
-                        return ReferenceEquals(assign.Target, parameterName) ||
-                               DefaultReferencesParameter(assign.Value, parameterName);
-                    case BinaryExpression binary:
-                        return DefaultReferencesParameter(binary.Left, parameterName) ||
-                               DefaultReferencesParameter(binary.Right, parameterName);
-                    case ConditionalExpression cond:
-                        return DefaultReferencesParameter(cond.Test, parameterName) ||
-                               DefaultReferencesParameter(cond.Consequent, parameterName) ||
-                               DefaultReferencesParameter(cond.Alternate, parameterName);
-                    case CallExpression call:
-                        return DefaultReferencesParameter(call.Callee, parameterName) ||
-                               call.Arguments.Any(arg => DefaultReferencesParameter(arg.Expression, parameterName));
-
-                    case MemberExpression member:
-                        return DefaultReferencesParameter(member.Target, parameterName) ||
-                               DefaultReferencesParameter(member.Property, parameterName);
-                    case UnaryExpression unary:
-                        return DefaultReferencesParameter(unary.Operand, parameterName);
-                    case SequenceExpression seq:
-                        return DefaultReferencesParameter(seq.Left, parameterName) ||
-                               DefaultReferencesParameter(seq.Right, parameterName);
-                    case ArrayExpression arr:
-                        foreach (var element in arr.Elements)
-                        {
-                            if (element.Expression is not null &&
-                                DefaultReferencesParameter(element.Expression, parameterName))
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case ObjectExpression obj:
-                        foreach (var member in obj.Members)
-                        {
-                            if (member.Value is not null &&
-                                DefaultReferencesParameter(member.Value, parameterName))
+                    switch (expression)
+                    {
+                        case IdentifierExpression ident:
+                            return ReferenceEquals(ident.Name, parameterName);
+                        case AssignmentExpression assign:
+                            return ReferenceEquals(assign.Target, parameterName) || DefaultReferencesParameter(assign.Value, parameterName);
+                        case BinaryExpression binary:
+                            return DefaultReferencesParameter(binary.Left, parameterName) || DefaultReferencesParameter(binary.Right, parameterName);
+                        case ConditionalExpression cond:
+                            return DefaultReferencesParameter(cond.Test, parameterName) || DefaultReferencesParameter(cond.Consequent, parameterName) || DefaultReferencesParameter(cond.Alternate, parameterName);
+                        case CallExpression call:
+                            if (DefaultReferencesParameter(call.Callee, parameterName))
                             {
                                 return true;
                             }
 
-                            if (member.Function is not null &&
-                                DefaultReferencesParameter(member.Function, parameterName))
+                            foreach (var arg in call.Arguments)
+                            {
+                                if (DefaultReferencesParameter(arg.Expression, parameterName))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+
+                        case MemberExpression member:
+                            return DefaultReferencesParameter(member.Target, parameterName) || DefaultReferencesParameter(member.Property, parameterName);
+                        case UnaryExpression unary:
+                            expression = unary.Operand;
+                            continue;
+                        case SequenceExpression seq:
+                            return DefaultReferencesParameter(seq.Left, parameterName) || DefaultReferencesParameter(seq.Right, parameterName);
+                        case ArrayExpression arr:
+                            foreach (var element in arr.Elements)
+                            {
+                                if (element.Expression is not null && DefaultReferencesParameter(element.Expression, parameterName))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        case ObjectExpression obj:
+                            foreach (var member in obj.Members)
+                            {
+                                if (member.Value is not null && DefaultReferencesParameter(member.Value, parameterName))
+                                {
+                                    return true;
+                                }
+
+                                if (member.Function is not null && DefaultReferencesParameter(member.Function, parameterName))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        case TemplateLiteralExpression template:
+                            foreach (var part in template.Parts)
+                            {
+                                if (part.Expression is not null && DefaultReferencesParameter(part.Expression, parameterName))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        case TaggedTemplateExpression tagged:
+                            if (DefaultReferencesParameter(tagged.Tag, parameterName) || DefaultReferencesParameter(tagged.StringsArray, parameterName) || DefaultReferencesParameter(tagged.RawStringsArray, parameterName))
                             {
                                 return true;
                             }
-                        }
 
-                        return false;
-                    case TemplateLiteralExpression template:
-                        foreach (var part in template.Parts)
-                        {
-                            if (part.Expression is not null &&
-                                DefaultReferencesParameter(part.Expression, parameterName))
+                            foreach (var expr in tagged.Expressions)
                             {
-                                return true;
+                                if (DefaultReferencesParameter(expr, parameterName))
+                                {
+                                    return true;
+                                }
                             }
-                        }
 
-                        return false;
-                    case TaggedTemplateExpression tagged:
-                        return DefaultReferencesParameter(tagged.Tag, parameterName) ||
-                               DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
-                               DefaultReferencesParameter(tagged.RawStringsArray, parameterName) ||
-                               tagged.Expressions.Any(expr => DefaultReferencesParameter(expr, parameterName));
-                    case YieldExpression { Expression: not null } yieldExpression:
-                        return DefaultReferencesParameter(yieldExpression.Expression, parameterName);
-                    case AwaitExpression awaitExpression:
-                        return DefaultReferencesParameter(awaitExpression.Expression, parameterName);
-                    case FunctionExpression:
-                        // Nested functions have their own scope; references to the parameter name
-                        // do not count towards self-referential defaults here.
-                        return false;
-                    default:
-                        return false;
+                            return false;
+                        case YieldExpression { Expression: not null } yieldExpression:
+                            expression = yieldExpression.Expression;
+                            continue;
+                        case AwaitExpression awaitExpression:
+                            expression = awaitExpression.Expression;
+                            continue;
+                        case FunctionExpression:
+                            // Nested functions have their own scope; references to the parameter name
+                            // do not count towards self-referential defaults here.
+                            return false;
+                        default:
+                            return false;
+                    }
                 }
             }
 
@@ -354,7 +378,6 @@ public static partial class TypedAstEvaluator
     {
         private IJsCallable CreateFunctionValue(JsEnvironment environment,
             EvaluationContext context,
-            bool createFunctionNameEnvironment = false,
             bool isConstructorFunction = true,
             bool skipInternalNameBinding = false)
         {

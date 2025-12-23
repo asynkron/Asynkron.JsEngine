@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Gets the typeof string for a JsValue.
     /// </summary>
-    private static string GetTypeofStringValue(JsValue value)
+    private static string GetTypeofStringValue(in JsValue value)
     {
         return value.Kind switch
         {
@@ -47,10 +47,10 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// Bitwise NOT of a JsValue operand.
     /// </summary>
-    private static JsValue BitwiseNotValue(JsValue operand, EvaluationContext context)
+    private static JsValue BitwiseNotValue(in JsValue operand, EvaluationContext context)
     {
         // Use the JsValue overload that handles all types without boxing
-        return BitwiseNotJsValue(operand, context);
+        return BitwiseNotJsValue(in operand, context);
     }
 
     extension(UnaryExpression expression)

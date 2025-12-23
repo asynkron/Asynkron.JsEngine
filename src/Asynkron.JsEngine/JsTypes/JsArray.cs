@@ -14,7 +14,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Minimal JavaScript-like array that tracks indexed elements and behaves like an object for property access.
 /// </summary>
 public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider,
-    IEnumerable<JsValue>
+    IEnumerable<JsValue>, IAsJsValue
 {
     private const uint DenseIndexLimit = 1_000_000;
 
@@ -33,8 +33,12 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private uint _length;
     private Dictionary<uint, JsValue>? _sparseItems;
 
+    // Cached JsValue to avoid repeated struct creation
+    private readonly JsValue _cachedJsValue;
+
     public JsArray(RealmState? realmState = null)
     {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         RealmState = realmState;
         _rangeErrorCtor = realmState?.RangeErrorConstructor;
         _typeErrorCtor = realmState?.TypeErrorConstructor;
@@ -53,6 +57,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         DefineInitialLengthProperty();
         SetupIterator();
     }
+
+    /// <inheritdoc />
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     public JsArray(IEnumerable<JsValue> items, RealmState? realmState = null)
         : this(realmState)

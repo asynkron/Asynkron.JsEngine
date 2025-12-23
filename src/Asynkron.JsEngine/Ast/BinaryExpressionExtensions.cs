@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for private field 'in' operator - avoids boxing.
     /// </summary>
-    private static bool PrivateFieldInOperatorJsValue(string privateName, JsValue target, EvaluationContext context)
+    private static bool PrivateFieldInOperatorJsValue(string privateName, in JsValue target, EvaluationContext context)
     {
         // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
         if (target.Kind != JsValueKind.Object || target.ObjectValue is not JsObject jsObject)
@@ -120,7 +120,7 @@ public static partial class TypedAstEvaluator
         /// Handles medium frequency binary operators.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static JsValue EvaluateBinaryOperator(BinaryOperator op, JsValue left, JsValue right,
+        private static JsValue EvaluateBinaryOperator(BinaryOperator op, in JsValue left, in JsValue right,
             EvaluationContext context)
         {
             return op switch

@@ -71,7 +71,7 @@ public sealed partial class IntlNumberFormatPrototype
         object numericValue;
         try
         {
-            numericValue = JsOps.ToNumeric(value, context);
+            numericValue = JsOps.ToNumericAsJsValue(in value, context);
         }
         catch
         {

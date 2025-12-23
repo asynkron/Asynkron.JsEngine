@@ -253,7 +253,7 @@ public static partial class NumberHelper
         const double MaxLength = 9007199254740991d; // 2^53 - 1
         var context = realm?.CreateContext();
 
-        var numericJs = JsOps.ToNumeric(JsValue.FromObjectUnsafe(value), context);
+        var numericJs = JsOps.ToNumericAsJsValue( JsValue.FromObjectUnsafe(value), context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -313,7 +313,7 @@ public static partial class NumberHelper
         }
 
         // Handle other types via ToNumeric
-        var numeric = JsOps.ToNumeric(value, context);
+        var numeric = JsOps.ToNumericAsJsValue(in value, context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -364,7 +364,7 @@ public static partial class NumberHelper
         const double MaxLength = 9007199254740991d; // 2^53 - 1
         var context = realm?.CreateContext();
 
-        var numericJs = JsOps.ToNumeric(JsValue.FromObjectUnsafe(value), context);
+        var numericJs = JsOps.ToNumericAsJsValue(JsValue.FromObjectUnsafe(value), context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);

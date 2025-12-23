@@ -563,7 +563,7 @@ public static partial class TypedAstEvaluator
             return new JsValue((double)~int32);
         }
 
-        var numeric = JsOps.ToNumeric(operand, context);
+        var numeric = JsOps.ToNumericAsJsValue(in operand, context);
         if (context.IsThrow)
         {
             return context.FlowValue;

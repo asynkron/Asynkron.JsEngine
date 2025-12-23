@@ -249,10 +249,10 @@ public static class RegExpHelper
             Configurable = true
         };
 
-        var lastMatchDescriptor = MakeAccessor(s => s.LastMatch);
-        var lastParenDescriptor = MakeAccessor(s => s.LastParen);
-        var leftDescriptor = MakeAccessor(s => s.LeftContext);
-        var rightDescriptor = MakeAccessor(s => s.RightContext);
+        var lastMatchDescriptor = MakeAccessor(static s => s.LastMatch);
+        var lastParenDescriptor = MakeAccessor(static s => s.LastParen);
+        var leftDescriptor = MakeAccessor(static s => s.LeftContext);
+        var rightDescriptor = MakeAccessor(static s => s.RightContext);
 
         constructor.DefineProperty("input", inputDescriptor);
         constructor.DefineProperty("$_", inputDescriptor);

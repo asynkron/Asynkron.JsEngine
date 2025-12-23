@@ -5,18 +5,12 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Avoids the overhead of JsObject's dictionary-based property storage for the
 ///     common case of iterator results which are typically only read, not modified.
 /// </summary>
-internal sealed class IteratorResultObject : IJsObjectLike
+internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObjectLike
 {
     private static readonly string[] PropertyNames = ["value", "done"];
 
-    public JsValue Value;
-    public bool Done;
-
-    public IteratorResultObject(JsValue value, bool done)
-    {
-        Value = value;
-        Done = done;
-    }
+    private JsValue _value = value;
+    private bool _done = done;
 
     public JsObject? Prototype => null;
     public bool IsSealed => false;
@@ -28,10 +22,10 @@ internal sealed class IteratorResultObject : IJsObjectLike
         switch (name)
         {
             case "value":
-                value = Value;
+                value = _value;
                 return true;
             case "done":
-                value = Done ? JsValue.True : JsValue.False;
+                value = _done ? JsValue.True : JsValue.False;
                 return true;
             default:
                 value = JsValue.Undefined;
@@ -44,10 +38,10 @@ internal sealed class IteratorResultObject : IJsObjectLike
         switch (name)
         {
             case "value":
-                Value = value;
+                _value = value;
                 break;
             case "done":
-                Done = value.IsTruthy;
+                _done = value.IsTruthy;
                 break;
         }
     }
@@ -58,14 +52,14 @@ internal sealed class IteratorResultObject : IJsObjectLike
         {
             "value" => new PropertyDescriptor
             {
-                JsValue = Value,
+                JsValue = _value,
                 Writable = true,
                 Enumerable = true,
                 Configurable = true
             },
             "done" => new PropertyDescriptor
             {
-                JsValue = Done ? JsValue.True : JsValue.False,
+                JsValue = _done ? JsValue.True : JsValue.False,
                 Writable = true,
                 Enumerable = true,
                 Configurable = true

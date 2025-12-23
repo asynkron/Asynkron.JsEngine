@@ -156,7 +156,7 @@ public static partial class TypedAstEvaluator
             if (constructorAccessor is TypedFunction typedFunction)
             {
                 typedFunction.SetSuperBinding(superConstructor, superPrototype);
-                var instanceFields = resolvedFields.Where(field => !field.IsStatic).ToImmutableArray();
+                var instanceFields = resolvedFields.Where(static field => !field.IsStatic).ToImmutableArray();
                 var resolvedInstanceFields = ClassDefinition.ResolveInstanceFieldNames(instanceFields,
                     evaluationEnvironment, context, privateNameScope);
                 if (context.ShouldStopEvaluation)
@@ -244,8 +244,8 @@ public static partial class TypedAstEvaluator
 
         private PrivateNameScope? CreatePrivateNameScope()
         {
-            var hasPrivateFields = definition.Fields.Any(f => f.IsPrivate);
-            var hasPrivateMembers = definition.Members.Any(m => m.IsPrivate);
+            var hasPrivateFields = definition.Fields.Any(static f => f.IsPrivate);
+            var hasPrivateMembers = definition.Members.Any(static m => m.IsPrivate);
             return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
         }
 

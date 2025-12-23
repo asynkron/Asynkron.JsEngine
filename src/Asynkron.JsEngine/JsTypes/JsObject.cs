@@ -52,7 +52,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     // IDictionary<string, object?> implementation - wraps JsValue storage
     public ICollection<string> Keys => _state?.Storage.Keys ?? Array.Empty<string>();
-    public ICollection<object?> Values => _state?.Storage.Values.Select(v => v.ToObject()).ToList() ?? [];
+    public ICollection<object?> Values => _state?.Storage.Values.Select(static v => v.ToObject()).ToList() ?? [];
     public int Count => _state?.Storage.Count ?? 0;
     public bool IsReadOnly => false;
 
@@ -168,7 +168,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
     {
         return (_state?.Storage ?? [])
-            .Select(kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject()))
+            .Select(static kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value.ToObject()))
             .GetEnumerator();
     }
 

@@ -25,8 +25,8 @@ public static partial class TypedAstEvaluator
             if (mapped)
             {
                 var parameterSymbols = function.Parameters
-                    .Where(p => p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
-                    .Select(p => p.Name!)
+                    .Where(static p => p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
+                    .Select(static p => p.Name!)
                     .ToArray();
 
                 var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);

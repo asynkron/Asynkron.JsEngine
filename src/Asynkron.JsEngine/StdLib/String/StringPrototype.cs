@@ -1115,6 +1115,6 @@ public sealed partial class StringPrototype
 
     private static JsArray CreateArrayFromStrings(string[] strings, RealmState? realm)
     {
-        return new JsArray(strings.Select(s => new JsValue(s)), realm);
+        return new JsArray(strings.Select(static s => new JsValue(s)), realm);
     }
 }

@@ -336,7 +336,7 @@ public static class ReflectHelper
         }
 
         var keys = target.Keys
-            .Where(k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
+            .Where(static k => !k.StartsWith("__getter__", StringComparison.Ordinal) &&
                         !k.StartsWith("__setter__", StringComparison.Ordinal) &&
                         !string.Equals(k, "__proto__", StringComparison.Ordinal))
             .ToArray();

@@ -68,7 +68,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         : this(realmState)
     {
         // Handle case where items contain already-boxed JsValue values
-        _items.AddRange(items.Select(item => item is JsValue js ? js : JsValue.FromObjectUnsafe(item)));
+        _items.AddRange(items.Select(static item => item is JsValue js ? js : JsValue.FromObjectUnsafe(item)));
         _length = (uint)_items.Count;
     }
 
@@ -829,10 +829,23 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (_sparseItems is not null)
         {
-            var keysToRemove = _sparseItems.Keys.Where(k => k >= newLength).ToArray();
-            foreach (var key in keysToRemove)
+            // Collect keys to remove without closure allocation
+            List<uint>? keysToRemove = null;
+            foreach (var key in _sparseItems.Keys)
             {
-                _sparseItems.Remove(key);
+                if (key >= newLength)
+                {
+                    keysToRemove ??= [];
+                    keysToRemove.Add(key);
+                }
+            }
+
+            if (keysToRemove is not null)
+            {
+                foreach (var key in keysToRemove)
+                {
+                    _sparseItems.Remove(key);
+                }
             }
         }
 

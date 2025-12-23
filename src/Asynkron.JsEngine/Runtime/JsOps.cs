@@ -140,7 +140,7 @@ internal static class JsOps
     ///     Kept in sync with <see cref="IsTruthy" /> which is the legacy name used throughout the codebase.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool ToBoolean(JsValue value)
+    public static bool ToBoolean(in JsValue value)
     {
         return value.Kind switch
         {
@@ -179,14 +179,14 @@ internal static class JsOps
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsTruthy(JsValue value)
+    public static bool IsTruthy(in JsValue value)
     {
-        return ToBoolean(value);
+        return ToBoolean(in value);
     }
 
-    public static double ToNumber(JsValue value, EvaluationContext? context = null)
+    public static double ToNumber(in JsValue value, EvaluationContext? context = null)
     {
-        return ToNumberWithContext(value, context);
+        return ToNumberWithContext(in value, context);
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
@@ -195,9 +195,9 @@ internal static class JsOps
         return ToNumberWithContext(value, context);
     }
 
-    public static JsValue ToNumeric(JsValue value, EvaluationContext? context = null)
+    public static JsValue ToNumeric(in JsValue value, EvaluationContext? context = null)
     {
-        return ToNumericAsJsValue(value, context);
+        return ToNumericAsJsValue(in value, context);
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
@@ -223,7 +223,7 @@ internal static class JsOps
     /// Returns JsValue with Number or BigInt kind. On error, returns JsValue.Undefined (check context.IsThrow).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue ToNumericAsJsValue(JsValue value, EvaluationContext? context = null)
+    internal static JsValue ToNumericAsJsValue(in JsValue value, EvaluationContext? context = null)
     {
         if (value.IsNumber || value.IsBigInt)
         {
@@ -281,9 +281,9 @@ internal static class JsOps
         return ToNumericCore(value, context);
     }
 
-    public static double ToNumberWithContext(JsValue value, EvaluationContext? context = null)
+    public static double ToNumberWithContext(in JsValue value, EvaluationContext? context = null)
     {
-        var result = ToNumericAsJsValue(value, context);
+        var result = ToNumericAsJsValue(in value, context);
         if (result.IsNumber)
         {
             return result.NumberValue;
@@ -801,7 +801,7 @@ internal static class JsOps
     /// ECMAScript strict equality comparison for JsValue types.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool StrictEquals(JsValue left, JsValue right)
+    public static bool StrictEquals(in JsValue left, in JsValue right)
     {
         // Different types are never strictly equal
         if (left.Kind != right.Kind)
@@ -871,7 +871,7 @@ internal static class JsOps
         return ln.Equals(rn);
     }
 
-    public static bool LooseEquals(JsValue left, JsValue right, EvaluationContext? context = null)
+    public static bool LooseEquals(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for same-type comparisons
         if (left.Kind == right.Kind)
@@ -900,7 +900,7 @@ internal static class JsOps
         }
 
         // Delegate to object? version for type coercion
-        return LooseEquals(ExtractValueForComparison(left), ExtractValueForComparison(right), context);
+        return LooseEquals(ExtractValueForComparison(in left), ExtractValueForComparison(in right), context);
     }
 
     [Obsolete("Use JsValue overload for better performance and correctness.")]
@@ -996,7 +996,7 @@ internal static class JsOps
         }
     }
 
-    public static bool GreaterThan(JsValue left, JsValue right, EvaluationContext? context = null)
+    public static bool GreaterThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
@@ -1010,7 +1010,7 @@ internal static class JsOps
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
         }
 
-        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right),
+        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
             ComparisonOperator.GreaterThan, context);
     }
 
@@ -1020,7 +1020,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
     }
 
-    public static bool GreaterThanOrEqual(JsValue left, JsValue right, EvaluationContext? context = null)
+    public static bool GreaterThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
@@ -1034,7 +1034,7 @@ internal static class JsOps
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
         }
 
-        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right),
+        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
             ComparisonOperator.GreaterThanOrEqual, context);
     }
 
@@ -1044,7 +1044,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
     }
 
-    public static bool LessThan(JsValue left, JsValue right, EvaluationContext? context = null)
+    public static bool LessThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
@@ -1058,7 +1058,7 @@ internal static class JsOps
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
         }
 
-        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right),
+        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
             ComparisonOperator.LessThan, context);
     }
 
@@ -1068,7 +1068,7 @@ internal static class JsOps
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
     }
 
-    public static bool LessThanOrEqual(JsValue left, JsValue right, EvaluationContext? context = null)
+    public static bool LessThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
@@ -1082,7 +1082,7 @@ internal static class JsOps
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
         }
 
-        return PerformComparisonOperation(ExtractValueForComparison(left), ExtractValueForComparison(right),
+        return PerformComparisonOperation(ExtractValueForComparison(in left), ExtractValueForComparison(in right),
             ComparisonOperator.LessThanOrEqual, context);
     }
 
@@ -1090,7 +1090,7 @@ internal static class JsOps
     /// Extracts the underlying value from a JsValue for use in comparison operations.
     /// For numbers and booleans, returns a boxed value. For other types, returns ObjectValue.
     /// </summary>
-    private static object? ExtractValueForComparison(JsValue value)
+    private static object? ExtractValueForComparison(in JsValue value)
     {
         return value.Kind switch
         {

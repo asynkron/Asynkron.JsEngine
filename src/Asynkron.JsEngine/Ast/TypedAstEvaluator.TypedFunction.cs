@@ -1593,7 +1593,7 @@ public static partial class TypedAstEvaluator
                 "InitInstance complete: ctor={Ctor} instance={Instance} keys={Keys}",
                 _function.Name?.Name ?? "<anonymous>",
                 DescribeValue(instance),
-                string.Join(',', instance.GetOwnPropertyKeysInOrder().Select(k => k.ToString())));
+                string.Join(',', instance.GetOwnPropertyKeysInOrder().Select(static k => k.ToString())));
         }
 
         private static void SetAnonymousFunctionName(JsValue value, string displayName)

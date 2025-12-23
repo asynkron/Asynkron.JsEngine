@@ -28,7 +28,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
     {
         _realmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
         _bindingLookup = bindingLookup ?? throw new ArgumentNullException(nameof(bindingLookup));
-        _exportNames = exportNames?.OrderBy(n => n, StringComparer.Ordinal).ToImmutableArray()
+        _exportNames = exportNames?.OrderBy(static n => n, StringComparer.Ordinal).ToImmutableArray()
                        ?? throw new ArgumentNullException(nameof(exportNames));
         _isDeferred = isDeferred;
         _ensureEvaluated = ensureEvaluated;

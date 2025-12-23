@@ -52,7 +52,7 @@ internal static class IntlUtilities
     private static readonly string[] EmptyValues = [];
 
     private static readonly Lazy<HashSet<string>> CurrencySet =
-        new(() => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
+        new(static () => new HashSet<string>(CurrencyValues.Value, StringComparer.Ordinal));
 
     private static readonly Lazy<TimeZoneRegistry> TimeZoneRegistryCache = new(BuildSupportedTimeZones);
     private static readonly RealmState CanonicalizationRealm = new() { Options = JsEngineOptions.Default };
@@ -1057,8 +1057,8 @@ internal static class IntlUtilities
         }
 
         var filteredOverrides = overrides
-            .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value))
-            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.Ordinal);
+            .Where(static kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
 
         if (filteredOverrides.Count == 0)
         {
@@ -1125,7 +1125,7 @@ internal static class IntlUtilities
             attributes.Sort(StringComparer.Ordinal);
             output.AddRange(attributes);
 
-            foreach (var key in keywords.Keys.OrderBy(k => k, StringComparer.Ordinal))
+            foreach (var key in keywords.Keys.OrderBy(static k => k, StringComparer.Ordinal))
             {
                 output.Add(key);
                 var value = keywords[key];
@@ -1138,7 +1138,7 @@ internal static class IntlUtilities
 
         if (!unicodeProcessed)
         {
-            var ordered = filteredOverrides.OrderBy(kvp => kvp.Key, StringComparer.Ordinal).ToList();
+            var ordered = filteredOverrides.OrderBy(static kvp => kvp.Key, StringComparer.Ordinal).ToList();
             if (ordered.Count > 0)
             {
                 output.Add("u");

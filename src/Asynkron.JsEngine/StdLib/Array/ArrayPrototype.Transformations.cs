@@ -87,10 +87,18 @@ public sealed partial class ArrayPrototype
 
         if (accessor is JsArray jsArr && lenLong > 100000)
         {
-            var indices = jsArr.GetOwnIndices()
-                .Where(idx => idx >= start && idx < lenLong)
-                .OrderBy(idx => idx);
-            foreach (var idx in indices)
+            // Collect and filter indices without closure allocation
+            var filteredIndices = new List<uint>();
+            foreach (var idx in jsArr.GetOwnIndices())
+            {
+                if (idx >= start && idx < lenLong)
+                {
+                    filteredIndices.Add(idx);
+                }
+            }
+
+            filteredIndices.Sort();
+            foreach (var idx in filteredIndices)
             {
                 var val = jsArr.GetElement(idx);
                 if (SameValueZero(val, searchElement))

@@ -322,9 +322,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsArray Entries()
     {
-        var entries = _insertionOrder
-            .Select(key => JsValue.FromObjectUnsafe(new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)])))
-            .ToList();
+        var entries = new List<JsValue>(_insertionOrder.Count);
+        foreach (var key in _insertionOrder)
+        {
+            var pair = new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)]);
+            entries.Add(JsValue.FromObjectUnsafe(pair));
+        }
 
         return new JsArray(entries);
     }

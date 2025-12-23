@@ -529,8 +529,8 @@ public static partial class TypedAstEvaluator
     /// JsValue overload for BigInt or numeric operations - avoids boxing.
     /// </summary>
     private static JsValue PerformBigIntOrNumericOperationJsValue(
-        JsValue left,
-        JsValue right,
+        in JsValue left,
+        in JsValue right,
         Func<JsBigInt, JsBigInt, EvaluationContext, object> bigIntOp,
         Func<double, double, double> numericOp,
         EvaluationContext context)
@@ -573,7 +573,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for BitwiseNot. Avoids boxing for numeric types.
     /// </summary>
-    private static JsValue BitwiseNotJsValue(JsValue operand, EvaluationContext context)
+    private static JsValue BitwiseNotJsValue(in JsValue operand, EvaluationContext context)
     {
         // Fast path for number (most common case)
         if (operand.IsNumber)
@@ -600,7 +600,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for left shift - avoids boxing.
     /// </summary>
-    private static JsValue LeftShiftJsValue(JsValue left, JsValue right, EvaluationContext context)
+    private static JsValue LeftShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
         if (left.IsNumber && right.IsNumber)
@@ -647,7 +647,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for right shift - avoids boxing.
     /// </summary>
-    private static JsValue RightShiftJsValue(JsValue left, JsValue right, EvaluationContext context)
+    private static JsValue RightShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
         if (left.IsNumber && right.IsNumber)
@@ -694,7 +694,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for unsigned right shift - avoids boxing.
     /// </summary>
-    private static JsValue UnsignedRightShiftJsValue(JsValue left, JsValue right, EvaluationContext context)
+    private static JsValue UnsignedRightShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
         if (left.IsNumber && right.IsNumber)
@@ -730,8 +730,8 @@ public static partial class TypedAstEvaluator
     /// JsValue overload for BigInt or Int32 operations - avoids boxing.
     /// </summary>
     private static JsValue PerformBigIntOrInt32OperationJsValue(
-        JsValue left,
-        JsValue right,
+        in JsValue left,
+        in JsValue right,
         Func<JsBigInt, JsBigInt, object> bigIntOp,
         Func<int, int, int> int32Op,
         EvaluationContext context)

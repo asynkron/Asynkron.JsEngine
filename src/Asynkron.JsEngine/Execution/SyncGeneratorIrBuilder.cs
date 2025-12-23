@@ -857,7 +857,7 @@ internal sealed class SyncGeneratorIrBuilder
 
     private static bool DeclarationContainsYield(VariableDeclaration declaration)
     {
-        return declaration.Declarators.Any(d =>
+        return declaration.Declarators.Any(static d =>
             d.Initializer is not null &&
             AstShapeAnalyzer.ContainsYield(d.Initializer) &&
             !IsLowererTemp(d.Target));

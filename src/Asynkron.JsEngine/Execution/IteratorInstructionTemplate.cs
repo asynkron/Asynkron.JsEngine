@@ -8,25 +8,32 @@ namespace Asynkron.JsEngine.Execution;
 
 internal static class IteratorInstructionTemplate
 {
+    /// <summary>
+    /// Appends iterator instructions with pre-allocated symbols and slot indices for O(1) value access.
+    /// </summary>
+    /// <param name="instructions">The instruction list to append to.</param>
+    /// <param name="plan">The iterator driver plan.</param>
+    /// <param name="breakIndex">Jump target when iteration completes.</param>
+    /// <param name="iteratorSymbol">Pre-created symbol for the iterator state.</param>
+    /// <param name="valueSymbol">Pre-created symbol for the iteration value.</param>
+    /// <param name="iteratorSlotIndex">Pre-allocated slot index for the iterator state.</param>
+    /// <param name="valueSlotIndex">Pre-allocated slot index for the iteration value.</param>
+    /// <returns>The instruction plan with slot indices.</returns>
     public static IteratorInstructionPlan AppendInstructions(List<GeneratorInstruction> instructions,
         IteratorDriverPlan plan,
-        int breakIndex)
+        int breakIndex,
+        Symbol iteratorSymbol,
+        Symbol valueSymbol,
+        int iteratorSlotIndex,
+        int valueSlotIndex)
     {
-        var instructionStart = instructions.Count;
-        var iteratorSymbol = Symbol.Intern(plan.Kind == IteratorDriverKind.Await
-            ? $"__forAwait_iter_{instructionStart}"
-            : $"__forOf_iter_{instructionStart}");
-        var valueSymbol = Symbol.Intern(plan.Kind == IteratorDriverKind.Await
-            ? $"__forAwait_value_{instructionStart}"
-            : $"__forOf_value_{instructionStart}");
-
         var initIndex = instructions.Count;
-        instructions.Add(new IteratorInitInstruction(plan.Kind, plan.Iterable, iteratorSymbol, -1));
+        instructions.Add(new IteratorInitInstruction(plan.Kind, plan.Iterable, iteratorSymbol, iteratorSlotIndex, -1));
 
         var moveNextIndex = instructions.Count;
-        instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, breakIndex, -1));
+        instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, breakIndex, -1));
 
-        return new IteratorInstructionPlan(iteratorSymbol, valueSymbol, initIndex, moveNextIndex);
+        return new IteratorInstructionPlan(iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, initIndex, moveNextIndex);
     }
 
     public static void Wire(IteratorInstructionPlan plan, int bodyEntryIndex, List<GeneratorInstruction> instructions)

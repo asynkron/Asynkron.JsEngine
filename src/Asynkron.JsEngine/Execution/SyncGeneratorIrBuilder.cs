@@ -26,11 +26,22 @@ internal sealed class SyncGeneratorIrBuilder
     private const string WithScopeSlotPrefix = "\u0001_with";
     private readonly List<GeneratorInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
+    private readonly List<Symbol> _slotSymbols = [];
     private int _catchSlotCounter;
     private string? _failureReason;
     private int _resumeSlotCounter;
     private int _withScopeSlotCounter;
     private int _yieldStarStateCounter;
+
+    /// <summary>
+    /// Allocates a new slot index for a generator-internal symbol.
+    /// </summary>
+    private int AllocateSlot(Symbol symbol)
+    {
+        var index = _slotSymbols.Count;
+        _slotSymbols.Add(symbol);
+        return index;
+    }
 
     private SyncGeneratorIrBuilder()
     {
@@ -94,7 +105,11 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        plan = new GeneratorPlan([.._instructions], entryIndex);
+        plan = new GeneratorPlan(
+            [.._instructions],
+            entryIndex,
+            _slotSymbols.Count,
+            [.._slotSymbols]);
         return true;
     }
 
@@ -778,10 +793,25 @@ internal sealed class SyncGeneratorIrBuilder
         // 6. EnterTry -> MoveNext, finally -> IteratorClose
         // 7. IteratorInit -> EnterTry
 
-        // First, create the iterator instructions to get the slot symbol
+        // Pre-create symbols and allocate slots for O(1) access
+        var iteratorSymbol = Symbol.Intern(iteratorPlan.Kind == IteratorDriverKind.Await
+            ? $"__forAwait_iter_{instructionStart}"
+            : $"__forOf_iter_{instructionStart}");
+        var valueSymbol = Symbol.Intern(iteratorPlan.Kind == IteratorDriverKind.Await
+            ? $"__forAwait_value_{instructionStart}"
+            : $"__forOf_value_{instructionStart}");
+
+        var iteratorSlotIndex = AllocateSlot(iteratorSymbol);
+        var valueSlotIndex = AllocateSlot(valueSymbol);
+
+        // First, create the iterator instructions with pre-allocated slots
         var iteratorInstructions =
             IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan,
-                -1); // breakIndex will be LeaveTry
+                -1, // breakIndex will be LeaveTry
+                iteratorSymbol,
+                valueSymbol,
+                iteratorSlotIndex,
+                valueSlotIndex);
 
         // EndFinally - this is the end of the finally block
         var endFinallyIndex = Append(new EndFinallyInstruction(nextIndex));

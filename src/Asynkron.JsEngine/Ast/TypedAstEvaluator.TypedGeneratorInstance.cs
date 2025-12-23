@@ -249,6 +249,19 @@ public static partial class TypedAstEvaluator
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
+            // Initialize slots for generator-internal variables (iterator states, values, etc.)
+            // This enables O(1) slot-based access instead of dictionary lookups
+            if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
+            {
+                executionEnvironment.InitializeSlots(_plan.SlotCount);
+                var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                for (var i = 0; i < _plan.SlotSymbols.Length; i++)
+                {
+                    slotMap[_plan.SlotSymbols[i]] = i;
+                }
+                executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+            }
+
             var generatorContext = _realmState.CreateContext(
                 ScopeKind.Function,
                 DetermineGeneratorScopeMode());
@@ -371,19 +384,54 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
+        private void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
         {
             // Handle case where value is already a boxed JsValue
             var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-            // Single lookup - defines if not exists, assigns if exists
-            environment.DefineOrAssignJsValue(symbol, jsVal);
+            StoreSymbolValueJsValue(environment, symbol, jsVal);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
+        private void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
-            // Single lookup - defines if not exists, assigns if exists
+            // DefineOrAssignJsValue is O(1) on the current environment -
+            // it only looks at environment.Values, no scope chain walk.
+            // This is optimal for generator symbols defined in the execution environment.
             environment.DefineOrAssignJsValue(symbol, value);
+        }
+
+        /// <summary>
+        /// Stores a value using pre-resolved slot index for O(1) access.
+        /// Falls back to dictionary-based storage if slot index is invalid.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void StoreValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, JsValue value)
+        {
+            if (slotIndex >= 0 && environment.HasSlots)
+            {
+                environment.GetSlotRef(slotIndex) = value;
+                // Also update dictionary for symbol-based lookups elsewhere
+                environment.DefineOrAssignJsValue(symbol, value);
+            }
+            else
+            {
+                environment.DefineOrAssignJsValue(symbol, value);
+            }
+        }
+
+        /// <summary>
+        /// Reads a value using pre-resolved slot index for O(1) access.
+        /// Falls back to dictionary-based lookup if slot index is invalid.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryGetValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, out JsValue value)
+        {
+            if (slotIndex >= 0 && environment.HasSlots)
+            {
+                value = environment.GetSlotRef(slotIndex);
+                return true;
+            }
+            return TryGetSymbolValueJsValue(environment, symbol, out value);
         }
 
         private static bool TryGetSymbolValueJsValue(JsEnvironment environment, Symbol symbol, out JsValue value)
@@ -996,14 +1044,18 @@ public static partial class TypedAstEvaluator
 
                                 var iteratorState =
                                     CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
-                                StoreSymbolValue(environment, iteratorInitInstruction.IteratorSlot, iteratorState);
+                                // Use slot-based storage for O(1) access
+                                StoreValueBySlot(environment, iteratorInitInstruction.IteratorSlot,
+                                    iteratorInitInstruction.IteratorSlotIndex,
+                                    JsValue.FromObjectUnsafe(iteratorState));
                                 _programCounter = iteratorInitInstruction.Next;
                                 continue;
 
                             case IteratorMoveNextInstruction iteratorMoveNextInstruction:
                                 var iteratorIndex = _programCounter;
-                                if (!TryGetSymbolValueJsValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                        out var iteratorStateValue) ||
+                                // Use slot-based read for O(1) access
+                                if (!TryGetValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                        iteratorMoveNextInstruction.IteratorSlotIndex, out var iteratorStateValue) ||
                                     !iteratorStateValue.TryGetObject<IteratorDriverState>(out var driverState))
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
@@ -1065,8 +1117,9 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    StoreSymbolValueJsValue(environment, iteratorMoveNextInstruction.ValueSlot,
-                                        currentValue);
+                                    // Use slot-based storage for O(1) access
+                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
+                                        iteratorMoveNextInstruction.ValueSlotIndex, currentValue);
                                     _programCounter = iteratorMoveNextInstruction.Next;
                                     continue;
                                 }
@@ -1085,8 +1138,10 @@ public static partial class TypedAstEvaluator
                                     driverState.AwaitingNextResult = false;
                                     driverState.AwaitingValue = false;
                                     var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                                    StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                        driverState);
+                                    // Use slot-based storage for O(1) access
+                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                        iteratorMoveNextInstruction.IteratorSlotIndex,
+                                        JsValue.FromObjectUnsafe(driverState));
 
                                     if (forAwaitResumeKind == ResumePayloadKind.Throw)
                                     {
@@ -1137,8 +1192,10 @@ public static partial class TypedAstEvaluator
                                             if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                             {
                                                 driverState.AwaitingNextResult = true;
-                                                StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                    driverState);
+                                                // Use slot-based storage for O(1) access
+                                                StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                    iteratorMoveNextInstruction.IteratorSlotIndex,
+                                                    JsValue.FromObjectUnsafe(driverState));
                                                 _state = GeneratorState.Suspended;
                                                 _programCounter = iteratorIndex;
                                                 return CreateIteratorResult(JsValue.Undefined, false);
@@ -1195,8 +1252,10 @@ public static partial class TypedAstEvaluator
                                         if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
-                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                driverState);
+                                            // Use slot-based storage for O(1) access
+                                            StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                iteratorMoveNextInstruction.IteratorSlotIndex,
+                                                JsValue.FromObjectUnsafe(driverState));
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
                                             return CreateIteratorResult(JsValue.Undefined, false);
@@ -1236,8 +1295,10 @@ public static partial class TypedAstEvaluator
                                         if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
-                                            StoreSymbolValue(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                driverState);
+                                            // Use slot-based storage for O(1) access
+                                            StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                iteratorMoveNextInstruction.IteratorSlotIndex,
+                                                JsValue.FromObjectUnsafe(driverState));
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
                                             return CreateIteratorResult(JsValue.Undefined, false);
@@ -1269,8 +1330,9 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 StoreIteratorValue:
-                                StoreSymbolValueJsValue(environment, iteratorMoveNextInstruction.ValueSlot,
-                                    awaitedValue);
+                                // Use slot-based storage for O(1) access
+                                StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
+                                    iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
 

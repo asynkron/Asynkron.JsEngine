@@ -9,7 +9,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Map", ToStringTag = "Map", InstanceType = typeof(JsMap), TryGetMethod = "TryGetInternal")]
+[JsPrototype("Map", ToStringTag = "Map", InstanceType = typeof(JsMap))]
 [JsSymbolAlias("iterator", "entries")]
 public sealed partial class MapPrototype
 {

@@ -348,41 +348,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     /// <summary>
-    ///     Tries to extract a JsMap from a JsValue, handling both direct instances
-    ///     and subclass instances with an internal _internalMap slot.
-    /// </summary>
-    internal static bool TryGetInternal(JsValue candidate, out JsMap? map)
-    {
-        if (candidate is not { Kind: JsValueKind.Object, ObjectValue: { } objVal })
-        {
-            map = null;
-            return false;
-        }
-
-        switch (objVal)
-        {
-            case JsMap directMap:
-                map = directMap;
-                return true;
-            case JsObject obj:
-            {
-                // Check for _internalMap slot (used by Map subclasses)
-                if (obj.TryGetProperty("_internalMap", out var internalSlot) &&
-                    internalSlot.TryGetObject<JsMap>(out var slotMap))
-                {
-                    map = slotMap;
-                    return true;
-                }
-
-                break;
-            }
-        }
-
-        map = null;
-        return false;
-    }
-
-    /// <summary>
     ///     Equality comparer implementing SameValueZero algorithm for Map keys.
     ///     Similar to strict equality (===) but treats NaN as equal to NaN.
     /// </summary>

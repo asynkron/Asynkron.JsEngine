@@ -8,7 +8,7 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 
 namespace Asynkron.JsEngine.StdLib;
 
-[JsPrototype("Set", ToStringTag = "Set", InstanceType = typeof(JsSet), TryGetMethod = "TryGetInternal")]
+[JsPrototype("Set", ToStringTag = "Set", InstanceType = typeof(JsSet))]
 [JsSymbolAlias("iterator", "values")]
 [JsMethodAlias("keys", "values")]
 public sealed partial class SetPrototype

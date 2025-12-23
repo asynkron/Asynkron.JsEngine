@@ -24,6 +24,7 @@ public sealed class JsPromise
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
     private JsObject? _jsObject;
+    private Action? _processHandlersAction;
 
     public JsPromise(JsEngine engine)
     {
@@ -210,19 +211,21 @@ public sealed class JsPromise
         }
 
         _handlersScheduled = true;
-        // Use the synchronous microtask queue for promise handlers
-        // This ensures proper ordering during top-level await
-        _engine.QueueMicrotask(() =>
+        // Use cached delegate to avoid lambda allocation per call
+        _processHandlersAction ??= ProcessHandlersWithFlag;
+        _engine.QueueMicrotask(_processHandlersAction);
+    }
+
+    private void ProcessHandlersWithFlag()
+    {
+        try
         {
-            try
-            {
-                ProcessHandlersCore();
-            }
-            finally
-            {
-                _handlersScheduled = false;
-            }
-        });
+            ProcessHandlersCore();
+        }
+        finally
+        {
+            _handlersScheduled = false;
+        }
     }
 
     private void ProcessHandlersCore()

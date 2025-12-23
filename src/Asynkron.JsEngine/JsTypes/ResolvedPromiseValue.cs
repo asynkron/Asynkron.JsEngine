@@ -63,38 +63,26 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
             var onFulfilled = args.Count > 0 ? args[0] : JsValue.Undefined;
-            var onRejected = args.Count > 1 ? args[1] : JsValue.Undefined;
 
             // Create a new promise for chaining
             var nextPromise = new JsPromise(_engine);
 
             if (onFulfilled.TryGetCallable(out var fulfilledCallback))
             {
-                // Schedule the callback via microtask to maintain proper async semantics
-                _engine.QueueMicrotask(() =>
-                {
-                    try
-                    {
-                        var result = fulfilledCallback.Invoke([_resolved._value], JsValue.Undefined);
-                        nextPromise.Resolve(result);
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        nextPromise.Reject(signal.ThrownValue);
-                    }
-                    catch (Exception ex)
-                    {
-                        nextPromise.Reject(new JsValue(ex.Message));
-                    }
-                });
+                // Use pooled microtask to avoid lambda closure allocation
+                _engine.QueueMicrotask(
+                    ResolvedPromiseFulfilledMicrotask.Rent(fulfilledCallback, _resolved._value, nextPromise));
             }
             else
             {
                 // No onFulfilled callback - pass through the value
-                _engine.QueueMicrotask(() => nextPromise.Resolve(_resolved._value));
+                _engine.QueueMicrotask(
+                    ResolvedPromisePassthroughMicrotask.Rent(_resolved._value, nextPromise));
             }
 
-            return new JsValue(nextPromise.JsObject);
+            // Return the JsPromise directly without forcing JsObject creation
+            // The await machinery can find the promise via TryGetInternalPromise
+            return JsValue.FromObjectUnsafe(nextPromise);
         }
     }
 
@@ -117,8 +105,9 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
             // For a resolved promise, catch() is equivalent to then(undefined, onRejected)
             // Since we're resolved, we just pass through the value
             var nextPromise = new JsPromise(_engine);
-            _engine.QueueMicrotask(() => nextPromise.Resolve(_resolved._value));
-            return new JsValue(nextPromise.JsObject);
+            _engine.QueueMicrotask(
+                ResolvedPromisePassthroughMicrotask.Rent(_resolved._value, nextPromise));
+            return JsValue.FromObjectUnsafe(nextPromise);
         }
     }
 
@@ -143,30 +132,16 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
 
             if (onFinally.TryGetCallable(out var finallyCallback))
             {
-                _engine.QueueMicrotask(() =>
-                {
-                    try
-                    {
-                        finallyCallback.Invoke([], JsValue.Undefined);
-                        // Finally always passes through the original value
-                        nextPromise.Resolve(_resolved._value);
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        nextPromise.Reject(signal.ThrownValue);
-                    }
-                    catch (Exception ex)
-                    {
-                        nextPromise.Reject(new JsValue(ex.Message));
-                    }
-                });
+                _engine.QueueMicrotask(
+                    ResolvedPromiseFinallyMicrotask.Rent(finallyCallback, _resolved._value, nextPromise));
             }
             else
             {
-                _engine.QueueMicrotask(() => nextPromise.Resolve(_resolved._value));
+                _engine.QueueMicrotask(
+                    ResolvedPromisePassthroughMicrotask.Rent(_resolved._value, nextPromise));
             }
 
-            return new JsValue(nextPromise.JsObject);
+            return JsValue.FromObjectUnsafe(nextPromise);
         }
     }
 }

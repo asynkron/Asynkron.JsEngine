@@ -51,28 +51,10 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         JsObject? providedThis = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var backing = new JsMap();
-        object receiver;
-
-        if (ReferenceEquals(newTarget, targetCtor))
-        {
-            backing.SetPrototype(proto);
-            receiver = backing;
-        }
-        else
-        {
-            var wrapper = providedThis ?? new JsObject { RealmState = Realm };
-            if (wrapper.Prototype is null)
-            {
-                wrapper.SetPrototype(proto);
-            }
-
-            wrapper.SetProperty("_internalMap", backing);
-            receiver = wrapper;
-        }
-
-        PopulateMap(backing, args);
-        return receiver;
+        var instance = new JsMap();
+        instance.SetPrototype(proto);
+        PopulateMap(instance, args);
+        return instance;
     }
 
     private static void PopulateMap(JsMap map, IReadOnlyList<JsValue> args)

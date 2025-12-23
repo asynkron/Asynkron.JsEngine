@@ -200,10 +200,8 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            // Use lightweight IJsCallable implementations directly - no HostFunction wrapper needed
-            // This avoids allocating HostFunction + its internal JsObject per await point
-            var onFulfilled = new AsyncResumeCallback(this, resolve, reject, false);
-            var onRejected = new AsyncResumeCallback(this, resolve, reject, true);
+            // Use pooled callbacks to avoid allocation on hot path
+            var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
 
             InvokeWithTwoArgs(
                 thenCallable,
@@ -247,21 +245,73 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        ///     Lightweight callback for async function resume - avoids HostFunction allocation.
+        ///     Poolable callback for async function resume - avoids allocation on hot path.
         /// </summary>
-        private sealed class AsyncResumeCallback(
-            AsyncFunctionExecutor executor,
-            IJsCallable resolve,
-            IJsCallable reject,
-            bool isRejection) : IJsCallable
+        private sealed class AsyncResumeCallback : IJsCallable
         {
+            [ThreadStatic]
+            private static AsyncResumeCallback? TCachedFulfilled;
+
+            [ThreadStatic]
+            private static AsyncResumeCallback? TCachedRejected;
+
+            private AsyncFunctionExecutor? _executor;
+            private IJsCallable? _resolve;
+            private IJsCallable? _reject;
+            private bool _isRejection;
+
+            public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
+                AsyncFunctionExecutor executor,
+                IJsCallable resolve,
+                IJsCallable reject)
+            {
+                var fulfilled = TCachedFulfilled ?? new AsyncResumeCallback();
+                TCachedFulfilled = null;
+                fulfilled._executor = executor;
+                fulfilled._resolve = resolve;
+                fulfilled._reject = reject;
+                fulfilled._isRejection = false;
+
+                var rejected = TCachedRejected ?? new AsyncResumeCallback();
+                TCachedRejected = null;
+                rejected._executor = executor;
+                rejected._resolve = resolve;
+                rejected._reject = reject;
+                rejected._isRejection = true;
+
+                return (fulfilled, rejected);
+            }
+
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
+                var executor = _executor!;
+                var resolve = _resolve!;
+                var reject = _reject!;
+                var isRejection = _isRejection;
+
+                // Clear state before execution
+                _executor = null;
+                _resolve = null;
+                _reject = null;
+
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
                     ? TypedGeneratorInstance.ResumeMode.Throw
                     : TypedGeneratorInstance.ResumeMode.Next;
-                executor.DriveToCompletion(mode, value, resolve, reject);
+
+                try
+                {
+                    executor.DriveToCompletion(mode, value, resolve, reject);
+                }
+                finally
+                {
+                    // Return to appropriate pool
+                    if (isRejection)
+                        TCachedRejected = this;
+                    else
+                        TCachedFulfilled = this;
+                }
+
                 return JsValue.Undefined;
             }
         }

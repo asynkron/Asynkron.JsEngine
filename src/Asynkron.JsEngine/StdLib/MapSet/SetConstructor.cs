@@ -51,28 +51,10 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         JsObject? providedThis = null)
     {
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var backing = new JsSet();
-        object receiver;
-
-        if (ReferenceEquals(newTarget, targetCtor))
-        {
-            backing.SetPrototype(proto);
-            receiver = backing;
-        }
-        else
-        {
-            var wrapper = providedThis ?? new JsObject { RealmState = Realm };
-            if (wrapper.Prototype is null)
-            {
-                wrapper.SetPrototype(proto);
-            }
-
-            wrapper.SetProperty("_internalSet", backing);
-            receiver = wrapper;
-        }
-
-        PopulateSet(backing, args);
-        return receiver;
+        var instance = new JsSet();
+        instance.SetPrototype(proto);
+        PopulateSet(instance, args);
+        return instance;
     }
 
     private static void PopulateSet(JsSet set, IReadOnlyList<JsValue> args)

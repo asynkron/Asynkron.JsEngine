@@ -66,10 +66,14 @@ if (args.Length == 0)
 
 var benchmarkType = args[0].ToLowerInvariant();
 
-// Add short job if requested
+// Add short job if requested - use custom settings for better stability
+// Default ShortRun has only 3 iterations which causes too much noise
 if (args.Contains("--job") && args.Contains("short"))
 {
-    config = config.AddJob(Job.ShortRun);
+    config = config.AddJob(Job.ShortRun
+        .WithIterationCount(10)
+        .WithWarmupCount(5)
+        .WithId("ShortRun-Stable"));
 }
 
 switch (benchmarkType)

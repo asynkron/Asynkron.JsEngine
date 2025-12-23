@@ -708,10 +708,9 @@ internal static class JsOps
             return true;
         }
 
-        // Delegate to object? version for type coercion
-#pragma warning disable CS0618 // Delegate to object? version
-        var left1 = ExtractValueForComparison(in left);
-        var right1 = ExtractValueForComparison(in right);
+        // Type coercion loop using JsValue
+        var left1 = left;
+        var right1 = right;
         while (true)
         {
             if (context?.IsThrow == true)
@@ -720,12 +719,12 @@ internal static class JsOps
                 throw new ThrowSignal(context.FlowValue);
             }
 
-            var leftType = GetJsType(JsValue.FromObjectUnsafe(left1));
-            var rightType = GetJsType(JsValue.FromObjectUnsafe(right1));
+            var leftType = GetJsType(left1);
+            var rightType = GetJsType(right1);
 
             if (leftType == rightType)
             {
-                return StrictEquals(JsValue.FromObjectUnsafe(left1), JsValue.FromObjectUnsafe(right1));
+                return StrictEquals(left1, right1);
             }
 
             if ((leftType == JsValueType.Null && rightType == JsValueType.Undefined) ||
@@ -734,7 +733,8 @@ internal static class JsOps
                 return true;
             }
 
-            if (left1 is IIsHtmlDda || right1 is IIsHtmlDda)
+            if ((left1.Kind == JsValueKind.Object && left1.ObjectValue is IIsHtmlDda) ||
+                (right1.Kind == JsValueKind.Object && right1.ObjectValue is IIsHtmlDda))
             {
                 return false;
             }
@@ -742,51 +742,49 @@ internal static class JsOps
             switch (leftType)
             {
                 case JsValueType.Number when rightType == JsValueType.String:
-                    right1 = ToNumber(JsValue.FromObjectUnsafe(right1), context);
+                    right1 = new JsValue(ToNumber(right1, context));
                     continue;
                 case JsValueType.String when rightType == JsValueType.Number:
-                    left1 = ToNumber(JsValue.FromObjectUnsafe(left1), context);
+                    left1 = new JsValue(ToNumber(left1, context));
                     continue;
                 case JsValueType.BigInt when rightType == JsValueType.String:
                 {
-                    return TryParseJsBigInt((string)right1!, out var parsed) && StrictEquals(JsValue.FromObjectUnsafe(left1), JsValue.FromObjectUnsafe(parsed));
+                    var rightStr = right1.ObjectValue as string ?? "";
+                    return TryParseJsBigInt(rightStr, out var parsed) && StrictEquals(left1, new JsValue(parsed!));
                 }
                 case JsValueType.String when rightType == JsValueType.BigInt:
                 {
-                    return TryParseJsBigInt((string)left1!, out var parsed) && StrictEquals(JsValue.FromObjectUnsafe(parsed), JsValue.FromObjectUnsafe(right1));
+                    var leftStr = left1.ObjectValue as string ?? "";
+                    return TryParseJsBigInt(leftStr, out var parsed) && StrictEquals(new JsValue(parsed!), right1);
                 }
                 case JsValueType.Boolean:
-                    left1 = ToNumber(JsValue.FromObjectUnsafe(left1), context);
+                    left1 = new JsValue(ToNumber(left1, context));
                     continue;
             }
 
             if (rightType == JsValueType.Boolean)
             {
-                right1 = ToNumber(JsValue.FromObjectUnsafe(right1), context);
+                right1 = new JsValue(ToNumber(right1, context));
                 continue;
             }
 
             switch (leftType)
             {
                 case JsValueType.String or JsValueType.Number or JsValueType.BigInt or JsValueType.Symbol when rightType == JsValueType.Object:
-                    right1 = ToPrimitive(JsValue.FromObjectUnsafe((IJsPropertyAccessor)right1!), ToPrimitiveHint.Default, context);
+                    right1 = JsValue.FromObjectUnsafe(ToPrimitive(right1, ToPrimitiveHint.Default, context));
                     continue;
                 case JsValueType.Object when
                     rightType is JsValueType.String or JsValueType.Number or JsValueType.BigInt or JsValueType.Symbol:
-                    left1 = ToPrimitive(JsValue.FromObjectUnsafe((IJsPropertyAccessor)left1!), ToPrimitiveHint.Default, context);
+                    left1 = JsValue.FromObjectUnsafe(ToPrimitive(left1, ToPrimitiveHint.Default, context));
                     continue;
                 case JsValueType.Number when rightType == JsValueType.BigInt:
-                    JsBigInt bigInt = (JsBigInt)right1!;
-                    return NumberEqualsBigInt(JsValue.FromObjectUnsafe(left1), bigInt);
+                    return NumberEqualsBigInt(left1, right1.AsBigInt());
                 case JsValueType.BigInt when rightType == JsValueType.Number:
-                    JsBigInt i = (JsBigInt)left1!;
-                    return NumberEqualsBigInt(JsValue.FromObjectUnsafe(right1), i);
+                    return NumberEqualsBigInt(right1, left1.AsBigInt());
                 default:
                     return false;
             }
         }
-
-#pragma warning restore CS0618
     }
 
     public static bool GreaterThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
@@ -838,23 +836,6 @@ internal static class JsOps
             JsValueKind.String when right.Kind == JsValueKind.String => string.CompareOrdinal(
                 left.ObjectValue as string, right.ObjectValue as string) <= 0,
             _ => PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context)
-        };
-    }
-
-    /// <summary>
-    /// Extracts the underlying value from a JsValue for use in comparison operations.
-    /// For numbers and booleans, returns a boxed value. For other types, returns ObjectValue.
-    /// </summary>
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static object? ExtractValueForComparison(in JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => Symbol.Undefined,
-            JsValueKind.Null => null,
-            JsValueKind.Boolean => value.NumberValue != 0,
-            JsValueKind.Number => value.NumberValue,
-            _ => value.ObjectValue
         };
     }
 
@@ -1159,7 +1140,6 @@ internal static class JsOps
                 {
                     if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
                     {
-#pragma warning disable CS0618 // Delegate to object? version for object conversion
                         var primitive = ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
                         if (context?.IsThrow == true)
                         {
@@ -1168,7 +1148,6 @@ internal static class JsOps
 
                         value = JsValue.FromObjectUnsafe(primitive);
                         continue;
-#pragma warning restore CS0618
                     }
 
                     if (context?.IsThrow == true)
@@ -2173,9 +2152,7 @@ internal static class JsOps
                     return true;
                 }
 
-#pragma warning disable CS0618 // Need object? version for prototype chain traversal
                 current = GetPrototypePointer(JsValue.FromObjectUnsafe(current));
-#pragma warning restore CS0618
             }
 
             jsArray.SetElement(index, value);

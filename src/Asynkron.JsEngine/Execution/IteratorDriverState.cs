@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
 #endregion
@@ -14,4 +15,14 @@ internal sealed class IteratorDriverState
     public bool AwaitingNextResult { get; set; }
     public bool AwaitingValue { get; set; }
     public IJsCallable? NextMethod { get; set; }
+
+    /// <summary>
+    /// Pre-resolved JsVariable for fast iterator state access (avoids dictionary lookups per iteration).
+    /// </summary>
+    public JsVariable IteratorVariable { get; set; }
+
+    /// <summary>
+    /// Pre-resolved JsVariable for fast value access (avoids dictionary lookups per iteration).
+    /// </summary>
+    public JsVariable ValueVariable { get; set; }
 }

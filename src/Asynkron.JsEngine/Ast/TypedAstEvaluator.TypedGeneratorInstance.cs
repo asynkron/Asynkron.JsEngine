@@ -52,10 +52,9 @@ public static partial class TypedAstEvaluator
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
 
-        // Maps iterator symbols to their JsVariable for scope-correct access.
-        // This is needed because iterator temps are stored in the loop scope,
-        // but we may be executing in a per-iteration child scope.
-        private Dictionary<Symbol, JsVariable>? _iteratorVariables;
+        // Caches the current iterator driver state for scope-correct access in CreateIterationEnvironmentInstruction.
+        // The driverState.IteratorVariable holds the loop scope environment reference.
+        private IteratorDriverState? _currentDriverState;
 
         public TypedGeneratorInstance(
             FunctionExpression function,
@@ -888,21 +887,9 @@ public static partial class TypedAstEvaluator
                                 // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
                                 // 3. Scope chain doesn't grow unboundedly with iterations
                                 //
-                                // Use the iterator variable's environment as the loop scope - it was captured
-                                // in IteratorInitInstruction when we were definitely in the loop scope.
-                                JsEnvironment loopScope;
-                                if (_iteratorVariables is not null && _iteratorVariables.Count > 0)
-                                {
-                                    // Get any iterator variable - they all point to the loop scope
-                                    using var enumerator = _iteratorVariables.Values.GetEnumerator();
-                                    enumerator.MoveNext();
-                                    loopScope = enumerator.Current.Environment;
-                                }
-                                else
-                                {
-                                    // Fallback: use current environment (should be loop scope on first iteration)
-                                    loopScope = environment;
-                                }
+                                // Use the cached driver state's IteratorVariable environment as the loop scope.
+                                // It was captured in IteratorInitInstruction when we were in the loop scope.
+                                var loopScope = _currentDriverState?.IteratorVariable.Environment ?? environment;
 
                                 var newIterationEnv = new JsEnvironment(
                                     loopScope,
@@ -1375,60 +1362,60 @@ public static partial class TypedAstEvaluator
 
                                 var iteratorState =
                                     CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
+
+                                // Store JsVariable directly on state object for O(1) access
+                                // This avoids dictionary lookups on every iteration
+                                if (iteratorInitInstruction.IteratorSlotIndex >= 0)
+                                {
+                                    iteratorState.IteratorVariable = new JsVariable(environment, iteratorInitInstruction.IteratorSlotIndex);
+                                }
+
+                                // Cache driver state for scope-correct access from child scopes
+                                _currentDriverState = iteratorState;
+
                                 // Use slot-based storage for O(1) access
                                 StoreValueBySlot(environment, iteratorInitInstruction.IteratorSlot,
                                     iteratorInitInstruction.IteratorSlotIndex,
                                     JsValue.FromObjectUnsafe(iteratorState));
-
-                                // Capture a JsVariable for scope-correct access from child scopes.
-                                // This allows IteratorMoveNextInstruction to find the iterator even
-                                // when we're executing in a per-iteration environment.
-                                _iteratorVariables ??= new Dictionary<Symbol, JsVariable>(
-                                    ReferenceEqualityComparer<Symbol>.Instance);
-                                _iteratorVariables[iteratorInitInstruction.IteratorSlot] =
-                                    new JsVariable(environment, iteratorInitInstruction.IteratorSlotIndex);
 
                                 _programCounter = iteratorInitInstruction.Next;
                                 continue;
 
                             case IteratorMoveNextInstruction iteratorMoveNextInstruction:
                                 var iteratorIndex = _programCounter;
-                                // Use JsVariable for scope-correct access (iterator and value are in loop scope,
-                                // but we may be executing in a per-iteration child scope).
-                                JsValue iteratorStateValue;
-                                JsVariable iterVar = default;
-                                JsVariable valueVar = default;
 
-                                if (_iteratorVariables is not null)
+                                // Use cached driver state for scope-correct access from child scopes
+                                // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
+                                IteratorDriverState? driverState = _currentDriverState;
+
+                                if (driverState is null)
                                 {
-                                    _iteratorVariables.TryGetValue(iteratorMoveNextInstruction.IteratorSlot, out iterVar);
-                                    _iteratorVariables.TryGetValue(iteratorMoveNextInstruction.ValueSlot, out valueVar);
+                                    // Fallback: try to get iterator state from current environment
+                                    if (!TryGetValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                             iteratorMoveNextInstruction.IteratorSlotIndex, out var iteratorStateValue))
+                                    {
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    if (!iteratorStateValue.TryGetObject<IteratorDriverState>(out driverState))
+                                    {
+                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                        continue;
+                                    }
+
+                                    _currentDriverState = driverState;
                                 }
+
+                                // Get JsVariables directly from driverState (O(1) access, no dictionary lookup)
+                                var iterVar = driverState.IteratorVariable;
+                                var valueVar = driverState.ValueVariable;
 
                                 // Capture value JsVariable on first execution (while still in loop scope)
                                 if (!valueVar.IsValid && iteratorMoveNextInstruction.ValueSlotIndex >= 0)
                                 {
-                                    _iteratorVariables ??= new Dictionary<Symbol, JsVariable>(
-                                        ReferenceEqualityComparer<Symbol>.Instance);
                                     valueVar = new JsVariable(environment, iteratorMoveNextInstruction.ValueSlotIndex);
-                                    _iteratorVariables[iteratorMoveNextInstruction.ValueSlot] = valueVar;
-                                }
-
-                                if (iterVar.IsValid)
-                                {
-                                    iteratorStateValue = iterVar.Read();
-                                }
-                                else if (!TryGetValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                             iteratorMoveNextInstruction.IteratorSlotIndex, out iteratorStateValue))
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                if (!iteratorStateValue.TryGetObject<IteratorDriverState>(out var driverState))
-                                {
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
+                                    driverState.ValueVariable = valueVar;
                                 }
 
                                 if (!driverState.IsAsyncIterator)

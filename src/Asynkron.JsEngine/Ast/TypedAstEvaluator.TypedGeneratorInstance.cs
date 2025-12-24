@@ -580,8 +580,6 @@ public static partial class TypedAstEvaluator
                         switch (instruction)
                         {
                             case StatementInstruction statementInstruction:
-                                // DEBUG
-                                System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nStatementInstruction: {statementInstruction.Statement.GetType().Name}");
                                 _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingResult))
                                 {
@@ -803,11 +801,6 @@ public static partial class TypedAstEvaluator
                                 var varValue = varDeclInstruction.Initializer is null
                                     ? JsValue.Undefined
                                     : varDeclInstruction.Initializer.EvaluateExpression(environment, context);
-                                // DEBUG
-                                if (varDeclInstruction.TargetSymbol.Name == "item" || (varDeclInstruction.Initializer is IdentifierExpression initId && initId.Name.Name?.StartsWith("__forAwait_value_") == true))
-                                {
-                                    System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nSimpleVarDecl: target={varDeclInstruction.TargetSymbol.Name}, initializerType={varDeclInstruction.Initializer?.GetType().Name}, varValue={varValue}, kind={varValue.Kind}, env.ScopeId={environment.ScopeId}");
-                                }
 
                                 if (TryHandlePendingAwait(context, out var pendingVarResult))
                                 {
@@ -947,8 +940,6 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Update environment reference to use the new iteration environment
-                                var loopBindings = string.Join(",", loopScope.GetBindingSymbols().Select(s => s.Name));
-                                System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nCreateIterationEnv: loopScope.ScopeId={loopScope.ScopeId} newScopeId={newIterationEnv.ScopeId} enclosingMatches={ReferenceEquals(newIterationEnv.Enclosing, loopScope)} loopBindings=[{loopBindings}]");
                                 environment = newIterationEnv;
                                 _programCounter = createEnvInstruction.Next;
                                 continue;
@@ -1758,8 +1749,6 @@ public static partial class TypedAstEvaluator
                                         iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
                                 }
                                 _programCounter = iteratorMoveNextInstruction.Next;
-                                // DEBUG: dump info to file
-                                System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\n\n=== ITERATION ===\nStoreIteratorValue: awaitedValue={awaitedValue}, valueVar.IsValid={valueVar.IsValid}, valueSlot={iteratorMoveNextInstruction.ValueSlot.Name}, environment.ScopeId={environment.ScopeId}, valueSlotIndex={iteratorMoveNextInstruction.ValueSlotIndex}");
                                 continue;
 
                             case JumpInstruction jumpInstruction:

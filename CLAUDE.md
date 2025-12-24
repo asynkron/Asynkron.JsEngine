@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+See @AGENTS.md for additional coding standards, profiling guidelines, and optimization patterns.
+
 ## Build and Test Commands
 
 ```bash

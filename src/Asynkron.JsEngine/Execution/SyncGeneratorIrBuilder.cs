@@ -336,10 +336,10 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    // If binding target has yields in default values, wrap as StatementInstruction.
-                    // The AST evaluator's BindArrayPattern handles yield state-saving correctly,
-                    // but extracting yields from defaults changes when they execute relative to iterator ops.
-                    if (BindingTargetContainsYieldInDefaultValue(forEachStatement.Target) &&
+                    // If binding target has yields anywhere (defaults or assignment target expressions),
+                    // wrap as StatementInstruction. The AST evaluator handles yield state-saving correctly.
+                    // This handles patterns like: for ([ {}[ yield ] ] of iterable) { }
+                    if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
                     {
@@ -351,9 +351,9 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
-                    // If binding target has yields in default values, wrap as StatementInstruction.
-                    // Same reasoning as for regular for-of loops above.
-                    if (BindingTargetContainsYieldInDefaultValue(forEachStatement.Target) &&
+                    // If binding target has yields anywhere (defaults or assignment target expressions),
+                    // wrap as StatementInstruction. Same reasoning as for regular for-of loops above.
+                    if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
                     {

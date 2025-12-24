@@ -13,9 +13,10 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Unlike Set, WeakSet does not prevent garbage collection of values and does not support iteration.
 /// </summary>
 public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-    IPrototypeAccessorProvider
+    IPrototypeAccessorProvider, IAsJsValue
 {
     private readonly JsObject _properties = new();
+    private readonly JsValue _cachedJsValue;
 
     // Use ConditionalWeakTable to track object membership
     // We use a dummy value since we only care about key presence
@@ -27,24 +28,29 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _properties.PreventExtensions();
     }
 
+    public JsWeakSet()
+    {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+    }
+
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, (JsValue)this, out value);
+        return TryGetProperty(name, _cachedJsValue, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, (JsValue)this);
+        SetProperty(name, value, _cachedJsValue);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -53,6 +59,8 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     public bool IsFrozen => _properties.IsFrozen;
 
     public IEnumerable<string> Keys => _properties.Keys;
+
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {

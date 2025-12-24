@@ -865,17 +865,22 @@ internal static class GeneratorYieldLowerer
 
                 case DestructuringAssignmentExpression destructuringAssignment:
                 {
-                    // Check if the binding target has yields in default values.
-                    // If so, we cannot safely extract those yields (defaults are conditional).
+                    // Check if the binding target has yields in default values or in
+                    // AssignmentTargetBinding expressions (computed property accesses).
+                    // If so, we cannot safely extract those yields:
+                    // - Defaults are conditional (only evaluated when value is undefined)
+                    // - AssignmentTargetBinding yields must happen AFTER the iterator is opened,
+                    //   otherwise iterator close semantics break (the iterator won't exist yet)
                     // Let the expression pass through unchanged so the IR builder can wrap it
                     // in a StatementInstruction for proper handling.
-                    if (BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target))
+                    if (BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) ||
+                        BindingTargetContainsYieldInAssignmentTarget(destructuringAssignment.Target))
                     {
                         return destructuringAssignment;
                     }
 
-                    // No yields in defaults - safe to extract yields from:
-                    // 1. The binding target (computed properties, nested expressions)
+                    // No yields in defaults or assignment targets - safe to extract yields from:
+                    // 1. The binding target (computed properties in object keys)
                     // 2. The value expression
                     var targetChanged = false;
                     var rewrittenTarget = RewriteBindingTargetForExtractableYields(
@@ -2004,6 +2009,63 @@ internal static class GeneratorYieldLowerer
 
                 default:
                     // IdentifierBinding and AssignmentTargetBinding don't have default values
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Checks if a binding target contains yields in AssignmentTargetBinding expressions.
+        /// These yields cannot be safely extracted because they must execute AFTER the iterator
+        /// is opened during destructuring. Extracting them would cause the yield to happen
+        /// before the iterator exists, breaking iterator close semantics.
+        /// Example: [ obj[ yield ] ] = iterable  - the yield must happen after iterable's iterator is created
+        /// </summary>
+        private static bool BindingTargetContainsYieldInAssignmentTarget(BindingTarget target)
+        {
+            switch (target)
+            {
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        // Recursively check nested bindings
+                        if (element.Target is not null && BindingTargetContainsYieldInAssignmentTarget(element.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null &&
+                        BindingTargetContainsYieldInAssignmentTarget(arrayBinding.RestElement))
+                    {
+                        return true;
+                    }
+
+                    return false;
+
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        // Recursively check nested bindings
+                        if (BindingTargetContainsYieldInAssignmentTarget(prop.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (objectBinding.RestElement is not null &&
+                        BindingTargetContainsYieldInAssignmentTarget(objectBinding.RestElement))
+                    {
+                        return true;
+                    }
+
+                    return false;
+
+                case AssignmentTargetBinding assignmentTarget:
+                    // Check if this assignment target's expression contains a yield
+                    return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
+                default:
+                    // IdentifierBinding doesn't have expressions
                     return false;
             }
         }

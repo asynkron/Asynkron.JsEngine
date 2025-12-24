@@ -31,7 +31,6 @@ internal sealed class ResolvedPromiseFulfilledMicrotask
     }
 
 
-    private static readonly JsValue[] Empty = [JsValue.Undefined];
     private void Execute()
     {
         var callback = _callback!;
@@ -43,9 +42,12 @@ internal sealed class ResolvedPromiseFulfilledMicrotask
         _value = JsValue.Undefined;
         _nextPromise = null;
 
+        // Rent a single-element array from the cache to pass the value
+        var args = JsValueCache.RentJsValueArray(1);
         try
         {
-            var result = callback.Invoke(Empty, JsValue.Undefined);
+            args[0] = value;
+            var result = callback.Invoke(args, JsValue.Undefined);
             nextPromise.Resolve(result);
         }
         catch (ThrowSignal signal)
@@ -58,6 +60,7 @@ internal sealed class ResolvedPromiseFulfilledMicrotask
         }
         finally
         {
+            JsValueCache.ReturnJsValueArray(args);
             TCached = this;
         }
     }

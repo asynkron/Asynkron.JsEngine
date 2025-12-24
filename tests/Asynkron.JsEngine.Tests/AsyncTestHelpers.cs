@@ -22,7 +22,7 @@ internal static class AsyncTestHelpers
             }
 
             var value = args.Count > 1 ? args[1] : JsValue.Undefined;
-            var promiseConstructor = (IJsCallable)PromiseConstructor.CreateConstructor(engine.RealmState);
+            IJsCallable? promiseConstructor = PromiseConstructor.CreateConstructor(engine.RealmState);
             if (!JsValue.FromObjectUnsafe(promiseConstructor).TryGetObject<IJsCallable>(out var promiseCtor))
             {
                 return JsValue.Undefined;
@@ -35,18 +35,6 @@ internal static class AsyncTestHelpers
                     !execArgs[1].TryGetObject<IJsCallable>(out var reject))
                 {
                     return JsValue.Undefined;
-                }
-
-                void ResolveContinuation()
-                {
-                    try
-                    {
-                        resolve.Invoke([value], JsValue.Undefined);
-                    }
-                    catch (Exception ex)
-                    {
-                        reject.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
-                    }
                 }
 
                 if (ms == 0)
@@ -62,6 +50,18 @@ internal static class AsyncTestHelpers
                 }
 
                 return JsValue.Undefined;
+
+                void ResolveContinuation()
+                {
+                    try
+                    {
+                        resolve.Invoke([value], JsValue.Undefined);
+                    }
+                    catch (Exception ex)
+                    {
+                        reject.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
+                    }
+                }
             });
 
             if (promiseCtor is HostFunction hostCtor)

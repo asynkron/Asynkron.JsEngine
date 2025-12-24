@@ -35,4 +35,12 @@
         <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="profile-output\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="profile-output\dotnet_20251224_110147.nettrace" />
+    </ItemGroup>
+
 </Project>

@@ -737,11 +737,11 @@ internal static class JsOps
             switch (leftType)
             {
                 case JsValueType.String or JsValueType.Number or JsValueType.BigInt or JsValueType.Symbol when rightType == JsValueType.Object:
-                    right1 = JsValue.FromObjectUnsafe(ToPrimitive(right1, ToPrimitiveHint.Default, context));
+                    right1 = ToPrimitive(right1, ToPrimitiveHint.Default, context);
                     continue;
                 case JsValueType.Object when
                     rightType is JsValueType.String or JsValueType.Number or JsValueType.BigInt or JsValueType.Symbol:
-                    left1 = JsValue.FromObjectUnsafe(ToPrimitive(left1, ToPrimitiveHint.Default, context));
+                    left1 = ToPrimitive(left1, ToPrimitiveHint.Default, context);
                     continue;
                 case JsValueType.Number when rightType == JsValueType.BigInt:
                     return NumberEqualsBigInt(left1, right1.AsBigInt());
@@ -821,7 +821,7 @@ internal static class JsOps
         var leftPrimitive = left;
         if (left is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor and not TypedAstSymbol })
         {
-            leftPrimitive = JsValue.FromObjectUnsafe(ToPrimitive(left, ToPrimitiveHint.Number, context));
+            leftPrimitive = ToPrimitive(left, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
             {
                 return false;
@@ -831,7 +831,7 @@ internal static class JsOps
         var rightPrimitive = right;
         if (right is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor and not TypedAstSymbol })
         {
-            rightPrimitive = JsValue.FromObjectUnsafe(ToPrimitive(right, ToPrimitiveHint.Number, context));
+            rightPrimitive = ToPrimitive(right, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
             {
                 return false;

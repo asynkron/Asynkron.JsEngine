@@ -2034,10 +2034,11 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Per ES spec: when an abrupt completion occurs inside a finally block,
-                    // the new completion replaces the pending one. Update the pending completion
-                    // and continue executing the finally block - don't propagate yet.
-                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
-                    return true;
+                    // the new completion replaces the pending one. The finally block ends
+                    // abruptly and the new completion propagates. Pop this frame and continue
+                    // searching for handlers in outer try blocks.
+                    _tryStack.Pop();
+                    continue;
                 }
 
                 _tryStack.Pop();

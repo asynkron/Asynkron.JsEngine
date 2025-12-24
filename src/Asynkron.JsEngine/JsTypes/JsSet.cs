@@ -22,6 +22,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     private readonly HashSet<object> _set = new(SameValueZeroComparer.Instance);
 
     // Cached JsValue to avoid repeated struct creation
+    // ReSharper disable once ReplaceWithFieldKeyword
     private readonly JsValue _cachedJsValue;
 
     public JsSet()
@@ -59,29 +60,29 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         // Handle special 'size' property
-        if (string.Equals(name, "size", StringComparison.Ordinal))
+        if (!string.Equals(name, "size", StringComparison.Ordinal))
         {
-            value = (double)Size;
-            return true;
+            return _properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value);
         }
 
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
+        value = (double)Size;
+        return true;
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, (JsValue)this, out value);
+        return TryGetProperty(name, _cachedJsValue, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         IsPlain = false;
-        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, (JsValue)this);
+        SetProperty(name, value, _cachedJsValue);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -141,11 +142,13 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle null
         if (jsValue.IsNull)
         {
-            if (!_hasNull)
+            if (_hasNull)
             {
-                _hasNull = true;
-                _insertionOrder.Add(null);
+                return this;
             }
+
+            _hasNull = true;
+            _insertionOrder.Add(null);
 
             return this;
         }
@@ -153,11 +156,13 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         // Handle undefined
         if (jsValue.IsUndefined)
         {
-            if (!_hasUndefined)
+            if (_hasUndefined)
             {
-                _hasUndefined = true;
-                _insertionOrder.Add(Symbol.Undefined);
+                return this;
             }
+
+            _hasUndefined = true;
+            _insertionOrder.Add(Symbol.Undefined);
 
             return this;
         }
@@ -279,7 +284,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             // In Set.forEach, the value is passed as both the first and second argument
             var jsValue = JsValue.FromObjectUnsafe(value);
-            callback.Invoke([jsValue, jsValue, (JsValue)this], thisArg);
+            callback.Invoke([jsValue, jsValue, _cachedJsValue], thisArg);
         }
     }
 
@@ -295,32 +300,6 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         return new JsArray(values);
-    }
-
-    /// <summary>
-    ///     Returns an array of [value, value] pairs for every entry in the Set, in insertion order.
-    ///     The value is duplicated for consistency with Map.entries().
-    /// </summary>
-    public JsArray Entries()
-    {
-        var entries = new List<JsValue>();
-        foreach (var value in _insertionOrder)
-        {
-            var jsValue = JsValue.FromObjectUnsafe(value);
-            var pair = new JsArray([jsValue, jsValue]);
-            entries.Add(JsValue.FromJsArray(pair));
-        }
-
-        return new JsArray(entries);
-    }
-
-    /// <summary>
-    ///     Returns an array of values in the Set, in insertion order.
-    ///     This is an alias for Values() for consistency with Map.
-    /// </summary>
-    public JsArray Keys()
-    {
-        return Values();
     }
 
     /// <summary>
@@ -349,7 +328,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             }
 
             // Handle NaN (NaN is equal to NaN in SameValueZero)
-            if (x is double and double.NaN && y is double and double.NaN)
+            if (x is double.NaN && y is double.NaN)
             {
                 return true;
             }
@@ -373,7 +352,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         public int GetHashCode(object obj)
         {
             // Handle NaN - all NaN values should hash the same
-            if (obj is double and double.NaN)
+            if (obj is double.NaN)
             {
                 return 0; // All NaN values get the same hash
             }

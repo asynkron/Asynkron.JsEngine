@@ -992,8 +992,20 @@ internal static class GeneratorYieldLowerer
 
                 case AssignmentTargetBinding assignmentTarget:
                 {
-                    // AssignmentTargetBinding only has an Expression (e.g., a.b or a[0])
-                    // No default value at this level - just return as-is
+                    // AssignmentTargetBinding has an Expression (e.g., a.b or a[yield])
+                    // Check if the expression contains yields and rewrite if needed
+                    if (AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression))
+                    {
+                        var exprChanged = false;
+                        var rewrittenExpr = RewriteExpressionForComplexYields(
+                            assignmentTarget.Expression, prefixStatements, ref exprChanged);
+                        if (exprChanged)
+                        {
+                            changed = true;
+                            return assignmentTarget with { Expression = rewrittenExpr };
+                        }
+                    }
+
                     return assignmentTarget;
                 }
 

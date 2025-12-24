@@ -6200,6 +6200,51 @@ public class GeneratorTests
         Assert.Contains("\"d3\":true", resultStr, StringComparison.Ordinal);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ObjectMethodWithYieldPatterns()
+    {
+        // Test generator methods in object literals with yield patterns
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var obj = {
+                *g1() { (yield 1) },
+                *g2() { [yield 1] },
+                *g5() { (yield 1) ? yield 2 : yield 3; }
+            };
+
+            var results = {};
+
+            // Test g1
+            var iter = obj.g1();
+            var r = iter.next();
+            results.g1_v = r.value;
+            results.g1_d1 = r.done;
+            r = iter.next();
+            results.g1_d2 = r.done;
+
+            // Test g2
+            iter = obj.g2();
+            r = iter.next();
+            results.g2_v = r.value;
+            results.g2_d1 = r.done;
+
+            // Test g5
+            iter = obj.g5();
+            r = iter.next();
+            results.g5_v = r.value;
+            results.g5_d1 = r.done;
+
+            JSON.stringify(results);
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"g1_v\":1", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g1_d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g2_v\":1", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g5_v\":1", resultStr, StringComparison.Ordinal);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task Generator_AllRhsOmittedPatterns()
     {
@@ -6276,5 +6321,35 @@ public class GeneratorTests
         Assert.Contains("\"g5_d1\":false", resultStr, StringComparison.Ordinal);
         Assert.Contains("\"g5_d2\":false", resultStr, StringComparison.Ordinal);
         Assert.Contains("\"g5_d3\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_DestructuringAssignmentExpressionWithYield()
+    {
+        // Test262: result = [ x = yield ] = vals;
+        // This is an assignment expression where value is a destructuring assignment
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var x;
+            var result;
+            var vals = [];
+            var iter = (function*() {
+                result = [ x = yield ] = vals;
+            })();
+
+            let r1 = iter.next();
+            let r2 = iter.next(86);
+            JSON.stringify({
+                v1: r1.value, d1: r1.done,
+                d2: r2.done, x: x, resultIsVals: result === vals
+            });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"x\":86", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"resultIsVals\":true", resultStr, StringComparison.Ordinal);
     }
 }

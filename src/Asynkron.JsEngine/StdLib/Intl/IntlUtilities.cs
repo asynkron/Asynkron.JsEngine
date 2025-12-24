@@ -174,7 +174,7 @@ internal static class IntlUtilities
     private static long ToLength(JsValue value, RealmState realm)
     {
         var numericContext = realm.CreateContext();
-        var number = JsOps.ToNumberWithContext(value, numericContext);
+        var number = JsOps.ToNumber(value, numericContext);
         if (numericContext.IsThrow)
         {
             throw new ThrowSignal(numericContext.FlowValue);

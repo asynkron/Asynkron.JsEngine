@@ -1015,14 +1015,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (hasValue)
         {
 #pragma warning disable CS0618 // Method takes object? parameter
-            var numberForUint32 = JsOps.ToNumberWithContext(JsValue.FromObjectUnsafe(value), context);
+            var numberForUint32 = JsOps.ToNumber(JsValue.FromObjectUnsafe(value), context);
             if (context?.IsThrow == true)
             {
                 return false;
             }
 
             var coercedUint = unchecked((uint)(long)numberForUint32);
-            numberLen = JsOps.ToNumberWithContext(JsValue.FromObjectUnsafe(value), context);
+            numberLen = JsOps.ToNumber(JsValue.FromObjectUnsafe(value), context);
 #pragma warning restore CS0618
             if (context?.IsThrow == true)
             {

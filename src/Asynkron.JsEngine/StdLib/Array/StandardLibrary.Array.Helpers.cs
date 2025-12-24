@@ -144,7 +144,7 @@ public static partial class StandardLibrary
 
     internal static double ToLengthOrZero(JsValue value, EvaluationContext? context = null)
     {
-        var number = JsOps.ToNumberWithContext(value, context);
+        var number = JsOps.ToNumber(value, context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -171,7 +171,7 @@ public static partial class StandardLibrary
         }
         else
         {
-            number = JsOps.ToNumberWithContext(value, context);
+            number = JsOps.ToNumber(value, context);
             if (context?.IsThrow == true)
             {
                 throw new ThrowSignal(context.FlowValue);

@@ -371,7 +371,7 @@ public static class TypedArrayHelper
             if (source.TryGetObject<IJsPropertyAccessor>(out var arrayLike) &&
                 arrayLike.TryGetProperty("length", out var lengthVal))
             {
-                var lenNumber = JsOps.ToNumberWithContext(lengthVal);
+                var lenNumber = JsOps.ToNumber(lengthVal);
                 var length = double.IsNaN(lenNumber) || lenNumber < 0
                     ? 0
                     : (int)Math.Min(lenNumber, int.MaxValue);

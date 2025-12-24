@@ -487,7 +487,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     private static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context)
     {
-        var number = JsOps.ToNumberWithContext(value, context);
+        var number = JsOps.ToNumber(value, context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -757,7 +757,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 _buffer.RealmState);
         }
 
-        var numeric = JsOps.ToNumberWithContext(value, context);
+        var numeric = JsOps.ToNumber(value, context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);

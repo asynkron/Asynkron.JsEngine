@@ -42,7 +42,7 @@ public static class DateHelper
             }
 
             var ctx = context ?? realm.CreateContext();
-            var ms = JsOps.ToNumberWithContext(arg, ctx);
+            var ms = JsOps.ToNumber(arg, ctx);
             if (ctx.IsThrow)
             {
                 throw new ThrowSignal(ctx.FlowValue);
@@ -52,13 +52,13 @@ public static class DateHelper
         }
 
         var evalContext = context ?? realm.CreateContext();
-        var yearNum = MakeFullYear(JsOps.ToNumberWithContext(args[0], evalContext));
-        var monthNum = args.Count > 1 ? JsOps.ToNumberWithContext(args[1], evalContext) : 0;
-        var dayNum = args.Count > 2 ? JsOps.ToNumberWithContext(args[2], evalContext) : 1;
-        var hourNum = args.Count > 3 ? JsOps.ToNumberWithContext(args[3], evalContext) : 0;
-        var minuteNum = args.Count > 4 ? JsOps.ToNumberWithContext(args[4], evalContext) : 0;
-        var secondNum = args.Count > 5 ? JsOps.ToNumberWithContext(args[5], evalContext) : 0;
-        var millisecondNum = args.Count > 6 ? JsOps.ToNumberWithContext(args[6], evalContext) : 0;
+        var yearNum = MakeFullYear(JsOps.ToNumber(args[0], evalContext));
+        var monthNum = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : 0;
+        var dayNum = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : 1;
+        var hourNum = args.Count > 3 ? JsOps.ToNumber(args[3], evalContext) : 0;
+        var minuteNum = args.Count > 4 ? JsOps.ToNumber(args[4], evalContext) : 0;
+        var secondNum = args.Count > 5 ? JsOps.ToNumber(args[5], evalContext) : 0;
+        var millisecondNum = args.Count > 6 ? JsOps.ToNumber(args[6], evalContext) : 0;
 
         if (evalContext.IsThrow)
         {

@@ -140,7 +140,18 @@ internal static class JsOps
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static double ToNumber(in JsValue value, EvaluationContext? context = null)
     {
-        return ToNumberWithContext(in value, context);
+        var result = ToNumericAsJsValue(in value, context);
+        if (result.IsNumber)
+        {
+            return result.NumberValue;
+        }
+
+        if (result.IsBigInt)
+        {
+            return (double)result.AsBigInt().Value;
+        }
+
+        return double.NaN;
     }
 
     /// <summary>
@@ -164,23 +175,6 @@ internal static class JsOps
             JsValueKind.Boolean => new JsValue(value.NumberValue),
             _ => ToNumericCore(value.ObjectValue, context)
         };
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static double ToNumberWithContext(in JsValue value, EvaluationContext? context = null)
-    {
-        var result = ToNumericAsJsValue(in value, context);
-        if (result.IsNumber)
-        {
-            return result.NumberValue;
-        }
-
-        if (result.IsBigInt)
-        {
-            return (double)result.AsBigInt().Value;
-        }
-
-        return double.NaN;
     }
 
 

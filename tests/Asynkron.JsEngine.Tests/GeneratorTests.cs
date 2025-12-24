@@ -6352,4 +6352,34 @@ public class GeneratorTests
         Assert.Contains("\"x\":86", resultStr, StringComparison.Ordinal);
         Assert.Contains("\"resultIsVals\":true", resultStr, StringComparison.Ordinal);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_NestedArrayDestructuringWithYieldInTarget()
+    {
+        // Test262: result = [[x[yield]]] = vals;
+        // Nested array destructuring with yield in computed property target
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var value = [[22]];
+            var x = {};
+            var iter = (function*() {
+                var result;
+                var vals = value;
+                result = [[x[yield]]] = vals;
+            })();
+
+            let r1 = iter.next();
+            let r2 = iter.next('prop');
+            JSON.stringify({
+                v1: r1.value, d1: r1.done,
+                d2: r2.done, xProp: x.prop
+            });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"xProp\":22", resultStr, StringComparison.Ordinal);
+    }
 }

@@ -1759,6 +1759,10 @@ internal static class GeneratorYieldLowerer
 
                     return false;
 
+                case AssignmentTargetBinding assignmentTarget:
+                    // Check if the expression (e.g., x[yield] or x[yield + 1]) contains a yield
+                    return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
                 default:
                     return false;
             }

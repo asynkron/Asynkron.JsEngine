@@ -211,6 +211,11 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
 
                     binding = objectBinding.RestElement;
                     continue;
+
+                case AssignmentTargetBinding assignmentTarget:
+                    // Check for yields in the expression (e.g., x[yield])
+                    VisitExpression(assignmentTarget.Expression);
+                    return;
             }
 
             break;

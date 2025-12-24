@@ -840,8 +840,19 @@ internal static class GeneratorYieldLowerer
             ImmutableArray<StatementNode>.Builder prefixStatements,
             ref bool changed)
         {
+            // If the yield operand contains nested yields, extract them first
+            var operand = yieldExpression.Expression;
+            if (operand is not null && AstShapeAnalyzer.ContainsYield(operand))
+            {
+                var operandChanged = false;
+                operand = RewriteExpressionForComplexYields(operand, prefixStatements, ref operandChanged);
+            }
+
             var tempBinding = CreateResumeIdentifier();
-            prefixStatements.Add(CreateYieldDeclaration(yieldExpression.Source, tempBinding, yieldExpression));
+            var rewrittenYield = operand is null || ReferenceEquals(operand, yieldExpression.Expression)
+                ? yieldExpression
+                : yieldExpression with { Expression = operand };
+            prefixStatements.Add(CreateYieldDeclaration(yieldExpression.Source, tempBinding, rewrittenYield));
             changed = true;
             return new IdentifierExpression(yieldExpression.Source, tempBinding.Name);
         }

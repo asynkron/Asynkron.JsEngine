@@ -130,7 +130,9 @@ else
     await RunWithSharedEnginesAsync(script, isAsync, profile, traceRealm, warmup, iterations, runsForAverage);
 }
 
-await Task.CompletedTask;
+// Give profiler time to flush data before exiting
+await Task.Delay(500);
+return;
 
 async Task RunWithSharedEnginesAsync(
     string source,

@@ -220,11 +220,11 @@
       "description": "for await...of iteration",
       "script": "asyncforof.js",
       "mode": "async",
-      "iterations": 10,
+      "iterations": 100,
       "warmup": 1,
       "show_progress": true,
       "show_timing": true,
-      "header": "Runs=10, iterations=5000"
+      "header": "Runs=100, iterations=10000000"
     },
     "asyncresolved": {
       "name": "AsyncAwaitResolvedProfile",

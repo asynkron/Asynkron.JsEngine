@@ -83,7 +83,7 @@ internal sealed class SyncGeneratorIrBuilder
         // incrementally.
         if (!GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var lowerFailure))
         {
-            plan = default!;
+            plan = null!;
             failureReason = lowerFailure;
             return false;
         }
@@ -187,6 +187,16 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
+                    // Check for destructuring assignment expressions with yields in default values.
+                    // These cannot be safely lowered because defaults are only evaluated when the element
+                    // is undefined. Wrap them as StatementInstruction to use AST evaluation's state-saving.
+                    if (expressionStatement.Expression is DestructuringAssignmentExpression destructuringExpr &&
+                        BindingTargetContainsYieldInDefaultValue(destructuringExpr.Target))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
+                        return true;
+                    }
+
                     var expressionShape = AstShapeAnalyzer.AnalyzeExpression(expressionStatement.Expression);
                     if (expressionShape.DelegatedYieldCount > 0 ||
                         expressionShape.YieldOperandContainsYield)
@@ -211,6 +221,15 @@ internal sealed class SyncGeneratorIrBuilder
                 case VariableDeclaration declaration:
                     if (TryBuildVariableDeclaration(declaration, nextIndex, out entryIndex))
                     {
+                        return true;
+                    }
+
+                    // Check for variable declarations with yields in binding target default values.
+                    // These cannot be safely lowered because defaults are only evaluated when
+                    // the value is undefined. Wrap them as StatementInstruction.
+                    if (DeclarationContainsYieldInBindingTargetDefaults(declaration))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, declaration));
                         return true;
                     }
 
@@ -915,6 +934,17 @@ internal sealed class SyncGeneratorIrBuilder
             d.Initializer is not null &&
             AstShapeAnalyzer.ContainsYield(d.Initializer) &&
             !IsLowererTemp(d.Target));
+    }
+
+    /// <summary>
+    /// Checks if a variable declaration contains yields in binding target default values.
+    /// These yields cannot be safely extracted because defaults are only evaluated when
+    /// the value is undefined.
+    /// </summary>
+    private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
+    {
+        return declaration.Declarators.Any(static d =>
+            BindingTargetContainsYieldInDefaultValue(d.Target));
     }
 
     /// <summary>

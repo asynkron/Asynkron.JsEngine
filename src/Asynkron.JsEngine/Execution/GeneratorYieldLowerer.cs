@@ -519,7 +519,7 @@ internal static class GeneratorYieldLowerer
                 var prefixBuilder = ImmutableArray.CreateBuilder<StatementNode>();
 
                 // Extract yield from the test expression if present
-                ExpressionNode testExpr = conditionalExpr.Test;
+                var testExpr = conditionalExpr.Test;
                 if (AstShapeAnalyzer.ContainsYield(conditionalExpr.Test))
                 {
                     var testChanged = false;
@@ -865,19 +865,20 @@ internal static class GeneratorYieldLowerer
 
                 case DestructuringAssignmentExpression destructuringAssignment:
                 {
-                    // Handle yields in both the target's default values and the value expression
-                    var targetChanged = false;
-                    var rewrittenTarget = RewriteBindingTarget(destructuringAssignment.Target, prefixStatements, ref targetChanged);
+                    // NOTE: We intentionally do NOT extract yields from binding target default values.
+                    // Default values are only evaluated when the element is undefined, so extracting
+                    // yields would change when they execute relative to iterator operations.
+                    // The AST evaluator's BindArrayPattern handles yield state-saving correctly.
+                    // We only extract yields from the VALUE expression, not from the TARGET defaults.
 
                     var valueChanged = false;
                     var rewrittenValue = RewriteExpressionForComplexYields(destructuringAssignment.Value, prefixStatements, ref valueChanged);
 
-                    if (targetChanged || valueChanged)
+                    if (valueChanged)
                     {
                         changed = true;
                         return destructuringAssignment with
                         {
-                            Target = rewrittenTarget,
                             Value = rewrittenValue
                         };
                     }

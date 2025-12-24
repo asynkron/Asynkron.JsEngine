@@ -6072,4 +6072,209 @@ public class GeneratorTests
         Assert.Contains("\"d2\":true", resultStr);
         Assert.Contains("\"x\":86", resultStr);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ForOfWithYieldInDestructuringDefault()
+    {
+        // This tests the pattern: for ([ x = yield ] of [[]])
+        // Yield in for-of destructuring default should work correctly
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var x;
+            var iter = (function*() {
+                for ([ x = yield ] of [[]]) {
+                }
+            })();
+
+            let r1 = iter.next();
+            let r2 = iter.next(86);
+            JSON.stringify({
+                v1: r1.value, d1: r1.done,
+                d2: r2.done, x: x
+            });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"x\":86", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ParenthesizedYield()
+    {
+        // Test: (yield)
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g1() { (yield) }
+            let iter = g1();
+            let r1 = iter.next();
+            let r2 = iter.next();
+            JSON.stringify({ v1: r1.value, d1: r1.done, d2: r2.done });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_BlockWithYield()
+    {
+        // Test: {yield} - this is a block containing a yield expression statement
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g3() { {yield} }
+            let iter = g3();
+            let r1 = iter.next();
+            let r2 = iter.next();
+            JSON.stringify({ v1: r1.value, d1: r1.done, d2: r2.done });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ConditionalWithYields()
+    {
+        // Test: (yield) ? yield : yield
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g5() { (yield) ? yield : yield; }
+            let iter = g5();
+            let r1 = iter.next();
+            let r2 = iter.next(true);  // condition is truthy, should take true branch
+            let r3 = iter.next();
+            JSON.stringify({ d1: r1.done, d2: r2.done, d3: r3.done });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d3\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ArrayWithYieldNoOperand()
+    {
+        // Test: [yield] - bare yield without operand in array literal
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g2() { [yield] }
+            let iter = g2();
+            let r1 = iter.next();
+            let r2 = iter.next();
+            JSON.stringify({ v1: r1.value, d1: r1.done, d2: r2.done });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_SequenceWithTwoYields()
+    {
+        // Test: yield, yield - sequence expression with two yields
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g4() { yield, yield; }
+            let iter = g4();
+            let r1 = iter.next();
+            let r2 = iter.next();
+            let r3 = iter.next();
+            JSON.stringify({ d1: r1.done, d2: r2.done, d3: r3.done });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d2\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"d3\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Generator_AllRhsOmittedPatterns()
+    {
+        // Comprehensive test matching rhs-omitted.js from Test262
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g1() { (yield) }
+            function* g2() { [yield] }
+            function* g3() { {yield} }
+            function* g4() { yield, yield; }
+            function* g5() { (yield) ? yield : yield; }
+
+            var results = {};
+
+            // Test g1
+            var iter = g1();
+            var r = iter.next();
+            results.g1_v1 = r.value;
+            results.g1_d1 = r.done;
+            r = iter.next();
+            results.g1_d2 = r.done;
+
+            // Test g2
+            iter = g2();
+            r = iter.next();
+            results.g2_d1 = r.done;
+            r = iter.next();
+            results.g2_d2 = r.done;
+
+            // Test g3
+            iter = g3();
+            r = iter.next();
+            results.g3_d1 = r.done;
+            r = iter.next();
+            results.g3_d2 = r.done;
+
+            // Test g4
+            iter = g4();
+            r = iter.next();
+            results.g4_d1 = r.done;
+            r = iter.next();
+            results.g4_d2 = r.done;
+            r = iter.next();
+            results.g4_d3 = r.done;
+
+            // Test g5
+            iter = g5();
+            r = iter.next();
+            results.g5_d1 = r.done;
+            r = iter.next();
+            results.g5_d2 = r.done;
+            r = iter.next();
+            results.g5_d3 = r.done;
+
+            JSON.stringify(results);
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        // g1: first yield, then done
+        Assert.Contains("\"g1_d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g1_d2\":true", resultStr, StringComparison.Ordinal);
+        // g2: first yield, then done
+        Assert.Contains("\"g2_d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g2_d2\":true", resultStr, StringComparison.Ordinal);
+        // g3: first yield, then done
+        Assert.Contains("\"g3_d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g3_d2\":true", resultStr, StringComparison.Ordinal);
+        // g4: two yields, then done
+        Assert.Contains("\"g4_d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g4_d2\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g4_d3\":true", resultStr, StringComparison.Ordinal);
+        // g5: condition yield, branch yield, then done
+        Assert.Contains("\"g5_d1\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g5_d2\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"g5_d3\":true", resultStr, StringComparison.Ordinal);
+    }
 }

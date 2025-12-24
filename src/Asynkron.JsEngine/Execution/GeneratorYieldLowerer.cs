@@ -510,6 +510,39 @@ internal static class GeneratorYieldLowerer
                 }
             }
 
+            // Handle conditional expression with yields in branches as an expression statement.
+            // Convert: (yield) ? yield : yield; --> if (__test) { yield; } else { yield; }
+            if (expressionStatement.Expression is ConditionalExpression conditionalExpr &&
+                (AstShapeAnalyzer.ContainsYield(conditionalExpr.Consequent) ||
+                 AstShapeAnalyzer.ContainsYield(conditionalExpr.Alternate)))
+            {
+                var prefixBuilder = ImmutableArray.CreateBuilder<StatementNode>();
+
+                // Extract yield from the test expression if present
+                ExpressionNode testExpr = conditionalExpr.Test;
+                if (AstShapeAnalyzer.ContainsYield(conditionalExpr.Test))
+                {
+                    var testChanged = false;
+                    testExpr = RewriteExpressionForComplexYields(conditionalExpr.Test, prefixBuilder, ref testChanged);
+                }
+
+                // Convert consequent to statement
+                StatementNode consequentStmt = new ExpressionStatement(conditionalExpr.Source, conditionalExpr.Consequent);
+
+                // Convert alternate to statement
+                StatementNode alternateStmt = new ExpressionStatement(conditionalExpr.Source, conditionalExpr.Alternate);
+
+                var ifStatement = new IfStatement(
+                    expressionStatement.Source,
+                    testExpr,
+                    consequentStmt,
+                    alternateStmt);
+
+                prefixBuilder.Add(ifStatement);
+                replacement = prefixBuilder.ToImmutable();
+                return true;
+            }
+
             var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
             var changed = false;
             var rewrittenExpression =

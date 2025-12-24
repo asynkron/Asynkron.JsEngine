@@ -316,10 +316,31 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
+                    // If binding target has yields in default values, wrap as StatementInstruction.
+                    // The AST evaluator's BindArrayPattern handles yield state-saving correctly,
+                    // but extracting yields from defaults changes when they execute relative to iterator ops.
+                    if (BindingTargetContainsYieldInDefaultValue(forEachStatement.Target) &&
+                        !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
+                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
+                        return true;
+                    }
+
                     return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
+                    // If binding target has yields in default values, wrap as StatementInstruction.
+                    // Same reasoning as for regular for-of loops above.
+                    if (BindingTargetContainsYieldInDefaultValue(forEachStatement.Target) &&
+                        !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
+                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
+                        return true;
+                    }
+
                     return TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ReturnStatement returnStatement:
@@ -1015,6 +1036,72 @@ internal sealed class SyncGeneratorIrBuilder
     private static bool IsLowererTemp(Symbol symbol)
     {
         return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    /// Checks if the binding target contains yields specifically in default value expressions.
+    /// Yields in default values cannot be safely extracted because defaults are only evaluated
+    /// when the element is undefined - extracting them would change evaluation order.
+    /// </summary>
+    private static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    // Check for yields specifically in default values
+                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    // Recursively check nested bindings for yields in their defaults
+                    if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                if (arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
+                {
+                    return true;
+                }
+
+                return false;
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    // Check for yields specifically in default values
+                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    // Note: yields in computed property names (NameExpression) CAN be safely extracted
+                    // because they're always evaluated, so we don't check them here
+
+                    // Recursively check nested bindings for yields in their defaults
+                    if (BindingTargetContainsYieldInDefaultValue(prop.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                if (objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
+                {
+                    return true;
+                }
+
+                return false;
+
+            default:
+                // IdentifierBinding and AssignmentTargetBinding don't have default values
+                return false;
+        }
     }
 
     private Symbol CreateCatchSlotSymbol()

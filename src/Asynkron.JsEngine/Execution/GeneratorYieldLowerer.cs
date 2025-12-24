@@ -1811,6 +1811,14 @@ internal static class GeneratorYieldLowerer
                 return false;
             }
 
+            // If yields are in assignment target expressions (like [...{}[yield]]), we also
+            // cannot extract them. The yield must happen AFTER the for-of's outer iterator
+            // begins so that iterator close semantics work correctly.
+            if (BindingTargetContainsYieldInAssignmentTarget(forEachStatement.Target))
+            {
+                return false;
+            }
+
             // Create a temporary identifier for the iteration value
             var iterTemp = CreateResumeIdentifier();
 

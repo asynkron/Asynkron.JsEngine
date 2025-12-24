@@ -232,7 +232,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     var target = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.SliceFrom(1);
-                    var targetIsConstructor = JsOps.IsConstructor(_cachedJsValue);
+                    // Check if the TARGET function is a constructor, not the bind method's receiver
+                    var targetIsConstructor = JsOps.IsConstructor(thisValue);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
                     return (JsValue)CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
                 }, isConstructor: false);

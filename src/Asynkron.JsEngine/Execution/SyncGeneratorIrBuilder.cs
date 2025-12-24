@@ -350,16 +350,6 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    // For lexical declarations (let/const), if the body contains closures that could
-                    // capture the loop variable, we need per-iteration bindings. The IR doesn't
-                    // create fresh environments per iteration, so fall back to AST evaluation.
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-                        StatementContainsInnerFunctionExpression(forEachStatement.Body))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
-                        return true;
-                    }
-
                     return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
@@ -369,16 +359,6 @@ internal sealed class SyncGeneratorIrBuilder
                     if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
-                        return true;
-                    }
-
-                    // For lexical declarations (let/const), if the body contains closures that could
-                    // capture the loop variable, we need per-iteration bindings. The IR doesn't
-                    // create fresh environments per iteration, so fall back to AST evaluation.
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-                        StatementContainsInnerFunctionExpression(forEachStatement.Body))
                     {
                         entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
                         return true;
@@ -976,8 +956,22 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        // Wire up the MoveNext to point to the body entry
-        IteratorInstructionTemplate.Wire(iteratorInstructions, iterationEntry, _instructions);
+        // For lexical declarations (let/const), emit CreateIterationEnvironmentInstruction
+        // to create fresh per-iteration bindings. This ensures closures capture separate values.
+        var loopEntry = iterationEntry;
+        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            var createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+                iterationEntry,
+                iteratorPlan.PerIterationBindings,
+                iteratorPlan.IterationScopeId,
+                iteratorPlan.IterationSlotCount));
+            loopEntry = createEnvIndex;
+        }
+
+        // Wire up the MoveNext to point to the loop entry (env instruction or body)
+        IteratorInstructionTemplate.Wire(iteratorInstructions, loopEntry, _instructions);
 
         // EnterTry - wraps the loop in a try/finally
         var enterTryIndex =
@@ -1154,21 +1148,6 @@ internal sealed class SyncGeneratorIrBuilder
     {
         // We now allow identifier or destructuring targets for all declaration kinds.
         return statement.Target is not null;
-    }
-
-    /// <summary>
-    /// Checks if a statement contains inner function expressions that could capture variables.
-    /// Wraps the statement in a synthetic BlockStatement to use the existing analysis.
-    /// </summary>
-    private static bool StatementContainsInnerFunctionExpression(StatementNode statement)
-    {
-        if (statement is BlockStatement block)
-        {
-            return TypedAstEvaluator.ContainsInnerFunctionExpression(block);
-        }
-
-        var syntheticBlock = new BlockStatement(null, [statement], false);
-        return TypedAstEvaluator.ContainsInnerFunctionExpression(syntheticBlock);
     }
 
     private static ExpressionNode CreateAssignmentExpression(BindingTarget target, ExpressionNode valueExpression)

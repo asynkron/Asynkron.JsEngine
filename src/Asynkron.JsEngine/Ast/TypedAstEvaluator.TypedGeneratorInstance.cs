@@ -871,6 +871,31 @@ public static partial class TypedAstEvaluator
                                 _programCounter = varDeclInstruction.Next;
                                 continue;
 
+                            case CreateIterationEnvironmentInstruction createEnvInstruction:
+                                // Create a fresh environment for this iteration to support per-iteration
+                                // bindings for let/const in for-of loops. This ensures closures capture
+                                // separate values per iteration.
+                                // Use current environment as parent so iterator temps (__forOf_value_X)
+                                // stored by IteratorMoveNextInstruction are accessible via scope chain.
+                                // Note: We don't copy bindings here - the body already declares the loop
+                                // variable fresh each time via SimpleVariableDeclarationInstruction.
+                                // Note: We intentionally DON'T initialize slots for the iteration environment.
+                                // This is because iterator temps (__forOf_iter_X, __forOf_value_X) were stored
+                                // in the parent scope's slots, and slot indices are scope-specific.
+                                // Without our own slots, TryGetValueBySlot falls back to symbol-based lookup
+                                // which correctly walks the scope chain to find the iterator temps.
+                                var newIterationEnv = new JsEnvironment(
+                                    environment,
+                                    false,
+                                    false,
+                                    null,
+                                    "for-iteration");
+
+                                // Update environment reference to use the new iteration environment
+                                environment = newIterationEnv;
+                                _programCounter = createEnvInstruction.Next;
+                                continue;
+
                             case YieldInstruction yieldInstruction:
                                 var yieldedValue = JsValue.Undefined;
                                 if (yieldInstruction.YieldExpression is not null)

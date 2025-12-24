@@ -52,6 +52,11 @@ public static partial class TypedAstEvaluator
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
 
+        // Maps iterator symbols to their JsVariable for scope-correct access.
+        // This is needed because iterator temps are stored in the loop scope,
+        // but we may be executing in a per-iteration child scope.
+        private Dictionary<Symbol, JsVariable>? _iteratorVariables;
+
         public TypedGeneratorInstance(
             FunctionExpression function,
             JsEnvironment closure,
@@ -443,6 +448,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue ExecutePlan(ResumeMode mode, JsValue resumeValue)
         {
             if (_plan is null)
@@ -487,18 +493,18 @@ public static partial class TypedAstEvaluator
             // (via StatementInstruction), handle based on the resume mode.
             if (!wasStart && _lastYieldSourceStart >= 0)
             {
-                if (mode == ResumeMode.Next)
+                switch (mode)
                 {
-                    // For next(), set up resume state so the yield expression returns the resume value
-                    SetYieldResumeValue(environment, resumeValue, _lastYieldSourceStart, _lastYieldSourceEnd);
-                }
-                else if (mode == ResumeMode.Return)
-                {
-                    // For return(), close any active iterators and complete the generator.
-                    // Don't re-evaluate the statement - just close and return.
-                    _lastYieldSourceStart = -1;
-                    _lastYieldSourceEnd = -1;
-                    return CompleteReturn(resumeValue);
+                    case ResumeMode.Next:
+                        // For next(), set up resume state so the yield expression returns the resume value
+                        SetYieldResumeValue(environment, resumeValue, _lastYieldSourceStart, _lastYieldSourceEnd);
+                        break;
+                    case ResumeMode.Return:
+                        // For return(), close any active iterators and complete the generator.
+                        // Don't re-evaluate the statement - just close and return.
+                        _lastYieldSourceStart = -1;
+                        _lastYieldSourceEnd = -1;
+                        return CompleteReturn(resumeValue);
                 }
                 // For Throw mode, we'll let the normal flow handle it via _pendingResumeKind
 
@@ -561,7 +567,7 @@ public static partial class TypedAstEvaluator
                 _pendingAwaitKey = null;
             }
 
-            var continueAfterCatch = false;
+            bool continueAfterCatch;
             do
             {
                 continueAfterCatch = false;
@@ -875,21 +881,58 @@ public static partial class TypedAstEvaluator
                                 // Create a fresh environment for this iteration to support per-iteration
                                 // bindings for let/const in for-of loops. This ensures closures capture
                                 // separate values per iteration.
-                                // Use current environment as parent so iterator temps (__forOf_value_X)
-                                // stored by IteratorMoveNextInstruction are accessible via scope chain.
-                                // Note: We don't copy bindings here - the body already declares the loop
-                                // variable fresh each time via SimpleVariableDeclarationInstruction.
-                                // Note: We intentionally DON'T initialize slots for the iteration environment.
-                                // This is because iterator temps (__forOf_iter_X, __forOf_value_X) were stored
-                                // in the parent scope's slots, and slot indices are scope-specific.
-                                // Without our own slots, TryGetValueBySlot falls back to symbol-based lookup
-                                // which correctly walks the scope chain to find the iterator temps.
+                                //
+                                // IMPORTANT: The parent should always be the LOOP scope, not the previous
+                                // iteration's environment. This ensures:
+                                // 1. All iteration environments have the same parent (loop scope)
+                                // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
+                                // 3. Scope chain doesn't grow unboundedly with iterations
+                                //
+                                // Use the iterator variable's environment as the loop scope - it was captured
+                                // in IteratorInitInstruction when we were definitely in the loop scope.
+                                JsEnvironment loopScope;
+                                if (_iteratorVariables is not null && _iteratorVariables.Count > 0)
+                                {
+                                    // Get any iterator variable - they all point to the loop scope
+                                    using var enumerator = _iteratorVariables.Values.GetEnumerator();
+                                    enumerator.MoveNext();
+                                    loopScope = enumerator.Current.Environment;
+                                }
+                                else
+                                {
+                                    // Fallback: use current environment (should be loop scope on first iteration)
+                                    loopScope = environment;
+                                }
+
                                 var newIterationEnv = new JsEnvironment(
-                                    environment,
+                                    loopScope,
                                     false,
                                     false,
                                     null,
                                     "for-iteration");
+
+                                // Initialize slots with the iteration scope's metadata.
+                                // This enables O(1) slot-based lookups for identifiers in the loop body.
+                                // Iterator temps (__forOf_iter_X, __forOf_value_X) are stored in the PARENT
+                                // scope with DIFFERENT scope IDs, so FindByScopeId will correctly walk past
+                                // this environment to find them in the parent.
+                                if (createEnvInstruction.SlotCount > 0 && createEnvInstruction.ScopeId >= 0)
+                                {
+                                    newIterationEnv.InitializeSlots(createEnvInstruction.SlotCount,
+                                        createEnvInstruction.ScopeId);
+                                }
+
+                                // Copy per-iteration bindings from PREVIOUS iteration environment (if any).
+                                // This ensures each iteration's closures capture separate values.
+                                // On first iteration, environment is the loop scope which has no per-iteration
+                                // bindings, so the copy loop is effectively a no-op.
+                                foreach (var binding in createEnvInstruction.PerIterationBindings)
+                                {
+                                    if (environment.TryGetJsValue(binding, out var value))
+                                    {
+                                        newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
+                                    }
+                                }
 
                                 // Update environment reference to use the new iteration environment
                                 environment = newIterationEnv;
@@ -1331,15 +1374,53 @@ public static partial class TypedAstEvaluator
                                 StoreValueBySlot(environment, iteratorInitInstruction.IteratorSlot,
                                     iteratorInitInstruction.IteratorSlotIndex,
                                     JsValue.FromObjectUnsafe(iteratorState));
+
+                                // Capture a JsVariable for scope-correct access from child scopes.
+                                // This allows IteratorMoveNextInstruction to find the iterator even
+                                // when we're executing in a per-iteration environment.
+                                _iteratorVariables ??= new Dictionary<Symbol, JsVariable>(
+                                    ReferenceEqualityComparer<Symbol>.Instance);
+                                _iteratorVariables[iteratorInitInstruction.IteratorSlot] =
+                                    new JsVariable(environment, iteratorInitInstruction.IteratorSlotIndex);
+
                                 _programCounter = iteratorInitInstruction.Next;
                                 continue;
 
                             case IteratorMoveNextInstruction iteratorMoveNextInstruction:
                                 var iteratorIndex = _programCounter;
-                                // Use slot-based read for O(1) access
-                                if (!TryGetValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                        iteratorMoveNextInstruction.IteratorSlotIndex, out var iteratorStateValue) ||
-                                    !iteratorStateValue.TryGetObject<IteratorDriverState>(out var driverState))
+                                // Use JsVariable for scope-correct access (iterator and value are in loop scope,
+                                // but we may be executing in a per-iteration child scope).
+                                JsValue iteratorStateValue;
+                                JsVariable iterVar = default;
+                                JsVariable valueVar = default;
+
+                                if (_iteratorVariables is not null)
+                                {
+                                    _iteratorVariables.TryGetValue(iteratorMoveNextInstruction.IteratorSlot, out iterVar);
+                                    _iteratorVariables.TryGetValue(iteratorMoveNextInstruction.ValueSlot, out valueVar);
+                                }
+
+                                // Capture value JsVariable on first execution (while still in loop scope)
+                                if (!valueVar.IsValid && iteratorMoveNextInstruction.ValueSlotIndex >= 0)
+                                {
+                                    _iteratorVariables ??= new Dictionary<Symbol, JsVariable>(
+                                        ReferenceEqualityComparer<Symbol>.Instance);
+                                    valueVar = new JsVariable(environment, iteratorMoveNextInstruction.ValueSlotIndex);
+                                    _iteratorVariables[iteratorMoveNextInstruction.ValueSlot] = valueVar;
+                                }
+
+                                if (iterVar.IsValid)
+                                {
+                                    iteratorStateValue = iterVar.Read();
+                                }
+                                else if (!TryGetValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                             iteratorMoveNextInstruction.IteratorSlotIndex, out iteratorStateValue))
+                                {
+                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
+                                    continue;
+                                }
+
+                                if (!iteratorStateValue.TryGetObject<IteratorDriverState>(out var driverState))
                                 {
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
@@ -1399,9 +1480,19 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    // Use slot-based storage for O(1) access
-                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
-                                        iteratorMoveNextInstruction.ValueSlotIndex, currentValue);
+                                    // Use JsVariable for scope-correct access (value slot is in loop scope)
+                                    if (valueVar.IsValid)
+                                    {
+                                        valueVar.Write(currentValue);
+                                        // Also create binding for symbol-based identifier lookup in loop body
+                                        valueVar.Environment.DefineOrAssignJsValue(
+                                            iteratorMoveNextInstruction.ValueSlot, currentValue);
+                                    }
+                                    else
+                                    {
+                                        StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
+                                            iteratorMoveNextInstruction.ValueSlotIndex, currentValue);
+                                    }
                                     _programCounter = iteratorMoveNextInstruction.Next;
                                     continue;
                                 }
@@ -1420,10 +1511,17 @@ public static partial class TypedAstEvaluator
                                     driverState.AwaitingNextResult = false;
                                     driverState.AwaitingValue = false;
                                     var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                                    // Use slot-based storage for O(1) access
-                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                        iteratorMoveNextInstruction.IteratorSlotIndex,
-                                        JsValue.FromObjectUnsafe(driverState));
+                                    // Use JsVariable for scope-correct access (iterator slot is in loop scope)
+                                    var iterStateValue = JsValue.FromObjectUnsafe(driverState);
+                                    if (iterVar.IsValid)
+                                    {
+                                        iterVar.Write(iterStateValue);
+                                    }
+                                    else
+                                    {
+                                        StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                            iteratorMoveNextInstruction.IteratorSlotIndex, iterStateValue);
+                                    }
 
                                     if (forAwaitResumeKind == ResumePayloadKind.Throw)
                                     {
@@ -1474,10 +1572,17 @@ public static partial class TypedAstEvaluator
                                             if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                             {
                                                 driverState.AwaitingNextResult = true;
-                                                // Use slot-based storage for O(1) access
-                                                StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                    iteratorMoveNextInstruction.IteratorSlotIndex,
-                                                    JsValue.FromObjectUnsafe(driverState));
+                                                // Use JsVariable for scope-correct access
+                                                var iterState = JsValue.FromObjectUnsafe(driverState);
+                                                if (iterVar.IsValid)
+                                                {
+                                                    iterVar.Write(iterState);
+                                                }
+                                                else
+                                                {
+                                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                        iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
+                                                }
                                                 _state = GeneratorState.Suspended;
                                                 _programCounter = iteratorIndex;
                                                 return CreateIteratorResult(JsValue.Undefined, false);
@@ -1533,10 +1638,17 @@ public static partial class TypedAstEvaluator
                                         if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
-                                            // Use slot-based storage for O(1) access
-                                            StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                iteratorMoveNextInstruction.IteratorSlotIndex,
-                                                JsValue.FromObjectUnsafe(driverState));
+                                            // Use JsVariable for scope-correct access
+                                            var iterState = JsValue.FromObjectUnsafe(driverState);
+                                            if (iterVar.IsValid)
+                                            {
+                                                iterVar.Write(iterState);
+                                            }
+                                            else
+                                            {
+                                                StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                    iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
+                                            }
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
                                             return CreateIteratorResult(JsValue.Undefined, false);
@@ -1576,10 +1688,17 @@ public static partial class TypedAstEvaluator
                                         if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
-                                            // Use slot-based storage for O(1) access
-                                            StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                iteratorMoveNextInstruction.IteratorSlotIndex,
-                                                JsValue.FromObjectUnsafe(driverState));
+                                            // Use JsVariable for scope-correct access
+                                            var iterState = JsValue.FromObjectUnsafe(driverState);
+                                            if (iterVar.IsValid)
+                                            {
+                                                iterVar.Write(iterState);
+                                            }
+                                            else
+                                            {
+                                                StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                    iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
+                                            }
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
                                             return CreateIteratorResult(JsValue.Undefined, false);
@@ -1611,9 +1730,19 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 StoreIteratorValue:
-                                // Use slot-based storage for O(1) access
-                                StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
-                                    iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
+                                // Use JsVariable for scope-correct access (value slot is in loop scope)
+                                if (valueVar.IsValid)
+                                {
+                                    valueVar.Write(awaitedValue);
+                                    // Also create binding for symbol-based identifier lookup in loop body
+                                    valueVar.Environment.DefineOrAssignJsValue(
+                                        iteratorMoveNextInstruction.ValueSlot, awaitedValue);
+                                }
+                                else
+                                {
+                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
+                                        iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
+                                }
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
 

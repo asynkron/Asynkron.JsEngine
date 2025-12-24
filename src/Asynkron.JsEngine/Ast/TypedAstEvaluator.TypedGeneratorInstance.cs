@@ -725,6 +725,90 @@ public static partial class TypedAstEvaluator
                                 _programCounter = evaluateInstruction.Next;
                                 continue;
 
+                            case FunctionDeclarationInstruction functionDeclInstruction:
+                                // Function declarations are hoisted - this is a no-op at runtime
+                                _programCounter = functionDeclInstruction.Next;
+                                continue;
+
+                            case SimpleVariableDeclarationInstruction varDeclInstruction:
+                                // Evaluate initializer if present
+                                var varValue = varDeclInstruction.Initializer is null
+                                    ? JsValue.Undefined
+                                    : varDeclInstruction.Initializer.EvaluateExpression(environment, context);
+
+                                if (TryHandlePendingAwait(context, out var pendingVarResult))
+                                {
+                                    return pendingVarResult;
+                                }
+
+                                if (context.IsThrow)
+                                {
+                                    var varThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, varThrown, environment))
+                                    {
+                                        if (_programCounter == _currentInstructionIndex)
+                                        {
+                                            _programCounter = varDeclInstruction.Next;
+                                        }
+
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(varThrown);
+                                }
+
+                                if (context.IsReturn)
+                                {
+                                    var varReturnValue = context.FlowValue;
+                                    context.ClearReturn();
+                                    if (!HandleAbruptCompletion(AbruptKind.Return, varReturnValue, environment))
+                                    {
+                                        return CompleteReturn(varReturnValue);
+                                    }
+
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = varDeclInstruction.Next;
+                                    }
+
+                                    continue;
+                                }
+
+                                if (context.IsYield)
+                                {
+                                    var varYieldedValue = context.FlowValue;
+                                    var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
+                                        ?.IteratorResultObject;
+                                    RecordYield(context);
+                                    context.Clear();
+                                    _state = GeneratorState.Suspended;
+                                    return varIteratorResultObject is not null
+                                        ? JsValue.FromObjectUnsafe(varIteratorResultObject)
+                                        : CreateIteratorResult(varYieldedValue, false);
+                                }
+
+                                // For var declarations, ensure the binding exists in function scope and assign
+                                if (varDeclInstruction.Kind == VariableKind.Var)
+                                {
+                                    environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol, context);
+                                    // Try to assign to a blocked binding first (shadowed let/const in same scope)
+                                    if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol, varValue))
+                                    {
+                                        environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                    }
+                                }
+                                else
+                                {
+                                    // let/const - define as lexical binding
+                                    var isConst = varDeclInstruction.Kind == VariableKind.Const;
+                                    environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue, isConst: isConst);
+                                }
+
+                                _programCounter = varDeclInstruction.Next;
+                                continue;
+
                             case YieldInstruction yieldInstruction:
                                 var yieldedValue = JsValue.Undefined;
                                 if (yieldInstruction.YieldExpression is not null)

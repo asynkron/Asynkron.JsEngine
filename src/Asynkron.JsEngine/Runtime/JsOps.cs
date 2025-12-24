@@ -314,6 +314,7 @@ internal static class JsOps
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryConvertToNumericPrimitiveJsValue(IJsPropertyAccessor accessor, out JsValue primitive,
         EvaluationContext? context)
     {
@@ -1483,6 +1484,7 @@ internal static class JsOps
         return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool TryParseBinaryBigInt(ReadOnlySpan<char> span, out BigInteger value)
     {
         value = BigInteger.Zero;
@@ -1612,11 +1614,9 @@ internal static class JsOps
             case JsValueKind.Object or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt:
             {
                 var targetObj = target.ObjectValue;
-#pragma warning disable CS0618 // Delegate to object? version for object
-                if (targetObj != null && TryGetPropertyValue(targetObj, propertyName, out var objValue, context))
-#pragma warning restore CS0618
+                if (targetObj != null && TryGetPropertyValueObject(targetObj, propertyName, out var objValue, context))
                 {
-                    value = objValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(objValue);
+                    value = objValue;
                     return true;
                 }
 
@@ -1731,6 +1731,148 @@ internal static class JsOps
 
         value = JsValue.Undefined;
         return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryGetPropertyValueObject(object? target, string propertyName, out JsValue value,
+        EvaluationContext? context)
+    {
+        switch (target)
+        {
+            case JsValue jsVal:
+                return TryGetPropertyValue(jsVal, propertyName, out value, context);
+            case IJsPropertyAccessor propertyAccessor:
+                try
+                {
+                    switch (propertyAccessor)
+                    {
+                        case JsObject jsObject:
+                            if (jsObject.TryGetProperty(propertyName, target, context, out var jsObjVal))
+                            {
+                                value = jsObjVal is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(jsObjVal);
+                                return true;
+                            }
+
+                            value = JsValue.Undefined;
+                            return false;
+                        // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
+                        case TypedAstSymbol symbol when symbol.TryGetProperty(propertyName, out var symbolJsValue):
+                            value = symbolJsValue;
+                            return true;
+                        // Look up in Symbol.prototype chain
+                        case TypedAstSymbol:
+                        {
+                            var symbolProto = context?.RealmState?.SymbolPrototype;
+                            if (symbolProto is not null &&
+                                symbolProto.TryGetProperty(propertyName, target, context, out var protoVal))
+                            {
+                                value = protoVal is JsValue protoJs ? protoJs : JsValue.FromObjectUnsafe(protoVal);
+                                return true;
+                            }
+
+                            value = JsValue.Undefined;
+                            return false;
+                        }
+                    }
+
+                    if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
+                    {
+                        value = jsVal2 is JsValue jv ? jv : JsValue.FromObjectUnsafe(jsVal2);
+                        return true;
+                    }
+
+                    value = JsValue.Undefined;
+                    return false;
+                }
+                catch (ThrowSignal signal) when (context is not null)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    value = signal.ThrownValue;
+                    return true;
+                }
+            case bool b:
+                if (context?.RealmState?.BooleanPrototype is { } booleanProto &&
+                    booleanProto.TryGetProperty(propertyName, target, context, out var boolVal))
+                {
+                    value = boolVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(boolVal);
+                    return true;
+                }
+
+                value = JsValue.Undefined;
+                return false;
+            case double num:
+                if (context?.RealmState?.NumberPrototype is { } numberProto &&
+                    numberProto.TryGetProperty(propertyName, target, context, out var numVal))
+                {
+                    value = numVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(numVal);
+                    return true;
+                }
+
+                value = JsValue.Undefined;
+                return false;
+            case JsBigInt jsBigInt:
+                if (context?.RealmState?.BigIntPrototype is { } bigIntProto &&
+                    bigIntProto.TryGetProperty(propertyName, target, context, out var bigIntVal))
+                {
+                    value = bigIntVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(bigIntVal);
+                    return true;
+                }
+
+                value = JsValue.Undefined;
+                return false;
+            case string str:
+                if (string.Equals(propertyName, "length", StringComparison.Ordinal))
+                {
+                    value = new JsValue((double)str.Length);
+                    return true;
+                }
+
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) &&
+                    index >= 0 && index < str.Length)
+                {
+                    value = new JsValue(str[index].ToString());
+                    return true;
+                }
+
+                if (context?.RealmState?.StringPrototype is { } stringProto &&
+                    stringProto.TryGetProperty(propertyName, target, context, out var stringVal))
+                {
+                    value = stringVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(stringVal);
+                    return true;
+                }
+
+                value = JsValue.Undefined;
+                return false;
+            case JsRopeString rope:
+            {
+                var ropeStr = rope.Flatten();
+                if (string.Equals(propertyName, "length", StringComparison.Ordinal))
+                {
+                    value = new JsValue((double)ropeStr.Length);
+                    return true;
+                }
+
+                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ropeIndex) &&
+                    ropeIndex >= 0 && ropeIndex < ropeStr.Length)
+                {
+                    value = new JsValue(ropeStr[ropeIndex].ToString());
+                    return true;
+                }
+
+                if (context?.RealmState?.StringPrototype is { } ropeStringProto &&
+                    ropeStringProto.TryGetProperty(propertyName, ropeStr, context, out var ropeVal))
+                {
+                    value = ropeVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(ropeVal);
+                    return true;
+                }
+
+                value = JsValue.Undefined;
+                return false;
+            }
+            default:
+                value = JsValue.Undefined;
+                return false;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

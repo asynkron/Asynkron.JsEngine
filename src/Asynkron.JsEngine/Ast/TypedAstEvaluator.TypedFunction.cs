@@ -848,11 +848,10 @@ public static partial class TypedAstEvaluator
                     !newTarget.IsUndefined)
                 {
                     var constructedThis = new JsObject { RealmState = RealmState };
-#pragma warning disable CS0618 // Intentional: need object? version for prototype access semantics
                     if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
-                        JsOps.TryGetPropertyValue(prototypeSource, "prototype", out var protoVal) &&
-                        protoVal is IJsPropertyAccessor protoAccessor)
-#pragma warning restore CS0618
+                        JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype",
+                            out var protoVal) &&
+                        protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
                     {
                         constructedThis.SetPrototype(protoAccessor);
                     }

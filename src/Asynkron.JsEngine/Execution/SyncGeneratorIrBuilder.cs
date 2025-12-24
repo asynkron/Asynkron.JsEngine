@@ -140,8 +140,9 @@ internal sealed class SyncGeneratorIrBuilder
                 case BlockStatement block:
                     return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
-                case FunctionDeclaration functionDeclaration:
-                    entryIndex = Append(new StatementInstruction(nextIndex, functionDeclaration));
+                case FunctionDeclaration:
+                    // Function declarations are hoisted - this is a no-op at runtime
+                    entryIndex = Append(new FunctionDeclarationInstruction(nextIndex));
                     return true;
 
                 case IfStatement ifStatement:
@@ -240,6 +241,12 @@ internal sealed class SyncGeneratorIrBuilder
                         entryIndex = -1;
                         _failureReason ??= "Variable declaration contains unsupported yield shape.";
                         return false;
+                    }
+
+                    // Try to use native SimpleVariableDeclarationInstruction for simple cases
+                    if (TryBuildSimpleVariableDeclaration(declaration, nextIndex, out entryIndex))
+                    {
+                        return true;
                     }
 
                     entryIndex = Append(new StatementInstruction(nextIndex, declaration));
@@ -469,6 +476,48 @@ internal sealed class SyncGeneratorIrBuilder
         entryIndex = yieldInitializer.IsDelegated
             ? AppendYieldStarSequence(yieldInitializer, nextIndex, targetSymbol)
             : AppendYieldSequence(yieldInitializer.Expression, nextIndex, targetSymbol);
+        return true;
+    }
+
+    /// <summary>
+    ///     Attempts to build a native SimpleVariableDeclarationInstruction for simple declarations.
+    ///     Handles single declarator with identifier binding (no destructuring).
+    /// </summary>
+    private bool TryBuildSimpleVariableDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
+    {
+        entryIndex = -1;
+
+        // Only handle single declarator
+        if (declaration.Declarators.Length != 1)
+        {
+            return false;
+        }
+
+        var declarator = declaration.Declarators[0];
+
+        // Only handle simple identifier binding (no destructuring)
+        if (declarator.Target is not IdentifierBinding { Name: { } targetSymbol })
+        {
+            return false;
+        }
+
+        // Ensure no yields in initializer (already checked by caller, but be safe)
+        if (declarator.Initializer is not null && AstShapeAnalyzer.ContainsYield(declarator.Initializer))
+        {
+            return false;
+        }
+
+        // Don't handle using/await using for now - they have complex disposal semantics
+        if (declaration.Kind is VariableKind.Using or VariableKind.AwaitUsing)
+        {
+            return false;
+        }
+
+        entryIndex = Append(new SimpleVariableDeclarationInstruction(
+            nextIndex,
+            declaration.Kind,
+            targetSymbol,
+            declarator.Initializer));
         return true;
     }
 

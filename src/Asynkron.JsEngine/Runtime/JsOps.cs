@@ -1782,7 +1782,7 @@ internal static class JsOps
 
         // Fall back to string conversion
         var propertyName = ToPropertyName(propertyKey, context);
-        if (propertyName is not null && int.TryParse(propertyName, out index) && index >= 0)
+        if (propertyName is not null && int.TryParse(propertyName, CultureInfo.InvariantCulture, out index) && index >= 0)
         {
             return true;
         }

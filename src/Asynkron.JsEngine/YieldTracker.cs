@@ -4,14 +4,10 @@ namespace Asynkron.JsEngine;
 ///     Tracks progress through a generator's yield points so re-executing the
 ///     generator body can skip values that have already been produced.
 /// </summary>
+/// TODO: why would this be needed if GeneratorIR works as intended??
 public sealed class YieldTracker(ISet<int> consumedYieldIndices)
 {
     public int CurrentIndex { get; private set; }
-
-    public int Advance()
-    {
-        return CurrentIndex++;
-    }
 
     /// <summary>
     ///     Returns <c>true</c> when the current execution pass should emit the

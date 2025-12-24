@@ -783,15 +783,6 @@ public sealed class JsEngine : IAsyncDisposable
 
     /// <summary>
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
-    ///     Use this to reuse a single parse across many executions.
-    /// </summary>
-    public object? EvaluateSync(ProgramNode program, CancellationToken cancellationToken = default)
-    {
-        return EvaluateSyncInternal(program, cancellationToken);
-    }
-
-    /// <summary>
-    ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>
     private object? EvaluateSyncInternal(
         ProgramNode program,
@@ -804,49 +795,47 @@ public sealed class JsEngine : IAsyncDisposable
         {
             var isModule = forceModule || HasModuleStatements(program);
             EnsureImportMetaAllowed(program, isModule);
-            if (isModule)
+            if (!isModule)
             {
-                string? moduleKey = null;
-                ModuleEntry entry;
-                if (!string.IsNullOrEmpty(sourcePath))
-                {
-                    moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
-                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
-                    {
-                        entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            CreateModuleEnvironment(moduleKey),
-                            new JsObject(),
-                            moduleKey,
-                            program.HasTopLevelAwait);
-                        _moduleRegistry[moduleKey] = entry;
-                    }
+                return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+            }
 
-                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                        new HashSet<string>(StringComparer.Ordinal));
-                }
-                else
+            string? moduleKey = null;
+            ModuleEntry entry;
+            if (!string.IsNullOrEmpty(sourcePath))
+            {
+                moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
+                if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
                 {
                     entry = CreateModuleEntry(EnsureStrictProgram(program),
                         CreateModuleEnvironment(moduleKey),
                         new JsObject(),
-                        string.Empty,
+                        moduleKey,
                         program.HasTopLevelAwait);
-                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                        new HashSet<string>(StringComparer.Ordinal));
+                    _moduleRegistry[moduleKey] = entry;
                 }
-
-                EnsureModuleInstantiated(entry);
-                if (entry.IsAsync || entry.HasAsyncDependency)
-                {
-                    throw new NotSupportedException(
-                        "EvaluateSync does not support async modules (top-level await / async dependencies). Use Evaluate/EvaluateModule instead.");
-                }
-
-                EnsureModuleEvaluated(entry);
-                return entry.LastValue;
+            }
+            else
+            {
+                entry = CreateModuleEntry(EnsureStrictProgram(program),
+                    CreateModuleEnvironment(moduleKey),
+                    new JsObject(),
+                    string.Empty,
+                    program.HasTopLevelAwait);
             }
 
-            return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+            entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                new HashSet<string>(StringComparer.Ordinal));
+
+            EnsureModuleInstantiated(entry);
+            if (entry.IsAsync || entry.HasAsyncDependency)
+            {
+                throw new NotSupportedException(
+                    "EvaluateSync does not support async modules (top-level await / async dependencies). Use Evaluate/EvaluateModule instead.");
+            }
+
+            EnsureModuleEvaluated(entry);
+            return entry.LastValue;
         }
         finally
         {
@@ -1221,20 +1210,15 @@ public sealed class JsEngine : IAsyncDisposable
 
     private static bool ModuleStatementContainsImportMeta(ModuleStatement moduleStatement)
     {
-        switch (moduleStatement)
+        return moduleStatement switch
         {
-            case ExportDefaultStatement { Value: ExportDefaultExpression { Expression: { } expression } }:
-                return ExpressionContainsImportMeta(expression);
-            case ExportDefaultStatement
-            {
-                Value: ExportDefaultDeclaration { Declaration: { } declaration }
-            }:
-                return StatementContainsImportMeta(declaration);
-            case ExportDeclarationStatement { Declaration: { } declaration }:
-                return StatementContainsImportMeta(declaration);
-            default:
-                return false;
-        }
+            ExportDefaultStatement { Value: ExportDefaultExpression { Expression: { } expression } } =>
+                ExpressionContainsImportMeta(expression),
+            ExportDefaultStatement { Value: ExportDefaultDeclaration { Declaration: { } declaration } } =>
+                StatementContainsImportMeta(declaration),
+            ExportDeclarationStatement { Declaration: { } declaration } => StatementContainsImportMeta(declaration),
+            _ => false
+        };
     }
 
     private static bool ClassContainsImportMeta(ClassDefinition definition)
@@ -1313,7 +1297,6 @@ public sealed class JsEngine : IAsyncDisposable
             switch (target)
             {
                 case null:
-                    return false;
                 case IdentifierBinding:
                     return false;
                 case ArrayBinding arrayBinding:
@@ -1516,7 +1499,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     private ModuleEntry CreateModuleEntry(ProgramNode program, JsEnvironment environment, JsObject exports,
-        string modulePath, bool hasTopLevelAwait = false)
+        string? modulePath, bool hasTopLevelAwait = false)
     {
         var entry = new ModuleEntry(modulePath ?? string.Empty, program, environment, exports)
         {
@@ -1645,7 +1628,7 @@ public sealed class JsEngine : IAsyncDisposable
         return false;
     }
 
-    private JsObject EnsureModuleImportMeta(ModuleEntry entry)
+    private void EnsureModuleImportMeta(ModuleEntry entry)
     {
         if (entry.ImportMeta is { } existing)
         {
@@ -1655,7 +1638,7 @@ public sealed class JsEngine : IAsyncDisposable
                     blocksFunctionScopeOverride: false);
             }
 
-            return existing;
+            return;
         }
 
         var importMeta = new JsObject { RealmState = RealmState };
@@ -1676,7 +1659,6 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, true, isLexical: true,
             blocksFunctionScopeOverride: false);
         entry.ImportMeta = importMeta;
-        return importMeta;
     }
 
     /// <summary>
@@ -1742,12 +1724,12 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true,
+    private async Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true,
         CancellationToken cancellationToken = default)
     {
         if (entry.Evaluated)
         {
-            return entry.EvaluationTask ?? Task.FromResult(entry.LastValue);
+            return await (entry.EvaluationTask ?? Task.FromResult(entry.LastValue));
         }
 
         EnsureModuleInstantiated(entry);
@@ -1758,7 +1740,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (entry.Evaluating)
             {
-                return entry.EvaluationTask ?? Task.FromResult(entry.LastValue);
+                return await (entry.EvaluationTask ?? Task.FromResult(entry.LastValue));
             }
 
             entry.Evaluating = true;
@@ -1766,7 +1748,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
                 entry.Evaluated = true;
-                return entry.EvaluationTask ?? Task.FromResult(entry.LastValue);
+                return await (entry.EvaluationTask ?? Task.FromResult(entry.LastValue));
             }
             finally
             {
@@ -1784,17 +1766,17 @@ public sealed class JsEngine : IAsyncDisposable
 
         if (!waitForAsync)
         {
-            return entry.EvaluationTask;
+            return await entry.EvaluationTask;
         }
 
         if (_eventLoopThreadId == Environment.CurrentManagedThreadId)
         {
             // Never attempt to pump the event queue from within the event loop thread.
             // Callers running on the event loop must observe completion asynchronously.
-            return entry.EvaluationTask;
+            return await entry.EvaluationTask;
         }
 
-        return AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken);
+        return await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken);
     }
 
     private async Task<object?> AwaitModuleEvaluationAsync(Task<object?> evaluationTask,
@@ -1938,7 +1920,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     /// <param name="task">The .NET Task to bridge.</param>
     /// <returns>A JsValue containing the Promise object.</returns>
-    public JsValue CreatePromiseFromTask(Task<JsValue> task)
+    private JsValue CreatePromiseFromTask(Task<JsValue> task)
     {
         var promise = CreateRealmPromise();
 
@@ -1972,94 +1954,6 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Creates a JavaScript Promise from a .NET Task that has no result.
-    ///     When the task completes, the promise is resolved with undefined.
-    ///     When the task fails, the promise is rejected with the error message.
-    /// </summary>
-    /// <param name="task">The .NET Task to bridge.</param>
-    /// <returns>A JsValue containing the Promise object.</returns>
-    public JsValue CreatePromiseFromTask(Task task)
-    {
-        var promise = CreateRealmPromise();
-
-        ScheduleAfterTask(
-            task,
-            () => promise.Resolve(JsValue.Undefined),
-            ex => promise.Reject((JsValue)ex.Message));
-
-        return (JsValue)promise.JsObject;
-    }
-
-    /// <summary>
-    ///     Schedules a continuation to run after a non-generic Task completes.
-    /// </summary>
-    private void ScheduleAfterTask(Task taskToAwait, Action onSuccess, Action<Exception> onFailure)
-    {
-        StartEventLoop();
-        var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
-
-        Interlocked.Increment(ref _pendingTaskCount);
-
-        _ = taskToAwait.ContinueWith(t =>
-        {
-            var written = queue.Writer.TryWrite(() =>
-            {
-                if (t.IsFaulted)
-                {
-                    var ex = t.Exception?.GetBaseException() ?? t.Exception ?? new Exception("Task faulted");
-                    onFailure(ex);
-                }
-                else if (t.IsCanceled)
-                {
-                    onFailure(new OperationCanceledException("Task was canceled"));
-                }
-                else
-                {
-                    try
-                    {
-                        onSuccess();
-                    }
-                    catch (Exception ex)
-                    {
-                        onFailure(ex);
-                    }
-                }
-
-                return ValueTask.CompletedTask;
-            });
-            if (!written)
-            {
-                // Queue is closed; task accounted for but nothing enqueued.
-                Interlocked.Decrement(ref _pendingTaskCount);
-                TrySignalDrainComplete();
-            }
-        }, TaskScheduler.Default);
-    }
-
-    /// <summary>
-    ///     Parses and evaluates the provided source code, then processes any scheduled events
-    ///     in the event queue. The engine will continue running until the queue is empty
-    ///     and all pending timer tasks have completed.
-    /// </summary>
-    /// <param name="source">The JavaScript source code to execute</param>
-    /// <returns>A task that completes when all scheduled events have been processed</returns>
-    [Obsolete("Use Evaluate instead")]
-    public async Task<object?> Run(string source)
-    {
-        // Evaluate the code (uses lazy event loop internally)
-        var result = await Evaluate(source).ConfigureAwait(false);
-
-        // If there's still pending async work after Evaluate returns,
-        // wait for it to complete (e.g., timers that were scheduled)
-        if (!IsEventLoopDrained())
-        {
-            await DrainEventLoopAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-
-        return result;
-    }
-
-    /// <summary>
     ///     Schedules a task to be executed on the event queue.
     ///     This allows promises and other async operations to schedule work.
     /// </summary>
@@ -2078,27 +1972,20 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Pending task bookkeeping is held until the returned <see cref="ValueTask"/> completes.
     /// </summary>
     /// <param name="task">The asynchronous task to execute.</param>
-    public void ScheduleTask(Func<ValueTask> task)
+    private void ScheduleTask(Func<ValueTask> task)
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
 
         Interlocked.Increment(ref _pendingTaskCount);
         var written = queue.Writer.TryWrite(async () => await task().ConfigureAwait(false));
-        if (!written)
+        if (written)
         {
-            // If we failed to enqueue (e.g., shutting down), decrement immediately.
-            Interlocked.Decrement(ref _pendingTaskCount);
-            TrySignalDrainComplete();
+            return;
         }
-    }
-
-    /// <summary>
-    ///     Convenience overload that accepts a <see cref="Task"/> returning delegate.
-    /// </summary>
-    public void ScheduleTask(Func<Task> task)
-    {
-        ScheduleTask(() => new ValueTask(task()));
+        // If we failed to enqueue (e.g., shutting down), decrement immediately.
+        Interlocked.Decrement(ref _pendingTaskCount);
+        TrySignalDrainComplete();
     }
 
     /// <summary>
@@ -2113,7 +2000,6 @@ public sealed class JsEngine : IAsyncDisposable
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
-
 
         // Increment immediately to track pending work
         Interlocked.Increment(ref _pendingTaskCount);
@@ -2139,7 +2025,7 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 else if (t.IsCanceled)
                 {
-                    RealmState.Logger?.LogWarning("[ScheduleAfterTask] Task was canceled.");
+                    RealmState.Logger?.LogWarning("[ScheduleAfterTask] Task was canceled");
                 }
 
                 continuation();
@@ -2147,12 +2033,14 @@ public sealed class JsEngine : IAsyncDisposable
                 return ValueTask.CompletedTask;
             });
             // ProcessEventQueue will decrement _pendingTaskCount when this completes
-            if (!written)
+            if (written)
             {
-                // If enqueue fails (queue closed), decrement immediately.
-                Interlocked.Decrement(ref _pendingTaskCount);
-                TrySignalDrainComplete();
+                return;
             }
+
+            // If enqueue fails (queue closed), decrement immediately.
+            Interlocked.Decrement(ref _pendingTaskCount);
+            TrySignalDrainComplete();
         }, TaskScheduler.Default);
     }
 
@@ -2165,7 +2053,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <param name="taskToAwait">The external task to wait for (e.g., File.ReadAllTextAsync).</param>
     /// <param name="onSuccess">Callback invoked with the result when the task succeeds.</param>
     /// <param name="onFailure">Callback invoked with the exception when the task fails or is canceled.</param>
-    public void ScheduleAfterTask<T>(Task<T> taskToAwait, Action<T> onSuccess, Action<Exception> onFailure)
+    private void ScheduleAfterTask<T>(Task<T> taskToAwait, Action<T> onSuccess, Action<Exception> onFailure)
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
@@ -2218,7 +2106,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Use this when the task itself will schedule its own callbacks via ScheduleTask.
     /// </summary>
     /// <param name="task">The async task to track.</param>
-    public void TrackPendingAsyncWork(Task task)
+    private void TrackPendingAsyncWork(Task task)
     {
         StartEventLoop();
 
@@ -2352,12 +2240,12 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Microtasks queued before this call will not be drained until
     ///     the epoch advances past them or a full drain is requested.
     /// </summary>
-    internal void AdvanceMicrotaskEpoch()
+    private void AdvanceMicrotaskEpoch()
     {
         MicrotaskEpoch++;
     }
 
-    internal List<(Action task, int epoch)> DetachMicrotasks()
+    private List<(Action task, int epoch)> DetachMicrotasks()
     {
         var preserved = new List<(Action, int)>(_microtaskQueue.Count);
         while (_microtaskQueue.Count > 0)
@@ -2368,7 +2256,7 @@ public sealed class JsEngine : IAsyncDisposable
         return preserved;
     }
 
-    internal void PrependMicrotasks(List<(Action task, int epoch)>? tasks)
+    private void PrependMicrotasks(List<(Action task, int epoch)>? tasks)
     {
         if (tasks is null || tasks.Count == 0)
         {
@@ -2404,6 +2292,7 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Microtasks from later epochs are preserved for future draining.
     /// </summary>
     /// <param name="maxEpoch">Maximum epoch to drain. Use int.MaxValue to drain all epochs (default).</param>
+    /// <param name="cancellationToken"></param>
     internal void DrainMicrotasks(int maxEpoch = int.MaxValue, bool force = false,
         CancellationToken cancellationToken = default)
     {
@@ -2422,8 +2311,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         _isDrainingMicrotasks = true;
 
-        var drainIterations = 0;
-
         try
         {
             List<(Action task, int epoch)>? deferred = null;
@@ -2437,7 +2324,6 @@ public sealed class JsEngine : IAsyncDisposable
                 }
 
                 var (task, taskEpoch) = _microtaskQueue.Dequeue();
-                drainIterations++;
 
                 // If this task is from a later epoch than allowed, defer it
                 if (taskEpoch > maxEpoch)
@@ -2461,12 +2347,15 @@ public sealed class JsEngine : IAsyncDisposable
                 }
             }
 
-            if (deferred is { Count: > 0 })
+            if (deferred is not { Count: > 0 })
             {
-                foreach (var deferredTask in deferred)
-                {
-                    _microtaskQueue.Enqueue(deferredTask);
-                }
+                return;
+            }
+
+            //TODO: this seems wrong, maybe we should just have a priority queue instead of this dance
+            foreach (var deferredTask in deferred)
+            {
+                _microtaskQueue.Enqueue(deferredTask);
             }
         }
         finally
@@ -2629,12 +2518,14 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         var id = (int)timerId;
-        if (_timers.TryRemove(id, out var cts))
+        if (!_timers.TryRemove(id, out var cts))
         {
-            cts.Cancel();
-            Interlocked.Decrement(ref _activeTimerCount);
-            TrySignalDrainComplete();
+            return JsValue.Undefined;
         }
+
+        cts.Cancel();
+        Interlocked.Decrement(ref _activeTimerCount);
+        TrySignalDrainComplete();
 
         return JsValue.Undefined;
     }

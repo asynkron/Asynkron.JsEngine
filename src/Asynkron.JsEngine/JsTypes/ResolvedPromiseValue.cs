@@ -89,24 +89,15 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
     /// <summary>
     ///     Lightweight 'catch' method for resolved promises - just returns this (as resolved promises don't catch).
     /// </summary>
-    private sealed class CatchMethod : IJsCallable
+    private sealed class CatchMethod(ResolvedPromiseValue resolved, JsEngine engine) : IJsCallable
     {
-        private readonly ResolvedPromiseValue _resolved;
-        private readonly JsEngine _engine;
-
-        public CatchMethod(ResolvedPromiseValue resolved, JsEngine engine)
-        {
-            _resolved = resolved;
-            _engine = engine;
-        }
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
             // For a resolved promise, catch() is equivalent to then(undefined, onRejected)
             // Since we're resolved, we just pass through the value
-            var nextPromise = new JsPromise(_engine);
-            _engine.QueueMicrotask(
-                ResolvedPromisePassthroughMicrotask.Rent(_resolved._value, nextPromise));
+            var nextPromise = new JsPromise(engine);
+            engine.QueueMicrotask(
+                ResolvedPromisePassthroughMicrotask.Rent(resolved._value, nextPromise));
             return JsValue.FromObjectUnsafe(nextPromise);
         }
     }
@@ -114,31 +105,22 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
     /// <summary>
     ///     Lightweight 'finally' method for resolved promises.
     /// </summary>
-    private sealed class FinallyMethod : IJsCallable
+    private sealed class FinallyMethod(ResolvedPromiseValue resolved, JsEngine engine) : IJsCallable
     {
-        private readonly ResolvedPromiseValue _resolved;
-        private readonly JsEngine _engine;
-
-        public FinallyMethod(ResolvedPromiseValue resolved, JsEngine engine)
-        {
-            _resolved = resolved;
-            _engine = engine;
-        }
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
             var onFinally = args.Count > 0 ? args[0] : JsValue.Undefined;
-            var nextPromise = new JsPromise(_engine);
+            var nextPromise = new JsPromise(engine);
 
             if (onFinally.TryGetCallable(out var finallyCallback))
             {
-                _engine.QueueMicrotask(
-                    ResolvedPromiseFinallyMicrotask.Rent(finallyCallback, _resolved._value, nextPromise));
+                engine.QueueMicrotask(
+                    ResolvedPromiseFinallyMicrotask.Rent(finallyCallback, resolved._value, nextPromise));
             }
             else
             {
-                _engine.QueueMicrotask(
-                    ResolvedPromisePassthroughMicrotask.Rent(_resolved._value, nextPromise));
+                engine.QueueMicrotask(
+                    ResolvedPromisePassthroughMicrotask.Rent(resolved._value, nextPromise));
             }
 
             return JsValue.FromObjectUnsafe(nextPromise);

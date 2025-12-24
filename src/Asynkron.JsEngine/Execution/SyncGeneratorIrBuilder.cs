@@ -339,25 +339,22 @@ internal sealed class SyncGeneratorIrBuilder
 
                 case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
-                    // For async functions, we need to check for await as well as yield,
-                    // since await expressions require proper suspension/resumption handling.
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                            or VariableKind.AwaitUsing &&
-                        !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
-                        !AstShapeAnalyzer.StatementContainsAwait(forEachStatement.Body) &&
-                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable) &&
-                        !AstShapeAnalyzer.ContainsAwait(forEachStatement.Iterable))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
-                        return true;
-                    }
-
                     // If binding target has yields anywhere (defaults or assignment target expressions),
                     // wrap as StatementInstruction. The AST evaluator handles yield state-saving correctly.
                     // This handles patterns like: for ([ {}[ yield ] ] of iterable) { }
                     if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
+                        return true;
+                    }
+
+                    // For lexical declarations (let/const), if the body contains closures that could
+                    // capture the loop variable, we need per-iteration bindings. The IR doesn't
+                    // create fresh environments per iteration, so fall back to AST evaluation.
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+                        StatementContainsInnerFunctionExpression(forEachStatement.Body))
                     {
                         entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
                         return true;
@@ -372,6 +369,16 @@ internal sealed class SyncGeneratorIrBuilder
                     if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
                         !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
                         !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
+                        return true;
+                    }
+
+                    // For lexical declarations (let/const), if the body contains closures that could
+                    // capture the loop variable, we need per-iteration bindings. The IR doesn't
+                    // create fresh environments per iteration, so fall back to AST evaluation.
+                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+                        StatementContainsInnerFunctionExpression(forEachStatement.Body))
                     {
                         entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
                         return true;
@@ -1147,6 +1154,21 @@ internal sealed class SyncGeneratorIrBuilder
     {
         // We now allow identifier or destructuring targets for all declaration kinds.
         return statement.Target is not null;
+    }
+
+    /// <summary>
+    /// Checks if a statement contains inner function expressions that could capture variables.
+    /// Wraps the statement in a synthetic BlockStatement to use the existing analysis.
+    /// </summary>
+    private static bool StatementContainsInnerFunctionExpression(StatementNode statement)
+    {
+        if (statement is BlockStatement block)
+        {
+            return TypedAstEvaluator.ContainsInnerFunctionExpression(block);
+        }
+
+        var syntheticBlock = new BlockStatement(null, [statement], false);
+        return TypedAstEvaluator.ContainsInnerFunctionExpression(syntheticBlock);
     }
 
     private static ExpressionNode CreateAssignmentExpression(BindingTarget target, ExpressionNode valueExpression)

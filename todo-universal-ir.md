@@ -14,17 +14,25 @@ These constructs are compiled to native IR opcodes and execute without AST fallb
 - **Generator-specific**: `yield`, `yield*`, `return`, `break`, `continue`
 - **Scope**: `with` (when body contains yield)
 
+### Now Using Native IR Instructions
+
+These were recently ported to native IR opcodes:
+
+| Construct | Instruction | Notes |
+|-----------|-------------|-------|
+| Throw statements | `ThrowInstruction` | Evaluates expression and throws |
+| Expression statements | `EvaluateAndDiscardInstruction` | Evaluates expression, discards result |
+| Function declarations | `FunctionDeclarationInstruction` | No-op (functions are hoisted) |
+| Simple variable declarations | `SimpleVariableDeclarationInstruction` | Single identifier binding (let/const/var) |
+
 ### Wrapped in StatementInstruction (AST Fallback)
 
-These execute via AST walking inside the IR execution loop:
+These still execute via AST walking inside the IR execution loop:
 
 | Construct | Reason |
 |-----------|--------|
-| Function declarations | No IR instruction defined |
 | Class declarations | No IR instruction defined |
-| Variable declarations | Always uses AST (even simple ones) |
-| Expression statements | Always uses AST (after yield lowering) |
-| Throw statements | Uses AST |
+| Variable declarations (complex) | Destructuring patterns, multiple declarators |
 | With statements | Uses AST when body has no yield |
 | Simple for-of | Uses AST when no yield in body/iterable |
 
@@ -70,11 +78,12 @@ Currently all expressions use `EvaluateExpression()` on AST nodes. Would need IR
 
 Convert all statements to native IR instructions:
 
-- [ ] `VariableDeclarationInstruction` - handle let/const/var declarations
-- [ ] `ExpressionStatementInstruction` - execute expression and discard result
-- [ ] `FunctionDeclarationInstruction` - hoist and define function
+- [x] `SimpleVariableDeclarationInstruction` - handle let/const/var declarations (simple identifier bindings)
+- [x] `EvaluateAndDiscardInstruction` - execute expression and discard result
+- [x] `FunctionDeclarationInstruction` - hoist and define function (no-op at runtime)
+- [x] `ThrowInstruction` - throw exception
 - [ ] `ClassDeclarationInstruction` - define class
-- [ ] `ThrowInstruction` - throw exception (currently uses StatementInstruction)
+- [ ] Complex variable declarations (destructuring, multiple declarators)
 
 ### 3. Handle Remaining Yield Positions
 

@@ -92,4 +92,61 @@ public class GeneratorYieldSendTests
         }
         Assert.True(fourthDone.AsBoolean());
     }
+
+    [Fact]
+    public async Task YieldInDestructuringDefaultReceivesSentValue()
+    {
+        var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            var x;
+            var vals = {};
+            var err;
+
+            var iterator = {
+              next: function() {
+                return { done: false, value: undefined };
+              }
+            };
+            var iterable = {};
+            iterable[Symbol.iterator] = function() {
+              return iterator;
+            };
+
+            function* g() {
+              try {
+                [ x = yield ] = iterable;
+              } catch (e) {
+                err = 'caught: ' + e;
+              }
+            }
+
+            var iter = g();
+            var first = iter.next();
+            var second = iter.next(86);
+            ({ first, second, x, err });
+        ");
+
+        if (result is string error)
+        {
+            throw new Exception($"script error: {error}");
+        }
+
+        var obj = Assert.IsAssignableFrom<IJsObjectLike>(result);
+        if (obj.TryGetProperty("err", out var errProp) && !errProp.IsUndefined)
+        {
+            throw new Exception($"JS error: {errProp}");
+        }
+        Assert.True(obj.TryGetProperty("first", out var firstResult));
+        var first = Assert.IsAssignableFrom<IJsObjectLike>(firstResult.ToObject());
+        Assert.True(first.TryGetProperty("done", out var firstDone));
+        Assert.False(firstDone.AsBoolean());
+
+        Assert.True(obj.TryGetProperty("second", out var secondResult));
+        var second = Assert.IsAssignableFrom<IJsObjectLike>(secondResult.ToObject());
+        Assert.True(second.TryGetProperty("done", out var secondDone));
+        Assert.True(secondDone.AsBoolean());
+
+        Assert.True(obj.TryGetProperty("x", out var xValue));
+        Assert.Equal(86d, xValue.AsDouble());
+    }
 }

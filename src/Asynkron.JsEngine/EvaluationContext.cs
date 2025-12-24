@@ -84,6 +84,16 @@ public sealed class EvaluationContext(
     public int LastYieldIndex { get; private set; } = -1;
 
     /// <summary>
+    ///     Source start position of the last yield expression (for AST-evaluated yields).
+    /// </summary>
+    public int LastYieldSourceStart { get; set; } = -1;
+
+    /// <summary>
+    ///     Source end position of the last yield expression (for AST-evaluated yields).
+    /// </summary>
+    public int LastYieldSourceEnd { get; set; } = -1;
+
+    /// <summary>
     ///     Tracks dynamic call depth to guard against uncontrolled recursion.
     /// </summary>
     public int CallDepth { get; set; }
@@ -493,6 +503,8 @@ public sealed class EvaluationContext(
         _returnValue = default;
         CurrentSignal = null;
         LastYieldIndex = -1;
+        LastYieldSourceStart = -1;
+        LastYieldSourceEnd = -1;
         CallDepth = 0;
         MaxCallDepth = 1000;
         IsThisInitialized = true;

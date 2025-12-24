@@ -187,11 +187,12 @@ internal sealed class SyncGeneratorIrBuilder
                         return true;
                     }
 
-                    // Check for destructuring assignment expressions with yields in default values.
-                    // These cannot be safely lowered because defaults are only evaluated when the element
-                    // is undefined. Wrap them as StatementInstruction to use AST evaluation's state-saving.
-                    if (expressionStatement.Expression is DestructuringAssignmentExpression destructuringExpr &&
-                        BindingTargetContainsYieldInDefaultValue(destructuringExpr.Target))
+                    // Check for destructuring assignment expressions with yields that cannot be safely
+                    // extracted. This includes:
+                    // - Yields in default values (only evaluated when element is undefined)
+                    // - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
+                    // Wrap them as StatementInstruction to use AST evaluation's state-saving.
+                    if (ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
                     {
                         entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
                         return true;
@@ -937,14 +938,16 @@ internal sealed class SyncGeneratorIrBuilder
     }
 
     /// <summary>
-    /// Checks if a variable declaration contains yields in binding target default values.
-    /// These yields cannot be safely extracted because defaults are only evaluated when
-    /// the value is undefined.
+    /// Checks if a variable declaration contains yields in binding targets that cannot be
+    /// safely extracted. This includes:
+    /// - Yields in default values (only evaluated when value is undefined)
+    /// - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
     /// </summary>
     private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
     {
         return declaration.Declarators.Any(static d =>
-            BindingTargetContainsYieldInDefaultValue(d.Target));
+            BindingTargetContainsYieldInDefaultValue(d.Target) ||
+            (d.Initializer is not null && ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
     }
 
     /// <summary>
@@ -1128,9 +1131,181 @@ internal sealed class SyncGeneratorIrBuilder
 
                 return false;
 
+            case AssignmentTargetBinding assignmentTarget:
+                // Check if the assignment target expression contains a yield
+                // e.g., [ {}[ yield ] ] has a yield in the MemberExpression
+                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
             default:
-                // IdentifierBinding and AssignmentTargetBinding don't have default values
+                // IdentifierBinding doesn't have expressions or default values
                 return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a binding target contains yields anywhere - either in default values
+    /// or in assignment target expressions (like [ {}[ yield ] ]).
+    /// This is used to determine when to wrap declarations in StatementInstruction.
+    /// </summary>
+    private static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    // Check for yields in default values
+                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    // Recursively check nested bindings
+                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                if (arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
+                {
+                    return true;
+                }
+
+                return false;
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    // Check for yields in default values
+                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    // Check for yields in computed property names
+                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
+                    {
+                        return true;
+                    }
+
+                    // Recursively check nested bindings
+                    if (BindingTargetContainsYieldAnywhere(prop.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                if (objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
+                {
+                    return true;
+                }
+
+                return false;
+
+            case AssignmentTargetBinding assignmentTarget:
+                // Check if the assignment target expression contains a yield
+                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
+            default:
+                // IdentifierBinding doesn't have expressions or default values
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression contains a destructuring assignment with yields in default values.
+    /// This handles both direct DestructuringAssignmentExpression and nested cases like:
+    /// result = [ {} = yield ] = vals;
+    /// </summary>
+    private static bool ExpressionContainsDestructuringWithYieldInDefaults(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case DestructuringAssignmentExpression destructuringExpr:
+                    // Direct destructuring assignment
+                    if (BindingTargetContainsYieldInDefaultValue(destructuringExpr.Target))
+                    {
+                        return true;
+                    }
+
+                    // Also check the value expression for nested destructurings
+                    expression = destructuringExpr.Value;
+                    continue;
+
+                case AssignmentExpression assignmentExpr:
+                    // Check the value side of the assignment for destructuring
+                    expression = assignmentExpr.Value;
+                    continue;
+
+                case PropertyAssignmentExpression propAssignExpr:
+                    expression = propAssignExpr.Value;
+                    continue;
+
+                case IndexAssignmentExpression indexAssignExpr:
+                    expression = indexAssignExpr.Value;
+                    continue;
+
+                case ConditionalExpression conditionalExpr:
+                    return ExpressionContainsDestructuringWithYieldInDefaults(conditionalExpr.Consequent) || ExpressionContainsDestructuringWithYieldInDefaults(conditionalExpr.Alternate);
+
+                case SequenceExpression seqExpr:
+                    return ExpressionContainsDestructuringWithYieldInDefaults(seqExpr.Left) || ExpressionContainsDestructuringWithYieldInDefaults(seqExpr.Right);
+
+                default:
+                    return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression contains a destructuring assignment with yields anywhere in
+    /// the binding target - either in default values or in assignment target expressions.
+    /// This handles patterns like: result = [ {}[ yield ] ] = vals;
+    /// </summary>
+    private static bool ExpressionContainsDestructuringWithYieldAnywhere(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case DestructuringAssignmentExpression destructuringExpr:
+                    // Direct destructuring assignment
+                    if (BindingTargetContainsYieldAnywhere(destructuringExpr.Target))
+                    {
+                        return true;
+                    }
+
+                    // Also check the value expression for nested destructurings
+                    expression = destructuringExpr.Value;
+                    continue;
+
+                case AssignmentExpression assignmentExpr:
+                    // Check the value side of the assignment for destructuring
+                    expression = assignmentExpr.Value;
+                    continue;
+
+                case PropertyAssignmentExpression propAssignExpr:
+                    expression = propAssignExpr.Value;
+                    continue;
+
+                case IndexAssignmentExpression indexAssignExpr:
+                    expression = indexAssignExpr.Value;
+                    continue;
+
+                case ConditionalExpression conditionalExpr:
+                    return ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Consequent) || ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Alternate);
+
+                case SequenceExpression seqExpr:
+                    return ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Left) || ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Right);
+
+                default:
+                    return false;
+            }
         }
     }
 

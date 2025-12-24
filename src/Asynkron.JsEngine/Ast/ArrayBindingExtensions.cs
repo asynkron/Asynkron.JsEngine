@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -17,7 +18,7 @@ public static partial class TypedAstEvaluator
         }
 
         return Symbol.Intern(
-            $"__array_pattern_state_{binding.Source.StartPosition}_{binding.Source.EndPosition}");
+            $"__array_pattern_state_{binding.Source.StartPosition.ToString(CultureInfo.InvariantCulture)}_{binding.Source.EndPosition.ToString(CultureInfo.InvariantCulture)}");
     }
 
     private static void SaveArrayPatternState(Symbol stateKey, JsEnvironment environment,

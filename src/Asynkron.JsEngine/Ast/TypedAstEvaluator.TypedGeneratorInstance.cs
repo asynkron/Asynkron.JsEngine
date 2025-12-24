@@ -41,6 +41,8 @@ public static partial class TypedAstEvaluator
         private bool _done;
         private JsEnvironment? _executionEnvironment;
         private int _lastYieldIndex = -1;
+        private int _lastYieldSourceStart = -1;
+        private int _lastYieldSourceEnd = -1;
 
         private Symbol? _pendingAwaitKey;
         private JsValue _pendingPromise;
@@ -480,6 +482,29 @@ public static partial class TypedAstEvaluator
 
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
+
+            // If we're resuming from a yield that happened during AST evaluation
+            // (via StatementInstruction), handle based on the resume mode.
+            if (!wasStart && _lastYieldSourceStart >= 0)
+            {
+                if (mode == ResumeMode.Next)
+                {
+                    // For next(), set up resume state so the yield expression returns the resume value
+                    SetYieldResumeValue(environment, resumeValue, _lastYieldSourceStart, _lastYieldSourceEnd);
+                }
+                else if (mode == ResumeMode.Return)
+                {
+                    // For return(), close any active iterators and complete the generator.
+                    // Don't re-evaluate the statement - just close and return.
+                    _lastYieldSourceStart = -1;
+                    _lastYieldSourceEnd = -1;
+                    return CompleteReturn(resumeValue);
+                }
+                // For Throw mode, we'll let the normal flow handle it via _pendingResumeKind
+
+                _lastYieldSourceStart = -1;
+                _lastYieldSourceEnd = -1;
+            }
 
             // Restore active with-scopes when resuming
             // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
@@ -1773,6 +1798,15 @@ public static partial class TypedAstEvaluator
             // Remember the active yield slot so the next resume value is applied to the
             // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
             _lastYieldIndex = context.LastYieldIndex;
+
+            // Also save source positions for yields from StatementInstruction (AST-evaluated yields).
+            // These are used to set up resume state so the yield expression returns the resume value.
+            _lastYieldSourceStart = context.LastYieldSourceStart;
+            _lastYieldSourceEnd = context.LastYieldSourceEnd;
+
+            // Clear the context's source positions for the next yield
+            context.LastYieldSourceStart = -1;
+            context.LastYieldSourceEnd = -1;
         }
 
 

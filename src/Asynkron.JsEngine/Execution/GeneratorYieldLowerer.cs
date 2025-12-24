@@ -865,20 +865,32 @@ internal static class GeneratorYieldLowerer
 
                 case DestructuringAssignmentExpression destructuringAssignment:
                 {
-                    // NOTE: We intentionally do NOT extract yields from binding target default values.
-                    // Default values are only evaluated when the element is undefined, so extracting
-                    // yields would change when they execute relative to iterator operations.
-                    // The AST evaluator's BindArrayPattern handles yield state-saving correctly.
-                    // We only extract yields from the VALUE expression, not from the TARGET defaults.
+                    // Check if the binding target has yields in default values.
+                    // If so, we cannot safely extract those yields (defaults are conditional).
+                    // Let the expression pass through unchanged so the IR builder can wrap it
+                    // in a StatementInstruction for proper handling.
+                    if (BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target))
+                    {
+                        return destructuringAssignment;
+                    }
+
+                    // No yields in defaults - safe to extract yields from:
+                    // 1. The binding target (computed properties, nested expressions)
+                    // 2. The value expression
+                    var targetChanged = false;
+                    var rewrittenTarget = RewriteBindingTargetForExtractableYields(
+                        destructuringAssignment.Target, prefixStatements, ref targetChanged);
 
                     var valueChanged = false;
-                    var rewrittenValue = RewriteExpressionForComplexYields(destructuringAssignment.Value, prefixStatements, ref valueChanged);
+                    var rewrittenValue = RewriteExpressionForComplexYields(
+                        destructuringAssignment.Value, prefixStatements, ref valueChanged);
 
-                    if (valueChanged)
+                    if (targetChanged || valueChanged)
                     {
                         changed = true;
                         return destructuringAssignment with
                         {
+                            Target = rewrittenTarget,
                             Value = rewrittenValue
                         };
                     }
@@ -1013,6 +1025,158 @@ internal static class GeneratorYieldLowerer
                 default:
                     return target;
             }
+        }
+
+        /// <summary>
+        /// Rewrites a binding target to extract yields ONLY from extractable positions:
+        /// - Computed property accesses (e.g., a[yield])
+        /// - Nested computed expressions
+        /// Does NOT extract yields from default values (they're conditional).
+        /// </summary>
+        private BindingTarget RewriteBindingTargetForExtractableYields(
+            BindingTarget target,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            switch (target)
+            {
+                case ArrayBinding arrayBinding:
+                {
+                    var elementsBuilder =
+                        ImmutableArray.CreateBuilder<ArrayBindingElement>(arrayBinding.Elements.Length);
+                    var elementsChanged = false;
+
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        var rewrittenElement = RewriteArrayBindingElementForExtractableYields(
+                            element, prefixStatements, ref changed);
+                        elementsChanged |= !ReferenceEquals(rewrittenElement, element);
+                        elementsBuilder.Add(rewrittenElement);
+                    }
+
+                    // Handle rest element if it has nested bindings
+                    var rest = arrayBinding.RestElement;
+                    if (rest is not null)
+                    {
+                        rest = RewriteBindingTargetForExtractableYields(rest, prefixStatements, ref changed);
+                    }
+
+                    if (elementsChanged || !ReferenceEquals(rest, arrayBinding.RestElement))
+                    {
+                        changed = true;
+                        return arrayBinding with { Elements = elementsBuilder.ToImmutable(), RestElement = rest };
+                    }
+
+                    return arrayBinding;
+                }
+
+                case ObjectBinding objectBinding:
+                {
+                    var propsBuilder =
+                        ImmutableArray.CreateBuilder<ObjectBindingProperty>(objectBinding.Properties.Length);
+                    var propsChanged = false;
+
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        var rewrittenProp = RewriteObjectBindingPropertyForExtractableYields(
+                            prop, prefixStatements, ref changed);
+                        propsChanged |= !ReferenceEquals(rewrittenProp, prop);
+                        propsBuilder.Add(rewrittenProp);
+                    }
+
+                    // Handle rest element if present
+                    var rest = objectBinding.RestElement;
+                    if (rest is not null)
+                    {
+                        rest = RewriteBindingTargetForExtractableYields(rest, prefixStatements, ref changed);
+                    }
+
+                    if (propsChanged || !ReferenceEquals(rest, objectBinding.RestElement))
+                    {
+                        changed = true;
+                        return objectBinding with { Properties = propsBuilder.ToImmutable(), RestElement = rest };
+                    }
+
+                    return objectBinding;
+                }
+
+                case AssignmentTargetBinding assignmentTarget:
+                {
+                    // AssignmentTargetBinding has an Expression (e.g., a.b or a[yield])
+                    // Check if the expression contains yields and rewrite if needed
+                    if (AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression))
+                    {
+                        var exprChanged = false;
+                        var rewrittenExpr = RewriteExpressionForComplexYields(
+                            assignmentTarget.Expression, prefixStatements, ref exprChanged);
+                        if (exprChanged)
+                        {
+                            changed = true;
+                            return assignmentTarget with { Expression = rewrittenExpr };
+                        }
+                    }
+
+                    return assignmentTarget;
+                }
+
+                default:
+                    return target;
+            }
+        }
+
+        private ArrayBindingElement RewriteArrayBindingElementForExtractableYields(
+            ArrayBindingElement element,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            var target = element.Target;
+
+            // Recursively handle nested bindings (extracts yields from computed properties)
+            if (target is not null)
+            {
+                target = RewriteBindingTargetForExtractableYields(target, prefixStatements, ref changed);
+            }
+
+            // NOTE: Do NOT rewrite yields in default values - they're conditional
+            // and must be handled via StatementInstruction
+
+            if (!ReferenceEquals(target, element.Target))
+            {
+                changed = true;
+                return element with { Target = target };
+            }
+
+            return element;
+        }
+
+        private ObjectBindingProperty RewriteObjectBindingPropertyForExtractableYields(
+            ObjectBindingProperty prop,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            var target = prop.Target;
+
+            // Recursively handle nested bindings (extracts yields from computed properties)
+            target = RewriteBindingTargetForExtractableYields(target, prefixStatements, ref changed);
+
+            // NOTE: Do NOT rewrite yields in default values - they're conditional
+            // and must be handled via StatementInstruction
+
+            // Handle computed property keys (NameExpression) - these ARE extractable
+            var nameExpr = prop.NameExpression;
+            if (nameExpr is not null && AstShapeAnalyzer.ContainsYield(nameExpr))
+            {
+                nameExpr = RewriteExpressionForComplexYields(nameExpr, prefixStatements, ref changed);
+            }
+
+            if (!ReferenceEquals(target, prop.Target) ||
+                !ReferenceEquals(nameExpr, prop.NameExpression))
+            {
+                changed = true;
+                return prop with { Target = target, NameExpression = nameExpr };
+            }
+
+            return prop;
         }
 
         private ArrayBindingElement RewriteArrayBindingElement(

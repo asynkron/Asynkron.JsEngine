@@ -33,6 +33,22 @@ public static partial class TypedAstEvaluator
                 NextMethod = iterator?.GetIteratorNextCallable(context)
             };
 
+            // OPTIMIZATION: Check if we can use the fast slot path for simple identifier bindings
+            // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots per iteration
+            var canUseSlotFastPath = plan.Target is IdentifierBinding &&
+                                     !plan.PerIterationSlotIndices.IsDefaultOrEmpty &&
+                                     plan.PerIterationSlotIndices.Length == 1 &&
+                                     plan.PerIterationSlotIndices[0] >= 0 &&
+                                     rentIterationEnvironment is not null;
+            var fastPathSlotIndex = canUseSlotFastPath ? plan.PerIterationSlotIndices[0] : -1;
+
+            // OPTIMIZATION: For 'var' bindings, pre-resolve JsVariable once and reuse for all iterations
+            // This gives O(1) direct slot access via JsVariable.Write() instead of SetSlot() per iteration
+            var canCacheVarVariable = canUseSlotFastPath && plan.DeclarationKind == VariableKind.Var;
+            var cachedVarVariable = canCacheVarVariable
+                ? new JsVariable(loopEnvironment, fastPathSlotIndex)
+                : default;
+
             while (!context.ShouldStopEvaluation)
             {
                 context.ThrowIfCancellationRequested();
@@ -72,14 +88,29 @@ public static partial class TypedAstEvaluator
                             creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
-                    plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
-                        plan.DeclarationKind);
-                    if (context.IsThrow)
+                    // OPTIMIZATION: For simple identifier bindings, write directly to slot
+                    // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots
+                    if (cachedVarVariable.IsValid)
                     {
-                        throw new ThrowSignal(context.FlowValue);
+                        // Fastest path: pre-resolved JsVariable for 'var' bindings
+                        cachedVarVariable.Write(enumeratorValue);
                     }
+                    else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
+                    {
+                        // Fast path: direct slot write for let/const bindings
+                        iterationEnvironment.GetSlotRef(fastPathSlotIndex) = enumeratorValue;
+                    }
+                    else
+                    {
+                        plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
+                            plan.DeclarationKind);
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
 
-                    IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                    }
 
                     var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                     if (!bodyResult.IsUnit)
@@ -159,14 +190,28 @@ public static partial class TypedAstEvaluator
 
                     try
                     {
-                        plan.Target.AssignLoopBinding(value, iterationEnvironment, outerEnvironment, context,
-                            plan.DeclarationKind);
-                        if (context.IsThrow)
+                        // OPTIMIZATION: For simple identifier bindings, write directly to slot
+                        if (cachedVarVariable.IsValid)
                         {
-                            throw new ThrowSignal(context.FlowValue);
+                            // Fastest path: pre-resolved JsVariable for 'var' bindings
+                            cachedVarVariable.Write(value);
                         }
+                        else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
+                        {
+                            // Fast path: direct slot write for let/const bindings
+                            iterationEnvironment.GetSlotRef(fastPathSlotIndex) = value;
+                        }
+                        else
+                        {
+                            plan.Target.AssignLoopBinding(value, iterationEnvironment, outerEnvironment, context,
+                                plan.DeclarationKind);
+                            if (context.IsThrow)
+                            {
+                                throw new ThrowSignal(context.FlowValue);
+                            }
 
-                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                            IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                        }
 
                         // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                         // Only update V (completion value) if result.[[Value]] is not empty
@@ -213,15 +258,30 @@ public static partial class TypedAstEvaluator
                             creatingSource: plan.Body.Source, description: "for-each-iteration")
                         : loopEnvironment;
 
-                    plan.Target.AssignLoopBinding(JsValue.FromObjectUnsafe(nextResult), iterationEnvironment,
-                        outerEnvironment, context,
-                        plan.DeclarationKind);
-                    if (context.IsThrow)
+                    // OPTIMIZATION: For simple identifier bindings, write directly to slot
+                    var nextJsValue = JsValue.FromObjectUnsafe(nextResult);
+                    if (cachedVarVariable.IsValid)
                     {
-                        throw new ThrowSignal(context.FlowValue);
+                        // Fastest path: pre-resolved JsVariable for 'var' bindings
+                        cachedVarVariable.Write(nextJsValue);
                     }
+                    else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
+                    {
+                        // Fast path: direct slot write for let/const bindings
+                        iterationEnvironment.GetSlotRef(fastPathSlotIndex) = nextJsValue;
+                    }
+                    else
+                    {
+                        plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
+                            outerEnvironment, context,
+                            plan.DeclarationKind);
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
 
-                    IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                    }
 
                     // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                     // Only update V (completion value) if result.[[Value]] is not empty
@@ -304,7 +364,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                iterationEnvironment.SetSlot(0, slotIndex, value);
+                iterationEnvironment.GetSlotRef(slotIndex) = value;
             }
         }
     }

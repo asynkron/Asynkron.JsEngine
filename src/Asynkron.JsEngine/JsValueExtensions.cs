@@ -140,10 +140,8 @@ internal static class JsValueExtensions
                     return ArrayToString(arrayVal);
                 case IJsPropertyAccessor accessor:
                 {
-#pragma warning disable CS0618 // Extension method on object? uses object? API
                     var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
-#pragma warning restore CS0618
-                    return primitive is IJsPropertyAccessor ? "[object Object]" : primitive.ToJsString(context, realmState);
+                    return primitive.TryGetObject<IJsPropertyAccessor>(out _) ? "[object Object]" : primitive.ToJsString(context, realmState);
                 }
                 default:
                     return value switch

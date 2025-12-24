@@ -288,9 +288,7 @@ internal static class JsOps
                         }
                     }
 
-#pragma warning disable CS0618 // Transitional method uses object? API
-                    if (TryConvertToNumericPrimitive(accessor, out var primitive, context))
-#pragma warning restore CS0618
+                    if (TryConvertToNumericPrimitiveJsValue(accessor, out var primitive, context))
                     {
                         value = primitive;
                         continue;
@@ -316,23 +314,20 @@ internal static class JsOps
         }
     }
 
-    [Obsolete("Use JsValue overload for better performance and correctness.")]
-    private static bool TryConvertToNumericPrimitive(IJsPropertyAccessor accessor, out object? primitive,
+    private static bool TryConvertToNumericPrimitiveJsValue(IJsPropertyAccessor accessor, out JsValue primitive,
         EvaluationContext? context)
     {
-        primitive = null;
+        primitive = JsValue.Undefined;
         var attempted = false;
 
-#pragma warning disable CS0618 // Transitional wrapper uses object? API
-        if (TryGetPropertyValue(accessor, SymbolKeys.ToPrimitive, out var toPrimitive, context))
-#pragma warning restore CS0618
+        if (TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), SymbolKeys.ToPrimitive, out var toPrimitive, context))
         {
             if (context?.IsThrow == true)
             {
                 return false;
             }
 
-            if (toPrimitive is IJsCallable toPrimFn)
+            if (toPrimitive.TryGetObject<IJsCallable>(out var toPrimFn))
             {
                 try
                 {
@@ -349,9 +344,7 @@ internal static class JsOps
 
                     if (IsPrimitiveValue(result))
                     {
-#pragma warning disable CS0618 // Transitional wrapper returns object?
-                        primitive = result.IsObject ? result.ObjectValue : result.ToObject();
-#pragma warning restore CS0618
+                        primitive = result;
                         return true;
                     }
                 }
@@ -372,9 +365,7 @@ internal static class JsOps
             {
                 if (IsPrimitiveValue(valueOfResult))
                 {
-#pragma warning disable CS0618 // Transitional wrapper returns object?
-                    primitive = valueOfResult.ToObject();
-#pragma warning restore CS0618
+                    primitive = valueOfResult;
                     return true;
                 }
             }
@@ -395,9 +386,7 @@ internal static class JsOps
             {
                 if (IsPrimitiveValue(toStringResult))
                 {
-#pragma warning disable CS0618 // Transitional wrapper returns object?
-                    primitive = toStringResult.ToObject();
-#pragma warning restore CS0618
+                    primitive = toStringResult;
                     return true;
                 }
             }
@@ -426,37 +415,32 @@ internal static class JsOps
     }
 
     /// <summary>
-    /// JsValue overload for ToPrimitive. Returns object? since primitives can be various types.
+    /// JsValue overload for ToPrimitive. Returns a JsValue representing the primitive result.
     /// </summary>
-    [Obsolete("Use IJsPropertyAccessor overload for better performance and correctness.")]
-    public static object? ToPrimitive(JsValue value, ToPrimitiveHint hint, EvaluationContext? context = null)
+    public static JsValue ToPrimitive(JsValue value, ToPrimitiveHint hint, EvaluationContext? context = null)
     {
         // Fast path: already a primitive
         switch (value.Kind)
         {
             case JsValueKind.Undefined:
-                return Symbol.Undefined;
             case JsValueKind.Null:
-                return null;
             case JsValueKind.Boolean:
-                return value.NumberValue != 0;
             case JsValueKind.Number:
-                return value.NumberValue;
             case JsValueKind.String:
             case JsValueKind.Symbol:
             case JsValueKind.BigInt:
-                return value.ObjectValue;
+                return value;
         }
 
         // Handle objects - need to convert to primitive
         if (value.ObjectValue is TypedAstSymbol)
         {
-            return value.ObjectValue;
+            return JsValue.FromObjectUnsafe(value.ObjectValue);
         }
 
         if (value.ObjectValue is not IJsPropertyAccessor accessor)
         {
-            return value.ObjectValue;
+            return JsValue.FromObjectUnsafe(value.ObjectValue);
         }
 
         // Date objects default to string hint
@@ -466,31 +450,20 @@ internal static class JsOps
             hint = ToPrimitiveHint.String;
         }
 
-        object? toPrimitive = null;
-
-        if (TryGetPropertyValue(accessor, SymbolKeys.ToPrimitive, out var ownOrInheritedToPrimitive, context))
+        if (TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), SymbolKeys.ToPrimitive, out var ownOrInheritedToPrimitive, context))
         {
             if (context?.IsThrow == true)
             {
-                return value.ObjectValue;
+                return value;
             }
 
-            toPrimitive = ownOrInheritedToPrimitive;
-        }
-
-        if (toPrimitive is not null)
-        {
-            if (context?.IsThrow == true)
-            {
-                return value.ObjectValue;
-            }
-
-            if (!JsValue.FromObjectUnsafe(toPrimitive).IsNullOrUndefined && toPrimitive is not IJsCallable)
+            if (!ownOrInheritedToPrimitive.IsNullOrUndefined &&
+                !ownOrInheritedToPrimitive.TryGetObject<IJsCallable>(out _))
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
             }
 
-            if (toPrimitive is IJsCallable toPrimFn)
+            if (ownOrInheritedToPrimitive.TryGetObject<IJsCallable>(out var toPrimFn))
             {
                 try
                 {
@@ -509,12 +482,12 @@ internal static class JsOps
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
                     {
-                        return value.ObjectValue;
+                        return value;
                     }
 
                     if (IsPrimitiveValue(result))
                     {
-                        return result.IsObject ? result.ObjectValue : result.ToObject();
+                        return result;
                     }
 
                     var signal =
@@ -525,12 +498,12 @@ internal static class JsOps
                     }
 
                     context.SetThrow(signal.ThrownValue);
-                    return value.ObjectValue;
+                    return value;
                 }
                 catch (ThrowSignal signal) when (context is not null)
                 {
                     context.SetThrow(signal.ThrownValue);
-                    return value.ObjectValue;
+                    return value;
                 }
             }
         }
@@ -543,7 +516,7 @@ internal static class JsOps
         {
             if (context?.IsThrow == true)
             {
-                return value.ObjectValue;
+                return value;
             }
 
             if (!TryInvokePropertyMethodJsValue(accessor, methodName, out var result, context))
@@ -553,23 +526,23 @@ internal static class JsOps
 
             if (context?.IsThrow == true)
             {
-                return value.ObjectValue;
+                return value;
             }
 
             if (IsPrimitiveValue(result))
             {
-                return result.IsObject ? result.ObjectValue : result.ToObject();
+                return result;
             }
         }
 
         if (accessor is HostFunction)
         {
-            return "function() { [native code] }";
+            return new JsValue("function() { [native code] }");
         }
 
         if (context?.IsThrow == true)
         {
-            return value.ObjectValue;
+            return value;
         }
 
         var finalSignal = StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context);
@@ -579,7 +552,7 @@ internal static class JsOps
         }
 
         context.SetThrow(finalSignal.ThrownValue);
-        return value.ObjectValue;
+        return value;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1146,7 +1119,7 @@ internal static class JsOps
                             return null;
                         }
 
-                        value = JsValue.FromObjectUnsafe(primitive);
+                        value = primitive;
                         continue;
                     }
 

@@ -110,55 +110,52 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bigInt
                 ? bigInt.Value.ToString(CultureInfo.InvariantCulture)
                 : string.Empty,
-            JsValueKind.Object => ToFunctionArgumentStringFromObject(value.ObjectValue, evalContext, realmState),
+            JsValueKind.Object => ToFunctionArgumentStringFromObject(JsValue.FromObjectUnsafe(value.ObjectValue),
+                evalContext, realmState),
             _ => string.Empty
         };
-
-        static string NumberToString(double d)
-        {
-            if (double.IsNaN(d))
-            {
-                return "NaN";
-            }
-
-            if (double.IsPositiveInfinity(d))
-            {
-                return "Infinity";
-            }
-
-            if (double.IsNegativeInfinity(d))
-            {
-                return "-Infinity";
-            }
-
-            return d.ToString(CultureInfo.InvariantCulture);
-        }
     }
 
-    private static string ToFunctionArgumentStringFromObject(object? value, EvaluationContext evalContext,
+    private static string NumberToString(double d)
+    {
+        if (double.IsNaN(d))
+        {
+            return "NaN";
+        }
+
+        if (double.IsPositiveInfinity(d))
+        {
+            return "Infinity";
+        }
+
+        if (double.IsNegativeInfinity(d))
+        {
+            return "-Infinity";
+        }
+
+        return d.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ToFunctionArgumentStringFromObject(JsValue value, EvaluationContext evalContext,
         RealmState realmState)
     {
-        // ToPrimitive(JsValue, ...) returns object?, so primitive is already object?
-        var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(value), ToPrimitiveHint.String, evalContext);
+        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
         if (evalContext.IsThrow)
         {
             throw new ThrowSignal(evalContext.FlowValue);
         }
 
-        return primitive switch
+        return primitive.Kind switch
         {
-            null => "null",
-            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => "undefined",
-            Symbol or TypedAstSymbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext,
+            JsValueKind.Null => "null",
+            JsValueKind.Undefined => "undefined",
+            JsValueKind.Symbol => throw ThrowTypeError("Cannot convert a Symbol value to a string", evalContext,
                 realmState),
-            bool flag => flag ? "true" : "false",
-            string s => s,
-            JsBigInt bigInt => bigInt.Value.ToString(CultureInfo.InvariantCulture),
-            double.NaN => "NaN",
-            double d when double.IsPositiveInfinity(d) => "Infinity",
-            double d when double.IsNegativeInfinity(d) => "-Infinity",
-            double d => d.ToString(CultureInfo.InvariantCulture),
-            _ => Convert.ToString(primitive, CultureInfo.InvariantCulture) ?? string.Empty
+            JsValueKind.Boolean => primitive.NumberValue != 0 ? "true" : "false",
+            JsValueKind.String => primitive.AsString() ?? string.Empty,
+            JsValueKind.BigInt => primitive.AsBigInt().Value.ToString(CultureInfo.InvariantCulture),
+            JsValueKind.Number => NumberToString(primitive.NumberValue),
+            _ => Convert.ToString(primitive.ObjectValue, CultureInfo.InvariantCulture) ?? string.Empty
         };
     }
 

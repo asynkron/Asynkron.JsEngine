@@ -177,122 +177,58 @@ public static partial class StandardLibrary
         return (JsValue)error;
     }
 
-    [Obsolete("Migrate to JsValue based API")]
-    internal static JsBigInt ToBigInt(object? value, EvaluationContext? context = null, RealmState? realmState = null)
+    internal static JsBigInt ToBigInt(JsValue value, EvaluationContext? context = null, RealmState? realmState = null)
     {
         realmState ??= context?.RealmState;
         var localContext = context ?? realmState?.CreateContext();
 
         while (true)
         {
-            if (ReferenceEquals(value, Symbol.Undefined))
+            switch (value.Kind)
             {
-                throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
-            }
-
-            if (value is JsObject jsObj && jsObj.TryGetValue("__value__", out var inner))
-            {
-                if (ReferenceEquals(inner, value))
+                case JsValueKind.Undefined:
+                    throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
+                case JsValueKind.Null:
+                    throw ThrowTypeError("Cannot convert null to a BigInt", localContext, realmState);
+                case JsValueKind.Boolean:
+                    return value.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero;
+                case JsValueKind.BigInt:
+                    return value.ObjectValue as JsBigInt ??
+                           throw ThrowTypeError("Invalid BigInt value", localContext, realmState);
+                case JsValueKind.Number:
+                    return ConvertNumberToBigInt(value.NumberValue, localContext, realmState);
+                case JsValueKind.String:
+                    return new JsBigInt(ParseBigIntString(value.AsString() ?? string.Empty, localContext, realmState));
+                case JsValueKind.Symbol:
+                    throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState);
+                case JsValueKind.Object:
                 {
-                    throw ThrowTypeError("Cannot convert object to a BigInt", localContext, realmState);
-                }
-
-                value = inner;
-                continue;
-            }
-
-            switch (value)
-            {
-                case JsValue jsValue:
-                    // Extract JsValue object without boxing
-                    if (jsValue.IsNullOrUndefined)
-                    {
-                        throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
-                    }
-
-                    if (jsValue is { Kind: JsValueKind.BigInt, ObjectValue: JsBigInt directBigInt })
+                    if (value.TryGetObject<JsBigInt>(out var directBigInt))
                     {
                         return directBigInt;
                     }
 
-                    if (jsValue.Kind == JsValueKind.Boolean)
+                    if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
                     {
-                        return jsValue.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero;
+                        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, localContext);
+                        if (localContext?.IsThrow == true)
+                        {
+                            throw new ThrowSignal(localContext.FlowValue);
+                        }
+
+                        value = primitive;
+                        continue;
                     }
 
-                    if (jsValue is { Kind: JsValueKind.String, ObjectValue: string strValue })
-                    {
-                        return new JsBigInt(ParseBigIntString(strValue, localContext, realmState));
-                    }
-
-                    if (jsValue.Kind == JsValueKind.Number)
-                    {
-                        return ConvertNumberToBigInt(jsValue.NumberValue, localContext, realmState);
-                    }
-
-                    // For objects and other types, use ObjectValue
-                    value = jsValue.ObjectValue;
+                    value = JsValue.FromObjectUnsafe(value.ObjectValue);
                     continue;
-                case JsBigInt bigInt:
-                    return bigInt;
-                case JsObject or IJsPropertyAccessor:
-                    value = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(value), ToPrimitiveHint.Number, localContext);
-                    if (localContext?.IsThrow == true)
-                    {
-                        throw new ThrowSignal(localContext.FlowValue);
-                    }
-
-                    continue;
-                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                    var numberValue = Convert.ToDouble(value, CultureInfo.InvariantCulture);
-                    if (double.IsNaN(numberValue) || double.IsInfinity(numberValue) ||
-                        Math.Floor(numberValue) != numberValue)
-                    {
-                        throw ThrowRangeError("Cannot convert a non-integer number to a BigInt", localContext,
-                            realmState);
-                    }
-
-                    return new JsBigInt(new BigInteger(numberValue));
-                case null:
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                case IIsHtmlDda:
-                    throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext, realmState);
-                case bool flag:
-                    return flag ? JsBigInt.One : JsBigInt.Zero;
-                case string s:
-                    return new JsBigInt(ParseBigIntString(s, localContext, realmState));
+                }
+                case JsValueKind.Unit:
+                case JsValueKind.Uninitialized:
+                default:
+                    throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState);
             }
-
-            throw ThrowTypeError($"Cannot convert {value?.GetType().Name ?? "null"} to a BigInt", localContext,
-                realmState);
         }
-    }
-
-    /// <summary>
-    /// JsValue overload for ToBigInt. Converts a JsValue to a BigInt.
-    /// </summary>
-    internal static JsBigInt ToBigInt(JsValue value, EvaluationContext? context = null, RealmState? realmState = null)
-    {
-        realmState ??= context?.RealmState;
-        var localContext = context ?? realmState?.CreateContext();
-
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => throw ThrowTypeError("Cannot convert undefined to a BigInt", localContext,
-                realmState),
-            JsValueKind.Null => throw ThrowTypeError("Cannot convert null to a BigInt", localContext, realmState),
-            JsValueKind.Boolean => value.NumberValue != 0 ? JsBigInt.One : JsBigInt.Zero,
-            JsValueKind.BigInt => value.ObjectValue as JsBigInt ??
-                                  throw ThrowTypeError("Invalid BigInt value", localContext, realmState),
-            JsValueKind.Number => ConvertNumberToBigInt(value.NumberValue, localContext, realmState),
-            JsValueKind.String => new JsBigInt(ParseBigIntString(value.ObjectValue as string ?? string.Empty,
-                localContext, realmState)),
-            JsValueKind.Symbol => throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState),
-#pragma warning disable CS0618 // Transitional: delegates to object? overload for ToPrimitive handling
-            JsValueKind.Object => ToBigInt(value.ObjectValue, localContext, realmState),
-#pragma warning restore CS0618
-            _ => throw ThrowTypeError("Cannot convert value to a BigInt", localContext, realmState)
-        };
     }
 
     private static JsBigInt ConvertNumberToBigInt(double numberValue, EvaluationContext? context,

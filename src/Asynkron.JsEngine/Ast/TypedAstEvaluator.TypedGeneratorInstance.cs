@@ -690,6 +690,38 @@ public static partial class TypedAstEvaluator
                                     throw new ThrowSignal(evalThrown);
                                 }
 
+                                if (context.IsReturn)
+                                {
+                                    var returnSignalValue = context.FlowValue;
+                                    context.ClearReturn();
+                                    if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
+                                    {
+                                        return CompleteReturn(returnSignalValue);
+                                    }
+
+                                    if (_programCounter == _currentInstructionIndex)
+                                    {
+                                        _programCounter = evaluateInstruction.Next;
+                                    }
+
+                                    continue;
+                                }
+
+                                if (context.IsYield)
+                                {
+                                    var yieldedSignalValue = context.FlowValue;
+                                    // Check if the yield signal includes an original iterator result object (from yield*)
+                                    var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
+                                        ?.IteratorResultObject;
+                                    RecordYield(context);
+                                    context.Clear();
+                                    _state = GeneratorState.Suspended;
+                                    // If we have an original iterator result object, return it to preserve done property
+                                    return iteratorResultObject is not null
+                                        ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                                        : CreateIteratorResult(yieldedSignalValue, false);
+                                }
+
                                 _programCounter = evaluateInstruction.Next;
                                 continue;
 

@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
         {
             var error = StandardLibrary.CreateTypeError("Cannot convert undefined or null to object", context,
                 context.RealmState);
-            context.SetThrow(JsValue.FromObjectUnsafe(error));
+            context.SetThrow(error);
             bindingObject = null;
             return false;
         }
@@ -119,7 +119,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(JsValue.FromObjectUnsafe(typeError));
+            context.SetThrow(typeError);
             return false;
         }
 
@@ -140,7 +140,7 @@ public static partial class TypedAstEvaluator
             }
 
             var typeError = StandardLibrary.CreateTypeError("Iterator is not an object", context, context.RealmState);
-            context.SetThrow(JsValue.FromObjectUnsafe(typeError));
+            context.SetThrow(typeError);
         }
 
         return false;
@@ -611,7 +611,7 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large", context);
             }
 
-            return JsValue.FromObjectUnsafe(leftNumeric.AsBigInt() << (int)rightBigInt.Value);
+            return (JsValue)(leftNumeric.AsBigInt() << (int)rightBigInt.Value);
         }
 
         if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)
@@ -658,7 +658,7 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowRangeError("BigInt shift amount is too large", context);
             }
 
-            return JsValue.FromObjectUnsafe(leftNumeric.AsBigInt() >> (int)rightBigInt.Value);
+            return (JsValue)(leftNumeric.AsBigInt() >> (int)rightBigInt.Value);
         }
 
         if (leftNumeric.IsBigInt || rightNumeric.IsBigInt)

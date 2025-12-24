@@ -86,7 +86,7 @@ public readonly struct PropertyHandle
                 errorMessage,
                 _context,
                 _context.RealmState);
-            _context.SetThrow(JsValue.FromObjectUnsafe(error));
+            _context.SetThrow(error);
             return JsValue.Undefined;
         }
 

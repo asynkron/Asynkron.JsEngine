@@ -3111,7 +3111,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (!entry.Exports.TryGetValue(name, out var value))
             {
-                return JsValue.FromObjectUnsafe(Symbol.Undefined);
+                return (JsValue)Symbol.Undefined;
             }
 
             if (value is LiveExportBinding liveBinding)
@@ -3193,14 +3193,14 @@ public sealed class JsEngine : IAsyncDisposable
                             var symbol = identifier.Name;
                             var isVar = variableDeclaration.Kind == VariableKind.Var;
                             var exportInitValue =
-                                isVar ? JsValue.FromObjectUnsafe(Symbol.Undefined) : JsValue.Uninitialized;
+                                isVar ? (JsValue)Symbol.Undefined : JsValue.Uninitialized;
                             var envInitValue = isVar ? Symbol.Undefined : JsEnvironment.Uninitialized;
 
                             if (moduleEnv.IsAsyncModule)
                             {
                                 exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
                                 var envInit = isVar
-                                    ? JsValue.FromObjectUnsafe(Symbol.Undefined)
+                                    ? (JsValue)Symbol.Undefined
                                     : JsValue.Uninitialized;
                                 moduleEnv.DefineJsValue(symbol, envInit, isLexical: !isVar,
                                     blocksFunctionScopeOverride: false);
@@ -5141,7 +5141,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 ? $"{calleeValue} is not a function (callee={calleeLabel})"
                                 : $"{calleeValue} is not a function (callee={calleeLabel}, prop={propertyLabel})";
                             var error = StandardLibrary.CreateTypeError(errorMessage, realm: _engine.RealmState);
-                            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                            throw new ThrowSignal(error);
                         }
 
                         var result = callable.Invoke(evaluatedArgs, thisValue);
@@ -5271,7 +5271,7 @@ public sealed class JsEngine : IAsyncDisposable
 
                 if (memberExpression.Property is IdentifierExpression identifier)
                 {
-                    propertyCompletedSynchronously = Finish(JsValue.FromObjectUnsafe(identifier.Name.Name));
+                    propertyCompletedSynchronously = Finish((JsValue)identifier.Name.Name);
                     return;
                 }
 
@@ -5346,7 +5346,7 @@ public sealed class JsEngine : IAsyncDisposable
                         {
                             var error = StandardLibrary.CreateTypeError("Target is not a constructor",
                                 realm: _engine.RealmState);
-                            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                            throw new ThrowSignal(error);
                         }
 
                         var constructed =

@@ -645,6 +645,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     public static JsValue FromJsPromise(JsPromise value) => new(JsValueKind.Object,0, value);
     public static JsValue FromJsArray(JsArray value) => value.AsJsValue;
     public static JsValue FromJsObject(JsObject value) => value.AsJsValue;
+    public static JsValue FromObjectUnsafe(Exception value) => new(JsValueKind.Object,0, value);
 
     /// <summary>
     /// Runtime conversion from object? to JsValue. Use this ONLY when the source type

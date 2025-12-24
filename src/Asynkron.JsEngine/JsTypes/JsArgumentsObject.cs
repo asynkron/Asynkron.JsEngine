@@ -434,19 +434,21 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
         if (currentIsData && candidateIsData)
         {
-            var currentWritable = current.HasWritable ? current.Writable : true;
+            var currentWritable = !current.HasWritable || current.Writable;
 
-            if (!currentWritable)
+            if (currentWritable)
             {
-                if (candidate is { HasWritable: true, Writable: true })
-                {
-                    return false;
-                }
+                return true;
+            }
 
-                if (candidate.HasValue && !JsOps.StrictEquals(candidate.JsValue, current.JsValue))
-                {
-                    return false;
-                }
+            if (candidate is { HasWritable: true, Writable: true })
+            {
+                return false;
+            }
+
+            if (candidate.HasValue && !JsOps.StrictEquals(candidate.JsValue, current.JsValue))
+            {
+                return false;
             }
 
             return true;
@@ -586,12 +588,13 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         var temp = new JsArray(realmState);
-        if (temp.TryGetProperty(iteratorKey, out var tmpIterator))
+        if (!temp.TryGetProperty(iteratorKey, out var tmpIterator))
         {
-            iteratorValue = tmpIterator;
-            return true;
+            return false;
         }
 
-        return false;
+        iteratorValue = tmpIterator;
+        return true;
+
     }
 }

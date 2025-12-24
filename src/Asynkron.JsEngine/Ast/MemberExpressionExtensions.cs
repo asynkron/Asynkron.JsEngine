@@ -74,7 +74,7 @@ public static partial class TypedAstEvaluator
                     "Cannot read properties of null or undefined",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObjectUnsafe(error));
+                context.SetThrow(error);
                 return JsValue.Undefined;
             }
 
@@ -159,7 +159,7 @@ public static partial class TypedAstEvaluator
                     "Cannot read properties of null (reading from super)",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObjectUnsafe(error));
+                context.SetThrow(error);
                 return (JsValue.Undefined, binding);
             }
 

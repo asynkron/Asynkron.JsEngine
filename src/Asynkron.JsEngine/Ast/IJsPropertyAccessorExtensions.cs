@@ -89,7 +89,7 @@ public static partial class TypedAstEvaluator
                 if (!candidate.IsUndefined)
                 {
                     var error = StandardLibrary.CreateTypeError("Iterator method is not callable", context, realm);
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     callable = null;
                     return true;
                 }

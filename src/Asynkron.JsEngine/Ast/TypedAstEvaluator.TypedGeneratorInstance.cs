@@ -1332,9 +1332,8 @@ public static partial class TypedAstEvaluator
                                         if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultObj))
                                         {
                                             // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                            var typeError = JsValue.FromObjectUnsafe(
-                                                StandardLibrary.CreateTypeError("Iterator result is not an object",
-                                                    context, context.RealmState));
+                                            var typeError = StandardLibrary.CreateTypeError("Iterator result is not an object",
+                                                context, context.RealmState);
                                             if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
                                             {
                                                 continue;
@@ -1365,7 +1364,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        currentValue = JsValue.FromObjectUnsafe(enumerator.Current);
+                                        currentValue = enumerator.Current;
                                     }
                                     else
                                     {
@@ -1480,9 +1479,8 @@ public static partial class TypedAstEvaluator
                                     if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var awaitResultObj))
                                     {
                                         // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                        var typeError = JsValue.FromObjectUnsafe(
-                                            StandardLibrary.CreateTypeError("Iterator result is not an object", context,
-                                                context.RealmState));
+                                        var typeError = StandardLibrary.CreateTypeError("Iterator result is not an object", context,
+                                            context.RealmState);
                                         if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
                                         {
                                             continue;

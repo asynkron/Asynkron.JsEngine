@@ -637,7 +637,7 @@ public static partial class TypedAstEvaluator
                     "Class constructor cannot be invoked without 'new'",
                     callingContext ?? context,
                     RealmState);
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                throw new ThrowSignal(error);
             }
 
             // Async functions use the generator IR executor for non-blocking await
@@ -1086,7 +1086,7 @@ public static partial class TypedAstEvaluator
                             var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
                             return rejectedThrowResult is JsValue rejThrowJs
                                 ? rejThrowJs
-                                : JsValue.FromObjectUnsafe(rejectedThrowResult);
+                                : rejectedThrowResult;
                         }
 
                         if (callingContext is null)
@@ -1126,7 +1126,7 @@ public static partial class TypedAstEvaluator
                                 // If `this` is uninitialized (e.g., derived ctor without super()), surface a JS ReferenceError.
                                 var errorObject =
                                     StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                                throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                                throw new ThrowSignal(errorObject);
                             }
 
                             return JsValue.Undefined;
@@ -1171,7 +1171,7 @@ public static partial class TypedAstEvaluator
                                         "ReferenceError: this is not defined - must call super() in derived class constructor",
                                         context,
                                         context.RealmState);
-                                    throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                                    throw new ThrowSignal(errorObject);
                                 }
                             }
                             catch (InvalidOperationException ex) when (ex.Message.StartsWith(
@@ -1185,7 +1185,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     var errorObject =
                                         StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                                    throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                                    throw new ThrowSignal(errorObject);
                                 }
 
                                 RealmState.Logger?.LogInformation(

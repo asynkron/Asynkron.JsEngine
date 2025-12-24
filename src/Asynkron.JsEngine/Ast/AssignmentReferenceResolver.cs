@@ -281,7 +281,7 @@ internal static class AssignmentReferenceResolver
         catch (InvalidOperationException ex) when (IsReferenceError(ex))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
+            context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
     }

@@ -73,7 +73,7 @@ public static partial class TypedAstEvaluator
                 "Cannot set property on null or undefined.",
                 context,
                 context.RealmState);
-            context.SetThrow(JsValue.FromObjectUnsafe(error));
+            context.SetThrow(error);
             return;
         }
 
@@ -281,21 +281,23 @@ public static partial class TypedAstEvaluator
         var ownDescriptor = wrapper.GetOwnPropertyDescriptor(propertyName);
         if (ownDescriptor is not null)
         {
-            if (ownDescriptor.IsAccessorDescriptor)
+            if (!ownDescriptor.IsAccessorDescriptor)
             {
-                if (ownDescriptor.Set is not null)
-                {
-                    InvokeCallableJsValue(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
-                    return true;
-                }
-
-                // Accessor with only getter - [[Set]] returns false
                 return false;
             }
 
+            if (ownDescriptor.Set is null)
+            {
+                return false;
+            }
+
+            InvokeCallableJsValue(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
+            return true;
+
+            // Accessor with only getter - [[Set]] returns false
+
             // Data property - primitives can't have own data properties that are writable
             // Return false since we can't create an own property on the receiver
-            return false;
         }
 
         // Walk the prototype chain looking for properties
@@ -320,23 +322,25 @@ public static partial class TypedAstEvaluator
             var inheritedDescriptor = current.GetOwnPropertyDescriptor(propertyName);
             if (inheritedDescriptor is not null)
             {
-                if (inheritedDescriptor.IsAccessorDescriptor)
+                if (!inheritedDescriptor.IsAccessorDescriptor)
                 {
-                    if (inheritedDescriptor.Set is not null)
-                    {
-                        InvokeCallableJsValue(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver),
-                            context);
-                        return true;
-                    }
-
-                    // Accessor with only getter - [[Set]] returns false
                     return false;
                 }
+
+                if (inheritedDescriptor.Set is null)
+                {
+                    return false;
+                }
+
+                InvokeCallableJsValue(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver),
+                    context);
+                return true;
+
+                // Accessor with only getter - [[Set]] returns false
 
                 // Inherited data property found. Per ES spec, when receiver differs from the
                 // object where the property was found, [[Set]] attempts to create an own
                 // property on the receiver. But for primitives, this always fails.
-                return false;
             }
 
             // Move to next prototype in the chain

@@ -513,8 +513,8 @@ public static partial class StandardLibrary
             if (!stepCandidate.TryGetObject<IJsPropertyAccessor>(out var stepAccessor))
             {
                 RejectWithCloseJsValue(
-                    JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync iterator result is not an object", null,
-                        realm)));
+                    CreateTypeError("Array.fromAsync iterator result is not an object", null,
+                        realm));
                 return false;
             }
 
@@ -528,8 +528,8 @@ public static partial class StandardLibrary
             if (_index >= MaxConcreteArrayLength)
             {
                 RejectWithCloseJsValue(
-                    JsValue.FromObjectUnsafe(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null,
-                        realm)));
+                    CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null,
+                        realm));
                 return false;
             }
 

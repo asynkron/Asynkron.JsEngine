@@ -970,11 +970,10 @@ public sealed class JsEnvironment
         }
 
         // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
-        throw new ThrowSignal(JsValue.FromObjectUnsafe(
-            StandardLibrary.CreateReferenceError(
-                $"{name.Name} is not defined",
-                context,
-                context.RealmState)));
+        throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+            $"{name.Name} is not defined",
+            context,
+            context.RealmState));
     }
 
     /// <summary>
@@ -1002,11 +1001,10 @@ public sealed class JsEnvironment
         }
 
         // Identifier not found - throw ReferenceError via ThrowSignal so JavaScript can catch it
-        throw new ThrowSignal(JsValue.FromObjectUnsafe(
-            StandardLibrary.CreateReferenceError(
-                $"{name.Name} is not defined",
-                context,
-                context.RealmState)));
+        throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+            $"{name.Name} is not defined",
+            context,
+            context.RealmState));
     }
 
     /// <summary>
@@ -1024,11 +1022,10 @@ public sealed class JsEnvironment
             if (localBinding.IsUninitialized)
             {
                 // TDZ violation - throw ReferenceError
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(
-                    StandardLibrary.CreateReferenceError(
-                        $"Cannot access '{name.Name}' before initialization",
-                        context,
-                        context.RealmState)));
+                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{name.Name}' before initialization",
+                    context,
+                    context.RealmState));
             }
 
             // For non-lexical bindings in global scope, read from global object
@@ -1106,7 +1103,7 @@ public sealed class JsEnvironment
                         $"Cannot access '{name.Name}' before initialization",
                         context,
                         context.RealmState);
-                    value = JsValue.FromObjectUnsafe(errorObject);
+                    value = errorObject;
                     context.SetThrow(value);
                     return true;
                 }
@@ -1297,17 +1294,16 @@ public sealed class JsEnvironment
         // Note: This check doesn't work for import bindings (special bindings), handled below
         if (binding.IsUninitialized)
         {
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(
-                StandardLibrary.CreateReferenceError(
-                    $"Cannot access '{name.Name}' before initialization",
-                    context,
-                    context.RealmState)));
+            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState));
         }
 
         // Check for live export bindings
         if (binding.LiveExportBindingOrNull is { } liveBinding)
         {
-            return JsValue.FromObjectUnsafe(liveBinding.GetValue());
+            return liveBinding.GetValue();
         }
 
         if (!bindingEnvironment.IsGlobalFunctionScope || binding.IsLexical)
@@ -1322,11 +1318,10 @@ public sealed class JsEnvironment
                 (ex.Message.Contains("ReferenceError", StringComparison.Ordinal) ||
                  ex.Message.Contains("is not defined", StringComparison.Ordinal))
             {
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(
-                    StandardLibrary.CreateReferenceError(
-                        $"Cannot access '{name.Name}' before initialization",
-                        context,
-                        context.RealmState)));
+                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{name.Name}' before initialization",
+                    context,
+                    context.RealmState));
             }
         }
 

@@ -416,7 +416,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     "Target is not a constructor",
                     context,
                     context?.RealmState ?? realmState);
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                throw new ThrowSignal(error);
             }
 
             var realm = context?.RealmState ?? realmState;

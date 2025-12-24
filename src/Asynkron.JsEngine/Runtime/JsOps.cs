@@ -407,10 +407,10 @@ internal static class JsOps
         var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
         if (context is null)
         {
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+            throw new ThrowSignal(error);
         }
 
-        context.SetThrow(JsValue.FromObjectUnsafe(error));
+        context.SetThrow(error);
 
         return false;
     }
@@ -1777,7 +1777,7 @@ internal static class JsOps
 
                     if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
                     {
-                        value = jsVal2 is JsValue jv ? jv : JsValue.FromObjectUnsafe(jsVal2);
+                        value = jsVal2 is JsValue jv ? jv : jsVal2;
                         return true;
                     }
 

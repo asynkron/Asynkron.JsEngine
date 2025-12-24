@@ -496,55 +496,62 @@ internal sealed class SyncGeneratorIrBuilder
     }
 
     /// <summary>
-    ///     Attempts to build a native SimpleVariableDeclarationInstruction for simple declarations.
-    ///     Handles single declarator with identifier binding (no destructuring).
+    ///     Attempts to build native SimpleVariableDeclarationInstructions for simple declarations.
+    ///     Handles single or multiple declarators with identifier bindings (no destructuring).
+    ///     For multiple declarators like <c>let a = 1, b = 2;</c>, creates a chain of instructions.
     /// </summary>
-    /// <remarks>
-    ///     DISABLED: This instruction breaks async generators because it doesn't properly integrate
-    ///     with the generator's slot/environment system for preserving variable values across yield points.
-    ///     When enabled, variables don't maintain their values correctly after yield resumption.
-    ///     TODO: Investigate proper integration with generator state management.
-    /// </remarks>
     private bool TryBuildSimpleVariableDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
     {
-        // DISABLED - see remarks above
-        entryIndex = -1;
-        return false;
-
-        // Only handle single declarator
-        if (declaration.Declarators.Length != 1)
-        {
-            return false;
-        }
-
-        var declarator = declaration.Declarators[0];
-
-        // Only handle simple identifier binding (no destructuring)
-        if (declarator.Target is not IdentifierBinding { Name: { } targetSymbol })
-        {
-            return false;
-        }
-
-        // Ensure no yields or awaits in initializer (already checked by caller, but be safe)
-        // For async generators, await expressions are lowered to yield points
-        if (declarator.Initializer is not null &&
-            (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
-             AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
-        {
-            return false;
-        }
-
         // Don't handle using/await using for now - they have complex disposal semantics
         if (declaration.Kind is VariableKind.Using or VariableKind.AwaitUsing)
         {
+            entryIndex = -1;
             return false;
         }
 
-        entryIndex = Append(new SimpleVariableDeclarationInstruction(
-            nextIndex,
-            declaration.Kind,
-            targetSymbol,
-            declarator.Initializer));
+        // First, verify ALL declarators are simple (identifier binding, no yields/awaits)
+        foreach (var declarator in declaration.Declarators)
+        {
+            // Only handle simple identifier binding (no destructuring)
+            if (declarator.Target is not IdentifierBinding)
+            {
+                entryIndex = -1;
+                return false;
+            }
+
+            // Ensure no yields or awaits in initializer
+            if (declarator.Initializer is not null &&
+                (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
+                 AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
+            {
+                entryIndex = -1;
+                return false;
+            }
+        }
+
+        // All declarators are simple - build a chain of instructions
+        // Work backwards from the last declarator to properly chain next pointers
+        var currentNext = nextIndex;
+        entryIndex = -1;
+
+        for (var i = declaration.Declarators.Length - 1; i >= 0; i--)
+        {
+            var declarator = declaration.Declarators[i];
+            var targetSymbol = ((IdentifierBinding)declarator.Target).Name;
+
+            var instructionIndex = Append(new SimpleVariableDeclarationInstruction(
+                currentNext,
+                declaration.Kind,
+                targetSymbol!,
+                declarator.Initializer));
+
+            currentNext = instructionIndex;
+            if (i == 0)
+            {
+                entryIndex = instructionIndex;
+            }
+        }
+
         return true;
     }
 

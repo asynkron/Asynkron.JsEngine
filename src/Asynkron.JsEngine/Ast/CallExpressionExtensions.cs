@@ -384,7 +384,7 @@ public static partial class TypedAstEvaluator
                     $"Attempted to call a non-callable value '{calleeDescription}' of type '{typeName}'{symbolSuffix}.",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObjectUnsafe(error));
+                context.SetThrow(error);
                 context.CallDepth--;
                 return JsValue.Undefined;
             }
@@ -396,7 +396,7 @@ public static partial class TypedAstEvaluator
                     "Class constructor cannot be invoked without 'new'",
                     context,
                     context.RealmState);
-                context.SetThrow(JsValue.FromObjectUnsafe(error));
+                context.SetThrow(error);
                 context.CallDepth--;
                 return JsValue.Undefined;
             }
@@ -446,7 +446,7 @@ public static partial class TypedAstEvaluator
                         "Super constructor is not a constructor",
                         context,
                         context.RealmState);
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     context.CallDepth--;
                     return JsValue.Undefined;
                 }

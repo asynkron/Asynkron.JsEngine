@@ -23,7 +23,7 @@ These were recently ported to native IR opcodes:
 | Throw statements | `ThrowInstruction` | Evaluates expression and throws |
 | Expression statements | `EvaluateAndDiscardInstruction` | Evaluates expression, discards result |
 | Function declarations | `FunctionDeclarationInstruction` | No-op (functions are hoisted) |
-| Simple variable declarations | `SimpleVariableDeclarationInstruction` | DISABLED - breaks async generators (slot integration issue) |
+| Simple variable declarations | `SimpleVariableDeclarationInstruction` | Single or multiple declarators with identifier bindings |
 | Class declarations | `ClassDeclarationInstruction` | Creates class and binds name |
 
 ### Wrapped in StatementInstruction (AST Fallback)
@@ -32,7 +32,7 @@ These still execute via AST walking inside the IR execution loop:
 
 | Construct | Reason |
 |-----------|--------|
-| Variable declarations (complex) | Destructuring patterns, multiple declarators |
+| Variable declarations (destructuring) | Complex binding patterns require AST evaluation |
 | With statements | Uses AST when body has no yield |
 | Simple for-of | Uses AST when no yield in body/iterable |
 | Class declarations with await | Async generator compatibility (computed prop names) |
@@ -79,12 +79,12 @@ Currently all expressions use `EvaluateExpression()` on AST nodes. Would need IR
 
 Convert all statements to native IR instructions:
 
-- [ ] `SimpleVariableDeclarationInstruction` - DISABLED (breaks async generators - slot integration issue)
+- [x] `SimpleVariableDeclarationInstruction` - single or multiple declarators with identifier bindings
 - [x] `EvaluateAndDiscardInstruction` - execute expression and discard result
 - [x] `FunctionDeclarationInstruction` - hoist and define function (no-op at runtime)
 - [x] `ThrowInstruction` - throw exception
 - [x] `ClassDeclarationInstruction` - define class
-- [ ] Complex variable declarations (destructuring, multiple declarators)
+- [ ] Destructuring variable declarations (complex binding patterns)
 
 ### 3. Handle Remaining Yield Positions
 

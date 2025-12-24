@@ -482,7 +482,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(evalContext.FlowValue);
             }
 
-            var primitive = JsValue.FromObjectUnsafe(primitiveObj);
+            var primitive = primitiveObj;
 
             if (primitive.IsNull)
             {

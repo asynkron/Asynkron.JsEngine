@@ -16,8 +16,8 @@ public static partial class TypedAstEvaluator
             $"{name.Name} is not defined",
             context,
             context.RealmState);
-        context.SetThrow(JsValue.FromObjectUnsafe(errorObject));
-        return JsValue.FromObjectUnsafe(errorObject);
+        context.SetThrow(errorObject);
+        return errorObject;
     }
 
     extension(IdentifierExpression identifier)

@@ -96,8 +96,8 @@ public static partial class TypedAstEvaluator
         }
 
         // Convert results back to JsValue
-        var leftVal = JsValue.FromObjectUnsafe(leftPrim);
-        var rightVal = JsValue.FromObjectUnsafe(rightPrim);
+        var leftVal = leftPrim;
+        var rightVal = rightPrim;
 
         // Per spec 12.8.3:
         // 7. If Type(lprim) is String or Type(rprim) is String, then
@@ -310,7 +310,7 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        return ToNumericValue(JsValue.FromObjectUnsafe(primitive), context);
+        return ToNumericValue(primitive, context);
     }
 
     /// <summary>

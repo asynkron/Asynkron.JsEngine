@@ -99,7 +99,7 @@ public static partial class TypedAstEvaluator
             if (constructor is not IJsCallable callable)
             {
                 var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(notCtor));
+                throw new ThrowSignal(notCtor);
             }
 
             if (constructor is HostFunction hostFunction &&

@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
                                                        StringComparison.Ordinal))
         {
             var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-            throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+            throw new ThrowSignal(errorObject);
         }
     }
 
@@ -429,7 +429,7 @@ public static partial class TypedAstEvaluator
                         "Cannot read properties of null or undefined",
                         context,
                         context.RealmState);
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     return (JsValue.Undefined, JsValue.Undefined, true);
                 }
 
@@ -524,7 +524,7 @@ public static partial class TypedAstEvaluator
                     {
                         // Convert to JavaScript ReferenceError so it can be caught by JavaScript try-catch
                         var errorObject = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(errorObject));
+                        throw new ThrowSignal(errorObject);
                     }
                 }
 

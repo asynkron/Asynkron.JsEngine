@@ -122,21 +122,21 @@ public sealed partial class TypedArrayPrototype
     private JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.indexOf");
-        return JsValue.FromObjectUnsafe(TypedArrayBase.IndexOfInternal(typedArray, args));
+        return TypedArrayBase.IndexOfInternal(typedArray, args);
     }
 
     [JsHostMethod("lastIndexOf", Length = 1d)]
     private JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.lastIndexOf");
-        return JsValue.FromObjectUnsafe(TypedArrayBase.LastIndexOfInternal(typedArray, args));
+        return TypedArrayBase.LastIndexOfInternal(typedArray, args);
     }
 
     [JsHostMethod("includes", Length = 1d)]
     private JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.includes");
-        return JsValue.FromObjectUnsafe(TypedArrayBase.IncludesInternal(typedArray, args));
+        return TypedArrayBase.IncludesInternal(typedArray, args);
     }
 
     [JsHostMethod("some", Length = 1d)]

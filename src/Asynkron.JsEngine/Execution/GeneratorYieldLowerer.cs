@@ -110,6 +110,13 @@ internal static class GeneratorYieldLowerer
                     continue;
                 }
 
+                if (TryRewriteForEachWithYield(statement, isStrict, out var forEachRewrite))
+                {
+                    builder.AddRange(forEachRewrite);
+                    changed = true;
+                    continue;
+                }
+
                 if (TryRewriteReturnWithYield(statement, out var returnRewrite))
                 {
                     builder.AddRange(returnRewrite);
@@ -852,6 +859,147 @@ internal static class GeneratorYieldLowerer
             return new VariableDeclaration(source, VariableKind.Let, [declarator]);
         }
 
+        private BindingTarget RewriteBindingTarget(
+            BindingTarget target,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            switch (target)
+            {
+                case ArrayBinding arrayBinding:
+                {
+                    var elementsBuilder =
+                        ImmutableArray.CreateBuilder<ArrayBindingElement>(arrayBinding.Elements.Length);
+                    var elementsChanged = false;
+
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        var rewrittenElement = RewriteArrayBindingElement(element, prefixStatements, ref changed);
+                        elementsChanged |= !ReferenceEquals(rewrittenElement, element);
+                        elementsBuilder.Add(rewrittenElement);
+                    }
+
+                    // Handle rest element if it has nested bindings
+                    var rest = arrayBinding.RestElement;
+                    if (rest is not null)
+                    {
+                        rest = RewriteBindingTarget(rest, prefixStatements, ref changed);
+                    }
+
+                    if (elementsChanged || !ReferenceEquals(rest, arrayBinding.RestElement))
+                    {
+                        changed = true;
+                        return arrayBinding with { Elements = elementsBuilder.ToImmutable(), RestElement = rest };
+                    }
+
+                    return arrayBinding;
+                }
+
+                case ObjectBinding objectBinding:
+                {
+                    var propsBuilder =
+                        ImmutableArray.CreateBuilder<ObjectBindingProperty>(objectBinding.Properties.Length);
+                    var propsChanged = false;
+
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        var rewrittenProp = RewriteObjectBindingProperty(prop, prefixStatements, ref changed);
+                        propsChanged |= !ReferenceEquals(rewrittenProp, prop);
+                        propsBuilder.Add(rewrittenProp);
+                    }
+
+                    // Handle rest element if present
+                    var rest = objectBinding.RestElement;
+                    if (rest is not null)
+                    {
+                        rest = RewriteBindingTarget(rest, prefixStatements, ref changed);
+                    }
+
+                    if (propsChanged || !ReferenceEquals(rest, objectBinding.RestElement))
+                    {
+                        changed = true;
+                        return objectBinding with { Properties = propsBuilder.ToImmutable(), RestElement = rest };
+                    }
+
+                    return objectBinding;
+                }
+
+                case AssignmentTargetBinding assignmentTarget:
+                {
+                    // AssignmentTargetBinding only has an Expression (e.g., a.b or a[0])
+                    // No default value at this level - just return as-is
+                    return assignmentTarget;
+                }
+
+                default:
+                    return target;
+            }
+        }
+
+        private ArrayBindingElement RewriteArrayBindingElement(
+            ArrayBindingElement element,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            var target = element.Target;
+            var defaultValue = element.DefaultValue;
+
+            // Recursively handle nested bindings
+            if (target is not null)
+            {
+                target = RewriteBindingTarget(target, prefixStatements, ref changed);
+            }
+
+            // Rewrite yields in default value
+            if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
+            {
+                defaultValue = RewriteExpressionForComplexYields(defaultValue, prefixStatements, ref changed);
+            }
+
+            if (!ReferenceEquals(target, element.Target) || !ReferenceEquals(defaultValue, element.DefaultValue))
+            {
+                changed = true;
+                return element with { Target = target, DefaultValue = defaultValue };
+            }
+
+            return element;
+        }
+
+        private ObjectBindingProperty RewriteObjectBindingProperty(
+            ObjectBindingProperty prop,
+            ImmutableArray<StatementNode>.Builder prefixStatements,
+            ref bool changed)
+        {
+            var target = prop.Target;
+            var defaultValue = prop.DefaultValue;
+
+            // Recursively handle nested bindings
+            target = RewriteBindingTarget(target, prefixStatements, ref changed);
+
+            // Rewrite yields in default value
+            if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
+            {
+                defaultValue = RewriteExpressionForComplexYields(defaultValue, prefixStatements, ref changed);
+            }
+
+            // Also handle computed property keys (NameExpression)
+            var nameExpr = prop.NameExpression;
+            if (nameExpr is not null && AstShapeAnalyzer.ContainsYield(nameExpr))
+            {
+                nameExpr = RewriteExpressionForComplexYields(nameExpr, prefixStatements, ref changed);
+            }
+
+            if (!ReferenceEquals(target, prop.Target) ||
+                !ReferenceEquals(defaultValue, prop.DefaultValue) ||
+                !ReferenceEquals(nameExpr, prop.NameExpression))
+            {
+                changed = true;
+                return prop with { Target = target, DefaultValue = defaultValue, NameExpression = nameExpr };
+            }
+
+            return prop;
+        }
+
         private bool TryRewriteReturnWithYield(StatementNode statement,
             out ImmutableArray<StatementNode> replacement)
         {
@@ -1376,6 +1524,166 @@ internal static class GeneratorYieldLowerer
             statements.Add(loweredLoop);
             replacement = statements.ToImmutable();
             return true;
+        }
+
+        /// <summary>
+        ///     Rewrites for-of/for-await-of statements that have yields in the binding target's default values.
+        ///     Example: for await ([ x = yield ] of [[]])
+        ///     Becomes:
+        ///       for await (let __iterTemp of [[]]) {
+        ///         let __yield0 = yield;
+        ///         let [x = __yield0] = __iterTemp;
+        ///         // original body
+        ///       }
+        /// </summary>
+        private bool TryRewriteForEachWithYield(
+            StatementNode statement,
+            bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement is not ForEachStatement forEachStatement)
+            {
+                return false;
+            }
+
+            // Check if the binding target contains yields
+            if (!BindingTargetContainsYield(forEachStatement.Target))
+            {
+                return false;
+            }
+
+            // Create a temporary identifier for the iteration value
+            var iterTemp = CreateResumeIdentifier();
+
+            // Extract yields from the binding target and rewrite the target
+            var prefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            var rewrittenTarget = RewriteBindingTarget(forEachStatement.Target, prefixStatements, ref changed);
+
+            if (!changed)
+            {
+                return false;
+            }
+
+            // Build the new loop body:
+            // 1. Prefix statements (yield extractions)
+            // 2. Destructuring assignment from temp to original target
+            // 3. Original body
+            var newBodyStatements = ImmutableArray.CreateBuilder<StatementNode>();
+
+            // Add the prefix statements that extract yields
+            newBodyStatements.AddRange(prefixStatements);
+
+            // Add destructuring assignment: let [x = __yield0] = __iterTemp;
+            // or for non-declaration for-of: [x = __yield0] = __iterTemp;
+            if (forEachStatement.DeclarationKind is not null)
+            {
+                // For 'for (let/const/var [x = yield] of ...)' - use variable declaration
+                var destructuringDeclarator = new VariableDeclarator(
+                    forEachStatement.Source,
+                    rewrittenTarget,
+                    new IdentifierExpression(forEachStatement.Source, iterTemp.Name));
+                newBodyStatements.Add(new VariableDeclaration(
+                    forEachStatement.Source,
+                    forEachStatement.DeclarationKind.Value,
+                    [destructuringDeclarator]));
+            }
+            else
+            {
+                // For 'for ([x = yield] of ...)' - use destructuring assignment expression
+                var destructuringAssignment = new DestructuringAssignmentExpression(
+                    forEachStatement.Source,
+                    rewrittenTarget,
+                    new IdentifierExpression(forEachStatement.Source, iterTemp.Name));
+                newBodyStatements.Add(new ExpressionStatement(forEachStatement.Source, destructuringAssignment));
+            }
+
+            // Add the original body
+            if (forEachStatement.Body is BlockStatement originalBlock)
+            {
+                var rewrittenBlock = RewriteBlock(originalBlock);
+                newBodyStatements.AddRange(rewrittenBlock.Statements);
+            }
+            else
+            {
+                var rewrittenBody = RewriteStatements([forEachStatement.Body], isStrict);
+                newBodyStatements.AddRange(rewrittenBody);
+            }
+
+            // Create the new loop with a simple identifier target
+            var newBody = new BlockStatement(
+                forEachStatement.Source,
+                newBodyStatements.ToImmutable(),
+                isStrict);
+
+            var newTarget = new IdentifierBinding(forEachStatement.Source, iterTemp.Name);
+            var newForEach = forEachStatement with
+            {
+                Target = newTarget,
+                Body = newBody,
+                DeclarationKind = VariableKind.Let // Always use let for the temp binding
+            };
+
+            replacement = [newForEach];
+            return true;
+        }
+
+        private static bool BindingTargetContainsYield(BindingTarget target)
+        {
+            switch (target)
+            {
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        if (element.Target is not null && BindingTargetContainsYield(element.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null && BindingTargetContainsYield(arrayBinding.RestElement))
+                    {
+                        return true;
+                    }
+
+                    return false;
+
+                case ObjectBinding objectBinding:
+                    foreach (var prop in objectBinding.Properties)
+                    {
+                        if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
+                        {
+                            return true;
+                        }
+
+                        if (BindingTargetContainsYield(prop.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (objectBinding.RestElement is not null && BindingTargetContainsYield(objectBinding.RestElement))
+                    {
+                        return true;
+                    }
+
+                    return false;
+
+                default:
+                    return false;
+            }
         }
 
         private static bool TryRewriteIncrementWithTwoYields(ExpressionNode expression,

@@ -434,7 +434,15 @@ internal sealed class SyncGeneratorIrBuilder
                         return false;
                     }
 
-                    entryIndex = Append(new StatementInstruction(nextIndex, classDeclaration));
+                    // For async generators, awaits need proper handling via StatementInstruction
+                    if (ClassDefinitionContainsAwait(classDeclaration.Definition))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, classDeclaration));
+                        return true;
+                    }
+
+                    // Use native ClassDeclarationInstruction for clean cases
+                    entryIndex = Append(new ClassDeclarationInstruction(nextIndex, classDeclaration));
                     return true;
 
                 case ThrowStatement throwStatement:
@@ -1043,6 +1051,42 @@ internal sealed class SyncGeneratorIrBuilder
         {
             if (field is { IsComputed: true, ComputedName: not null } &&
                 AstShapeAnalyzer.ContainsYield(field.ComputedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     Checks if a class definition contains await expressions in places that are
+    ///     evaluated in the generator context (extends clause, computed property names).
+    ///     Used to fall back to StatementInstruction for async generators.
+    /// </summary>
+    private static bool ClassDefinitionContainsAwait(ClassDefinition definition)
+    {
+        // Check extends clause
+        if (definition.Extends is not null && AstShapeAnalyzer.ContainsAwait(definition.Extends))
+        {
+            return true;
+        }
+
+        // Check computed property names in members (methods, getters, setters)
+        foreach (var member in definition.Members)
+        {
+            if (member is { IsComputed: true, ComputedName: not null } &&
+                AstShapeAnalyzer.ContainsAwait(member.ComputedName))
+            {
+                return true;
+            }
+        }
+
+        // Check computed property names in fields
+        foreach (var field in definition.Fields)
+        {
+            if (field is { IsComputed: true, ComputedName: not null } &&
+                AstShapeAnalyzer.ContainsAwait(field.ComputedName))
             {
                 return true;
             }

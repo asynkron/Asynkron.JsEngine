@@ -760,6 +760,36 @@ public static partial class TypedAstEvaluator
                                 _programCounter = functionDeclInstruction.Next;
                                 continue;
 
+                            case ClassDeclarationInstruction classDeclInstruction:
+                                // Create the class value and bind it to the class name
+                                var classValue = classDeclInstruction.Declaration.Definition.CreateClassValue(
+                                    environment, context, classDeclInstruction.Declaration.Name);
+
+                                if (TryHandlePendingAwait(context, out var pendingClassResult))
+                                {
+                                    return pendingClassResult;
+                                }
+
+                                if (context.IsThrow)
+                                {
+                                    var classThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, classThrown, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(classThrown);
+                                }
+
+                                // Bind the class name in the environment
+                                environment.DefineJsValue(classDeclInstruction.Declaration.Name, classValue,
+                                    isLexical: true, blocksFunctionScopeOverride: true);
+
+                                _programCounter = classDeclInstruction.Next;
+                                continue;
+
                             case SimpleVariableDeclarationInstruction varDeclInstruction:
                                 // Evaluate initializer if present
                                 var varValue = varDeclInstruction.Initializer is null

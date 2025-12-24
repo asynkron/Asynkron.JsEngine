@@ -23,7 +23,8 @@ These were recently ported to native IR opcodes:
 | Throw statements | `ThrowInstruction` | Evaluates expression and throws |
 | Expression statements | `EvaluateAndDiscardInstruction` | Evaluates expression, discards result |
 | Function declarations | `FunctionDeclarationInstruction` | No-op (functions are hoisted) |
-| Simple variable declarations | `SimpleVariableDeclarationInstruction` | Single identifier binding (let/const/var) |
+| Simple variable declarations | `SimpleVariableDeclarationInstruction` | DISABLED - breaks async generators (slot integration issue) |
+| Class declarations | `ClassDeclarationInstruction` | Creates class and binds name |
 
 ### Wrapped in StatementInstruction (AST Fallback)
 
@@ -31,10 +32,10 @@ These still execute via AST walking inside the IR execution loop:
 
 | Construct | Reason |
 |-----------|--------|
-| Class declarations | No IR instruction defined |
 | Variable declarations (complex) | Destructuring patterns, multiple declarators |
 | With statements | Uses AST when body has no yield |
 | Simple for-of | Uses AST when no yield in body/iterable |
+| Class declarations with await | Async generator compatibility (computed prop names) |
 
 ### Hard Failures (IR Cannot Handle)
 
@@ -78,11 +79,11 @@ Currently all expressions use `EvaluateExpression()` on AST nodes. Would need IR
 
 Convert all statements to native IR instructions:
 
-- [x] `SimpleVariableDeclarationInstruction` - handle let/const/var declarations (simple identifier bindings)
+- [ ] `SimpleVariableDeclarationInstruction` - DISABLED (breaks async generators - slot integration issue)
 - [x] `EvaluateAndDiscardInstruction` - execute expression and discard result
 - [x] `FunctionDeclarationInstruction` - hoist and define function (no-op at runtime)
 - [x] `ThrowInstruction` - throw exception
-- [ ] `ClassDeclarationInstruction` - define class
+- [x] `ClassDeclarationInstruction` - define class
 - [ ] Complex variable declarations (destructuring, multiple declarators)
 
 ### 3. Handle Remaining Yield Positions

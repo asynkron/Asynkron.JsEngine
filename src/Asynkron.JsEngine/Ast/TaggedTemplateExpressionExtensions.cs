@@ -25,7 +25,7 @@ public static partial class TypedAstEvaluator
             {
                 var error = StandardLibrary.CreateTypeError("Tag in tagged template must be a function.",
                     context, environment.RealmState);
-                throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                throw new ThrowSignal(error);
             }
 
             // Per ES spec 13.2.8.4 GetTemplateObject, template objects are cached by parse node.

@@ -228,10 +228,10 @@ internal static class JsOps
                     var error = StandardLibrary.CreateTypeError("Cannot convert a Symbol value to a number", context, context?.RealmState);
                     if (context is null)
                     {
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                        throw new ThrowSignal(error);
                     }
 
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 case JsBigInt bigInt:
@@ -302,10 +302,10 @@ internal static class JsOps
                     var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
                     if (context is null)
                     {
-                        throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
+                        throw new ThrowSignal(error);
                     }
 
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     return JsValue.Undefined; // Error state - caller should check context.IsThrow
                 }
                 default:

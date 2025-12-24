@@ -1067,7 +1067,7 @@ public sealed class JsEngine : IAsyncDisposable
             "'import.meta' is only valid in module code.",
             context,
             RealmState);
-        throw new ThrowSignal(JsValue.FromObjectUnsafe(syntaxError));
+        throw new ThrowSignal(syntaxError);
     }
 
     private static bool StatementsContainImportMeta(ImmutableArray<StatementNode> statements)
@@ -2587,7 +2587,7 @@ public sealed class JsEngine : IAsyncDisposable
                         "import() requires a module specifier",
                         context,
                         RealmState);
-                    promise.Reject(JsValue.FromObjectUnsafe(typeError));
+                    promise.Reject(typeError);
                 });
                 return;
             }
@@ -2623,7 +2623,7 @@ public sealed class JsEngine : IAsyncDisposable
                         "import() specifier must be a string",
                         context,
                         RealmState);
-                    promise.Reject(JsValue.FromObjectUnsafe(typeError));
+                    promise.Reject(typeError);
                 });
                 return;
             }
@@ -2636,7 +2636,7 @@ public sealed class JsEngine : IAsyncDisposable
                         "Source phase imports are not supported",
                         context,
                         RealmState);
-                    promise.Reject(JsValue.FromObjectUnsafe(syntaxError));
+                    promise.Reject(syntaxError);
                 });
                 return;
             }
@@ -2664,7 +2664,7 @@ public sealed class JsEngine : IAsyncDisposable
                             catch (Exception ex)
                             {
                                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                                promise.Reject(JsValue.FromObjectUnsafe(error));
+                                promise.Reject(error);
                             }
                         });
                         return;
@@ -2688,7 +2688,7 @@ public sealed class JsEngine : IAsyncDisposable
                                 ex.Message,
                                 context,
                                 RealmState);
-                            promise.Reject(JsValue.FromObjectUnsafe(error));
+                            promise.Reject(error);
                         });
                         return;
                     }
@@ -2708,7 +2708,7 @@ public sealed class JsEngine : IAsyncDisposable
                         catch (Exception ex)
                         {
                             var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                            promise.Reject(JsValue.FromObjectUnsafe(error));
+                            promise.Reject(error);
                         }
                     });
                     return;
@@ -2729,7 +2729,7 @@ public sealed class JsEngine : IAsyncDisposable
                     catch (Exception ex)
                     {
                         var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                        promise.Reject(JsValue.FromObjectUnsafe(error));
+                        promise.Reject(error);
                     }
                 });
             }
@@ -2738,7 +2738,7 @@ public sealed class JsEngine : IAsyncDisposable
                 ScheduleTask(() =>
                 {
                     var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                    promise.Reject(JsValue.FromObjectUnsafe(error));
+                    promise.Reject(error);
                 });
             }
         }
@@ -2747,7 +2747,7 @@ public sealed class JsEngine : IAsyncDisposable
             ScheduleTask(() =>
             {
                 var error = StandardLibrary.CreateTypeError(ex.Message, context, RealmState);
-                promise.Reject(JsValue.FromObjectUnsafe(error));
+                promise.Reject(error);
             });
         }
     }

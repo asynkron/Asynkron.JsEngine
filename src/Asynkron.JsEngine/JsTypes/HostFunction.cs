@@ -168,7 +168,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         EnsureFunctionPrototype();
 
         // First check if there's a user-defined property (including getters)
-        if (Properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
+        if (Properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
         {
             return true;
         }
@@ -232,7 +232,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
                     var target = thisValue.TryGetObject<IJsCallable>(out var callable) ? callable : jsCallable;
                     var boundThis = args.GetArgument(0);
                     var boundArgs = args.SliceFrom(1);
-                    var targetIsConstructor = JsOps.IsConstructor(JsValue.FromObjectUnsafe(target));
+                    var targetIsConstructor = JsOps.IsConstructor(_cachedJsValue);
                     var realmState = RealmState ?? (target as ICallableMetadata)?.RealmState;
                     return (JsValue)CreateBoundFunction(target, boundThis, boundArgs, targetIsConstructor, realmState);
                 }, isConstructor: false);
@@ -245,17 +245,17 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, (JsValue)this, out value);
+        return TryGetProperty(name, _cachedJsValue, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        Properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
+        Properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, (JsValue)this);
+        SetProperty(name, value, _cachedJsValue);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -504,7 +504,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
 
         var prototype = new JsObject();
-        prototype.SetProperty("constructor", (JsValue)this);
+        prototype.SetProperty("constructor", _cachedJsValue);
         // Per ES spec, the "prototype" property on constructor functions should be
         // writable, but NOT enumerable and NOT configurable
         Properties.DefineProperty("prototype",

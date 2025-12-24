@@ -13,13 +13,19 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Unlike Map, WeakMap does not prevent garbage collection of keys and does not support iteration.
 /// </summary>
 public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-    IPrototypeAccessorProvider
+    IPrototypeAccessorProvider, IAsJsValue
 {
     // Use ConditionalWeakTable for weak reference semantics
     // Keys must be objects, values stored as object? (boxing unavoidable due to ConditionalWeakTable constraint)
     private readonly ConditionalWeakTable<object, object?> _entries = new();
     private readonly JsObject _properties = new();
+    private readonly JsValue _cachedJsValue;
     public bool IsExtensible => _properties.IsExtensible;
+
+    public JsWeakMap()
+    {
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+    }
 
     public void PreventExtensions()
     {
@@ -28,22 +34,22 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return _properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value);
+        return _properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, (JsValue)this, out value);
+        return TryGetProperty(name, _cachedJsValue, out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, (JsValue)this);
+        SetProperty(name, value, _cachedJsValue);
     }
 
     public JsObject? Prototype => _properties.Prototype;
@@ -52,6 +58,8 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     public bool IsFrozen => _properties.IsFrozen;
 
     public IEnumerable<string> Keys => _properties.Keys;
+
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {

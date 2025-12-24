@@ -196,10 +196,13 @@ internal sealed class SyncGeneratorIrBuilder
                         return false;
                     }
 
-                    if (expressionShape.YieldCount == 1)
+                    // After lowering, no yields should remain in expression statements.
+                    // If we still have yields here, the lowerer missed a pattern.
+                    if (expressionShape.YieldCount > 0)
                     {
-                        entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
-                        return true;
+                        entryIndex = -1;
+                        _failureReason ??= "Expression statement contains unlowered yield - this should have been handled by GeneratorYieldLowerer.";
+                        return false;
                     }
 
                     entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));

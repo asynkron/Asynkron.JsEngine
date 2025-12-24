@@ -20,7 +20,6 @@ public sealed class Symbol : IEquatable<Symbol>
     public static readonly Symbol LexicalThisEnvironment = Intern("[[lexicalThisEnvironment]]");
     public static readonly Symbol Arguments = Intern("arguments");
     public static readonly Symbol Eval = Intern("eval");
-    public static readonly Symbol YieldTrackerSymbol = Intern("__yieldTracker__");
     public static readonly Symbol YieldResumeContextSymbol = Intern("__yieldResume__");
     public static readonly Symbol GeneratorPendingCompletionSymbol = Intern("__generatorPending__");
     public static readonly Symbol GeneratorInstanceSymbol = Intern("__generatorInstance__");

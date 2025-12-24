@@ -12,16 +12,6 @@ public static partial class TypedAstEvaluator
 {
     extension(JsEnvironment environment)
     {
-        private YieldTracker GetYieldTracker()
-        {
-            if (!environment.TryGetObject<YieldTracker>(Symbol.YieldTrackerSymbol, out var yieldTracker))
-            {
-                throw new InvalidOperationException("'yield' can only be used inside a generator function.");
-            }
-
-            return yieldTracker;
-        }
-
         private ResumePayload GetResumePayload(int yieldIndex)
         {
             if (!environment.TryGetObject<YieldResumeContext>(Symbol.YieldResumeContextSymbol, out var resumeContext))

@@ -120,7 +120,7 @@ public static partial class TypedAstEvaluator
 
                     if (parameter.Pattern is not null)
                     {
-                        parameter.Pattern.ApplyBindingTarget(JsValue.FromObjectUnsafe(restArray), environment, context,
+                        parameter.Pattern.ApplyBindingTarget(JsValue.FromJsArray(restArray), environment, context,
                             BindingMode.DefineParameter);
                         if (context.ShouldStopEvaluation)
                         {
@@ -134,7 +134,7 @@ public static partial class TypedAstEvaluator
                             throw new InvalidOperationException("Rest parameter must have an identifier.");
                         }
 
-                        environment.DefineJsValue(parameter.Name, JsValue.FromObjectUnsafe(restArray),
+                        environment.DefineJsValue(parameter.Name, JsValue.FromJsArray(restArray),
                             isLexical: false);
                     }
 

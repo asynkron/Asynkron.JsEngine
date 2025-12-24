@@ -640,6 +640,12 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     #region Typed FromObject overloads - prefer these to avoid boxing
 
+
+    public static JsValue FromJsProxy(JsProxy value) => value.AsJsValue;
+    public static JsValue FromJsPromise(JsPromise value) => new(JsValueKind.Object,0, value);
+    public static JsValue FromJsArray(JsArray value) => value.AsJsValue;
+    public static JsValue FromJsObject(JsObject value) => value.AsJsValue;
+
     /// <summary>
     /// Runtime conversion from object? to JsValue. Use this ONLY when the source type
     /// is genuinely unknown at compile time (e.g., values from dictionaries, reflection, etc.).

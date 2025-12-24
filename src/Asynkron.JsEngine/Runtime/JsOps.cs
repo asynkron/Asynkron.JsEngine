@@ -2058,7 +2058,7 @@ internal static class JsOps
                         }
 
                         TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set,
-                            [value], JsValue.FromObjectUnsafe(jsArray), context);
+                            [value], JsValue.FromJsArray(jsArray), context);
                         return true;
                     }
 

@@ -356,11 +356,11 @@ public static partial class TypedAstEvaluator
 
                     if (preResolvedRest is { } resolvedRestReference)
                     {
-                        resolvedRestReference.SetValue(JsValue.FromObjectUnsafe(restArray));
+                        resolvedRestReference.SetValue(JsValue.FromJsArray(restArray));
                     }
                     else
                     {
-                        binding.RestElement.ApplyBindingTarget(JsValue.FromObjectUnsafe(restArray), environment,
+                        binding.RestElement.ApplyBindingTarget(JsValue.FromJsArray(restArray), environment,
                             context, mode,
                             allowNameInference: false);
                     }

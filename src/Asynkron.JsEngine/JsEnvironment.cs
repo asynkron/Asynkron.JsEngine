@@ -2762,7 +2762,7 @@ public sealed class JsEnvironment
 
         public JsValue GetJsValue()
         {
-            return _resolved ? _resolvedValue : JsValue.FromObjectUnsafe(promise.JsObject);
+            return _resolved ? _resolvedValue : JsValue.FromJsObject(promise.JsObject);
         }
 
         public void SetJsValue(JsValue value)

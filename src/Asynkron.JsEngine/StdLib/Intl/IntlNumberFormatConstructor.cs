@@ -48,7 +48,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     private IntlNumberFormatInternalSlots CreateInternalSlots(string locale, IJsPropertyAccessor? options)

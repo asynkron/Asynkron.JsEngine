@@ -17,7 +17,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <summary>
 ///     Simple JavaScript-like object that supports prototype chaining for property lookups.
 /// </summary>
-public class JsObject : IDictionary<string, object?>, IJsObjectLike,
+public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     IPrivateBrandHolder,
     IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
 {
@@ -33,6 +33,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private IVirtualPropertyProvider? _virtualPropertyProvider;
 
     // Cached JsValue to avoid repeated struct creation
+    // ReSharper disable once ReplaceWithFieldKeyword
     private readonly JsValue _cachedJsValue;
 
     public JsObject(object? prototype = null)
@@ -47,7 +48,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// <inheritdoc />
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
-    internal int MutationVersion { get; private set; }
+    private int MutationVersion { get; set; }
 
     private JsObjectState State => _state ??= new JsObjectState();
 
@@ -260,7 +261,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     // IJsPropertyAccessor interface implementation with JsValue
     public void SetProperty(string name, JsValue value)
     {
-        SetPropertyJsValue(name, value, JsValue.FromObjectUnsafe(this));
+        SetPropertyJsValue(name, value, JsValue.FromJsObject(this));
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -304,7 +305,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
     }
 
     // IJsPropertyAccessor interface implementation with JsValue
-    public virtual bool TryGetProperty(string name, out JsValue value)
+    public bool TryGetProperty(string name, out JsValue value)
     {
         // Super-fast path: direct storage access for simple data properties
         // This bypasses descriptors and virtual providers when they don't apply
@@ -337,7 +338,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return TryGetPropertyInternalJsValue(name, out value);
     }
 
-    public virtual bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         // Use JsValue version to avoid boxing
         return TryGetPropertyJsValue(name, receiver, 0, null, out value);
@@ -794,11 +795,11 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         // Private slots need special handling - go through slow path
         if (name.IsPrivateSlotName())
         {
-            return TryGetPropertyJsValue(name, JsValue.FromObjectUnsafe(this), 0, null, out value);
+            return TryGetPropertyJsValue(name, JsValue.FromJsObject(this), 0, null, out value);
         }
 
         // Fast path: check own property first without allocating HashSet
-        if (TryGetOwnPropertyJsValue(name, JsValue.FromObjectUnsafe(this), null, out value))
+        if (TryGetOwnPropertyJsValue(name, JsValue.FromJsObject(this), null, out value))
         {
             return true;
         }
@@ -811,7 +812,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         // Slow path: need depth-limited prototype chain traversal
-        return TryGetPropertyJsValue(name, JsValue.FromObjectUnsafe(this), 0, null, out value);
+        return TryGetPropertyJsValue(name, JsValue.FromJsObject(this), 0, null, out value);
     }
 
     /// <summary>
@@ -844,7 +845,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                     value = TypedAstEvaluator.InvokeCallableJsValue(
                                         desc.Get,
                                         [],
-                                        receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                                        receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
                                         context,
                                         ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine
                                             ?.GlobalEnvironment);
@@ -1527,48 +1528,6 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return false;
     }
 
-    public void SetGetter(string name, IJsCallable getter)
-    {
-        this[GetterPrefix + name] = getter;
-    }
-
-    public void SetSetter(string name, IJsCallable setter)
-    {
-        this[SetterPrefix + name] = setter;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasGetter(string name)
-    {
-        return TryGetValue(GetterPrefix + name, out _);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasSetter(string name)
-    {
-        return TryGetValue(SetterPrefix + name, out _);
-    }
-
-    public IJsCallable? GetGetter(string name)
-    {
-        const int maxDepth = 100;
-        var current = this;
-        var depth = 0;
-
-        while (current is not null && depth++ < maxDepth)
-        {
-            if (current.TryGetValue(GetterPrefix + name, out var getter) &&
-                getter is IJsCallable callable)
-            {
-                return callable;
-            }
-
-            current = current.Prototype;
-        }
-
-        return null;
-    }
-
     public IJsCallable? GetSetter(string name)
     {
         const int maxDepth = 100;
@@ -1637,14 +1596,15 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
         Remove(GetterPrefix + name);
         Remove(SetterPrefix + name);
         var deletedValue = Remove(name);
-        if (deletedDescriptor || deletedValue)
+        if (!deletedDescriptor && !deletedValue)
         {
-            MarkMutated();
-            RemoveFromInsertionOrder(name);
-            return true;
+            return false;
         }
 
-        return false;
+        MarkMutated();
+        RemoveFromInsertionOrder(name);
+        return true;
+
     }
 
     public bool DeleteOwnProperty(string name)
@@ -2092,7 +2052,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     value = TypedAstEvaluator.InvokeCallableJsValue(
                         virtualDescriptor.Get,
                         [],
-                        receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                        receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
                         context,
                         ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
                 }
@@ -2127,7 +2087,7 @@ public class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         value = TypedAstEvaluator.InvokeCallableJsValue(
                             descriptor.Get,
                             [],
-                            receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                            receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
                             context,
                             ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine
                                 ?.GlobalEnvironment);

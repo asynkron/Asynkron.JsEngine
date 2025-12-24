@@ -62,7 +62,7 @@ public static class IntlHelper
                 Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
             });
 
-        var getCanonicalLocales = new HostFunction(args => JsValue.FromObjectUnsafe(CreateCanonicalLocalesResult(args)),
+        var getCanonicalLocales = new HostFunction(args => JsValue.FromJsArray(CreateCanonicalLocalesResult(args)),
             realm,
             false);
         getCanonicalLocales.DefineProperty("length",
@@ -81,7 +81,7 @@ public static class IntlHelper
             });
 
         var supportedValuesOf =
-            new HostFunction(args => JsValue.FromObjectUnsafe(CreateSupportedValuesResult(args)), realm, false);
+            new HostFunction(args => JsValue.FromJsArray(CreateSupportedValuesResult(args)), realm, false);
         supportedValuesOf.DefineProperty("length",
             new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedValuesOf.DefineProperty("name",

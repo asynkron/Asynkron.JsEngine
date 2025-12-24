@@ -63,7 +63,7 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     private IntlCollatorInternalSlots CreateInternalSlots(JsValue localesArg, JsValue optionsArg)

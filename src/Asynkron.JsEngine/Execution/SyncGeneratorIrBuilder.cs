@@ -217,6 +217,14 @@ internal sealed class SyncGeneratorIrBuilder
                         return false;
                     }
 
+                    // For async generators, await expressions are lowered to yield points.
+                    // Don't use native instruction if there are awaits - fall back to StatementInstruction.
+                    if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
+                        return true;
+                    }
+
                     // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
                     entryIndex = Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression));
                     return true;
@@ -483,9 +491,17 @@ internal sealed class SyncGeneratorIrBuilder
     ///     Attempts to build a native SimpleVariableDeclarationInstruction for simple declarations.
     ///     Handles single declarator with identifier binding (no destructuring).
     /// </summary>
+    /// <remarks>
+    ///     DISABLED: This instruction breaks async generators because it doesn't properly integrate
+    ///     with the generator's slot/environment system for preserving variable values across yield points.
+    ///     When enabled, variables don't maintain their values correctly after yield resumption.
+    ///     TODO: Investigate proper integration with generator state management.
+    /// </remarks>
     private bool TryBuildSimpleVariableDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
     {
+        // DISABLED - see remarks above
         entryIndex = -1;
+        return false;
 
         // Only handle single declarator
         if (declaration.Declarators.Length != 1)
@@ -501,8 +517,11 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        // Ensure no yields in initializer (already checked by caller, but be safe)
-        if (declarator.Initializer is not null && AstShapeAnalyzer.ContainsYield(declarator.Initializer))
+        // Ensure no yields or awaits in initializer (already checked by caller, but be safe)
+        // For async generators, await expressions are lowered to yield points
+        if (declarator.Initializer is not null &&
+            (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
+             AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
         {
             return false;
         }

@@ -139,7 +139,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         if (name.IsPrivateSlotName())
         {
             return _privateStorage.TryGetProperty(name,
-                receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
+                receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver, out value);
         }
 
         if (TryGetTrap("get", out var trap))
@@ -147,25 +147,25 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var args = new[]
             {
                 JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)),
-                receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver
+                receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver
             };
             value = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             return true;
         }
 
-        return Target.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver, out value);
+        return Target.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver, out value);
     }
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
+        return TryGetProperty(name, JsValue.FromJsProxy(this), out value);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
         if (name.IsPrivateSlotName())
         {
-            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
+            _privateStorage.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver);
             return;
         }
 
@@ -174,7 +174,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             var args = new[]
             {
                 JsValue.FromObjectUnsafe(Target), JsValue.FromObjectUnsafe(DecodePropertyKey(name)), value,
-                receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver
+                receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver
             };
             var result = trap.Invoke(args, JsValue.FromObjectUnsafe(Handler));
             if (!JsOps.ToBoolean(result))
@@ -185,12 +185,12 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        Target.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
+        Target.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromJsProxy(this) : receiver);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
+        SetProperty(name, value, JsValue.FromJsProxy(this));
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

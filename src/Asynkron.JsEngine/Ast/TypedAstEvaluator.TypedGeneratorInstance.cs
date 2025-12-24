@@ -648,7 +648,22 @@ public static partial class TypedAstEvaluator
                                     context.Clear();
                                     if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
                                     {
-                                        continue;
+                                        // If PC changed (jumped to catch/finally), continue
+                                        if (_programCounter != _currentInstructionIndex)
+                                        {
+                                            continue;
+                                        }
+
+                                        // PC didn't change - we're inside a finally and updated pending.
+                                        // The finally ends abruptly, pop frame and re-propagate.
+                                        if (_tryStack.Count > 0)
+                                        {
+                                            _tryStack.Pop();
+                                            if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
+                                            {
+                                                continue;
+                                            }
+                                        }
                                     }
 
                                     _tryStack.Clear();
@@ -658,7 +673,22 @@ public static partial class TypedAstEvaluator
                                 // Now throw the evaluated value
                                 if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
                                 {
-                                    continue;
+                                    // If PC changed (jumped to catch/finally), continue
+                                    if (_programCounter != _currentInstructionIndex)
+                                    {
+                                        continue;
+                                    }
+
+                                    // PC didn't change - we're inside a finally and updated pending.
+                                    // The finally ends abruptly, pop frame and re-propagate.
+                                    if (_tryStack.Count > 0)
+                                    {
+                                        _tryStack.Pop();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
+                                        {
+                                            continue;
+                                        }
+                                    }
                                 }
 
                                 _tryStack.Clear();
@@ -2118,11 +2148,12 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Per ES spec: when an abrupt completion occurs inside a finally block,
-                    // the new completion replaces the pending one. The finally block ends
-                    // abruptly and the new completion propagates. Pop this frame and continue
-                    // searching for handlers in outer try blocks.
-                    _tryStack.Pop();
-                    continue;
+                    // the new completion replaces the pending one. For most callers
+                    // (like StoreResumeValueInstruction for generator resumption),
+                    // we update the pending and let them advance PC. For throw/return
+                    // statements that end the finally abruptly, the caller handles it.
+                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                    return true;
                 }
 
                 _tryStack.Pop();

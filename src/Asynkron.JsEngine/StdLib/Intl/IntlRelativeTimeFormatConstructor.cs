@@ -33,7 +33,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
     {
         var supportedLocalesOf = new HostFunction(
             (_, args) =>
-                JsValue.FromObjectUnsafe(
+                JsValue.FromJsArray(
                     IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
             isConstructor: false);
 

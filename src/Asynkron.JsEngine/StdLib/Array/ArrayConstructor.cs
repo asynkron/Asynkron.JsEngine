@@ -41,7 +41,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     {
         var array = AllocateArrayInstance(thisValue);
         InitializeArrayLength(array, args);
-        return JsValue.FromObjectUnsafe(array);
+        return JsValue.FromJsArray(array);
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -72,7 +72,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             }
 
             InitializeArrayLength(array, args);
-            return JsValue.FromObjectUnsafe(array);
+            return JsValue.FromJsArray(array);
         });
 
         // isArray, of, and [Symbol.species] are registered via code generation from attributes

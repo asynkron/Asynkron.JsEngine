@@ -68,7 +68,7 @@ public static partial class TypedAstEvaluator
             }
 
             var arguments = ImmutableArray.CreateBuilder<JsValue>(expression.Expressions.Length + 1);
-            arguments.Add(JsValue.FromObjectUnsafe(templateObject));
+            arguments.Add(JsValue.FromJsArray(templateObject));
 
             foreach (var expr in expression.Expressions)
             {

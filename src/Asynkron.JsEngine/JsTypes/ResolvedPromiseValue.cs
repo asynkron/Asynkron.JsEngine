@@ -82,7 +82,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
 
             // Return the JsPromise directly without forcing JsObject creation
             // The await machinery can find the promise via TryGetInternalPromise
-            return JsValue.FromObjectUnsafe(nextPromise);
+            return JsValue.FromJsPromise(nextPromise);
         }
     }
 
@@ -98,7 +98,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
             var nextPromise = new JsPromise(engine);
             engine.QueueMicrotask(
                 ResolvedPromisePassthroughMicrotask.Rent(resolved._value, nextPromise));
-            return JsValue.FromObjectUnsafe(nextPromise);
+            return JsValue.FromJsPromise(nextPromise);
         }
     }
 
@@ -123,7 +123,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
                     ResolvedPromisePassthroughMicrotask.Rent(resolved._value, nextPromise));
             }
 
-            return JsValue.FromObjectUnsafe(nextPromise);
+            return JsValue.FromJsPromise(nextPromise);
         }
     }
 }

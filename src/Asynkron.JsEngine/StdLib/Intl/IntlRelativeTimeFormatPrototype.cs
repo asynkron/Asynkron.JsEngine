@@ -50,7 +50,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         part.SetProperty("value", formatted.AsString());
         var parts = new JsArray(Realm);
         parts.Push(part);
-        return JsValue.FromObjectUnsafe(parts);
+        return JsValue.FromJsArray(parts);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

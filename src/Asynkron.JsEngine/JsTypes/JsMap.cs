@@ -338,7 +338,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         foreach (var key in _insertionOrder)
         {
             var pair = new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)]);
-            entries.Add(JsValue.FromObjectUnsafe(pair));
+            entries.Add(JsValue.FromJsArray(pair));
         }
 
         return new JsArray(entries);

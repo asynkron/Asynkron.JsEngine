@@ -165,20 +165,20 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!TryParseArrayIndex(name, out var index))
         {
-            return _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
+            return _properties.TryGetProperty(name, JsValue.FromJsArray(this), out value);
         }
 
         // Accessor/data descriptors defined via Object.defineProperty on an
         // index should override the internal dense/sparse storage.
         if (_properties.GetOwnPropertyDescriptor(name) is not null &&
-            _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value))
+            _properties.TryGetProperty(name, JsValue.FromJsArray(this), out value))
         {
             return true;
         }
 
         if (!TryGetOwnIndex(index, out var jsValue))
         {
-            return _properties.TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
+            return _properties.TryGetProperty(name, JsValue.FromJsArray(this), out value);
         }
 
         value = jsValue;
@@ -217,7 +217,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsValue.FromObjectUnsafe(this));
+        SetProperty(name, value, JsValue.FromJsArray(this));
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -236,7 +236,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
 
         _properties.SetProperty(name, value,
-            receiver.IsNull || receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
+            receiver.IsNull || receiver.IsUndefined ? JsValue.FromJsArray(this) : receiver);
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)

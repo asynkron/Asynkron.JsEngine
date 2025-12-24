@@ -104,7 +104,7 @@ public sealed partial class SetPrototype
                 var current = set.GetValue(index++);
                 var value = kind switch
                 {
-                    SetIterationKind.Entries => JsValue.FromObjectUnsafe(CreateEntryPair(current, current)),
+                    SetIterationKind.Entries => JsValue.FromJsArray(CreateEntryPair(current, current)),
                     _ => current
                 };
 

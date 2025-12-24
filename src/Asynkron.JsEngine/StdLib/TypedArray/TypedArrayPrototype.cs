@@ -171,7 +171,7 @@ public sealed partial class TypedArrayPrototype
                 var pair = new JsArray(Realm);
                 pair.Push((double)idx);
                 pair.Push(typedArray.GetValueForIndex((int)idx));
-                return JsValue.FromObjectUnsafe(pair);
+                return JsValue.FromJsArray(pair);
             },
             Realm));
     }

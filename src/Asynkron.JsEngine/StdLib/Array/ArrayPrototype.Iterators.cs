@@ -19,7 +19,7 @@ public sealed partial class ArrayPrototype
                 var pair = new JsArray(Realm);
                 pair.Push((double)idx);
                 pair.Push(GetElementOrUndefinedJsValue(accessor, idx));
-                return JsValue.FromObjectUnsafe(pair);
+                return JsValue.FromJsArray(pair);
             }));
     }
 

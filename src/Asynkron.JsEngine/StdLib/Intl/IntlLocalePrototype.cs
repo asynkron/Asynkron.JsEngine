@@ -90,7 +90,7 @@ public sealed partial class IntlLocalePrototype
             result.Push(variant);
         }
 
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     [JsHostGetter("calendar", DisplayName = "get calendar")]
@@ -168,7 +168,7 @@ public sealed partial class IntlLocalePrototype
             result.Push(DefaultCalendars[0]);
         }
 
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     [JsHostMethod("getCollations", Length = 0d)]
@@ -183,7 +183,7 @@ public sealed partial class IntlLocalePrototype
         }
 
         result.Push("default");
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     [JsHostMethod("getHourCycles", Length = 0d)]
@@ -205,7 +205,7 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     [JsHostMethod("getNumberingSystems", Length = 0d)]
@@ -227,7 +227,7 @@ public sealed partial class IntlLocalePrototype
             }
         }
 
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     [JsHostMethod("getTextInfo", Length = 0d)]
@@ -267,7 +267,7 @@ public sealed partial class IntlLocalePrototype
             result.Push("UTC");
         }
 
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 
     [JsHostMethod("getWeekInfo", Length = 0d)]
@@ -279,7 +279,7 @@ public sealed partial class IntlLocalePrototype
         info.SetProperty("firstDay", ConvertWeekdayToNumber(firstDay));
 
         var weekend = ResolveWeekendDays(locale);
-        info.SetProperty("weekend", JsValue.FromObjectUnsafe(CreateWeekendArray(weekend)));
+        info.SetProperty("weekend", JsValue.FromJsArray(CreateWeekendArray(weekend)));
         info.SetProperty("minimalDays", ResolveMinimalDays(locale));
         return (JsValue)info;
     }

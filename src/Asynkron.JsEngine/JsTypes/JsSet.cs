@@ -308,7 +308,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             var jsValue = JsValue.FromObjectUnsafe(value);
             var pair = new JsArray([jsValue, jsValue]);
-            entries.Add(JsValue.FromObjectUnsafe(pair));
+            entries.Add(JsValue.FromJsArray(pair));
         }
 
         return new JsArray(entries);

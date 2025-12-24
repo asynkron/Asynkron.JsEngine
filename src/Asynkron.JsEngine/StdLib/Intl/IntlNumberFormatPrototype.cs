@@ -44,7 +44,7 @@ public sealed partial class IntlNumberFormatPrototype
             partsArray.Push(entry);
         }
 
-        return JsValue.FromObjectUnsafe(partsArray);
+        return JsValue.FromJsArray(partsArray);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

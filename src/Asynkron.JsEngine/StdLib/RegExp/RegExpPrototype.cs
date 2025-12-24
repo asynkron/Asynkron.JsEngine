@@ -284,7 +284,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         var resultArray = new JsArray(Realm);
         if (limit == 0)
         {
-            return JsValue.FromObjectUnsafe(resultArray);
+            return JsValue.FromJsArray(resultArray);
         }
 
         var position = 0;
@@ -336,6 +336,6 @@ public sealed partial class RegExpPrototype : JsPrototype
             resultArray.Push(input[position..]);
         }
 
-        return JsValue.FromObjectUnsafe(resultArray);
+        return JsValue.FromJsArray(resultArray);
     }
 }

@@ -143,7 +143,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         if (remaining == 0)
         {
-            resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(Realm)));
+            resultPromise.Resolve(JsValue.FromJsArray(new JsArray(Realm)));
             return new JsValue(resultPromise.JsObject);
         }
 
@@ -165,7 +165,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 remaining--;
                 if (remaining == 0)
                 {
-                    resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(results, Realm)));
+                    resultPromise.Resolve(JsValue.FromJsArray(new JsArray(results, Realm)));
                 }
             }
         }
@@ -182,7 +182,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 remaining--;
                 if (remaining == 0)
                 {
-                    resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(results, Realm)));
+                    resultPromise.Resolve(JsValue.FromJsArray(new JsArray(results, Realm)));
                 }
 
                 return JsValue.Undefined;
@@ -279,7 +279,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         if (remaining == 0)
         {
-            resultPromise.Resolve(JsValue.FromObjectUnsafe(new JsArray(Realm)));
+            resultPromise.Resolve(JsValue.FromJsArray(new JsArray(Realm)));
             return new JsValue(resultPromise.JsObject);
         }
 
@@ -339,7 +339,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 resultArray.Push(result);
             }
 
-            resultPromise.Resolve(JsValue.FromObjectUnsafe(resultArray));
+            resultPromise.Resolve(JsValue.FromJsArray(resultArray));
         }
 
         JsObject CreateAllSettledResult(JsValue value, bool isRejected)
@@ -447,7 +447,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             {
                 var args = new[]
                 {
-                    JsValue.FromObjectUnsafe(rejectionErrors), new JsValue("All promises were rejected")
+                    JsValue.FromJsArray(rejectionErrors), new JsValue("All promises were rejected")
                 };
                 var result = callable.Invoke(args, JsValue.Undefined);
                 return result.IsNullish ? rejectionErrors : (object?)result.AsObject() ?? rejectionErrors;

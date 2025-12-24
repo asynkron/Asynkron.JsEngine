@@ -30,7 +30,7 @@ public sealed partial class IntlDurationFormatPrototype
     private JsValue FormatToParts(JsValue thisValue)
     {
         ValidateReceiver(thisValue);
-        return JsValue.FromObjectUnsafe(new JsArray(Realm));
+        return JsValue.FromJsArray(new JsArray(Realm));
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

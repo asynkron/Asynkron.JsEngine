@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
                         errorMessage,
                         context,
                         context.RealmState);
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     return JsValue.Undefined;
 
                 },

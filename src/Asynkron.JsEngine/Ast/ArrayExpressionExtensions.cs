@@ -52,7 +52,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            return JsValue.FromObjectUnsafe(array);
+            return JsValue.FromJsArray(array);
         }
     }
 }

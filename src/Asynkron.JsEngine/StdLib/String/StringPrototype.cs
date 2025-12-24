@@ -290,7 +290,7 @@ public sealed partial class StringPrototype
         var value = ResolveString(thisValue);
         if (args.Count == 0)
         {
-            return JsValue.FromObjectUnsafe(CreateArrayFromStrings([value], Realm));
+            return JsValue.FromJsArray(CreateArrayFromStrings([value], Realm));
         }
 
         var separatorValue = args[0];
@@ -315,7 +315,7 @@ public sealed partial class StringPrototype
                 chars[i] = value[i].ToString();
             }
 
-            return JsValue.FromObjectUnsafe(CreateArrayFromStrings(chars, Realm));
+            return JsValue.FromJsArray(CreateArrayFromStrings(chars, Realm));
         }
 
         var parts = value.Split([separator], StringSplitOptions.None);
@@ -324,7 +324,7 @@ public sealed partial class StringPrototype
             parts = parts.Take(limit).ToArray();
         }
 
-        return JsValue.FromObjectUnsafe(CreateArrayFromStrings(parts, Realm));
+        return JsValue.FromJsArray(CreateArrayFromStrings(parts, Realm));
     }
 
     [JsHostMethod("replace", Length = 2d)]
@@ -811,7 +811,7 @@ public sealed partial class StringPrototype
         }
 
         var regex = ToRegExpValue(matcher, "g", true);
-        return JsValue.FromObjectUnsafe(regex.MatchAll(value));
+        return JsValue.FromJsArray(regex.MatchAll(value));
     }
 
     // HTML wrapper methods (Annex B)

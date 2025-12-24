@@ -30,7 +30,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -48,7 +48,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         var keys = new JsArray(realmState);
@@ -61,7 +61,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return JsValue.FromObjectUnsafe(keys);
+        return JsValue.FromJsArray(keys);
     }
 
     [JsConstructorMethod("values", Length = 1d)]
@@ -70,7 +70,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -88,7 +88,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         var values = new JsArray(realmState);
@@ -100,7 +100,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return JsValue.FromObjectUnsafe(values);
+        return JsValue.FromJsArray(values);
     }
 
     [JsConstructorMethod("entries", Length = 1d)]
@@ -109,7 +109,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -127,7 +127,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         var entries = new JsArray(realmState);
@@ -142,7 +142,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             entries.Push(entry);
         }
 
-        return JsValue.FromObjectUnsafe(entries);
+        return JsValue.FromJsArray(entries);
     }
 
     [JsConstructorMethod("assign", Length = 2d)]
@@ -178,7 +178,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         if (args.Count == 0 || !args[0].TryGetObject(out JsArray? entries))
         {
-            return JsValue.FromObjectUnsafe(new JsObject(realmState.ObjectPrototype) { RealmState = realmState });
+            return JsValue.FromJsObject(new JsObject(realmState.ObjectPrototype) { RealmState = realmState });
         }
 
         var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
@@ -195,7 +195,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             result[key] = value;
         }
 
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsObject(result);
     }
 
     [JsConstructorMethod("hasOwn", Length = 2d)]
@@ -248,7 +248,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         obj.Freeze();
-        return JsValue.FromObjectUnsafe(obj);
+        return JsValue.FromJsObject(obj);
     }
 
     [JsConstructorMethod("seal", Length = 1d)]
@@ -265,7 +265,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         obj.Seal();
-        return JsValue.FromObjectUnsafe(obj);
+        return JsValue.FromJsObject(obj);
     }
 
     [JsConstructorMethod("isFrozen", Length = 1d)]
@@ -324,7 +324,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
         {
-            return JsValue.FromObjectUnsafe(obj);
+            return JsValue.FromJsObject(obj);
         }
 
         foreach (var propName in propsObj.GetOwnPropertyNames())
@@ -338,7 +338,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             TryDefinePropertyOnTarget(obj, propName, descriptor, realmState, true);
         }
 
-        return JsValue.FromObjectUnsafe(obj);
+        return JsValue.FromJsObject(obj);
     }
 
     [JsConstructorMethod("getOwnPropertyNames", Length = 1d)]
@@ -347,7 +347,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         IJsPropertyAccessor? obj = null;
@@ -365,11 +365,11 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         if (obj is null)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         var names = new JsArray(obj.GetOwnPropertyNames(), realmState);
-        return JsValue.FromObjectUnsafe(names);
+        return JsValue.FromJsArray(names);
     }
 
     [JsConstructorMethod("getOwnPropertyDescriptor", Length = 2d)]
@@ -422,7 +422,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             descriptors.SetProperty(key, (JsValue)(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
         }
 
-        return JsValue.FromObjectUnsafe(descriptors);
+        return JsValue.FromJsObject(descriptors);
     }
 
     [JsConstructorMethod("getPrototypeOf", Length = 1d)]
@@ -581,12 +581,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         if (args.Count == 0)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         if (!TryGetObject(args[0], realmState, out var obj))
         {
-            return JsValue.FromObjectUnsafe(new JsArray(realmState));
+            return JsValue.FromJsArray(new JsArray(realmState));
         }
 
         var symbols = new JsArray(realmState);
@@ -600,7 +600,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
                 }
             }
 
-            return JsValue.FromObjectUnsafe(symbols);
+            return JsValue.FromJsArray(symbols);
         }
 
         foreach (var key in obj.GetOwnPropertyKeysInOrder(true, true))
@@ -611,7 +611,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             }
         }
 
-        return JsValue.FromObjectUnsafe(symbols);
+        return JsValue.FromJsArray(symbols);
     }
 
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)

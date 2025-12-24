@@ -840,7 +840,7 @@ public static partial class TypedAstEvaluator
             }
 
             map.Set(key, value);
-            return JsValue.FromObjectUnsafe(map);
+            return JsValue.FromObjectUnsafe((IJsObjectLike)map);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

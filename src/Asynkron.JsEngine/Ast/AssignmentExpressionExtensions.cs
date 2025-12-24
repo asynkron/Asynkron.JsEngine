@@ -427,7 +427,7 @@ public static partial class TypedAstEvaluator
                 {
                     var error = StandardLibrary.CreateTypeError(
                         $"Assignment to constant variable '{expression.Target.Name}'.", context, context.RealmState);
-                    context.SetThrow(JsValue.FromObjectUnsafe(error));
+                    context.SetThrow(error);
                     return JsValue.Undefined;
                 }
 

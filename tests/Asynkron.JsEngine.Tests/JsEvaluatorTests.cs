@@ -512,7 +512,7 @@ public class JsEvaluatorTests
         var proxyProtoHash =
             RuntimeHelpers.GetHashCode(Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("Proxy.prototype")));
         Assert.True(JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(ctorValue), "prototype", out var ctorProtoViaOps));
-        var ctorProtoViaOpsObject = Assert.IsAssignableFrom<JsObject>(ctorProtoViaOps);
+        var ctorProtoViaOpsObject = Assert.IsAssignableFrom<JsObject>(ctorProtoViaOps.ObjectValue);
         var ctorProtoViaOpsHasX = ctorProtoViaOpsObject.TryGetProperty("x", out _);
         Assert.True(ctorProtoViaOpsHasX);
 

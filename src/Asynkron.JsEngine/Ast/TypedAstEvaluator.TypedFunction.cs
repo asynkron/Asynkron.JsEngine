@@ -487,31 +487,31 @@ public static partial class TypedAstEvaluator
             // Primitives → boxed objects
             if (thisValue.IsNumber)
             {
-                return JsValue.FromObjectUnsafe(NumberHelper.CreateNumberWrapper(thisValue.AsDouble(),
+                return JsValue.FromJsObject(NumberHelper.CreateNumberWrapper(thisValue.AsDouble(),
                     realm: RealmState));
             }
 
             if (thisValue.IsString)
             {
-                return JsValue.FromObjectUnsafe(StringHelper.CreateStringWrapper(thisValue.AsString(),
+                return JsValue.FromJsObject(StringHelper.CreateStringWrapper(thisValue.AsString(),
                     realm: RealmState));
             }
 
             if (thisValue.IsBoolean)
             {
-                return JsValue.FromObjectUnsafe(
+                return JsValue.FromJsObject(
                     BooleanHelper.CreateBooleanWrapper(thisValue.AsBoolean(), realm: RealmState));
             }
 
             if (thisValue.IsBigInt)
             {
-                return JsValue.FromObjectUnsafe(BigIntHelper.CreateBigIntWrapper(thisValue.AsBigInt(),
+                return JsValue.FromJsObject(BigIntHelper.CreateBigIntWrapper(thisValue.AsBigInt(),
                     realm: RealmState));
             }
 
             if (thisValue.IsSymbol && thisValue.TryUnwrap<TypedAstSymbol>(out var typedSymbol))
             {
-                return JsValue.FromObjectUnsafe(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: RealmState));
+                return JsValue.FromJsObject(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: RealmState));
             }
 
             // Already an object

@@ -47,6 +47,6 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
     private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
     {
         var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        return JsValue.FromObjectUnsafe(result);
+        return JsValue.FromJsArray(result);
     }
 }

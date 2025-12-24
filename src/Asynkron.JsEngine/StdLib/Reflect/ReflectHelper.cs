@@ -114,10 +114,10 @@ public static class ReflectHelper
                 arrayInstance.SetPrototype(proto);
             }
 
-            var result = target.Invoke(argList, JsValue.FromObjectUnsafe(arrayInstance));
+            var result = target.Invoke(argList, JsValue.FromJsArray(arrayInstance));
             return result.TryGetObject<JsObject>(out var jsObj)
                 ? new JsValue(jsObj)
-                : JsValue.FromObjectUnsafe(arrayInstance);
+                : JsValue.FromJsArray(arrayInstance);
         }
 
         var instance = new JsObject();
@@ -314,7 +314,7 @@ public static class ReflectHelper
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return JsValue.FromObjectUnsafe(new JsArray(moduleNamespace.OwnKeys(), realm));
+            return JsValue.FromJsArray(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
         if (target is IJsPropertyAccessor accessor)
@@ -332,7 +332,7 @@ public static class ReflectHelper
                 ordered.Push(key);
             }
 
-            return JsValue.FromObjectUnsafe(ordered);
+            return JsValue.FromJsArray(ordered);
         }
 
         var keys = target.Keys
@@ -340,7 +340,7 @@ public static class ReflectHelper
                         !k.StartsWith("__setter__", StringComparison.Ordinal) &&
                         !string.Equals(k, "__proto__", StringComparison.Ordinal))
             .ToArray();
-        return JsValue.FromObjectUnsafe(new JsArray(keys, realm));
+        return JsValue.FromJsArray(new JsArray(keys, realm));
     }
 
     internal static JsValue ReflectPreventExtensions(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)

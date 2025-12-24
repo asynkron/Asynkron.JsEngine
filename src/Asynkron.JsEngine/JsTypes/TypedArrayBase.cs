@@ -15,7 +15,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     can treat typed arrays like regular <see cref="IJsObjectLike" /> instances.
 /// </summary>
 public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
-    IPrototypeAccessorProvider
+    IPrototypeAccessorProvider, IAsJsValue
 {
     protected readonly JsArrayBuffer _buffer;
     protected readonly int _byteOffset;
@@ -26,6 +26,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
     protected readonly bool _isLengthTracking;
 
     private readonly JsObject _properties = new();
+    private readonly JsValue _cachedJsValue;
     private readonly HostFunction _setFunction;
     private readonly HostFunction _sliceFunction;
     private readonly HostFunction _subarrayFunction;
@@ -38,6 +39,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         bool isLengthTracking = false)
     {
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
 
         if (byteOffset < 0 || byteOffset > buffer.ByteLength)
         {
@@ -211,13 +213,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public IEnumerable<string> Keys => _properties.Keys;
 
-    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
+{
+    // Allow dynamically assigned properties and prototype chain lookups first.
+    if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
     {
-        // Allow dynamically assigned properties and prototype chain lookups first.
-        if (_properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
-        {
-            return true;
-        }
+        return true;
+    }
 
         switch (name)
         {
@@ -284,12 +286,12 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, (JsValue)this, out value);
+        return TryGetProperty(name, _cachedJsValue, out value);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, (JsValue)this);
+        SetProperty(name, value, _cachedJsValue);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -315,8 +317,10 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
             return;
         }
 
-        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
+
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     /// <summary>
     ///     Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.

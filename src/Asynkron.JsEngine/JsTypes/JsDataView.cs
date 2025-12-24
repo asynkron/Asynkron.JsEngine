@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a JavaScript DataView - a low-level interface for reading and writing
 ///     multiple number types in a binary ArrayBuffer with control over endianness.
 /// </summary>
-public sealed class JsDataView : IJsPropertyAccessor
+public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
 {
     /// <summary>
     ///     Attempts to extract a JsDataView from a JsValue, handling both direct instances
@@ -68,6 +68,7 @@ public sealed class JsDataView : IJsPropertyAccessor
     private readonly HostFunction _setUint16;
     private readonly HostFunction _setUint32;
     private readonly HostFunction _setUint8;
+    private readonly JsValue _cachedJsValue;
 
     /// <summary>
     ///     Creates a new DataView.
@@ -88,6 +89,7 @@ public sealed class JsDataView : IJsPropertyAccessor
             throw new ArgumentOutOfRangeException(nameof(byteLength));
         }
 
+        _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Buffer = buffer;
         ByteOffset = byteOffset;
         ByteLength = length;
@@ -227,7 +229,7 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (_properties.TryGetProperty(name, receiver.IsUndefined ? (JsValue)this : receiver, out value))
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
         {
             return true;
         }
@@ -299,12 +301,12 @@ public sealed class JsDataView : IJsPropertyAccessor
 
     public bool TryGetProperty(string name, out JsValue value)
     {
-        return TryGetProperty(name, (JsValue)this, out value);
+        return TryGetProperty(name, _cachedJsValue, out value);
     }
 
     public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, (JsValue)this);
+        SetProperty(name, value, _cachedJsValue);
     }
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
@@ -317,8 +319,10 @@ public sealed class JsDataView : IJsPropertyAccessor
                 throw new InvalidOperationException($"Cannot assign to read-only property '{name}' on DataView.");
         }
 
-        _properties.SetProperty(name, value, receiver.IsUndefined ? (JsValue)this : receiver);
+        _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
     }
+
+    public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
     /// <summary>
     ///     Allows attaching a prototype chain to mirror JavaScript semantics.

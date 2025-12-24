@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
@@ -1015,6 +1016,12 @@ public sealed class JsEnvironment
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetIdentifierJsValue(Symbol name, EvaluationContext context, out JsValue value)
     {
+        // DEBUG: track lookups for forAwait value symbol and item
+        if (name.Name?.StartsWith("__forAwait_value_") == true || name.Name == "item")
+        {
+            var localBindings = _values is not null ? string.Join(",", _values.Keys.Select(k => k.Name)) : "null";
+            System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nTryGetIdentifierJsValue: looking for {name.Name} in env.ScopeId={ScopeId.ToString(CultureInfo.InvariantCulture)} localBindings=[{localBindings}] Enclosing={(Enclosing is null ? "null" : Enclosing.ScopeId.ToString())}");
+        }
         // Ultra-fast path: check the current environment first for local variables
         // Most identifier lookups in functions are for local variables/parameters
         if (_values is not null && _values.TryGetValue(name, out var localBinding))
@@ -1048,6 +1055,11 @@ public sealed class JsEnvironment
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
             value = cached.ReadJsValue(context);
+            // DEBUG
+            if (name.Name?.StartsWith("__forAwait_value_", StringComparison.Ordinal) == true)
+            {
+                System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nCached binding returned, value={value}, kind={value.Kind}");
+            }
             return true;
         }
 
@@ -1063,6 +1075,11 @@ public sealed class JsEnvironment
             var cachedBinding = new ResolvedIdentifierBinding(bindingEnvironment, name);
             CacheDeclarativeBinding(name, cachedBinding, context);
             value = cachedBinding.ReadJsValue(context);
+            // DEBUG
+            if (name.Name?.StartsWith("__forAwait_value_", StringComparison.Ordinal) == true)
+            {
+                System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nTryLocateBinding returned true, value={value}, kind={value.Kind}");
+            }
             return true;
         }
 
@@ -1091,6 +1108,11 @@ public sealed class JsEnvironment
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
                 var slotValue = slots[slotIndex];
+                // DEBUG for item
+                if (name.Name == "item")
+                {
+                    System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nTryReadIdentifierWithSlot: name={name.Name} scopeId={scopeId} slotIndex={slotIndex} targetEnv.ScopeId={targetEnv.ScopeId} slotValue={slotValue} kind={slotValue.Kind} thisEnv.ScopeId={ScopeId}");
+                }
                 targetEnv.RealmState?.Logger?.LogInformation(
                     "Identifier slot read hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
                     name.Name,
@@ -1470,8 +1492,30 @@ public sealed class JsEnvironment
         var hops = 0;
         const int maxLookupDepth = 10_000;
 
+        // DEBUG
+        if (name.Name?.StartsWith("__forAwait_value_", StringComparison.Ordinal) == true || name.Name == "item")
+        {
+            var sb = new System.Text.StringBuilder();
+            var c = this;
+            while (c is not null)
+            {
+                var bindings = c._values is not null ? string.Join(",", c._values.Keys.Select(k => $"{k.Name}@{RuntimeHelpers.GetHashCode(k)}")) : "null";
+                sb.Append($" -> ScopeId={c.ScopeId.ToString(CultureInfo.InvariantCulture)}[{bindings}]");
+                c = c.Enclosing;
+            }
+            System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\nTryLocateBinding: {name.Name}@{RuntimeHelpers.GetHashCode(name)} scope chain:{sb}");
+        }
+
         while (current is not null && hops++ < maxLookupDepth)
         {
+            // DEBUG for forAwait and item
+            if (name.Name?.StartsWith("__forAwait_value_", StringComparison.Ordinal) == true || name.Name == "item")
+            {
+                var hasValues = current._values is not null;
+                var found = hasValues && current._values!.TryGetValue(name, out _);
+                System.IO.File.AppendAllText("/tmp/debug_instructions.txt", $"\n  hop {hops}: ScopeId={current.ScopeId} hasValues={hasValues} found={found}");
+            }
+
             if (current._values is not null && current._values.TryGetValue(name, out binding))
             {
                 bindingEnvironment = current;

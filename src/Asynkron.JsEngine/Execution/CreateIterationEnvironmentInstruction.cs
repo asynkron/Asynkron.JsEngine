@@ -16,4 +16,5 @@ internal sealed record CreateIterationEnvironmentInstruction(
     int Next,
     ImmutableArray<Symbol> PerIterationBindings,
     int ScopeId,
-    int SlotCount) : GeneratorInstruction(Next);
+    int SlotCount,
+    ImmutableDictionary<Symbol, int> SlotMap) : GeneratorInstruction(Next);

@@ -148,9 +148,8 @@ public static partial class TypedAstEvaluator
 
                     JsValue value;
                     // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
-                    value = resultObj.TryGetProperty("value", out var yielded)
-                        ? yielded
-                        : JsValue.Undefined;
+                    var gotValue = resultObj.TryGetProperty("value", out var yielded);
+                    value = gotValue ? yielded : JsValue.Undefined;
 
                     var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                         or VariableKind.Using or VariableKind.AwaitUsing

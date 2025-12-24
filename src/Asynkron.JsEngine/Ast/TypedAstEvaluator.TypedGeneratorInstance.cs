@@ -25,10 +25,6 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
 
         private readonly JsEnvironment _closure;
-
-        // Track yield slots that have already produced a value so re-running the body after a
-        // nested suspension skips only those slots (per the generator resumption rules).
-        private readonly HashSet<int> _consumedYieldIndices = [];
         private readonly FunctionExpression _function;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly IJsObjectLike? _homeObject;
@@ -484,7 +480,6 @@ public static partial class TypedAstEvaluator
 
             var environment = EnsureExecutionEnvironment();
             var context = EnsureEvaluationContext();
-            StoreSymbolValue(environment, Symbol.YieldTrackerSymbol, new YieldTracker(_consumedYieldIndices));
 
             // Restore active with-scopes when resuming
             // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
@@ -1778,10 +1773,6 @@ public static partial class TypedAstEvaluator
             // Remember the active yield slot so the next resume value is applied to the
             // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
             _lastYieldIndex = context.LastYieldIndex;
-            if (_lastYieldIndex >= 0)
-            {
-                _consumedYieldIndices.Add(_lastYieldIndex);
-            }
         }
 
 

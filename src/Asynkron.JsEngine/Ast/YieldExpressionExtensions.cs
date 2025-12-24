@@ -8,6 +8,60 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    /// <summary>
+    /// Well-known symbol for storing yield resume state in the environment.
+    /// Used when yields happen inside StatementInstruction (e.g., in destructuring defaults).
+    /// </summary>
+    private static readonly Symbol YieldResumeStateKey = Symbol.Intern("__yield_resume_state__");
+
+    /// <summary>
+    /// State for resuming from a yield that happened during AST evaluation (via StatementInstruction).
+    /// </summary>
+    internal sealed class YieldResumeState
+    {
+        /// <summary>
+        /// When true, the yield has been resumed and ResumeValue should be returned.
+        /// </summary>
+        public bool HasResumeValue { get; set; }
+
+        /// <summary>
+        /// The value passed to iter.next(value) when resuming.
+        /// </summary>
+        public JsValue ResumeValue { get; set; }
+
+        /// <summary>
+        /// Source position of the yield expression that yielded.
+        /// Used to match the correct yield on resume.
+        /// </summary>
+        public int YieldSourceStart { get; set; }
+
+        public int YieldSourceEnd { get; set; }
+    }
+
+    /// <summary>
+    /// Sets the yield resume value in the environment so that the next call to EvaluateYield
+    /// with a matching source position will return this value instead of yielding.
+    /// </summary>
+    internal static void SetYieldResumeValue(JsEnvironment environment, JsValue resumeValue, int yieldSourceStart, int yieldSourceEnd)
+    {
+        var state = new YieldResumeState
+        {
+            HasResumeValue = true,
+            ResumeValue = resumeValue,
+            YieldSourceStart = yieldSourceStart,
+            YieldSourceEnd = yieldSourceEnd
+        };
+
+        if (environment.HasOwnBinding(YieldResumeStateKey))
+        {
+            environment.AssignJsValue(YieldResumeStateKey, JsValue.FromObjectUnsafe(state));
+        }
+        else
+        {
+            environment.DefineJsValue(YieldResumeStateKey, JsValue.FromObjectUnsafe(state), false, isLexical: true, canDelete: true);
+        }
+    }
+
     extension(YieldExpression expression)
     {
         private JsValue EvaluateYield(JsEnvironment environment,
@@ -28,6 +82,18 @@ public static partial class TypedAstEvaluator
                     $"Source: {expression.Source?.StartPosition}-{expression.Source?.EndPosition}");
             }
 
+            // Check if we're resuming from a previous yield at this position.
+            // If so, return the resume value instead of yielding again.
+            if (environment.TryGetObject<YieldResumeState>(YieldResumeStateKey, out var resumeState) &&
+                resumeState.HasResumeValue &&
+                resumeState.YieldSourceStart == (expression.Source?.StartPosition ?? -1) &&
+                resumeState.YieldSourceEnd == (expression.Source?.EndPosition ?? -1))
+            {
+                // Clear the resume state so future yields at this position work correctly
+                resumeState.HasResumeValue = false;
+                return resumeState.ResumeValue;
+            }
+
             // Evaluate the yield operand if present
             var yieldedValue = JsValue.Undefined;
             if (expression.Expression is not null)
@@ -40,9 +106,12 @@ public static partial class TypedAstEvaluator
             }
 
             // Signal the yield via the context.
-            // Use -1 as the yield index since we're in AST evaluation mode, not IR.
-            // The IR interpreter will see context.IsYield and handle it appropriately.
-            context.SetYield(yieldedValue, -1);
+            // Use the source position to identify this yield for resume.
+            context.SetYield(yieldedValue, expression.Source?.StartPosition ?? -1);
+
+            // Store the yield position so the IR interpreter can set up resume state
+            context.LastYieldSourceStart = expression.Source?.StartPosition ?? -1;
+            context.LastYieldSourceEnd = expression.Source?.EndPosition ?? -1;
 
             // Return undefined; the actual resume value will be provided when the generator continues.
             // The caller (e.g., BindArrayPattern) will check context.IsYield and save state.

@@ -466,5 +466,16 @@ public static partial class TypedAstEvaluator
         public object? PendingValue { get; set; }
 
         public JsArray? RestArray { get; set; }
+
+        /// <summary>
+        /// When true, indicates the yield has been resumed and YieldResumeValue should be used
+        /// as the result of the yield expression instead of yielding again.
+        /// </summary>
+        public bool YieldResumed { get; set; }
+
+        /// <summary>
+        /// The resume value passed to iter.next(value) when resuming from a yield.
+        /// </summary>
+        public JsValue YieldResumeValue { get; set; }
     }
 }

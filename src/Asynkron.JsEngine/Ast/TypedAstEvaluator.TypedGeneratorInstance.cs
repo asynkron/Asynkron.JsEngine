@@ -633,6 +633,66 @@ public static partial class TypedAstEvaluator
                                 _programCounter = statementInstruction.Next;
                                 continue;
 
+                            case ThrowInstruction throwInstruction:
+                                // Evaluate the throw expression and throw it
+                                var throwValue = throwInstruction.Expression.EvaluateExpression(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingThrowResult))
+                                {
+                                    return pendingThrowResult;
+                                }
+
+                                // If evaluating the expression already threw, handle that
+                                if (context.IsThrow)
+                                {
+                                    var existingThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
+                                    {
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(existingThrown);
+                                }
+
+                                // Now throw the evaluated value
+                                if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
+                                {
+                                    continue;
+                                }
+
+                                _tryStack.Clear();
+                                throw new ThrowSignal(throwValue);
+
+                            case EvaluateAndDiscardInstruction evaluateInstruction:
+                                // Evaluate the expression and discard the result
+                                _ = evaluateInstruction.Expression.EvaluateExpression(environment, context);
+                                if (TryHandlePendingAwait(context, out var pendingEvalResult))
+                                {
+                                    return pendingEvalResult;
+                                }
+
+                                if (context.IsThrow)
+                                {
+                                    var evalThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, evalThrown, environment))
+                                    {
+                                        if (_programCounter == _currentInstructionIndex)
+                                        {
+                                            _programCounter = evaluateInstruction.Next;
+                                        }
+
+                                        continue;
+                                    }
+
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(evalThrown);
+                                }
+
+                                _programCounter = evaluateInstruction.Next;
+                                continue;
+
                             case YieldInstruction yieldInstruction:
                                 var yieldedValue = JsValue.Undefined;
                                 if (yieldInstruction.YieldExpression is not null)

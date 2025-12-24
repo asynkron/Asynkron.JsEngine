@@ -216,7 +216,8 @@ internal sealed class SyncGeneratorIrBuilder
                         return false;
                     }
 
-                    entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
+                    // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
+                    entryIndex = Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression));
                     return true;
 
                 case VariableDeclaration declaration:
@@ -430,7 +431,8 @@ internal sealed class SyncGeneratorIrBuilder
                         return false;
                     }
 
-                    entryIndex = Append(new StatementInstruction(nextIndex, throwStatement));
+                    // Use native ThrowInstruction - it evaluates the expression and throws
+                    entryIndex = Append(new ThrowInstruction(throwStatement.Expression!));
                     return true;
 
                 case LabeledStatement labeled:
@@ -439,12 +441,6 @@ internal sealed class SyncGeneratorIrBuilder
                     continue;
 
                 default:
-                    if (statement is ThrowStatement throwFallback)
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, throwFallback));
-                        return true;
-                    }
-
                     entryIndex = -1;
                     _failureReason ??= $"Unsupported statement '{statement.GetType().Name}'.";
                     return false;

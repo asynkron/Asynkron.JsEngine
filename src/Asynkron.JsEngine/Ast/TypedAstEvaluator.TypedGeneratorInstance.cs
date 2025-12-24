@@ -861,9 +861,11 @@ public static partial class TypedAstEvaluator
                                 }
                                 else
                                 {
-                                    // let/const - define as lexical binding
+                                    // let/const - define as lexical binding with blocksFunctionScopeOverride
+                                    // to match AST evaluator behavior (see IdentifierBindingExtensions.cs)
                                     var isConst = varDeclInstruction.Kind == VariableKind.Const;
-                                    environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue, isConst: isConst);
+                                    environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
+                                        isConst: isConst, isLexical: true, blocksFunctionScopeOverride: true);
                                 }
 
                                 _programCounter = varDeclInstruction.Next;

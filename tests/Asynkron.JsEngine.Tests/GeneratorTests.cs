@@ -5995,4 +5995,81 @@ public class GeneratorTests
         Assert.Contains("\"callCount\":1", resultStr, StringComparison.Ordinal);
         // Let's see what args.length and args[0] are
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldInArrayLiteral()
+    {
+        // This tests the pattern: [yield 1]
+        // The yield inside an array literal should work correctly
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g1() { [yield 1] }
+
+            let iter = g1();
+            let r1 = iter.next();
+            let r2 = iter.next();
+            JSON.stringify({ v1: r1.value, d1: r1.done, v2: r2.value, d2: r2.done });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        // First next should yield 1, not done
+        // Second next should be done with undefined value
+        Assert.Contains("\"v1\":1", resultStr);
+        Assert.Contains("\"d1\":false", resultStr);
+        Assert.Contains("\"d2\":true", resultStr);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_YieldInSequenceExpression()
+    {
+        // This tests the pattern: yield, yield
+        // Sequence of yields should work correctly
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function* g4() { yield, yield; }
+
+            let iter = g4();
+            let r1 = iter.next();
+            let r2 = iter.next();
+            let r3 = iter.next();
+            JSON.stringify({
+                d1: r1.done, d2: r2.done, d3: r3.done
+            });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr);
+        Assert.Contains("\"d2\":false", resultStr);
+        Assert.Contains("\"d3\":true", resultStr);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Generator_DestructuringAssignmentWithYieldDefault()
+    {
+        // This tests the pattern: [ x = yield ] = vals
+        // Yield in destructuring default should work correctly
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            var x;
+            var iter = (function*() {
+                var vals = [];
+                [ x = yield ] = vals;
+            })();
+
+            let r1 = iter.next();
+            let r2 = iter.next(86);
+            JSON.stringify({
+                v1: r1.value, d1: r1.done,
+                d2: r2.done, x: x
+            });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"d1\":false", resultStr);
+        Assert.Contains("\"d2\":true", resultStr);
+        Assert.Contains("\"x\":86", resultStr);
+    }
 }

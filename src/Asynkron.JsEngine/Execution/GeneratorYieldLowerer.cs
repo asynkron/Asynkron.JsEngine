@@ -830,6 +830,28 @@ internal static class GeneratorYieldLowerer
                     return taggedTemplate;
                 }
 
+                case DestructuringAssignmentExpression destructuringAssignment:
+                {
+                    // Handle yields in both the target's default values and the value expression
+                    var targetChanged = false;
+                    var rewrittenTarget = RewriteBindingTarget(destructuringAssignment.Target, prefixStatements, ref targetChanged);
+
+                    var valueChanged = false;
+                    var rewrittenValue = RewriteExpressionForComplexYields(destructuringAssignment.Value, prefixStatements, ref valueChanged);
+
+                    if (targetChanged || valueChanged)
+                    {
+                        changed = true;
+                        return destructuringAssignment with
+                        {
+                            Target = rewrittenTarget,
+                            Value = rewrittenValue
+                        };
+                    }
+
+                    return destructuringAssignment;
+                }
+
                 default:
                     return expression;
             }

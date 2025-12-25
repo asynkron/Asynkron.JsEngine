@@ -266,6 +266,53 @@ The remaining gap (113 MB vs Jint's 50 MB ≈ 2.3x allocations, 123 ms vs 52 ms 
 - AST node caching strategies
 - Per-invocation Binding struct creation (even though structs, they go into collections)
 
+## Git Worktree Workflow
+
+When making code changes, use git worktrees to isolate work from the main repository. This prevents conflicts with uncommitted changes and allows parallel development.
+
+### Creating a Worktree
+
+```bash
+# Create a new worktree with a feature branch
+git worktree add ../Asynkron.JsEngine-<feature> -b feature/<branch-name>
+
+# Example:
+git worktree add ../Asynkron.JsEngine-typing -b feature/type-narrowing
+```
+
+This creates a separate directory with its own working tree, sharing the same git history.
+
+### Working in the Worktree
+
+1. Make changes in the worktree directory
+2. Build and test: `dotnet build && dotnet test tests/Asynkron.JsEngine.Tests`
+3. Commit changes
+4. Push and create PR: `git push -u origin feature/<branch-name> && gh pr create`
+5. Merge: `gh pr merge <pr-number> --squash`
+
+### Cleanup After Merge
+
+```bash
+# From the main repo directory
+git pull origin main
+git worktree remove ../Asynkron.JsEngine-<feature> --force
+git branch -D feature/<branch-name>
+```
+
+### Why Use Worktrees
+
+- **Isolation**: Changes don't affect the main working directory
+- **Parallel work**: Can have multiple features in progress simultaneously
+- **Clean merges**: Each worktree has its own index and working tree
+- **Easy cleanup**: Remove worktree after PR is merged
+
+### Naming Convention
+
+Use descriptive suffixes for worktree directories:
+- `Asynkron.JsEngine-typing` - Type narrowing work
+- `Asynkron.JsEngine-perf` - Performance optimizations
+- `Asynkron.JsEngine-fix-123` - Bug fix for issue #123
+
 ## Other Guidelines
 
 - Rider MCP is available for refactoring/renaming and other IDE-aware operations; prefer it when a change benefits from symbol-aware edits.

@@ -91,8 +91,8 @@ public static partial class TypedAstEvaluator
                 {
                     rentIterationEnvironment = () =>
                     {
-                        var env = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                            description: "for-each-iteration");
+                        var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
+                            "for-each-iteration");
                         env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
                         return env;
                     };
@@ -149,8 +149,8 @@ public static partial class TypedAstEvaluator
             {
                 rentLoopIterationEnv = () =>
                 {
-                    var env = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                        description: "for-each-iteration");
+                    var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
+                        "for-each-iteration");
                     env.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
                     return env;
                 };

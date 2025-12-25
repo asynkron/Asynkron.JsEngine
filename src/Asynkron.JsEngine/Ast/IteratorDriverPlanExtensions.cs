@@ -19,8 +19,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment loopEnvironment,
             JsEnvironment outerEnvironment,
             EvaluationContext context,
-            Symbol? loopLabel,
-            Func<JsEnvironment>? rentIterationEnvironment = null)
+            Symbol? loopLabel)
         {
             var lastValueJs = JsValue.Undefined;
             var iteratorDone = false;
@@ -31,13 +30,16 @@ public static partial class TypedAstEvaluator
             state.IsAsyncIterator = plan.Kind == IteratorDriverKind.Await;
             state.NextMethod = iterator?.GetIteratorNextCallable(context);
 
+            // Check if slots are configured for iteration environment
+            var hasSlotsConfigured = plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0;
+
             // OPTIMIZATION: Check if we can use the fast slot path for simple identifier bindings
             // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots per iteration
             var canUseSlotFastPath = plan.Target is IdentifierBinding &&
                                      !plan.PerIterationSlotIndices.IsDefaultOrEmpty &&
                                      plan.PerIterationSlotIndices.Length == 1 &&
                                      plan.PerIterationSlotIndices[0] >= 0 &&
-                                     rentIterationEnvironment is not null;
+                                     hasSlotsConfigured;
             var fastPathSlotIndex = canUseSlotFastPath ? plan.PerIterationSlotIndices[0] : -1;
 
             // OPTIMIZATION: For 'var' bindings, pre-resolve JsVariable once and reuse for all iterations
@@ -59,9 +61,14 @@ public static partial class TypedAstEvaluator
             if (canReuseLetConstEnv)
             {
                 // Create ONE iteration environment before the loop and cache JsVariable
-                reusableIterationEnvironment = rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                    creatingSource: plan.Body.Source, description: "for-each-iteration-reused");
+                // Pool it since we can reuse (no closures in body/target)
+                var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source,
+                    "for-each-iteration-reused");
+                env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                reusableIterationEnvironment = env;
                 cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
+                context.RealmState.Logger?.LogDebug(
+                    "ForOf optimization: Reusing single iteration environment (CanReuseIterationEnvironment=true)");
             }
 
             // FAST PATH: Try tight loop for simple accumulator patterns like: for (const n of arr) { sum += n; }
@@ -74,6 +81,8 @@ public static partial class TypedAstEvaluator
                 plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment, reusableIterationEnvironment ?? loopEnvironment,
                     fastPathSlotIndex, out lastValueJs))
             {
+                context.RealmState.Logger?.LogDebug(
+                    "ForOf optimization: Fast accumulator path executed (TryExecuteFastForOfAccumulator=true)");
                 // Return pooled resources before early return
                 if (reusableIterationEnvironment is not null)
                 {
@@ -119,11 +128,11 @@ public static partial class TypedAstEvaluator
                     var enumeratorValue = state.Enumerator.Current;
 
                     // Select iteration environment: reuse cached one if available, otherwise create new
+                    // Note: When closures exist, we don't pool iteration environments because they capture them
                     var iterationEnvironment = reusableIterationEnvironment ??
                         (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                             or VariableKind.Using or VariableKind.AwaitUsing
-                            ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                                creatingSource: plan.Body.Source, description: "for-each-iteration")
+                            ? CreateIterationEnvironment(loopEnvironment, plan, hasSlotsConfigured)
                             : loopEnvironment);
 
                     // OPTIMIZATION: For simple identifier bindings, write directly to slot
@@ -240,11 +249,11 @@ public static partial class TypedAstEvaluator
                     value = gotValue ? yielded : JsValue.Undefined;
 
                     // Select iteration environment: reuse cached one if available, otherwise create new
+                    // Note: When closures exist, we don't pool iteration environments because they capture them
                     var iterationEnvironment = reusableIterationEnvironment ??
                         (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                             or VariableKind.Using or VariableKind.AwaitUsing
-                            ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                                creatingSource: plan.Body.Source, description: "for-each-iteration")
+                            ? CreateIterationEnvironment(loopEnvironment, plan, hasSlotsConfigured)
                             : loopEnvironment);
 
                     try
@@ -331,11 +340,11 @@ public static partial class TypedAstEvaluator
 
                     // Enumerator path (non-object next)
                     // Select iteration environment: reuse cached one if available, otherwise create new
+                    // Note: When closures exist, we don't pool iteration environments because they capture them
                     var iterationEnvironment = reusableIterationEnvironment ??
                         (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                             or VariableKind.Using or VariableKind.AwaitUsing
-                            ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                                creatingSource: plan.Body.Source, description: "for-each-iteration")
+                            ? CreateIterationEnvironment(loopEnvironment, plan, hasSlotsConfigured)
                             : loopEnvironment);
 
                     // OPTIMIZATION: For simple identifier bindings, write directly to slot
@@ -641,6 +650,25 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Creates a new iteration environment for per-iteration scope.
+        /// Used when closures exist and environment can't be reused/pooled.
+        /// </summary>
+        private static JsEnvironment CreateIterationEnvironment(
+            JsEnvironment loopEnvironment,
+            IteratorDriverPlan iteratorPlan,
+            bool hasSlotsConfigured)
+        {
+            // Don't pool since closures may capture this environment
+            var env = new JsEnvironment(loopEnvironment, creatingSource: iteratorPlan.Body.Source,
+                description: "for-each-iteration");
+            if (hasSlotsConfigured)
+            {
+                env.InitializeSlots(iteratorPlan.IterationSlotCount, iteratorPlan.IterationScopeId);
+            }
+            return env;
         }
     }
 }

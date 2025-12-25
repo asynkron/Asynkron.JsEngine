@@ -3,6 +3,7 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -69,39 +70,24 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Check if there are closures that could capture environments dependent on loop environment.
-            // If there are, we cannot pool the loop environment because when it's returned to the pool,
-            // its Enclosing pointer is reset to null, breaking the scope chain for captured environments.
-            var bodyBlock = statement.Body as BlockStatement ?? new BlockStatement(statement.Source, [statement.Body], false);
-            var hasClosures = ContainsInnerFunctionExpression(bodyBlock) ||
-                              ContainsInnerFunctionExpression(statement.Target) ||
-                              ContainsInnerFunctionExpression(statement.Iterable);
+            // Get the cached plan early - it contains pre-computed closure analysis
+            var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
 
-            // Use pooled environment for loop scope only if no closures exist
-            var loopEnvironment = hasClosures
-                ? new JsEnvironment(environment, false, false, statement.Source, "for-each-loop")
-                : JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop");
+            // Use pooled environment for loop scope only if no closures exist (cached on plan)
+            var loopEnvironment = plan.CanPoolLoopEnvironment
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop")
+                : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
+
+            context.RealmState.Logger?.LogDebug(
+                "ForEach: CanPoolLoopEnvironment={CanPool}, CanReuseIterationEnvironment={CanReuse}",
+                plan.CanPoolLoopEnvironment, plan.CanReuseIterationEnvironment);
+
             var lastValueJs = JsValue.Undefined;
 
             try
             {
             if (statement.Kind == ForEachKind.Of)
             {
-                var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                Func<JsEnvironment>? rentIterationEnvironment = null;
-                if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                    statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                        or VariableKind.AwaitUsing)
-                {
-                    rentIterationEnvironment = () =>
-                    {
-                        var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                            "for-each-iteration");
-                        env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
-                        return env;
-                    };
-                }
-
                 // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
                 // This avoids allocating iterator result objects {done, value} per iteration.
                 var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJsValue);
@@ -114,8 +100,7 @@ public static partial class TypedAstEvaluator
                             loopEnvironment,
                             environment,
                             context,
-                            loopLabel,
-                            rentIterationEnvironment);
+                            loopLabel);
                     }
                     finally
                     {
@@ -132,8 +117,7 @@ public static partial class TypedAstEvaluator
                         loopEnvironment,
                         environment,
                         context,
-                        loopLabel,
-                        rentIterationEnvironment);
+                        loopLabel);
                 }
 
                 throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -145,21 +129,22 @@ public static partial class TypedAstEvaluator
                 _ => throw new ArgumentOutOfRangeException()
             };
 
-            Func<JsEnvironment>? rentLoopIterationEnv = null;
-            var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            if (cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+            var hasSlotsConfigured = plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0;
+
+            // For for-in with let/const, try to reuse a single iteration environment when no closures
+            JsEnvironment? reusableIterationEnv = null;
+            if (plan.CanReuseIterationEnvironment &&
                 statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                    or VariableKind.AwaitUsing)
+                    or VariableKind.AwaitUsing &&
+                hasSlotsConfigured)
             {
-                rentLoopIterationEnv = () =>
-                {
-                    var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                        "for-each-iteration");
-                    env.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
-                    return env;
-                };
+                reusableIterationEnv = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
+                    "for-each-iteration-reused");
+                reusableIterationEnv.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
             }
 
+            try
+            {
             foreach (var value in values)
             {
                 if (context.ShouldStopEvaluation)
@@ -167,18 +152,17 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    or VariableKind.Using or VariableKind.AwaitUsing
-                    ? rentLoopIterationEnv is not null
-                        ? rentLoopIterationEnv()
-                        : new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                            description: "for-each-iteration")
-                    : loopEnvironment;
+                // Use reusable environment if available, otherwise create per-iteration (not pooled due to closures)
+                var iterationEnvironment = reusableIterationEnv ??
+                    (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                        or VariableKind.Using or VariableKind.AwaitUsing
+                        ? CreateForInIterationEnvironment(loopEnvironment, plan, hasSlotsConfigured, statement.Source)
+                        : loopEnvironment);
 
                 statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
                     statement.DeclarationKind);
 
-                IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
+                IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
 
                 // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                 // Only update V (completion value) if result.[[Value]] is not empty
@@ -208,12 +192,41 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
+                // Return reusable iteration environment to pool if we created one
+                if (reusableIterationEnv is not null)
+                {
+                    JsEnvironmentPool.Return(reusableIterationEnv);
+                }
+            }
+            }
+            finally
+            {
                 // Only return to pool if we rented from pool (i.e., no closures)
-                if (!hasClosures)
+                if (plan.CanPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment);
                 }
             }
+        }
+
+        /// <summary>
+        /// Creates a new iteration environment for for-in per-iteration scope.
+        /// Used when closures exist and environment can't be reused/pooled.
+        /// </summary>
+        private static JsEnvironment CreateForInIterationEnvironment(
+            JsEnvironment loopEnvironment,
+            IteratorDriverPlan plan,
+            bool hasSlotsConfigured,
+            Parser.SourceReference? source)
+        {
+            // Don't pool since closures may capture this environment
+            var env = new JsEnvironment(loopEnvironment, creatingSource: source,
+                description: "for-each-iteration");
+            if (hasSlotsConfigured)
+            {
+                env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+            }
+            return env;
         }
 
         private JsValue EvaluateForAwaitOfJsValue(JsEnvironment environment,
@@ -247,36 +260,16 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
             }
 
-            // Check if there are closures that could capture environments dependent on loop environment.
-            // If there are, we cannot pool the loop environment because when it's returned to the pool,
-            // its Enclosing pointer is reset to null, breaking the scope chain for captured environments.
-            var bodyBlock = statement.Body as BlockStatement ?? new BlockStatement(statement.Source, [statement.Body], false);
-            var hasClosures = ContainsInnerFunctionExpression(bodyBlock) ||
-                              ContainsInnerFunctionExpression(statement.Target) ||
-                              ContainsInnerFunctionExpression(statement.Iterable);
+            // Get the cached plan early - it contains pre-computed closure analysis
+            var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
 
-            // Use pooled environment for loop scope only if no closures exist
-            var loopEnvironment = hasClosures
-                ? new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop")
-                : JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop");
+            // Use pooled environment for loop scope only if no closures exist (cached on plan)
+            var loopEnvironment = plan.CanPoolLoopEnvironment
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop")
+                : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
 
             try
             {
-            var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            Func<JsEnvironment>? rentIterationEnvironment = null;
-            if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                    or VariableKind.AwaitUsing)
-            {
-                rentIterationEnvironment = () =>
-                {
-                    var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                        "for-each-iteration");
-                    env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
-                    return env;
-                };
-            }
-
             // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
             // This avoids iterator result object allocations while maintaining async semantics.
             var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJs);
@@ -289,8 +282,7 @@ public static partial class TypedAstEvaluator
                         loopEnvironment,
                         environment,
                         context,
-                        loopLabel,
-                        rentIterationEnvironment);
+                        loopLabel);
                 }
                 finally
                 {
@@ -307,8 +299,7 @@ public static partial class TypedAstEvaluator
                     loopEnvironment,
                     environment,
                     context,
-                    loopLabel,
-                    rentIterationEnvironment);
+                    loopLabel);
             }
 
             throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -316,7 +307,7 @@ public static partial class TypedAstEvaluator
             finally
             {
                 // Only return to pool if we rented from pool (i.e., no closures)
-                if (!hasClosures)
+                if (plan.CanPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment);
                 }

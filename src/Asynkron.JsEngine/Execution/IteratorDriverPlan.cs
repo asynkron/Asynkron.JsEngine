@@ -17,4 +17,5 @@ internal sealed record IteratorDriverPlan(
     int IterationSlotCount = -1,
     ImmutableArray<int> PerIterationSlotIndices = default,
     ImmutableArray<Symbol> PerIterationBindings = default,
-    bool CanReuseIterationEnvironment = false);
+    bool CanReuseIterationEnvironment = false,
+    bool CanPoolLoopEnvironment = false);

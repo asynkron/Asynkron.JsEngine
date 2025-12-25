@@ -6,6 +6,7 @@
 |--------|------|------|
 | ✅ | Nested For-Await-Of Loop Bug | [todo-nested-async-loop-bug.md](todo-nested-async-loop-bug.md) |
 | ✅ | Async For-Of Optimization | [todo-async-for-of.md](todo-async-for-of.md) |
+| ⬜ | Large Iteration Async Bug | [todo-large-iteration-async-bug.md](todo-large-iteration-async-bug.md) |
 | ⬜ | Universal IR Execution | [todo-universal-ir.md](todo-universal-ir.md) |
 
 ## Legend

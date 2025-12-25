@@ -576,6 +576,8 @@ public static partial class TypedAstEvaluator
                     {
                         _currentInstructionIndex = _programCounter;
                         var instruction = _plan.Instructions[_programCounter];
+                        if (environment.Depth > 2)
+                            Console.WriteLine($"[DEBUG] PC={_programCounter} Instr={instruction.GetType().Name.Replace("Instruction", "")} depth={environment.Depth}");
                         switch (instruction)
                         {
                             case StatementInstruction statementInstruction:
@@ -890,6 +892,7 @@ public static partial class TypedAstEvaluator
                                 // Use the cached driver state's IteratorVariable environment as the loop scope.
                                 // It was captured in IteratorInitInstruction when we were in the loop scope.
                                 var loopScope = _currentDriverState?.IteratorVariable.Environment ?? environment;
+                                Console.WriteLine($"[DEBUG] CreateIterEnv: env.Depth={environment.Depth}, loopScope.Depth={loopScope?.Depth ?? -1}, hasIterVar={_currentDriverState?.IteratorVariable.IsValid ?? false}");
 
                                 var newIterationEnv = new JsEnvironment(
                                     loopScope,
@@ -1369,6 +1372,7 @@ public static partial class TypedAstEvaluator
                                 // with different slots. The iterator slot was allocated in a parent
                                 // scope, so we need to walk up the chain to find it.
                                 var iteratorEnv = environment;
+                                var walkCount = 0;
                                 if (iteratorInitInstruction.IteratorSlotIndex >= 0)
                                 {
                                     while (iteratorEnv is not null &&
@@ -1376,9 +1380,18 @@ public static partial class TypedAstEvaluator
                                             iteratorEnv._slots!.Length <= iteratorInitInstruction.IteratorSlotIndex))
                                     {
                                         iteratorEnv = iteratorEnv.Enclosing;
+                                        walkCount++;
+                                        if (walkCount > 1000)
+                                        {
+                                            Console.WriteLine($"[DEBUG] Environment chain walk exceeded 1000! SlotIndex={iteratorInitInstruction.IteratorSlotIndex}");
+                                            break;
+                                        }
                                     }
                                     iteratorEnv ??= environment; // Fallback to current environment
                                 }
+                                if (walkCount > 100)
+                                    Console.WriteLine($"[DEBUG] Environment walk count: {walkCount}");
+                                Console.WriteLine($"[DEBUG] IteratorInit: env.Depth={environment.Depth}, parent.Depth={environment.Enclosing?.Depth ?? -1}, iterEnv.Depth={iteratorEnv.Depth}");
 
                                 // Store JsVariable directly on state object for O(1) access
                                 // This avoids dictionary lookups on every iteration

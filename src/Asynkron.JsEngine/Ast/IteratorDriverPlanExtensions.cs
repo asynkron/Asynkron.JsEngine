@@ -74,6 +74,11 @@ public static partial class TypedAstEvaluator
                 plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment, reusableIterationEnvironment ?? loopEnvironment,
                     fastPathSlotIndex, out lastValueJs))
             {
+                // Return pooled resources before early return
+                if (reusableIterationEnvironment is not null)
+                {
+                    JsEnvironmentPool.Return(reusableIterationEnvironment);
+                }
                 IteratorDriverStatePool.Return(state);
                 return lastValueJs;
             }
@@ -420,6 +425,11 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
+                // Return the reusable iteration environment to the pool if we created one
+                if (reusableIterationEnvironment is not null)
+                {
+                    JsEnvironmentPool.Return(reusableIterationEnvironment);
+                }
                 IteratorDriverStatePool.Return(state);
             }
         }

@@ -57,6 +57,7 @@ public static partial class TypedAstEvaluator
             var canReuseLetConstEnv = canUseSlotFastPath &&
                                        plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
                                        plan.CanReuseIterationEnvironment;
+            var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
             if (canReuseLetConstEnv)
             {
                 // Create ONE iteration environment before the loop and cache JsVariable
@@ -67,7 +68,9 @@ public static partial class TypedAstEvaluator
 
             // FAST PATH: Try tight loop for simple accumulator patterns like: for (const n of arr) { sum += n; }
             // This avoids calling EvaluateStatementJsValue per iteration
-            if (enumerator is not null &&
+            // Only for sync for-of (not for await...of which needs async handling)
+            if (plan.Kind != IteratorDriverKind.Await &&
+                enumerator is not null &&
                 loopLabel is null &&
                 (cachedLetConstVariable.IsValid || cachedVarVariable.IsValid) &&
                 plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment, reusableIterationEnvironment ?? loopEnvironment,
@@ -124,10 +127,24 @@ public static partial class TypedAstEvaluator
                         // Fastest path: pre-resolved JsVariable for 'var' bindings
                         cachedVarVariable.Write(enumeratorValue);
                     }
-                    else if (cachedLetConstVariable.IsValid)
+                    else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
                     {
                         // Fast path: pre-resolved JsVariable for let/const when no closures
+                        // Only use after first iteration (which sets up the const binding properly)
                         cachedLetConstVariable.Write(enumeratorValue);
+                    }
+                    else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
+                    {
+                        // First iteration for let/const with reusable environment:
+                        // Must call AssignLoopBinding to set up the const flag in the binding
+                        plan.Target.AssignLoopBinding(enumeratorValue, reusableIterationEnvironment!, outerEnvironment, context,
+                            plan.DeclarationKind);
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
+                        IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
+                        letConstFirstIterationDone = true;
                     }
                     else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                     {
@@ -232,10 +249,24 @@ public static partial class TypedAstEvaluator
                             // Fastest path: pre-resolved JsVariable for 'var' bindings
                             cachedVarVariable.Write(value);
                         }
-                        else if (cachedLetConstVariable.IsValid)
+                        else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
                         {
                             // Fast path: pre-resolved JsVariable for let/const when no closures
+                            // Only use after first iteration (which sets up the const binding properly)
                             cachedLetConstVariable.Write(value);
+                        }
+                        else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
+                        {
+                            // First iteration for let/const with reusable environment:
+                            // Must call AssignLoopBinding to set up the const flag in the binding
+                            plan.Target.AssignLoopBinding(value, reusableIterationEnvironment!, outerEnvironment, context,
+                                plan.DeclarationKind);
+                            if (context.IsThrow)
+                            {
+                                throw new ThrowSignal(context.FlowValue);
+                            }
+                            IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
+                            letConstFirstIterationDone = true;
                         }
                         else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                         {
@@ -308,10 +339,24 @@ public static partial class TypedAstEvaluator
                         // Fastest path: pre-resolved JsVariable for 'var' bindings
                         cachedVarVariable.Write(nextJsValue);
                     }
-                    else if (cachedLetConstVariable.IsValid)
+                    else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
                     {
                         // Fast path: pre-resolved JsVariable for let/const when no closures
+                        // Only use after first iteration (which sets up the const binding properly)
                         cachedLetConstVariable.Write(nextJsValue);
+                    }
+                    else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
+                    {
+                        // First iteration for let/const with reusable environment:
+                        // Must call AssignLoopBinding to set up the const flag in the binding
+                        plan.Target.AssignLoopBinding(nextJsValue, reusableIterationEnvironment!, outerEnvironment, context,
+                            plan.DeclarationKind);
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
+                        IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
+                        letConstFirstIterationDone = true;
                     }
                     else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                     {

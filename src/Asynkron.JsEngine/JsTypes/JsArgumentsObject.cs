@@ -146,7 +146,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         DefinePropertyInternal(name, descriptor, true);
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         _backing.SetPrototype(candidate);
     }

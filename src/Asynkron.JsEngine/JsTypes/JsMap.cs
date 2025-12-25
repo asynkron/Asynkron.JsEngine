@@ -94,7 +94,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _properties.DefineProperty(name, descriptor);
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         // Only mark as non-plain if prototype is being changed after initial setup
         if (_properties.Prototype is not null)

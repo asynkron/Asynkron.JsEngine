@@ -87,7 +87,7 @@ internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObject
         }
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         // Iterator results don't support prototype modification
     }

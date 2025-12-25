@@ -410,7 +410,7 @@ public static class ReflectHelper
 
         // Extract prototype: null is valid, objects are valid, others should be handled by SetPrototype
         var protoArg = args.Count > 1 ? args[1] : JsValue.Null;
-        var proto = protoArg.IsNull ? null : protoArg.ObjectValue;
+        var proto = protoArg.IsNull ? null : protoArg.ObjectValue as IJsPropertyAccessor;
         try
         {
             target.SetPrototype(proto);

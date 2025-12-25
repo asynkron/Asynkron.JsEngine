@@ -66,7 +66,7 @@ public sealed class HtmlDdaValue : IIsHtmlDda, IJsCallable, IJsObjectLike, IProp
         _backing.DefineProperty(name, descriptor);
     }
 
-    void IJsObjectLike.SetPrototype(object? candidate)
+    void IJsObjectLike.SetPrototype(IJsPropertyAccessor? candidate)
     {
         _backing.SetPrototype(candidate);
     }

@@ -327,7 +327,7 @@ public sealed partial class ObjectPrototype
             throw ThrowTypeError("Object.prototype.__proto__ called on null or undefined", realm: Realm);
         }
 
-        object? protoToSet = null;
+        IJsPropertyAccessor? protoToSet = null;
         if (!newProto.IsNull)
         {
             if (!newProto.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))

@@ -131,7 +131,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.PreventExtensions();
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         _properties.SetPrototype(candidate);
     }

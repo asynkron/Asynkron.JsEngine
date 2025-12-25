@@ -315,7 +315,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         Properties.SetPrototype(candidate);
     }

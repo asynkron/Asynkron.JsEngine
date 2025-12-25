@@ -327,7 +327,7 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
     /// <summary>
     ///     Allows attaching a prototype chain to mirror JavaScript semantics.
     /// </summary>
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         _properties.SetPrototype(candidate);
     }

@@ -244,7 +244,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return Target.GetOwnPropertyNames();
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         if (TryGetTrap("setPrototypeOf", out var trap))
         {
@@ -385,7 +385,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return resultObj;
         }
 
-        object? proto = Target.Prototype;
+        IJsPropertyAccessor? proto = Target.Prototype;
         if (proto is null && Target is IPrototypeAccessorProvider provider)
         {
             proto = provider.PrototypeAccessor;

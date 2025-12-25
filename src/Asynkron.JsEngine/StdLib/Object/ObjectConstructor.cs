@@ -317,9 +317,9 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     {
         var realmState = RequireRealm(realm);
         var obj = new JsObject { RealmState = realmState };
-        if (args.Count > 0 && !args[0].IsNull)
+        if (args.Count > 0 && !args[0].IsNull && args[0].TryGetObject<IJsPropertyAccessor>(out var protoValue))
         {
-            obj.SetPrototype(args[0].ObjectValue);
+            obj.SetPrototype(protoValue);
         }
 
         if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
@@ -527,23 +527,23 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var targetValue = args[0];
-        var protoValue = args[1].IsNull ? null : args[1].ObjectValue;
+        var protoAccessor = args[1].IsNull ? null : args[1].ObjectValue as IJsPropertyAccessor;
 
         var target = targetValue.ObjectValue;
         switch (target)
         {
-            case ModuleNamespace when protoValue is null:
+            case ModuleNamespace when protoAccessor is null:
                 return JsValue.FromObjectUnsafe(target);
             case ModuleNamespace:
                 throw ThrowTypeError("Cannot set prototype on module namespace", realm: realmState);
             case JsArray array:
-                array.SetPrototype(protoValue);
+                array.SetPrototype(protoAccessor);
                 break;
             case JsObject obj:
-                obj.SetPrototype(protoValue);
+                obj.SetPrototype(protoAccessor);
                 break;
             case IJsObjectLike objectLike:
-                objectLike.SetPrototype(protoValue);
+                objectLike.SetPrototype(protoAccessor);
                 break;
         }
 

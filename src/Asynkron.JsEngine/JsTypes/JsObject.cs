@@ -36,7 +36,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     // ReSharper disable once ReplaceWithFieldKeyword
     private readonly JsValue _cachedJsValue;
 
-    public JsObject(object? prototype = null)
+    public JsObject(IJsPropertyAccessor? prototype = null)
     {
         _cachedJsValue = new JsValue(this);
         if (prototype is not null)
@@ -203,7 +203,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     IEnumerable<string> IJsObjectLike.Keys => _state?.Storage.Keys ?? Array.Empty<string>();
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         MarkMutated();
         var previous = PrototypeAccessor ?? Prototype;

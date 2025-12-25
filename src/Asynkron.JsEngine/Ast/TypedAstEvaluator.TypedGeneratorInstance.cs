@@ -909,17 +909,14 @@ public static partial class TypedAstEvaluator
                                     // Case 1: Current env is a per-iteration env from previous iteration
                                     previousIterEnv = environment;
                                     loopScope = environment.Enclosing ?? environment;
-                                    Console.WriteLine($"[DEBUG CreateIterEnv] Case 1: env.ScopeId={environment.ScopeId} matches instr.ScopeId={createEnvInstruction.ScopeId}, loopScope.Depth={loopScope.Depth}");
                                 }
                                 else if (_currentDriverState?.CurrentIterationEnvironment is { } savedIterEnv)
                                 {
                                     // Case 2: After async resume, use saved iteration environment
                                     // Walk up from saved env to find the correct loop scope for this instruction
-                                    Console.WriteLine($"[DEBUG CreateIterEnv] Case 2: savedIterEnv.ScopeId={savedIterEnv.ScopeId}, instr.ScopeId={createEnvInstruction.ScopeId}, env.ScopeId={environment.ScopeId}");
                                     var searchEnv = savedIterEnv;
                                     while (searchEnv != null && searchEnv.ScopeId != createEnvInstruction.ScopeId)
                                     {
-                                        Console.WriteLine($"[DEBUG CreateIterEnv] Walking: searchEnv.ScopeId={searchEnv.ScopeId}");
                                         searchEnv = searchEnv.Enclosing;
                                     }
 
@@ -928,7 +925,6 @@ public static partial class TypedAstEvaluator
                                         // Found a matching scope - it's a previous iteration env
                                         previousIterEnv = searchEnv;
                                         loopScope = searchEnv.Enclosing ?? environment;
-                                        Console.WriteLine($"[DEBUG CreateIterEnv] Found match! loopScope.Depth={loopScope.Depth}");
                                     }
                                     else
                                     {
@@ -937,14 +933,12 @@ public static partial class TypedAstEvaluator
                                         // This happens for for-await-of creating its own iteration envs,
                                         // or when an outer loop just created a new iteration env.
                                         loopScope = environment;
-                                        Console.WriteLine($"[DEBUG CreateIterEnv] No match, using env as loopScope. loopScope.Depth={loopScope.Depth}");
                                     }
                                 }
                                 else
                                 {
                                     // Case 3: First iteration, current env is the loop scope
                                     loopScope = environment;
-                                    Console.WriteLine($"[DEBUG CreateIterEnv] Case 3: First iteration, loopScope.Depth={loopScope.Depth}");
                                 }
 
                                 var newIterationEnv = new JsEnvironment(
@@ -1474,7 +1468,7 @@ public static partial class TypedAstEvaluator
 
                                 // Use cached driver state for scope-correct access from child scopes
                                 // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
-                                IteratorDriverState? driverState = _currentDriverState;
+                                var driverState = _currentDriverState;
 
                                 if (driverState is null)
                                 {

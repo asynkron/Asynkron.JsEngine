@@ -105,7 +105,7 @@ public sealed class JsArrayBuffer : IJsPropertyAccessor, IPrototypeAccessorProvi
         _properties.DefineProperty(name, descriptor);
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         _properties.SetPrototype(candidate);
     }

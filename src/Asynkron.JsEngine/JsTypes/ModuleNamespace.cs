@@ -159,7 +159,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         if (candidate is null)
         {

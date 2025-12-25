@@ -12,7 +12,7 @@ public interface IJsObjectLike : IJsPropertyAccessor
     IEnumerable<string> Keys { get; }
 
     void DefineProperty(string name, PropertyDescriptor descriptor);
-    void SetPrototype(object? candidate);
+    void SetPrototype(IJsPropertyAccessor? candidate);
     void Seal();
     bool Delete(string name);
 }

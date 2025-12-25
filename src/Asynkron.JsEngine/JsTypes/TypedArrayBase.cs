@@ -325,7 +325,7 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     /// <summary>
     ///     Allows consumers (e.g. Object.setPrototypeOf) to attach a prototype object.
     /// </summary>
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         _properties.SetPrototype(candidate);
     }

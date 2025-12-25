@@ -46,10 +46,9 @@ public static partial class TypedAstEvaluator
                             {
                                 obj.SetPrototype(null);
                             }
-                            else if (valueJs.TryGetObject<IJsObjectLike>(out _) ||
-                                     valueJs.TryGetObject<IPrototypeAccessorProvider>(out _))
+                            else if (valueJs.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
                             {
-                                obj.SetPrototype(valueJs.ObjectValue);
+                                obj.SetPrototype(protoAccessor);
                             }
 
                             // Per ES spec, __proto__: value with colon syntax sets the prototype,

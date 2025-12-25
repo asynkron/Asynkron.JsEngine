@@ -66,7 +66,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _properties.DefineProperty(name, descriptor);
     }
 
-    public void SetPrototype(object? candidate)
+    public void SetPrototype(IJsPropertyAccessor? candidate)
     {
         _properties.SetPrototype(candidate);
     }

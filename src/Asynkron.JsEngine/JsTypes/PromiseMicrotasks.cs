@@ -2,33 +2,28 @@ namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Poolable microtask for resolved promise pass-through (no callback).
-///     Avoids lambda closure allocations by caching the delegate.
+///     Implements IMicrotask directly to avoid Action delegate allocation.
 /// </summary>
-internal sealed class ResolvedPromisePassthroughMicrotask
+internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask
 {
-    private readonly Action _executeDelegate;
-
     [ThreadStatic]
     private static ResolvedPromisePassthroughMicrotask? Cached;
 
     private JsValue _value;
     private JsPromise? _nextPromise;
 
-    private ResolvedPromisePassthroughMicrotask()
-    {
-        _executeDelegate = Execute;
-    }
+    public int Epoch { get; set; }
 
-    public static Action Rent(JsValue value, JsPromise promise)
+    public static IMicrotask Rent(JsValue value, JsPromise promise)
     {
         var task = Cached ?? new ResolvedPromisePassthroughMicrotask();
         Cached = null;
         task._value = value;
         task._nextPromise = promise;
-        return task._executeDelegate;
+        return task;
     }
 
-    private void Execute()
+    public void Execute()
     {
         var value = _value;
         var nextPromise = _nextPromise!;
@@ -43,12 +38,10 @@ internal sealed class ResolvedPromisePassthroughMicrotask
 
 /// <summary>
 ///     Poolable microtask for finally handlers.
-///     Avoids lambda closure allocations by caching the delegate.
+///     Implements IMicrotask directly to avoid Action delegate allocation.
 /// </summary>
-internal sealed class ResolvedPromiseFinallyMicrotask
+internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask
 {
-    private readonly Action _executeDelegate;
-
     [ThreadStatic]
     private static ResolvedPromiseFinallyMicrotask? Cached;
 
@@ -56,22 +49,19 @@ internal sealed class ResolvedPromiseFinallyMicrotask
     private JsValue _value;
     private JsPromise? _nextPromise;
 
-    private ResolvedPromiseFinallyMicrotask()
-    {
-        _executeDelegate = Execute;
-    }
+    public int Epoch { get; set; }
 
-    public static Action Rent(IJsCallable callback, JsValue value, JsPromise promise)
+    public static IMicrotask Rent(IJsCallable callback, JsValue value, JsPromise promise)
     {
         var task = Cached ?? new ResolvedPromiseFinallyMicrotask();
         Cached = null;
         task._callback = callback;
         task._value = value;
         task._nextPromise = promise;
-        return task._executeDelegate;
+        return task;
     }
 
-    private void Execute()
+    public void Execute()
     {
         var callback = _callback!;
         var value = _value;

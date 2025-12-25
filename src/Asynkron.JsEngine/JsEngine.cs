@@ -31,8 +31,8 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Synchronous microtask queue for top-level await support.
     // JsEngine is single-threaded by design, so microtask bookkeeping does not use locks.
-    // Microtasks are tagged with the epoch they were queued in to support proper timing semantics.
-    private readonly Queue<(Action task, int epoch)> _microtaskQueue = new();
+    // Microtasks implement IMicrotask and carry their own epoch for proper timing semantics.
+    private readonly Queue<IMicrotask> _microtaskQueue = new();
 
     private readonly Dictionary<JsObject, ModuleNamespace> _moduleNamespaces =
         new(ReferenceEqualityComparer<JsObject>.Instance);
@@ -2182,11 +2182,21 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Queues a microtask to be executed synchronously.
     ///     This is used for promise reactions during top-level await.
-    ///     Microtasks are tagged with the current epoch for proper timing semantics.
+    ///     The microtask's epoch is set to the current epoch for proper timing semantics.
+    /// </summary>
+    internal void QueueMicrotask(IMicrotask task)
+    {
+        task.Epoch = MicrotaskEpoch;
+        _microtaskQueue.Enqueue(task);
+    }
+
+    /// <summary>
+    ///     Queues an Action as a microtask. The action is wrapped in a pooled ActionMicrotask.
+    ///     Use this for arbitrary callbacks that need to run as microtasks.
     /// </summary>
     internal void QueueMicrotask(Action task)
     {
-        _microtaskQueue.Enqueue((task, MicrotaskEpoch));
+        QueueMicrotask(ActionMicrotask.Rent(task));
     }
 
     /// <summary>
@@ -2199,9 +2209,9 @@ public sealed class JsEngine : IAsyncDisposable
         MicrotaskEpoch++;
     }
 
-    private List<(Action task, int epoch)> DetachMicrotasks()
+    private List<IMicrotask> DetachMicrotasks()
     {
-        var preserved = new List<(Action, int)>(_microtaskQueue.Count);
+        var preserved = new List<IMicrotask>(_microtaskQueue.Count);
         while (_microtaskQueue.Count > 0)
         {
             preserved.Add(_microtaskQueue.Dequeue());
@@ -2210,7 +2220,7 @@ public sealed class JsEngine : IAsyncDisposable
         return preserved;
     }
 
-    private void PrependMicrotasks(List<(Action task, int epoch)>? tasks)
+    private void PrependMicrotasks(List<IMicrotask>? tasks)
     {
         if (tasks is null || tasks.Count == 0)
         {
@@ -2227,7 +2237,7 @@ public sealed class JsEngine : IAsyncDisposable
             return;
         }
 
-        var existing = new Queue<(Action, int)>(_microtaskQueue);
+        var existing = new Queue<IMicrotask>(_microtaskQueue);
         _microtaskQueue.Clear();
         foreach (var task in tasks)
         {
@@ -2267,7 +2277,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         try
         {
-            List<(Action task, int epoch)>? deferred = null;
+            List<IMicrotask>? deferred = null;
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -2277,19 +2287,19 @@ public sealed class JsEngine : IAsyncDisposable
                     break;
                 }
 
-                var (task, taskEpoch) = _microtaskQueue.Dequeue();
+                var task = _microtaskQueue.Dequeue();
 
                 // If this task is from a later epoch than allowed, defer it
-                if (taskEpoch > maxEpoch)
+                if (task.Epoch > maxEpoch)
                 {
                     deferred ??= [];
-                    deferred.Add((task, taskEpoch));
+                    deferred.Add(task);
                     continue;
                 }
 
                 try
                 {
-                    task();
+                    task.Execute();
                 }
                 catch (Exception ex)
                 {
@@ -4083,7 +4093,7 @@ public sealed class JsEngine : IAsyncDisposable
             !importStatement.NamedImports.IsEmpty ||
             importStatement.NamespaceBinding is not null;
 
-        List<(Action task, int epoch)>? preservedMicrotasks = null;
+        List<IMicrotask>? preservedMicrotasks = null;
 
         try
         {

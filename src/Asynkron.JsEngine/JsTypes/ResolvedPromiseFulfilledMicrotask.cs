@@ -1,13 +1,11 @@
-﻿namespace Asynkron.JsEngine.JsTypes;
+namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Poolable microtask for resolved promise callbacks with onFulfilled handler.
-///     Avoids lambda closure allocations by caching the delegate.
+///     Implements IMicrotask directly to avoid Action delegate allocation.
 /// </summary>
-internal sealed class ResolvedPromiseFulfilledMicrotask
+internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask
 {
-    private readonly Action _executeDelegate;
-
     [ThreadStatic]
     private static ResolvedPromiseFulfilledMicrotask? TCached;
 
@@ -15,23 +13,19 @@ internal sealed class ResolvedPromiseFulfilledMicrotask
     private JsValue _value;
     private JsPromise? _nextPromise;
 
-    public ResolvedPromiseFulfilledMicrotask()
-    {
-        _executeDelegate = Execute;
-    }
+    public int Epoch { get; set; }
 
-    public static Action Rent(IJsCallable callback, JsValue value, JsPromise promise)
+    public static IMicrotask Rent(IJsCallable callback, JsValue value, JsPromise promise)
     {
         var task = TCached ?? new ResolvedPromiseFulfilledMicrotask();
         TCached = null;
         task._callback = callback;
         task._value = value;
         task._nextPromise = promise;
-        return task._executeDelegate;
+        return task;
     }
 
-
-    private void Execute()
+    public void Execute()
     {
         var callback = _callback!;
         var value = _value;

@@ -8,8 +8,9 @@ namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
 ///     Represents a JavaScript Promise object that can be resolved or rejected.
+///     Implements IMicrotask directly to avoid delegate allocation when scheduling handler processing.
 /// </summary>
-public sealed class JsPromise
+public sealed class JsPromise : IMicrotask
 {
     internal const string InternalPromiseKey = "__promise__";
 
@@ -24,7 +25,12 @@ public sealed class JsPromise
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
     private JsObject? _jsObject;
-    private Action? _processHandlersAction;
+
+    /// <summary>
+    ///     The epoch in which this promise's handler processing was scheduled.
+    ///     Used for selective microtask draining during module loading.
+    /// </summary>
+    int IMicrotask.Epoch { get; set; }
 
     public JsPromise(JsEngine engine)
     {
@@ -211,12 +217,14 @@ public sealed class JsPromise
         }
 
         _handlersScheduled = true;
-        // Use cached delegate to avoid lambda allocation per call
-        _processHandlersAction ??= ProcessHandlersWithFlag;
-        _engine.QueueMicrotask(_processHandlersAction);
+        // Queue this promise directly as a microtask - no delegate allocation needed
+        _engine.QueueMicrotask(this);
     }
 
-    private void ProcessHandlersWithFlag()
+    /// <summary>
+    ///     IMicrotask.Execute - processes all registered handlers for this promise.
+    /// </summary>
+    void IMicrotask.Execute()
     {
         try
         {

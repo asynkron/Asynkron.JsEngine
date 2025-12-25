@@ -49,6 +49,33 @@ public static partial class TypedAstEvaluator
                 ? new JsVariable(loopEnvironment, fastPathSlotIndex)
                 : default;
 
+            // OPTIMIZATION: For let/const bindings when no closures exist in loop body,
+            // we can reuse the same iteration environment for all iterations.
+            // This allows JsVariable caching similar to 'var' bindings.
+            JsEnvironment? reusableIterationEnvironment = null;
+            var cachedLetConstVariable = default(JsVariable);
+            var canReuseLetConstEnv = canUseSlotFastPath &&
+                                       plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+                                       plan.CanReuseIterationEnvironment;
+            if (canReuseLetConstEnv)
+            {
+                // Create ONE iteration environment before the loop and cache JsVariable
+                reusableIterationEnvironment = rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                    creatingSource: plan.Body.Source, description: "for-each-iteration-reused");
+                cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
+            }
+
+            // FAST PATH: Try tight loop for simple accumulator patterns like: for (const n of arr) { sum += n; }
+            // This avoids calling EvaluateStatementJsValue per iteration
+            if (enumerator is not null &&
+                loopLabel is null &&
+                (cachedLetConstVariable.IsValid || cachedVarVariable.IsValid) &&
+                plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment, reusableIterationEnvironment ?? loopEnvironment,
+                    fastPathSlotIndex, out lastValueJs))
+            {
+                return lastValueJs;
+            }
+
             while (!context.ShouldStopEvaluation)
             {
                 context.ThrowIfCancellationRequested();
@@ -82,11 +109,13 @@ public static partial class TypedAstEvaluator
                     // and go directly to body execution. This avoids creating {done, value} objects.
                     var enumeratorValue = state.Enumerator.Current;
 
-                    var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                        or VariableKind.Using or VariableKind.AwaitUsing
-                        ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                            creatingSource: plan.Body.Source, description: "for-each-iteration")
-                        : loopEnvironment;
+                    // Select iteration environment: reuse cached one if available, otherwise create new
+                    var iterationEnvironment = reusableIterationEnvironment ??
+                        (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                            or VariableKind.Using or VariableKind.AwaitUsing
+                            ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                                creatingSource: plan.Body.Source, description: "for-each-iteration")
+                            : loopEnvironment);
 
                     // OPTIMIZATION: For simple identifier bindings, write directly to slot
                     // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots
@@ -94,6 +123,11 @@ public static partial class TypedAstEvaluator
                     {
                         // Fastest path: pre-resolved JsVariable for 'var' bindings
                         cachedVarVariable.Write(enumeratorValue);
+                    }
+                    else if (cachedLetConstVariable.IsValid)
+                    {
+                        // Fast path: pre-resolved JsVariable for let/const when no closures
+                        cachedLetConstVariable.Write(enumeratorValue);
                     }
                     else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                     {
@@ -182,11 +216,13 @@ public static partial class TypedAstEvaluator
                     var gotValue = resultObj.TryGetProperty("value", out var yielded);
                     value = gotValue ? yielded : JsValue.Undefined;
 
-                    var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                        or VariableKind.Using or VariableKind.AwaitUsing
-                        ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                            creatingSource: plan.Body.Source, description: "for-each-iteration")
-                        : loopEnvironment;
+                    // Select iteration environment: reuse cached one if available, otherwise create new
+                    var iterationEnvironment = reusableIterationEnvironment ??
+                        (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                            or VariableKind.Using or VariableKind.AwaitUsing
+                            ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                                creatingSource: plan.Body.Source, description: "for-each-iteration")
+                            : loopEnvironment);
 
                     try
                     {
@@ -195,6 +231,11 @@ public static partial class TypedAstEvaluator
                         {
                             // Fastest path: pre-resolved JsVariable for 'var' bindings
                             cachedVarVariable.Write(value);
+                        }
+                        else if (cachedLetConstVariable.IsValid)
+                        {
+                            // Fast path: pre-resolved JsVariable for let/const when no closures
+                            cachedLetConstVariable.Write(value);
                         }
                         else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                         {
@@ -252,11 +293,13 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Enumerator path (non-object next)
-                    var iterationEnvironment = plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                        or VariableKind.Using or VariableKind.AwaitUsing
-                        ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
-                            creatingSource: plan.Body.Source, description: "for-each-iteration")
-                        : loopEnvironment;
+                    // Select iteration environment: reuse cached one if available, otherwise create new
+                    var iterationEnvironment = reusableIterationEnvironment ??
+                        (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                            or VariableKind.Using or VariableKind.AwaitUsing
+                            ? rentIterationEnvironment?.Invoke() ?? new JsEnvironment(loopEnvironment,
+                                creatingSource: plan.Body.Source, description: "for-each-iteration")
+                            : loopEnvironment);
 
                     // OPTIMIZATION: For simple identifier bindings, write directly to slot
                     var nextJsValue = JsValue.FromObjectUnsafe(nextResult);
@@ -264,6 +307,11 @@ public static partial class TypedAstEvaluator
                     {
                         // Fastest path: pre-resolved JsVariable for 'var' bindings
                         cachedVarVariable.Write(nextJsValue);
+                    }
+                    else if (cachedLetConstVariable.IsValid)
+                    {
+                        // Fast path: pre-resolved JsVariable for let/const when no closures
+                        cachedLetConstVariable.Write(nextJsValue);
                     }
                     else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                     {
@@ -366,6 +414,158 @@ public static partial class TypedAstEvaluator
 
                 iterationEnvironment.GetSlotRef(slotIndex) = value;
             }
+        }
+
+        /// <summary>
+        /// Attempts to execute a fast for-of accumulator loop.
+        /// Pattern: for (const n of arr) { sum += n; }
+        /// This avoids calling EvaluateStatementJsValue per iteration.
+        /// </summary>
+        private bool TryExecuteFastForOfAccumulator(
+            IEnumerator<JsValue> enumerator,
+            JsEnvironment loopEnvironment,
+            JsEnvironment iterationEnvironment,
+            int loopVarSlotIndex,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+
+            // Body must be a block with exactly one statement
+            if (plan.Body.Statements.Length != 1)
+            {
+                return false;
+            }
+
+            // That statement must be an expression statement with a compound assignment
+            if (plan.Body.Statements[0] is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
+            {
+                return false;
+            }
+
+            // Must be compound assignment (+=, -=, *=)
+            if (!assignExpr.IsCompoundAssignment)
+            {
+                return false;
+            }
+
+            // For compound assignment sum += n, the Value is a BinaryExpression (sum + n)
+            if (assignExpr.Value is not BinaryExpression binaryExpr)
+            {
+                return false;
+            }
+
+            // Determine operation type
+            var operation = binaryExpr.Operator switch
+            {
+                BinaryOperator.Add => 0,
+                BinaryOperator.Subtract => 1,
+                BinaryOperator.Multiply => 2,
+                _ => -1
+            };
+
+            if (operation < 0)
+            {
+                return false;
+            }
+
+            // Right of the operation should be the loop variable (the 'n' in 'sum += n')
+            // Check if it's an identifier that references the loop variable slot
+            if (binaryExpr.Right is not IdentifierExpression rhsId)
+            {
+                return false;
+            }
+
+            // The loop variable should have the same slot as our fast path slot
+            if (plan.Target is not IdentifierBinding targetBinding ||
+                !ReferenceEquals(rhsId.Name, targetBinding.Name))
+            {
+                return false;
+            }
+
+            // Pre-resolve accumulator - try slot first, then dictionary fallback for top-level code
+            JsEnvironment? accumEnv = null;
+            var useSlotAccess = false;
+
+            if (loopEnvironment.TryResolveSlot(assignExpr.ScopeId, assignExpr.SlotIndex, out accumEnv) &&
+                accumEnv is not null)
+            {
+                useSlotAccess = true;
+            }
+            else
+            {
+                // Fallback: try to find accumulator via dictionary lookup (for top-level code)
+                // The Target is already a Symbol (the accumulator variable name)
+                // Find the environment containing the accumulator binding
+                if (!loopEnvironment.TryLocateBindingInternal(assignExpr.Target, out accumEnv))
+                {
+                    return false;
+                }
+            }
+
+            if (accumEnv is null)
+            {
+                return false;
+            }
+
+            ref var loopVarRef = ref iterationEnvironment.GetSlotRef(loopVarSlotIndex);
+
+            // The accumulator name is directly the Target (Symbol) of the assignment
+            var accumName = assignExpr.Target;
+
+            // Execute the tight loop - branch once on access method
+            if (useSlotAccess)
+            {
+                // Slot-based fast path (function-scoped code)
+                ref var accumRef = ref accumEnv.GetSlotRef(assignExpr.SlotIndex);
+                var accum = accumRef.IsNumber ? accumRef.NumberValue : 0.0;
+
+                while (enumerator.MoveNext())
+                {
+                    var n = enumerator.Current;
+                    var nValue = n.IsNumber ? n.NumberValue : JsOps.ToNumber(n);
+                    loopVarRef = n;
+
+                    accum = operation switch
+                    {
+                        0 => accum + nValue, // Add
+                        1 => accum - nValue, // Subtract
+                        2 => accum * nValue, // Multiply
+                        _ => accum + nValue
+                    };
+                }
+
+                accumRef = new JsValue(accum);
+                result = accumRef;
+            }
+            else
+            {
+                // Dictionary-based fallback (top-level code)
+                // Read initial value
+                var initialValue = accumEnv.GetBindingValueDirect(accumName);
+                var accum = initialValue.IsNumber ? initialValue.NumberValue : 0.0;
+
+                while (enumerator.MoveNext())
+                {
+                    var n = enumerator.Current;
+                    var nValue = n.IsNumber ? n.NumberValue : JsOps.ToNumber(n);
+                    loopVarRef = n;
+
+                    accum = operation switch
+                    {
+                        0 => accum + nValue, // Add
+                        1 => accum - nValue, // Subtract
+                        2 => accum * nValue, // Multiply
+                        _ => accum + nValue
+                    };
+                }
+
+                // Write final value back
+                var finalValue = new JsValue(accum);
+                accumEnv.SetBindingValueDirect(accumName, finalValue);
+                result = finalValue;
+            }
+
+            return true;
         }
     }
 }

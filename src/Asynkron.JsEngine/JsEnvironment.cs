@@ -1494,6 +1494,70 @@ public sealed class JsEnvironment
         return false;
     }
 
+    /// <summary>
+    /// Direct binding value read for fast accumulator patterns.
+    /// Assumes the binding exists in this environment (caller verified via TryLocateBindingInternal).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal JsValue GetBindingValueDirect(Symbol name)
+    {
+        if (_values is not null && _values.TryGetValue(name, out var binding))
+        {
+            return binding.JsValue;
+        }
+        return JsValue.Undefined;
+    }
+
+    /// <summary>
+    /// Direct binding value write for fast accumulator patterns.
+    /// Assumes the binding exists in this environment and is mutable.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetBindingValueDirect(Symbol name, JsValue value)
+    {
+        if (_values is not null)
+        {
+            ref var binding = ref _values.GetValueRefOrNullRef(name);
+            if (!Unsafe.IsNullRef(ref binding))
+            {
+                binding.JsValue = value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Internal method to locate a binding's environment for fast accumulator patterns.
+    /// Returns just the environment, not the binding itself.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryLocateBindingInternal(Symbol name, out JsEnvironment? bindingEnvironment)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values is not null && current._values.ContainsKey(name))
+            {
+                bindingEnvironment = current;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                current._varEnvironmentOverride.TryLocateBindingInternal(name, out bindingEnvironment))
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        bindingEnvironment = null;
+        return false;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryResolveGlobalObjectBinding(
         Symbol name,

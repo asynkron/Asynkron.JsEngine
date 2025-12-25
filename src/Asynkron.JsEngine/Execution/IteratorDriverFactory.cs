@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using static Asynkron.JsEngine.Ast.TypedAstEvaluator;
 
 #endregion
 
@@ -14,6 +15,10 @@ internal static class IteratorDriverFactory
             ? IteratorDriverKind.Await
             : IteratorDriverKind.Sync;
 
+        // Check if iteration environment can be reused (no closures in loop body).
+        // This enables JsVariable caching for let/const bindings.
+        var canReuseIterationEnvironment = !ContainsInnerFunctionExpression(rewrittenBody);
+
         return new IteratorDriverPlan(
             kind,
             statement.Iterable,
@@ -23,6 +28,7 @@ internal static class IteratorDriverFactory
             statement.PerIterationScopeId,
             statement.PerIterationSlotCount,
             statement.PerIterationSlotIndices,
-            statement.PerIterationBindings);
+            statement.PerIterationBindings,
+            canReuseIterationEnvironment);
     }
 }

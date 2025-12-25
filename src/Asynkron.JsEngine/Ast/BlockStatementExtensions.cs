@@ -100,7 +100,9 @@ public static partial class TypedAstEvaluator
             // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
             // which doesn't override previous statement completion values
             var resultJs = JsValue.Unit;
-            var scope = new JsEnvironment(environment, false, block.IsStrict);
+            // Use pool to rent even though we won't return (closures in block may capture).
+            // This is consistent with the pooling pattern used elsewhere.
+            var scope = JsEnvironmentPool.Rent(environment, false, block.IsStrict);
             scope.ScopeId = block.ScopeId;
             scope.SetSlotMap(block.SlotMap);
             if (block is { SlotCount: > 0, ScopeId: >= 0 })

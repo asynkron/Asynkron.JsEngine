@@ -663,16 +663,19 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// Creates a new iteration environment for per-iteration scope.
-        /// Used when closures exist and environment can't be reused/pooled.
+        /// Uses the pool to rent environments even when closures exist.
+        /// Note: These environments are NOT returned to the pool since closures may capture them.
         /// </summary>
         private static JsEnvironment CreateIterationEnvironment(
             JsEnvironment loopEnvironment,
             IteratorDriverPlan iteratorPlan,
             bool hasSlotsConfigured)
         {
-            // Don't pool since closures may capture this environment
-            var env = new JsEnvironment(loopEnvironment, creatingSource: iteratorPlan.Body.Source,
-                description: "for-each-iteration");
+            // Use pool to rent even though we won't return (closures may capture).
+            // This allows potential reuse if pool has available environments and is
+            // consistent with the pooling pattern used elsewhere.
+            var env = JsEnvironmentPool.Rent(loopEnvironment, false, false,
+                iteratorPlan.Body.Source, "for-each-iteration");
             if (hasSlotsConfigured)
             {
                 env.InitializeSlots(iteratorPlan.IterationSlotCount, iteratorPlan.IterationScopeId);

@@ -213,8 +213,8 @@ public sealed class JsEnvironment : IRentable
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
         Depth = (enclosing?.Depth ?? -1) + 1;
-        // Reset slot-based state
-        _slots = null;
+        // Reset slot-based state - keep _slots for reuse (InitializeSlots will clear/resize as needed)
+        // Don't null _slots - it will be reused if big enough, otherwise reallocated
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;

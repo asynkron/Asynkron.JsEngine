@@ -6,10 +6,9 @@ namespace Asynkron.JsEngine;
 ///     Poolable microtask that wraps a JavaScript callable (IJsCallable).
 ///     Used by the queueMicrotask global function to schedule user callbacks.
 /// </summary>
-internal sealed class JsCallableMicrotask : IMicrotask
+internal sealed class JsCallableMicrotask : IMicrotask, IRentable
 {
-    [ThreadStatic]
-    private static JsCallableMicrotask? Cached;
+    private static readonly ObjectPool<JsCallableMicrotask> Pool = new(32, static () => new JsCallableMicrotask());
 
     private IJsCallable? _callback;
 
@@ -17,8 +16,7 @@ internal sealed class JsCallableMicrotask : IMicrotask
 
     public static IMicrotask Rent(IJsCallable callback)
     {
-        var task = Cached ?? new JsCallableMicrotask();
-        Cached = null;
+        var task = Pool.Rent();
         task._callback = callback;
         return task;
     }
@@ -26,15 +24,19 @@ internal sealed class JsCallableMicrotask : IMicrotask
     public void Execute()
     {
         var callback = _callback!;
-        _callback = null;
-
         try
         {
             callback.Invoke([], JsValue.Undefined);
         }
         finally
         {
-            Cached = this;
+            Pool.Return(this);
         }
+    }
+
+    public void Reset()
+    {
+        _callback = null;
+        Epoch = 0;
     }
 }

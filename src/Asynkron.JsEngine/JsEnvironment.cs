@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
 
-public sealed class JsEnvironment
+public sealed class JsEnvironment : IRentable
 {
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
@@ -215,6 +215,15 @@ public sealed class JsEnvironment
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
+    }
+
+    /// <summary>
+    ///     Resets the environment to a neutral state for pool return.
+    ///     Implements IRentable.Reset().
+    /// </summary>
+    void IRentable.Reset()
+    {
+        Reset(null, false, false);
     }
 
     /// <summary>

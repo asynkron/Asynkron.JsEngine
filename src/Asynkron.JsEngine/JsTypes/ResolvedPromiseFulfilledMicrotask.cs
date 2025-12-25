@@ -4,10 +4,10 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Poolable microtask for resolved promise callbacks with onFulfilled handler.
 ///     Implements IMicrotask directly to avoid Action delegate allocation.
 /// </summary>
-internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask
+internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask, IRentable
 {
-    [ThreadStatic]
-    private static ResolvedPromiseFulfilledMicrotask? TCached;
+    private static readonly ObjectPool<ResolvedPromiseFulfilledMicrotask> Pool = new(32,
+        static () => new ResolvedPromiseFulfilledMicrotask());
 
     private IJsCallable? _callback;
     private JsValue _value;
@@ -17,8 +17,7 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask
 
     public static IMicrotask Rent(IJsCallable callback, JsValue value, JsPromise promise)
     {
-        var task = TCached ?? new ResolvedPromiseFulfilledMicrotask();
-        TCached = null;
+        var task = Pool.Rent();
         task._callback = callback;
         task._value = value;
         task._nextPromise = promise;
@@ -30,11 +29,6 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask
         var callback = _callback!;
         var value = _value;
         var nextPromise = _nextPromise!;
-
-        // Clear state before execution to allow re-pooling even if exception occurs
-        _callback = null;
-        _value = JsValue.Undefined;
-        _nextPromise = null;
 
         // Rent a single-element array from the cache to pass the value
         var args = JsValueCache.RentJsValueArray(1);
@@ -55,7 +49,15 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask
         finally
         {
             JsValueCache.ReturnJsValueArray(args);
-            TCached = this;
+            Pool.Return(this);
         }
+    }
+
+    public void Reset()
+    {
+        _callback = null;
+        _value = JsValue.Undefined;
+        _nextPromise = null;
+        Epoch = 0;
     }
 }

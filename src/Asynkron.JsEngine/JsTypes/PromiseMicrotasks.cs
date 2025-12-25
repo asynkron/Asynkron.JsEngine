@@ -4,10 +4,10 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Poolable microtask for resolved promise pass-through (no callback).
 ///     Implements IMicrotask directly to avoid Action delegate allocation.
 /// </summary>
-internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask
+internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask, IRentable
 {
-    [ThreadStatic]
-    private static ResolvedPromisePassthroughMicrotask? Cached;
+    private static readonly ObjectPool<ResolvedPromisePassthroughMicrotask> Pool = new(32,
+        static () => new ResolvedPromisePassthroughMicrotask());
 
     private JsValue _value;
     private JsPromise? _nextPromise;
@@ -16,8 +16,7 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask
 
     public static IMicrotask Rent(JsValue value, JsPromise promise)
     {
-        var task = Cached ?? new ResolvedPromisePassthroughMicrotask();
-        Cached = null;
+        var task = Pool.Rent();
         task._value = value;
         task._nextPromise = promise;
         return task;
@@ -28,11 +27,15 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask
         var value = _value;
         var nextPromise = _nextPromise!;
 
+        nextPromise.Resolve(value);
+        Pool.Return(this);
+    }
+
+    public void Reset()
+    {
         _value = JsValue.Undefined;
         _nextPromise = null;
-
-        nextPromise.Resolve(value);
-        Cached = this;
+        Epoch = 0;
     }
 }
 
@@ -40,10 +43,10 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask
 ///     Poolable microtask for finally handlers.
 ///     Implements IMicrotask directly to avoid Action delegate allocation.
 /// </summary>
-internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask
+internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask, IRentable
 {
-    [ThreadStatic]
-    private static ResolvedPromiseFinallyMicrotask? Cached;
+    private static readonly ObjectPool<ResolvedPromiseFinallyMicrotask> Pool = new(32,
+        static () => new ResolvedPromiseFinallyMicrotask());
 
     private IJsCallable? _callback;
     private JsValue _value;
@@ -53,8 +56,7 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask
 
     public static IMicrotask Rent(IJsCallable callback, JsValue value, JsPromise promise)
     {
-        var task = Cached ?? new ResolvedPromiseFinallyMicrotask();
-        Cached = null;
+        var task = Pool.Rent();
         task._callback = callback;
         task._value = value;
         task._nextPromise = promise;
@@ -66,10 +68,6 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask
         var callback = _callback!;
         var value = _value;
         var nextPromise = _nextPromise!;
-
-        _callback = null;
-        _value = JsValue.Undefined;
-        _nextPromise = null;
 
         try
         {
@@ -86,7 +84,15 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask
         }
         finally
         {
-            Cached = this;
+            Pool.Return(this);
         }
+    }
+
+    public void Reset()
+    {
+        _callback = null;
+        _value = JsValue.Undefined;
+        _nextPromise = null;
+        Epoch = 0;
     }
 }

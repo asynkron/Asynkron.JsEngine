@@ -8,7 +8,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution;
 
-internal sealed class IteratorDriverState
+internal sealed class IteratorDriverState : IRentable
 {
     public IJsObjectLike? IteratorObject { get; set; }
     public IEnumerator<JsValue>? Enumerator { get; set; }
@@ -43,10 +43,10 @@ internal sealed class IteratorDriverState
     public JsEnvironment? LoopScopeEnvironment { get; set; }
 
     /// <summary>
-    /// Clears the state for reuse from pool.
+    /// Resets the state for reuse from pool.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Clear()
+    public void Reset()
     {
         IteratorObject = null;
         Enumerator = null;
@@ -62,44 +62,15 @@ internal sealed class IteratorDriverState
 }
 
 /// <summary>
-/// Simple pool for IteratorDriverState instances to reduce per-loop allocations.
-/// Uses a lock-free fixed-size array with Interlocked operations for thread-safety.
+/// Pool for IteratorDriverState instances to reduce per-loop allocations.
 /// </summary>
 internal static class IteratorDriverStatePool
 {
-    private const int PoolSize = 32;
-    private static readonly IteratorDriverState?[] Pool = new IteratorDriverState?[PoolSize];
+    private static readonly ObjectPool<IteratorDriverState> Pool = new(32, static () => new IteratorDriverState());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static IteratorDriverState Rent()
-    {
-        // Try to get from pool using lock-free compare-exchange
-        for (var i = 0; i < PoolSize; i++)
-        {
-            var state = Pool[i];
-            if (state is not null && Interlocked.CompareExchange(ref Pool[i], null, state) == state)
-            {
-                return state;
-            }
-        }
-
-        return new IteratorDriverState();
-    }
+    public static IteratorDriverState Rent() => Pool.Rent();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Return(IteratorDriverState state)
-    {
-        // Clear to a neutral state
-        state.Clear();
-
-        // Try to return to pool using lock-free compare-exchange
-        for (var i = 0; i < PoolSize; i++)
-        {
-            if (Pool[i] is null && Interlocked.CompareExchange(ref Pool[i], state, null) is null)
-            {
-                return;
-            }
-        }
-        // Pool full, state will be GC'd
-    }
+    public static void Return(IteratorDriverState state) => Pool.Return(state);
 }

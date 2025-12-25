@@ -19,7 +19,8 @@ public static partial class TypedAstEvaluator
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider
     {
-        private static readonly ConcurrentBag<HashSet<Symbol>> SymbolSetPool = [];
+        private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
+            static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
         private readonly bool _allowIdentifierCache;
         private readonly bool _argumentsObjectNeeded;
         private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
@@ -1244,13 +1245,7 @@ public static partial class TypedAstEvaluator
 
         private static HashSet<Symbol> RentSymbolSet()
         {
-            if (!SymbolSetPool.TryTake(out var set))
-            {
-                return new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            }
-
-            set.Clear();
-            return set;
+            return SymbolSetPool.Rent();
         }
 
         private static HashSet<Symbol> RentSymbolSet(IEnumerable<Symbol> seed)
@@ -1263,7 +1258,7 @@ public static partial class TypedAstEvaluator
         private static void ReturnSymbolSet(HashSet<Symbol> set)
         {
             set.Clear();
-            SymbolSetPool.Add(set);
+            SymbolSetPool.Return(set);
         }
 
         /// <summary>

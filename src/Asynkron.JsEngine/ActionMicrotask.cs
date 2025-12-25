@@ -4,10 +4,9 @@ namespace Asynkron.JsEngine;
 ///     Poolable wrapper that allows arbitrary Action delegates to be queued as microtasks.
 ///     Used for legacy code paths and user-provided callbacks.
 /// </summary>
-internal sealed class ActionMicrotask : IMicrotask
+internal sealed class ActionMicrotask : IMicrotask, IRentable
 {
-    [ThreadStatic]
-    private static ActionMicrotask? Cached;
+    private static readonly ObjectPool<ActionMicrotask> Pool = new(32, static () => new ActionMicrotask());
 
     private Action? _action;
 
@@ -15,8 +14,7 @@ internal sealed class ActionMicrotask : IMicrotask
 
     public static IMicrotask Rent(Action action)
     {
-        var task = Cached ?? new ActionMicrotask();
-        Cached = null;
+        var task = Pool.Rent();
         task._action = action;
         return task;
     }
@@ -24,15 +22,19 @@ internal sealed class ActionMicrotask : IMicrotask
     public void Execute()
     {
         var action = _action!;
-        _action = null;
-
         try
         {
             action();
         }
         finally
         {
-            Cached = this;
+            Pool.Return(this);
         }
+    }
+
+    public void Reset()
+    {
+        _action = null;
+        Epoch = 0;
     }
 }

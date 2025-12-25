@@ -161,6 +161,12 @@ public sealed class ScopeAnalyzer
         public bool IsDynamic => HasEval || HasWith || (Parent?.IsDynamic ?? false);
 
         /// <summary>
+        /// True if this is the top-level script/program scope.
+        /// Script-level variables use dictionary-based storage, not slots.
+        /// </summary>
+        public bool IsScriptScope => Parent is null && IsFunctionScope;
+
+        /// <summary>
         /// True if any inner functions capture variables from this scope.
         /// When true, environment reuse optimization is disabled for this function.
         /// </summary>
@@ -178,12 +184,20 @@ public sealed class ScopeAnalyzer
 
         /// <summary>
         /// Declares a variable in this scope and assigns it a slot index.
+        /// Returns -1 for script-level variables (which use dictionary-based storage).
         /// </summary>
         public int DeclareVariable(Symbol name)
         {
             if (_variables.TryGetValue(name, out var existingSlot))
             {
                 return existingSlot; // Already declared (e.g., var hoisting)
+            }
+
+            // Script-level variables use dictionary-based storage, not slots
+            if (IsScriptScope)
+            {
+                _variables[name] = -1;
+                return -1;
             }
 
             var slot = SlotCount++;

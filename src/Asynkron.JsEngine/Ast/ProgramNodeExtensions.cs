@@ -325,10 +325,15 @@ public static partial class TypedAstEvaluator
             }
 
             // Set ScopeId for the script environment to enable slot-based variable lookup from nested functions
-            // Note: We don't initialize slots because script-level var/let/const use dictionary-based storage
+            // Initialize slots if needed for loop environment caching (LoopEnvSlotIndex allocated by ScopeAnalyzer)
+            // Note: Script-level var/let/const still use dictionary-based storage, but loop environments can use slots
             if (program.ScopeId >= 0)
             {
                 executionEnvironment.ScopeId = program.ScopeId;
+                if (program.SlotCount > 0)
+                {
+                    executionEnvironment.InitializeSlots(program.SlotCount, program.ScopeId);
+                }
             }
 
             if (executionKind == ExecutionKind.Script)

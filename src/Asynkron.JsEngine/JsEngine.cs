@@ -47,7 +47,7 @@ public sealed class JsEngine : IAsyncDisposable
     private TaskCompletionSource? _drainCompletionSource; // Signals when event loop has drained
     private Task? _eventLoopTask;
     private int? _eventLoopThreadId;
-    private Channel<Func<ValueTask>>? _eventQueue;
+    private Channel<Action>? _eventQueue;
     private bool _isDrainingMicrotasks;
     private int _moduleBodyExecutionDepth; // Depth counter to suppress microtask draining during module body execution
 
@@ -547,7 +547,7 @@ public sealed class JsEngine : IAsyncDisposable
         // Note: Don't reset _activeTimerCount or _pendingTaskCount here!
         // Timers may have been scheduled during sync evaluation that we need to wait for.
 
-        _eventQueue = Channel.CreateUnbounded<Func<ValueTask>>(new UnboundedChannelOptions
+        _eventQueue = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions
         {
             SingleReader = true, SingleWriter = false, AllowSynchronousContinuations = true
         });
@@ -1953,32 +1953,19 @@ public sealed class JsEngine : IAsyncDisposable
         return (JsValue)promise.JsObject;
     }
 
-    /// <summary>
-    ///     Schedules a task to be executed on the event queue.
-    ///     This allows promises and other async operations to schedule work.
-    /// </summary>
-    /// <param name="task">The synchronous task to schedule</param>
-    public void ScheduleTask(Action task)
-    {
-        ScheduleTask(() =>
-        {
-            task();
-            return ValueTask.CompletedTask;
-        });
-    }
+
 
     /// <summary>
     ///     Schedules an asynchronous task to be executed on the event queue.
-    ///     Pending task bookkeeping is held until the returned <see cref="ValueTask"/> completes.
     /// </summary>
     /// <param name="task">The asynchronous task to execute.</param>
-    private void ScheduleTask(Func<ValueTask> task)
+    public void ScheduleTask(Action task)
     {
         StartEventLoop();
         var queue = _eventQueue ?? throw new InvalidOperationException("Event loop is not running.");
 
         Interlocked.Increment(ref _pendingTaskCount);
-        var written = queue.Writer.TryWrite(async () => await task().ConfigureAwait(false));
+        var written = queue.Writer.TryWrite(task);
         if (written)
         {
             return;
@@ -2029,8 +2016,6 @@ public sealed class JsEngine : IAsyncDisposable
                 }
 
                 continuation();
-
-                return ValueTask.CompletedTask;
             });
             // ProcessEventQueue will decrement _pendingTaskCount when this completes
             if (written)
@@ -2087,15 +2072,15 @@ public sealed class JsEngine : IAsyncDisposable
                         onFailure(ex);
                     }
                 }
-
-                return ValueTask.CompletedTask;
             });
-            if (!written)
+            if (written)
             {
-                // If enqueue fails (queue closed), decrement immediately.
-                Interlocked.Decrement(ref _pendingTaskCount);
-                TrySignalDrainComplete();
+                return;
             }
+
+            // If enqueue fails (queue closed), decrement immediately.
+            Interlocked.Decrement(ref _pendingTaskCount);
+            TrySignalDrainComplete();
         }, TaskScheduler.Default);
     }
 
@@ -2145,50 +2130,19 @@ public sealed class JsEngine : IAsyncDisposable
     ///     will also be processed.
     ///     Exceptions from individual tasks are caught and logged to prevent the event loop from stopping.
     /// </summary>
-    private async Task ProcessEventQueue(Channel<Func<ValueTask>> queue)
+    private async Task ProcessEventQueue(Channel<Action> queue)
     {
         _eventLoopThreadId = Environment.CurrentManagedThreadId;
         try
         {
-            await foreach (var task in queue.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var action in queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
                 _eventLoopThreadId = Environment.CurrentManagedThreadId;
                 var decrementInline = true;
                 try
                 {
-                    var work = task();
-                    if (work.IsCompleted)
-                    {
-                        work.GetAwaiter().GetResult();
-                        _eventLoopThreadId = Environment.CurrentManagedThreadId;
-                    }
-                    else
-                    {
-                        // decrementInline = false;
-                        // _ = work.AsTask().ContinueWith(t =>
-                        // {
-                        //     if (t.IsFaulted)
-                        //     {
-                        //         var ex = t.Exception?.GetBaseException() ?? t.Exception;
-                        //         if (ex is not null)
-                        //         {
-                        //             RealmState.Logger?.LogError(ex,
-                        //                 "[ProcessEventQueue] Unhandled exception in async event queue task: {ErrorType}: {ErrorMessage}",
-                        //                 ex.GetType().Name,
-                        //                 ex.Message);
-                        //         }
-                        //     }
-                        //     else if (t.IsCanceled)
-                        //     {
-                        //         RealmState.Logger?.LogWarning(
-                        //             "[ProcessEventQueue] Async event queue task was canceled.");
-                        //     }
-                        //
-                        //     DrainMicrotasks();
-                        //     Interlocked.Decrement(ref _pendingTaskCount);
-                        //     TrySignalDrainComplete();
-                        // }, TaskScheduler.Default);
-                    }
+                    action();
+                    _eventLoopThreadId = Environment.CurrentManagedThreadId;
                 }
                 catch (OutOfMemoryException)
                 {

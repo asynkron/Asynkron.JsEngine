@@ -296,43 +296,6 @@ public static partial class StandardLibrary
         throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
     }
 
-    internal static IJsPropertyAccessor EnsureArrayLikeReceiver(object? receiver, string methodName, RealmState? realm)
-    {
-        // Unwrap JsValue first - this path is for callers that pass object?
-        if (receiver is JsValue jsValue)
-        {
-            return EnsureArrayLikeReceiver(jsValue, methodName, realm);
-        }
-
-        return EnsureArrayLikeReceiverObject(receiver, methodName, realm);
-    }
-
-    private static IJsPropertyAccessor EnsureArrayLikeReceiverObject(object? receiver, string methodName,
-        RealmState? realm)
-    {
-        if (receiver is null || ReferenceEquals(receiver, Symbol.Undefined))
-        {
-            throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
-        }
-
-        if (receiver is IJsPropertyAccessor accessor)
-        {
-            return accessor;
-        }
-
-        if (receiver is JsObject jsObj)
-        {
-            return jsObj;
-        }
-
-        if (TryGetObject(receiver, realm, out var boxed))
-        {
-            return boxed;
-        }
-
-        throw ThrowTypeError($"{methodName} receiver is not object-like", realm: realm);
-    }
-
     internal static bool TryGetCallableMethod(object? target, string propertyKey, string operation, RealmState? realm,
         out IJsCallable? callable)
     {

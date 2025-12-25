@@ -32,21 +32,6 @@ public static class StringHelper
         return wrapper;
     }
 
-    internal static string RequireStringReceiver(object? receiver, RealmState? realm = null)
-    {
-        return receiver switch
-        {
-            string s => s,
-            JsObject obj when obj.TryGetProperty("__value__", out var inner) && inner.TryGetString(out var s) => s,
-            IJsPropertyAccessor accessor when accessor.TryGetProperty("__value__", out var inner)
-                                              && inner.TryGetString(out var s) => s,
-            _ => throw ThrowTypeError("String.prototype valueOf called on non-string object", realm: realm)
-        };
-    }
-
-    /// <summary>
-    /// JsValue overload for RequireStringReceiver.
-    /// </summary>
     internal static string RequireStringReceiver(JsValue receiver, RealmState? realm = null)
     {
         // Fast path for string kind

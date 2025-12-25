@@ -248,59 +248,6 @@ public static partial class NumberHelper
         return isNegative ? "-" + result : result;
     }
 
-    internal static int ToIndex(object? value, RealmState? realm = null)
-    {
-        const double MaxLength = 9007199254740991d; // 2^53 - 1
-        var context = realm?.CreateContext();
-
-        var numericJs = JsOps.ToNumericAsJsValue( JsValue.FromObjectUnsafe(value), context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (numericJs.Kind == JsValueKind.BigInt ||
-            numericJs.TryGetObject<Symbol>(out _) ||
-            numericJs.TryGetObject<TypedAstSymbol>(out _))
-        {
-            throw ThrowTypeError("Index must be a non-negative integer", context, realm);
-        }
-
-        var numberValue = numericJs.Kind == JsValueKind.Number ? numericJs.NumberValue : JsOps.ToNumber(numericJs);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
-            ? 0d
-            : double.IsInfinity(numberValue)
-                ? numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity
-                : Math.Truncate(numberValue);
-
-        if (double.IsPositiveInfinity(integerIndex) || integerIndex < 0)
-        {
-            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
-        }
-
-        var index = integerIndex > MaxLength ? MaxLength : integerIndex;
-        var sameValueZero = integerIndex == index || (integerIndex == 0 && index == 0);
-        if (!sameValueZero)
-        {
-            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
-        }
-
-        if (index > int.MaxValue)
-        {
-            throw ThrowRangeError("Index is too large", context, realm);
-        }
-
-        return (int)index;
-    }
-
-    /// <summary>
-    /// JsValue overload for ToIndex. Converts a JsValue to an index.
-    /// </summary>
     internal static int ToIndex(JsValue value, RealmState? realm = null)
     {
         const double MaxLength = 9007199254740991d; // 2^53 - 1

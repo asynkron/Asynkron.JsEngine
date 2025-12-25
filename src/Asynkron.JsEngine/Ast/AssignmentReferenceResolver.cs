@@ -138,7 +138,7 @@ internal static class AssignmentReferenceResolver
             var superPropertyValue = evaluateExpression(member.Property, environment, context);
             if (context.ShouldStopEvaluation)
             {
-                return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
+                return AssignmentReference.ForDelegate(static () => JsValue.Undefined, static _ => { });
             }
 
             var binding = environment.ExpectSuperBinding(context);

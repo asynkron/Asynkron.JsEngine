@@ -2164,30 +2164,30 @@ public sealed class JsEngine : IAsyncDisposable
                     }
                     else
                     {
-                        decrementInline = false;
-                        _ = work.AsTask().ContinueWith(t =>
-                        {
-                            if (t.IsFaulted)
-                            {
-                                var ex = t.Exception?.GetBaseException() ?? t.Exception;
-                                if (ex is not null)
-                                {
-                                    RealmState.Logger?.LogError(ex,
-                                        "[ProcessEventQueue] Unhandled exception in async event queue task: {ErrorType}: {ErrorMessage}",
-                                        ex.GetType().Name,
-                                        ex.Message);
-                                }
-                            }
-                            else if (t.IsCanceled)
-                            {
-                                RealmState.Logger?.LogWarning(
-                                    "[ProcessEventQueue] Async event queue task was canceled.");
-                            }
-
-                            DrainMicrotasks();
-                            Interlocked.Decrement(ref _pendingTaskCount);
-                            TrySignalDrainComplete();
-                        }, TaskScheduler.Default);
+                        // decrementInline = false;
+                        // _ = work.AsTask().ContinueWith(t =>
+                        // {
+                        //     if (t.IsFaulted)
+                        //     {
+                        //         var ex = t.Exception?.GetBaseException() ?? t.Exception;
+                        //         if (ex is not null)
+                        //         {
+                        //             RealmState.Logger?.LogError(ex,
+                        //                 "[ProcessEventQueue] Unhandled exception in async event queue task: {ErrorType}: {ErrorMessage}",
+                        //                 ex.GetType().Name,
+                        //                 ex.Message);
+                        //         }
+                        //     }
+                        //     else if (t.IsCanceled)
+                        //     {
+                        //         RealmState.Logger?.LogWarning(
+                        //             "[ProcessEventQueue] Async event queue task was canceled.");
+                        //     }
+                        //
+                        //     DrainMicrotasks();
+                        //     Interlocked.Decrement(ref _pendingTaskCount);
+                        //     TrySignalDrainComplete();
+                        // }, TaskScheduler.Default);
                     }
                 }
                 catch (OutOfMemoryException)

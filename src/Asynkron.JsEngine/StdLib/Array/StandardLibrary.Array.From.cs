@@ -124,17 +124,10 @@ public static partial class StandardLibrary
             }
 
             var key = ToIndexString(k);
-            var value = GetElementOrUndefined(arrayLike, key);
-            JsValue mapped;
-            if (mapping && mapper is not null)
-            {
-                mapped = InvokeArrayFromMapper(mapper, host, thisArg, value, k);
-            }
-            else
-            {
-                // Handle case where value is already a boxed JsValue
-                mapped = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
-            }
+            var value = GetElementOrUndefinedJsValue(arrayLike, key);
+            var mapped = mapping && mapper is not null
+                ? InvokeArrayFromMapper(mapper, host, thisArg, value, k)
+                : value;
 
             CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
             k++;
@@ -221,7 +214,7 @@ public static partial class StandardLibrary
     }
 
     internal static object? ArrayFromIterable(HostFunction host, JsValue thisValue, object? items,
-        IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, object? thisArg, RealmState? realm)
+        IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, JsValue thisArg, RealmState? realm)
     {
         const string MethodName = "Array.from";
         var result = CreateArrayFromResult(thisValue, realm, 0, false, MethodName);
@@ -387,7 +380,7 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static JsValue InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, object? thisArg, object? value,
+    internal static JsValue InvokeArrayFromMapper(IJsCallable mapper, HostFunction host, JsValue thisArg, JsValue value,
         long index)
     {
         if (mapper is IJsEnvironmentAwareCallable envAware && host.CallingJsEnvironment is not null)
@@ -395,10 +388,7 @@ public static partial class StandardLibrary
             envAware.CallingJsEnvironment = host.CallingJsEnvironment;
         }
 
-        // Handle case where value and thisArg are already boxed JsValues
-        var valueArg = value is JsValue vJs ? vJs : JsValue.FromObjectUnsafe(value);
-        var thisArgJs = thisArg is JsValue taJs ? taJs : JsValue.FromObjectUnsafe(thisArg);
-        return mapper.Invoke([valueArg, (double)index], thisArgJs);
+        return mapper.Invoke([value, (double)index], thisArg);
     }
 
     private sealed class ArrayFromAsyncOperation(
@@ -408,7 +398,7 @@ public static partial class StandardLibrary
         IJsObjectLike result,
         bool mapping,
         IJsCallable? mapper,
-        object? thisArg,
+        JsValue thisArg,
         string methodName)
     {
         private IJsPropertyAccessor? _arrayLike;
@@ -637,8 +627,8 @@ public static partial class StandardLibrary
                 }
 
                 var key = ToIndexString(_index);
-                var value = GetElementOrUndefined(_arrayLike, key);
-                if (TryAwaitPromiseLike(value,
+                var value = GetElementOrUndefinedJsValue(_arrayLike, key);
+                if (TryAwaitPromiseLikeJsValue(value,
                         resolved =>
                         {
                             if (HandleArrayLikeValue(key, resolved))
@@ -646,7 +636,7 @@ public static partial class StandardLibrary
                                 ProcessArrayLike();
                             }
                         },
-                        RejectFailure))
+                        RejectFailureJsValue))
                 {
                     return;
                 }
@@ -658,14 +648,14 @@ public static partial class StandardLibrary
             }
         }
 
-        private bool HandleArrayLikeValue(string key, object? resolved)
+        private bool HandleArrayLikeValue(string key, JsValue resolved)
         {
             if (_settled)
             {
                 return false;
             }
 
-            var finalValue = resolved;
+            JsValue finalValue = resolved;
 
             if (mapping && mapper is not null)
             {

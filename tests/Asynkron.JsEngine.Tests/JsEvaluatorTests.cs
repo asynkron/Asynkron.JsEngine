@@ -416,7 +416,7 @@ public class JsEvaluatorTests
         // Check if descriptor is stored
         var desc = testObj.GetOwnPropertyDescriptor("__proto__");
         Assert.NotNull(desc);
-        Assert.Equal(2d, desc.Value);
+        Assert.Equal(2d, desc.JsValue.ToObject());
 
         // Check if it's in own property names (this now works after our fix)
         var names = testObj.GetOwnPropertyNames().ToList();

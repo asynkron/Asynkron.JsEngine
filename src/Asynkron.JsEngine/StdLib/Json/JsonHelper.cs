@@ -18,7 +18,7 @@ public static class JsonHelper
     internal static JsValue ParseJsonWithReviverJsValue(string jsonStr, RealmState realm, EvaluationContext? context,
         JsValue reviverValue)
     {
-        object? parsed;
+        JsValue parsed;
         try
         {
             parsed = ParseJsonValue(JsonDocument.Parse(jsonStr).RootElement, realm);
@@ -30,16 +30,16 @@ public static class JsonHelper
 
         if (!reviverValue.TryGetObject<IJsCallable>(out var reviver))
         {
-            return JsValue.FromObjectUnsafe(parsed);
+            return parsed;
         }
 
         var holder = new JsObject();
-        holder.SetProperty("", JsValue.FromObjectUnsafe(parsed));
+        holder.SetProperty("", parsed);
 
         return ApplyJsonReviverJsValue(reviver, holder, "");
     }
 
-    private static object? ParseJsonValue(JsonElement element, RealmState realm)
+    private static JsValue ParseJsonValue(JsonElement element, RealmState realm)
     {
         switch (element.ValueKind)
         {
@@ -47,10 +47,10 @@ public static class JsonHelper
                 var obj = new JsObject(realm.ObjectPrototype);
                 foreach (var prop in element.EnumerateObject())
                 {
-                    obj[prop.Name] = ParseJsonValue(prop.Value, realm);
+                    obj.SetProperty(prop.Name, ParseJsonValue(prop.Value, realm));
                 }
 
-                return obj;
+                return new JsValue(obj);
 
             case JsonValueKind.Array:
                 var arr = new JsArray(realm);
@@ -59,23 +59,23 @@ public static class JsonHelper
                     arr.Push(ParseJsonValue(item, realm));
                 }
 
-                return arr;
+                return JsValue.FromJsArray(arr);
 
             case JsonValueKind.String:
-                return element.GetString();
+                return new JsValue(element.GetString() ?? string.Empty);
 
             case JsonValueKind.Number:
-                return element.GetDouble();
+                return new JsValue(element.GetDouble());
 
             case JsonValueKind.True:
-                return true;
+                return JsValue.True;
 
             case JsonValueKind.False:
-                return false;
+                return JsValue.False;
 
             case JsonValueKind.Null:
             default:
-                return null;
+                return JsValue.Null;
         }
     }
 

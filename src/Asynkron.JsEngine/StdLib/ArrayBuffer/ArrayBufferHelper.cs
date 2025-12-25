@@ -44,13 +44,13 @@ public static class ArrayBufferHelper
         if (thisVal is JsObject obj)
         {
             var descriptor = obj.GetOwnPropertyDescriptor("_internalArrayBuffer");
-            if (descriptor?.Value is JsArrayBuffer internalBuffer)
+            if ((descriptor != null ? descriptor.JsValue.ToObject() : null) is JsArrayBuffer internalBuffer)
             {
                 return internalBuffer;
             }
 
             // Handle case where value is boxed JsValue struct
-            if (descriptor?.Value is JsValue bufJsVal &&
+            if ((descriptor != null ? descriptor.JsValue.ToObject() : null) is JsValue bufJsVal &&
                 bufJsVal.TryGetObject<JsArrayBuffer>(out var bufferFromJsValue))
             {
                 return bufferFromJsValue;

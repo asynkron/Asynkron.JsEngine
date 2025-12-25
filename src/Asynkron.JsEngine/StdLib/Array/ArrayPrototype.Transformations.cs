@@ -37,7 +37,7 @@ public sealed partial class ArrayPrototype
                 builder.Append(separator);
             }
 
-            var element = GetElementOrUndefined(accessor, ToIndexString(k));
+            var element = GetElementOrUndefinedJsValue(accessor, ToIndexString(k));
             builder.Append(element.ToJsStringForArray());
         }
 
@@ -313,9 +313,7 @@ public sealed partial class ArrayPrototype
             return JsValue.Undefined;
         }
 
-        // Handle case where element is already a boxed JsValue
-        var element = GetElementOrUndefined(target, ToIndexString(index));
-        return element is JsValue elemJs ? elemJs : JsValue.FromObjectUnsafe(element);
+        return GetElementOrUndefinedJsValue(target, ToIndexString(index));
     }
 
     [JsHostMethod("flat", Length = 0d)]

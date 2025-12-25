@@ -661,7 +661,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         realm: ResolveRealmState(receiver));
                 }
 
-                dataDesc.Value = value;
+                dataDesc.JsValue = JsValue.FromObjectUnsafe(value);
                 privateFields[name] = dataDesc;
                 return;
             }
@@ -697,7 +697,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        dataDescriptor.Value = value;
+                        dataDescriptor.JsValue = JsValue.FromObjectUnsafe(value);
                         protoState.PrivateFields[name] = dataDescriptor;
                         return;
                     }
@@ -733,7 +733,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
 
             this[name] = value;
-            descriptor.Value = value;
+            descriptor.JsValue = JsValue.FromObjectUnsafe(value);
             TrackArrayWrite(name, value);
             return;
         }
@@ -1010,7 +1010,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 if (string.Equals(name, "length", StringComparison.Ordinal))
                 {
-                    TrackLengthAssignment(newDescriptor.Value);
+                    TrackLengthAssignment(newDescriptor.JsValue.ToObject());
                 }
                 else if (!newDescriptor.IsAccessorDescriptor)
                 {
@@ -1042,7 +1042,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (string.Equals(name, "length", StringComparison.Ordinal))
             {
-                TrackLengthAssignment(currentDescriptor.Value);
+                TrackLengthAssignment(currentDescriptor.JsValue.ToObject());
             }
             else if (!currentDescriptor.IsAccessorDescriptor)
             {
@@ -1108,7 +1108,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 if (string.Equals(name, "length", StringComparison.Ordinal))
                 {
-                    TrackLengthAssignment(descriptor.Value);
+                    TrackLengthAssignment(descriptor.JsValue.ToObject());
                 }
                 else if (!descriptor.IsAccessorDescriptor)
                 {
@@ -1140,7 +1140,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (string.Equals(name, "length", StringComparison.Ordinal))
             {
-                TrackLengthAssignment(currentDescriptor.Value);
+                TrackLengthAssignment(currentDescriptor.JsValue.ToObject());
             }
             else if (!currentDescriptor.IsAccessorDescriptor)
             {
@@ -1237,7 +1237,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     return false;
                 }
 
-                if (candidate.HasValue && !SameValue(candidate.Value, current.Value))
+                if (candidate.HasValue && !SameValue(candidate.JsValue.ToObject(), current.JsValue.ToObject()))
                 {
                     return false;
                 }
@@ -1439,7 +1439,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
         else
         {
-            this[name] = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
+            this[name] = descriptor.HasValue ? descriptor.JsValue.ToObject() : Symbol.Undefined;
             Remove(GetterPrefix + name);
             Remove(SetterPrefix + name);
         }
@@ -1865,7 +1865,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        value = desc.HasValue ? desc.Value : Symbol.Undefined;
+                        value = desc.HasValue ? desc.JsValue.ToObject() : Symbol.Undefined;
                         return true;
                     default:
                         value = slot;
@@ -2015,7 +2015,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 return true;
             }
 
-            value = descriptor.HasValue ? descriptor.Value : Symbol.Undefined;
+            value = descriptor.HasValue ? descriptor.JsValue.ToObject() : Symbol.Undefined;
             return true;
         }
 

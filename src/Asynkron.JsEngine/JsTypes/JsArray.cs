@@ -802,7 +802,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
-        var success = TrySetArrayLength(descriptor.HasValue, descriptor.Value, descriptor.HasWritable,
+        var success = TrySetArrayLength(descriptor.HasValue, descriptor.JsValue.ToObject(), descriptor.HasWritable,
             descriptor.Writable, context, throwOnWritableFailure);
         if (!success)
         {
@@ -873,7 +873,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        lengthDescriptor.Value = (double)_length;
+        lengthDescriptor.JsValue = JsValue.FromObjectUnsafe((double)_length);
         _properties["length"] = (double)_length;
     }
 

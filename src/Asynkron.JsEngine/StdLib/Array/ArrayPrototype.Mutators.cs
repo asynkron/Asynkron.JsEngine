@@ -499,7 +499,7 @@ public sealed partial class ArrayPrototype
 
         // Collect all values upfront - this is the "snapshot" approach required by ES spec
         // We need to materialize values before sorting because the comparator could mutate the array
-        var elements = new List<(object? Value, long OriginalIndex)>((int)Math.Min(length, int.MaxValue));
+        var elements = new List<(JsValue Value, long OriginalIndex)>((int)Math.Min(length, int.MaxValue));
         var holes = new List<long>(); // Track holes (sparse array indices with no property)
 
         for (long k = 0; k < length; k++)
@@ -507,7 +507,7 @@ public sealed partial class ArrayPrototype
             var key = ToIndexString(k);
             if (HasProperty(accessor, key))
             {
-                var value = GetElementOrUndefined(accessor, key);
+                var value = GetElementOrUndefinedJsValue(accessor, key);
                 elements.Add((value, k));
             }
             else
@@ -522,9 +522,7 @@ public sealed partial class ArrayPrototype
         long index = 0;
         foreach (var pair in elements)
         {
-            // Handle case where value is already a boxed JsValue
-            var pairVal = pair.Value is JsValue pjv ? pjv : JsValue.FromObjectUnsafe(pair.Value);
-            accessor.SetProperty(ToIndexString(index++), pairVal);
+            accessor.SetProperty(ToIndexString(index++), pair.Value);
         }
 
         if (objectLike is not null)
@@ -547,17 +545,14 @@ public sealed partial class ArrayPrototype
 
         return JsValue.FromObjectUnsafe(accessor);
 
-        int Comparer((object? Value, long OriginalIndex) a, (object? Value, long OriginalIndex) b)
+        int Comparer((JsValue Value, long OriginalIndex) a, (JsValue Value, long OriginalIndex) b)
         {
             var aVal = a.Value;
             var bVal = b.Value;
 
             if (compareFn is not null)
             {
-                // Handle case where values are already boxed JsValues
-                var aArg = aVal is JsValue ajv ? ajv : JsValue.FromObjectUnsafe(aVal);
-                var bArg = bVal is JsValue bjv ? bjv : JsValue.FromObjectUnsafe(bVal);
-                var result = compareFn.Invoke([aArg, bArg], JsValue.Undefined);
+                var result = compareFn.Invoke([aVal, bVal], JsValue.Undefined);
                 var ctx = realm?.CreateContext();
                 var num = JsOps.ToNumber(result, ctx);
                 if (ctx?.IsThrow == true)
@@ -574,8 +569,8 @@ public sealed partial class ArrayPrototype
                 return cmp != 0 ? cmp : a.OriginalIndex.CompareTo(b.OriginalIndex);
             }
 
-            var aUndef = ReferenceEquals(aVal, Symbol.Undefined);
-            var bUndef = ReferenceEquals(bVal, Symbol.Undefined);
+            var aUndef = aVal.IsUndefined;
+            var bUndef = bVal.IsUndefined;
             if (aUndef || bUndef)
             {
                 if (aUndef && bUndef)
@@ -586,8 +581,8 @@ public sealed partial class ArrayPrototype
                 return aUndef ? 1 : -1;
             }
 
-            var aStr = JsValueToString(aVal, realm);
-            var bStr = JsValueToString(bVal, realm);
+            var aStr = aVal.ToJsString();
+            var bStr = bVal.ToJsString();
             var ord = string.CompareOrdinal(aStr, bStr);
             return ord != 0 ? ord : a.OriginalIndex.CompareTo(b.OriginalIndex);
         }

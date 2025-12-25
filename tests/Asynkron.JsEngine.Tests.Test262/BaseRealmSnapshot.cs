@@ -348,7 +348,7 @@ internal sealed class BaseRealmSnapshot
 
             if (original.HasValue)
             {
-                clone.Value = CloneValue(original.Value);
+                clone.JsValue = JsValue.FromObjectUnsafe(CloneValue(original.JsValue.ToObject()));
             }
 
             if (original.HasGet)

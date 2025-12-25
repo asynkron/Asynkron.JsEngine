@@ -103,7 +103,8 @@ public static class DateHelper
         }
 
         var candidate = thisVal.AsObject();
-        if (candidate.GetOwnPropertyDescriptor("_internalDate") is not { Value: double timeValue })
+        if (candidate.GetOwnPropertyDescriptor("_internalDate") is not { JsValue: var jsValue } ||
+            !jsValue.TryGetDouble(out var timeValue))
         {
             throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
         }
@@ -112,7 +113,7 @@ public static class DateHelper
         return timeValue;
     }
 
-    internal static JsObject RequireDateObject(JsValue thisVal, RealmState realm)
+    private static JsObject RequireDateObject(JsValue thisVal, RealmState realm)
     {
         RequireDateValue(thisVal, realm, out var obj);
         return obj;

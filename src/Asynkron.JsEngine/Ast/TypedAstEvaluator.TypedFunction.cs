@@ -695,10 +695,13 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Don't initialize slots in InvokeWithContext - parameters are bound via dictionary.
-                // Loop env caching slots will be lazily initialized on first use.
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
+                // Initialize slots for slot-based identifier resolution (e.g., reading parameters in for loops)
+                if (_function.SlotCount > 0)
+                {
+                    functionEnvironment.InitializeSlots(_function.SlotCount);
+                }
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
@@ -714,10 +717,13 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Don't initialize slots in InvokeWithContext - parameters are bound via dictionary.
-                // Loop env caching slots will be lazily initialized on first use.
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
+                // Initialize slots for slot-based identifier resolution (e.g., reading parameters in for loops)
+                if (_function.SlotCount > 0)
+                {
+                    functionEnvironment.InitializeSlots(_function.SlotCount);
+                }
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
@@ -1025,6 +1031,25 @@ public static partial class TypedAstEvaluator
                 {
                     // Bind parameters
                     _function.BindFunctionParameters(arguments, parameterEnvironment, context);
+
+                    // Also store parameter values in slots for slot-based identifier resolution.
+                    // Parameters are bound in parameterEnvironment via dictionary, but slot-based
+                    // lookups use functionEnvironment._slots.
+                    if (functionEnvironment._slots is { } slots && _function.SlotMap is { } slotMap)
+                    {
+                        foreach (var param in _function.Parameters)
+                        {
+                            if (param.Name is { } paramName && slotMap.TryGetValue(paramName, out var slotIndex))
+                            {
+                                if (parameterEnvironment.TryFindBindingJsValue(paramName, allowUninitialized: true,
+                                        out var binding, out var paramValue))
+                                {
+                                    slots[slotIndex] = paramValue;
+                                }
+                            }
+                        }
+                    }
+
                     if (context.ShouldStopEvaluation)
                     {
                         if (!context.IsThrow)

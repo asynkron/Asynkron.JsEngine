@@ -574,7 +574,6 @@ public static partial class TypedAstEvaluator
                 {
                     while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
                     {
-                        Console.WriteLine($"[DEBUG-LOOP] PC={_programCounter}, Instruction={_plan.Instructions[_programCounter].GetType().Name}");
                         _currentInstructionIndex = _programCounter;
                         var instruction = _plan.Instructions[_programCounter];
                         switch (instruction)
@@ -1341,7 +1340,6 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(throwJs);
 
                             case IteratorInitInstruction iteratorInitInstruction:
-                                Console.WriteLine($"[DEBUG] IteratorInitInstruction at PC={_programCounter}, _currentDriverState={((_currentDriverState != null) ? "SET" : "NULL")}");
                                 var iterableValue =
                                     iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingIteratorResult))
@@ -1385,7 +1383,6 @@ public static partial class TypedAstEvaluator
 
                             case IteratorMoveNextInstruction iteratorMoveNextInstruction:
                                 var iteratorIndex = _programCounter;
-                                Console.WriteLine($"[DEBUG] IteratorMoveNextInstruction at PC={_programCounter}, _currentDriverState={((_currentDriverState != null) ? "SET" : "NULL")}, Enumerator={((_currentDriverState?.Enumerator != null) ? "HAS_ENUMERATOR" : "NO_ENUMERATOR")}, IsAsync={_currentDriverState?.IsAsyncIterator}");
 
                                 // Use cached driver state for scope-correct access from child scopes
                                 // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
@@ -1415,10 +1412,13 @@ public static partial class TypedAstEvaluator
                                 var valueVar = driverState.ValueVariable;
 
                                 // Capture value JsVariable on first execution (while still in loop scope)
+                                // IMPORTANT: Use the loop scope environment (from iterVar) rather than the current
+                                // environment, which may be a stale per-iteration environment from a previous outer
+                                // loop iteration. The value slot is allocated in the same scope as the iterator.
                                 if (!valueVar.IsValid && iteratorMoveNextInstruction.ValueSlotIndex >= 0)
                                 {
-                                    Console.WriteLine($"[DEBUG] Capturing valueVar: SlotIndex={iteratorMoveNextInstruction.ValueSlotIndex}, Env.HasSlots={environment.HasSlots}, Env.SlotCount={environment.SlotCount}");
-                                    valueVar = new JsVariable(environment, iteratorMoveNextInstruction.ValueSlotIndex);
+                                    var loopScopeEnv = iterVar.IsValid ? iterVar.Environment : environment;
+                                    valueVar = new JsVariable(loopScopeEnv, iteratorMoveNextInstruction.ValueSlotIndex);
                                     driverState.ValueVariable = valueVar;
                                 }
 
@@ -1503,7 +1503,6 @@ public static partial class TypedAstEvaluator
                                 // iterator again.
                                 if (driverState.AwaitingNextResult || driverState.AwaitingValue)
                                 {
-                                    Console.WriteLine($"[DEBUG] Resuming from await: AwaitingNextResult={driverState.AwaitingNextResult}, AwaitingValue={driverState.AwaitingValue}");
                                     var awaitingValue = driverState.AwaitingValue;
                                     driverState.AwaitingNextResult = false;
                                     driverState.AwaitingValue = false;
@@ -1547,7 +1546,6 @@ public static partial class TypedAstEvaluator
 
                                     if (awaitingValue)
                                     {
-                                        Console.WriteLine($"[DEBUG] Goto StoreIteratorValue with payload={forAwaitResumePayload}");
                                         awaitedValue = forAwaitResumePayload;
                                         goto StoreIteratorValue;
                                     }
@@ -1673,11 +1671,8 @@ public static partial class TypedAstEvaluator
                                 }
                                 else if (driverState.Enumerator is { } awaitEnumerator)
                                 {
-                                    var moveNextResult = awaitEnumerator.MoveNext();
-                                    Console.WriteLine($"[DEBUG] awaitEnumerator.MoveNext() = {moveNextResult}");
-                                    if (!moveNextResult)
+                                    if (!awaitEnumerator.MoveNext())
                                     {
-                                        Console.WriteLine($"[DEBUG] Enumerator exhausted, jumping to BreakIndex={iteratorMoveNextInstruction.BreakIndex}");
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1686,10 +1681,8 @@ public static partial class TypedAstEvaluator
                                     var enumerated = awaitEnumerator.Current;
                                     if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
                                     {
-                                        Console.WriteLine($"[DEBUG] TryResolvePromiseOrYield returned false, _asyncStepMode={_asyncStepMode}");
                                         if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
                                         {
-                                            Console.WriteLine($"[DEBUG] Suspending: setting AwaitingValue=true, PC will be {iteratorIndex}");
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
                                             var iterState = JsValue.FromObjectUnsafe(driverState);
@@ -1704,7 +1697,6 @@ public static partial class TypedAstEvaluator
                                             }
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
-                                            Console.WriteLine($"[DEBUG] RETURNING from ExecutePlan for await (PC={_programCounter})");
                                             return CreateIteratorResult(JsValue.Undefined, false);
                                         }
 
@@ -1734,34 +1726,20 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 StoreIteratorValue:
-                                Console.WriteLine($"[DEBUG] StoreIteratorValue: awaitedValue={awaitedValue}, Next={iteratorMoveNextInstruction.Next}, valueVar.IsValid={valueVar.IsValid}");
                                 // Use JsVariable for scope-correct access (value slot is in loop scope)
                                 if (valueVar.IsValid)
                                 {
-                                    Console.WriteLine($"[DEBUG] Writing via valueVar: SlotIndex={valueVar.SlotIndex}, Env.HasSlots={valueVar.Environment?.HasSlots}");
-                                    try
-                                    {
-                                        valueVar.Write(awaitedValue);
-                                        Console.WriteLine($"[DEBUG] After valueVar.Write");
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine($"[DEBUG] EXCEPTION in valueVar.Write: {ex.GetType().Name}: {ex.Message}");
-                                        throw;
-                                    }
+                                    valueVar.Write(awaitedValue);
                                     // Also create binding for symbol-based identifier lookup in loop body
                                     valueVar.Environment.DefineOrAssignJsValue(
                                         iteratorMoveNextInstruction.ValueSlot, awaitedValue);
-                                    Console.WriteLine($"[DEBUG] After DefineOrAssignJsValue");
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"[DEBUG] Writing via StoreValueBySlot");
                                     StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
                                         iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
                                 }
                                 _programCounter = iteratorMoveNextInstruction.Next;
-                                Console.WriteLine($"[DEBUG] About to continue from StoreIteratorValue, PC={_programCounter}");
                                 continue;
 
                             case JumpInstruction jumpInstruction:
@@ -2014,7 +1992,6 @@ public static partial class TypedAstEvaluator
                 }
             } while (continueAfterCatch);
 
-            Console.WriteLine($"[DEBUG] While loop exited: PC={_programCounter}, Instructions.Length={_plan.Instructions.Length}");
             _state = GeneratorState.Completed;
             _done = true;
             _tryStack.Clear();

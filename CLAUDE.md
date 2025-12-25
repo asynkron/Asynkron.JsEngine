@@ -26,7 +26,13 @@ dotnet test --filter Category=AsyncForOfGlobalKnownFailure
 dotnet run --project examples/Demo
 dotnet run --project examples/PromiseDemo
 dotnet run --project examples/NpmPackageDemo
-dotnet run --project examples/SExpressionDemo
+
+# Profiling
+./tools/profile forofiteration --cpu
+./tools/profile forofiteration --memory
+./tools/profile forofiteration --exception
+Where "forofiteration" is the name of one of the /tools/Scripts examples
+
 ```
 
 **Important**: Never use `--no-build` - always ensure you are working with the latest compiled code.

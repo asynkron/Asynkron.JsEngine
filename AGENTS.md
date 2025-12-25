@@ -76,6 +76,9 @@ The easiest way to profile JsEngine is using the `asynkron-profiler` CLI via `./
 # Memory profiling only
 ./tools/profile fib --memory
 
+# Exception profiling only
+./tools/profile fib --exception
+
 # Heap snapshot only
 ./tools/profile fib --heap
 

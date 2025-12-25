@@ -26,9 +26,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		CLAUDE.md = CLAUDE.md
 		spec.md = spec.md
 		benchmark-jint.md = benchmark-jint.md
-		todo-nested-async-loop-bug.md = todo-nested-async-loop-bug.md
-		todo-universal-ir.md = todo-universal-ir.md
-		todo-async-for-of.md = todo-async-for-of.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
@@ -88,6 +85,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{9BC3
 		tools\profile-scripts\simplearithmetic.js = tools\profile-scripts\simplearithmetic.js
 		tools\profile-scripts\forloop.js = tools\profile-scripts\forloop.js
 		tools\profile-scripts\fib.js = tools\profile-scripts\fib.js
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "todo", "todo", "{3C93D9EB-8431-4E41-98BD-859A41FC4B2C}"
+	ProjectSection(SolutionItems) = preProject
+		todo-universal-ir.md = todo-universal-ir.md
+		todo-async-for-of.md = todo-async-for-of.md
+		todo-nested-async-loop-bug.md = todo-nested-async-loop-bug.md
 	EndProjectSection
 EndProject
 Global

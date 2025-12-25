@@ -19,7 +19,9 @@ public sealed record ForStatement(
     StatementNode Body,
     int PerIterationScopeId = -1,
     int PerIterationSlotCount = -1,
-    ImmutableArray<int> PerIterationSlotIndices = default) : StatementNode(Source), IAstCacheable<LoopPlan>
+    ImmutableArray<int> PerIterationSlotIndices = default,
+    int LoopEnvSlotIndex = -1,
+    int LoopEnvScopeId = -1) : StatementNode(Source), IAstCacheable<LoopPlan>
 {
     private LoopPlan? _cachedPlan;
 

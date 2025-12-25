@@ -61,13 +61,91 @@ public static partial class TypedAstEvaluator
             var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
             if (canReuseLetConstEnv)
             {
-                // Get or reset the cached iteration environment from the plan.
-                // This environment is cached at the AST level and reused across multiple
-                // executions of this for-of loop, avoiding allocation on each entry.
-                reusableIterationEnvironment = plan.GetOrResetIterationEnvironment(loopEnvironment, plan.Body.Source);
-                cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
+                // SLOT-BASED CACHING: Get or create the cached iteration environment from the function scope slot.
+                // This environment is stored in the enclosing function scope's slot array, allowing reuse across
+                // multiple executions of this for-of loop without allocation.
+                // We find the function scope by ScopeId and lazily initialize slots if needed.
+                JsEnvironment? functionEnv = null;
+                if (plan.LoopEnvSlotIndex >= 0 && plan.LoopEnvScopeId >= 0)
+                {
+                    functionEnv = outerEnvironment.FindByScopeId(plan.LoopEnvScopeId);
+                    // Lazily initialize or expand slots if needed
+                    // (may need to expand if outer loop initialized fewer slots than inner loop needs)
+                    // Use EnsureSlotCapacity to preserve existing slot values when expanding
+                    if (functionEnv is not null && (!functionEnv.HasSlots || functionEnv.SlotCount <= plan.LoopEnvSlotIndex))
+                    {
+                        var slotCount = plan.LoopEnvSlotIndex + 1; // At minimum we need this many slots
+                        functionEnv.EnsureSlotCapacity(slotCount);
+                        context.RealmState.Logger?.LogDebug(
+                            "ForOf optimization: Lazily initialized/expanded to {SlotCount} slots on function scope {ScopeId}",
+                            slotCount, plan.LoopEnvScopeId);
+                    }
+                }
+
                 context.RealmState.Logger?.LogDebug(
-                    "ForOf optimization: Using cached iteration environment (CanReuseIterationEnvironment=true)");
+                    "ForOf slot check: functionEnv={FuncEnvNull}, HasSlots={HasSlots}, SlotCount={SlotCount}, LoopEnvSlotIndex={SlotIdx}",
+                    functionEnv is null ? "null" : $"ScopeId={functionEnv.ScopeId}",
+                    functionEnv?.HasSlots ?? false,
+                    functionEnv?.SlotCount ?? -1,
+                    plan.LoopEnvSlotIndex);
+
+                if (functionEnv is not null && functionEnv.HasSlots && plan.LoopEnvSlotIndex < functionEnv.SlotCount)
+                {
+                    ref var envSlot = ref functionEnv.GetSlotRef(plan.LoopEnvSlotIndex);
+                    if (envSlot.IsUndefined)
+                    {
+                        // First execution: create and cache the iteration environment
+                        reusableIterationEnvironment = new JsEnvironment(
+                            loopEnvironment, false, false, plan.Body.Source, "for-each-iteration-cached");
+                        if (hasSlotsConfigured)
+                        {
+                            reusableIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                        }
+                        envSlot = JsValue.FromObjectUnsafe(reusableIterationEnvironment);
+                        context.RealmState.Logger?.LogDebug(
+                            "ForOf optimization: Created and cached iteration environment in slot {Slot}", plan.LoopEnvSlotIndex);
+                    }
+                    else
+                    {
+                        // Subsequent execution: reset and reuse the cached environment
+                        reusableIterationEnvironment = (JsEnvironment)envSlot.ObjectValue!;
+                        reusableIterationEnvironment.Reset(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration-cached");
+                        if (hasSlotsConfigured)
+                        {
+                            reusableIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                        }
+                        context.RealmState.Logger?.LogDebug(
+                            "ForOf optimization: Using cached iteration environment from slot {Slot}", plan.LoopEnvSlotIndex);
+                    }
+                    cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
+                }
+                else
+                {
+                    // Fallback: slot not available, create fresh environment (but can still reuse within loop)
+                    reusableIterationEnvironment = new JsEnvironment(
+                        loopEnvironment, false, false, plan.Body.Source, "for-each-iteration");
+                    if (hasSlotsConfigured)
+                    {
+                        reusableIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+                    }
+                    cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
+
+                    // Trace the scope chain for debugging
+                    var chainStr = new System.Text.StringBuilder();
+                    var env = outerEnvironment;
+                    while (env is not null)
+                    {
+                        chainStr.Append($"{env.ScopeId}(slots={env.HasSlots}) -> ");
+                        env = env.Enclosing;
+                    }
+                    chainStr.Append("null");
+
+                    context.RealmState.Logger?.LogDebug(
+                        "ForOf optimization: Using uncached iteration environment (no slot available) - " +
+                        "LoopEnvSlotIndex={SlotIdx}, LoopEnvScopeId={ScopeId}, OuterEnv.ScopeId={OuterScopeId}, " +
+                        "ScopeChain={Chain}",
+                        plan.LoopEnvSlotIndex, plan.LoopEnvScopeId, outerEnvironment.ScopeId, chainStr.ToString());
+                }
             }
             else
             {

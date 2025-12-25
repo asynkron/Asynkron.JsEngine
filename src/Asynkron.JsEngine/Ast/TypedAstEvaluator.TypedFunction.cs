@@ -695,8 +695,8 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Don't initialize slots for complex parameter expressions (destructuring, defaults)
-                // Values are bound via dictionary, not slots
+                // Don't initialize slots in InvokeWithContext - parameters are bound via dictionary.
+                // Loop env caching slots will be lazily initialized on first use.
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
 
@@ -714,8 +714,8 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Don't initialize slots in InvokeWithContext - values are bound via dictionary
-                // Only InvokeSimpleFast uses slot-based parameter binding
+                // Don't initialize slots in InvokeWithContext - parameters are bound via dictionary.
+                // Loop env caching slots will be lazily initialized on first use.
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
                 parameterEnvironment = functionEnvironment;
@@ -2090,8 +2090,12 @@ public static partial class TypedAstEvaluator
             reuseEnvironment.ResetForReuse(_closure, true, _isStrict, _function.Source, _functionDescription);
             reuseEnvironment.ScopeId = _function.ScopeId;
             reuseEnvironment.SetSlotMap(_function.SlotMap);
-            // Skip InitializeSlots - for simple functions we only have parameters (no local vars),
-            // and we're about to set the parameter slot directly below. This avoids the Array.Fill.
+            // Initialize slots if needed (may have loop env cache slots beyond parameters).
+            // ResetForReuse keeps the array if it exists, but first call may have no slots.
+            if (_function.SlotCount > 0 && (reuseEnvironment._slots is null || reuseEnvironment._slots.Length < _function.SlotCount))
+            {
+                reuseEnvironment.InitializeSlots(_function.SlotCount);
+            }
 
             // Bind this
             JsValue boundThisValue;

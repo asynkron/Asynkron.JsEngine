@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Asynkron.JsEngine;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging.Testing;
@@ -36,7 +37,7 @@ public class ForOfEnvCacheTest
         // Run a for-of loop nested inside a regular for loop
         // The optimization should cache the iteration environment at the AST level
         // so we only allocate 1 iteration environment, not 100
-        var result = await engine.Evaluate("""
+        var script = """
             (function() {
                 let sum = 0;
                 const arr = [1, 2, 3, 4, 5];
@@ -47,7 +48,15 @@ public class ForOfEnvCacheTest
                 }
                 return sum;
             })();
-        """);
+        """;
+
+        // Parse ONCE and evaluate the parsed program
+        // (Calling ParseProgram and then Evaluate would parse TWICE with different ScopeIds
+        // because ScopeAnalyzer is shared per engine instance)
+        var parsed = engine.ParseProgram(script);
+        PrintAstInfo(parsed);
+
+        var result = await engine.Evaluate(parsed);
 
         Assert.Equal(1500d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
 
@@ -87,5 +96,48 @@ public class ForOfEnvCacheTest
         // (ideally just 1, not 100)
         Assert.True(forEachIterationAllocations <= 5,
             $"Expected at most 5 for-each-iteration allocations, got {forEachIterationAllocations}");
+    }
+
+    private void PrintAstInfo(ProgramNode program)
+    {
+        void PrintNode(AstNode node, int indent)
+        {
+            var prefix = new string(' ', indent * 2);
+            switch (node)
+            {
+                case FunctionExpression fe:
+                    _output.WriteLine($"{prefix}FunctionExpression: ScopeId={fe.ScopeId}, SlotCount={fe.SlotCount}");
+                    PrintNode(fe.Body, indent + 1);
+                    break;
+                case BlockStatement bs:
+                    _output.WriteLine($"{prefix}BlockStatement: ScopeId={bs.ScopeId}, SlotCount={bs.SlotCount}");
+                    foreach (var stmt in bs.Statements) PrintNode(stmt, indent + 1);
+                    break;
+                case ForStatement fs:
+                    _output.WriteLine($"{prefix}ForStatement: PerIterationScopeId={fs.PerIterationScopeId}, LoopEnvSlotIndex={fs.LoopEnvSlotIndex}, LoopEnvScopeId={fs.LoopEnvScopeId}");
+                    PrintNode(fs.Body, indent + 1);
+                    break;
+                case ForEachStatement fes:
+                    _output.WriteLine($"{prefix}ForEachStatement: PerIterationScopeId={fes.PerIterationScopeId}, LoopEnvSlotIndex={fes.LoopEnvSlotIndex}, LoopEnvScopeId={fes.LoopEnvScopeId}");
+                    PrintNode(fes.Body, indent + 1);
+                    break;
+                case ExpressionStatement es:
+                    PrintNode(es.Expression, indent);
+                    break;
+                case CallExpression ce:
+                    PrintNode(ce.Callee, indent);
+                    break;
+                default:
+                    _output.WriteLine($"{prefix}{node.GetType().Name}");
+                    break;
+            }
+        }
+
+        _output.WriteLine("=== AST INFO ===");
+        foreach (var stmt in program.Body)
+        {
+            PrintNode(stmt, 0);
+        }
+        _output.WriteLine("================");
     }
 }

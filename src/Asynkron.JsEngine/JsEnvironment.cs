@@ -2900,6 +2900,51 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Expands slot storage if needed, preserving existing values.
+    /// Used for lazy slot allocation in nested loops.
+    /// Uses power-of-2 allocation to minimize reallocations.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void EnsureSlotCapacity(int minSlotCount)
+    {
+        if (minSlotCount <= 0)
+        {
+            return;
+        }
+
+        if (_slots is null)
+        {
+            // First allocation - round up to next power of 2 (min 8)
+            var capacity = RoundUpToPowerOf2(Math.Max(minSlotCount, 8));
+            _slots = new JsValue[capacity];
+            Array.Fill(_slots, JsValue.Undefined);
+        }
+        else if (_slots.Length < minSlotCount)
+        {
+            // Expansion needed - round up to next power of 2
+            var capacity = RoundUpToPowerOf2(minSlotCount);
+            var oldSlots = _slots;
+            _slots = new JsValue[capacity];
+            Array.Copy(oldSlots, _slots, oldSlots.Length);
+            Array.Fill(_slots, JsValue.Undefined, oldSlots.Length, capacity - oldSlots.Length);
+        }
+        // If _slots.Length >= minSlotCount, no action needed
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int RoundUpToPowerOf2(int value)
+    {
+        // Use bit manipulation to round up to next power of 2
+        value--;
+        value |= value >> 1;
+        value |= value >> 2;
+        value |= value >> 4;
+        value |= value >> 8;
+        value |= value >> 16;
+        return value + 1;
+    }
+
+    /// <summary>
     /// Initializes slot storage and scope ID for this environment.
     /// Call this when creating an environment for a scope that has been analyzed.
     /// </summary>
@@ -3020,6 +3065,11 @@ public sealed class JsEnvironment : IRentable
     /// Checks if this environment has slot storage initialized.
     /// </summary>
     public bool HasSlots => _slots is not null;
+
+    /// <summary>
+    /// Gets the number of slots in this environment, or 0 if not initialized.
+    /// </summary>
+    public int SlotCount => _slots?.Length ?? 0;
 
     /// <summary>
     /// Gets a direct reference to a slot value. This enables zero-overhead read/write

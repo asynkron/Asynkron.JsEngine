@@ -213,14 +213,12 @@ public static partial class StandardLibrary
         return promise.JsObject;
     }
 
-    internal static object? ArrayFromIterable(HostFunction host, JsValue thisValue, object? items,
+    internal static object? ArrayFromIterable(HostFunction host, JsValue thisValue, JsValue items,
         IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, JsValue thisArg, RealmState? realm)
     {
         const string MethodName = "Array.from";
         var result = CreateArrayFromResult(thisValue, realm, 0, false, MethodName);
-        // Handle case where items is already a boxed JsValue
-        var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
-        var iteratorValue = iteratorMethod.Invoke([], itemsArg);
+        var iteratorValue = iteratorMethod.Invoke([], items);
         if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iterator))
         {
             throw ThrowTypeError("Array.from iterator method did not return an object", realm: realm);
@@ -301,20 +299,6 @@ public static partial class StandardLibrary
         }
     }
 
-    private static bool TryAwaitPromiseLike(object? candidate, Action<object?> onFulfilled,
-        Action<object?> onRejected)
-    {
-        var jsCandidate = candidate is JsValue value ? value : JsValue.FromObjectUnsafe(candidate);
-        return TryAwaitPromiseLikeJsValue(jsCandidate,
-#pragma warning disable CS0618 // Transitional: legacy callbacks require object? conversion
-            resolved => onFulfilled(resolved.ToObject()),
-            rejected => onRejected(rejected.ToObject()));
-#pragma warning restore CS0618
-    }
-
-    /// <summary>
-    /// JsValue overload to avoid boxing in callbacks. Prefer this over the object? overload.
-    /// </summary>
     internal static bool TryAwaitPromiseLikeJsValue(JsValue candidate, Action<JsValue> onFulfilled,
         Action<JsValue> onRejected)
     {
@@ -408,14 +392,12 @@ public static partial class StandardLibrary
         private IJsCallable? _nextFn;
         private bool _settled;
 
-        public void StartIterator(object? items, IJsCallable iteratorMethod, bool awaitIteratorResult)
+        public void StartIterator(JsValue items, IJsCallable iteratorMethod, bool awaitIteratorResult)
         {
             JsValue iteratorValue;
             try
             {
-                // Handle case where items is already a boxed JsValue
-                var itemsArg = items is JsValue itemsJs ? itemsJs : JsValue.FromObjectUnsafe(items);
-                iteratorValue = iteratorMethod.Invoke([], itemsArg);
+                iteratorValue = iteratorMethod.Invoke([], items);
             }
             catch (ThrowSignal signal)
             {
@@ -425,14 +407,14 @@ public static partial class StandardLibrary
 
             if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iterator))
             {
-                RejectFailure(CreateTypeError("Array.fromAsync iterator method did not return an object", null,
+                RejectFailureJsValue(CreateTypeError("Array.fromAsync iterator method did not return an object", null,
                     realm));
                 return;
             }
 
             if (!iterator.TryGetProperty("next", out var nextVal))
             {
-                RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
+                RejectFailureJsValue(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
                     realm));
                 return;
             }
@@ -440,7 +422,7 @@ public static partial class StandardLibrary
             // nextVal is already a JsValue from TryGetProperty
             if (!nextVal.TryGetObject<IJsCallable>(out var nextFn))
             {
-                RejectFailure(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
+                RejectFailureJsValue(CreateTypeError("Array.fromAsync iterator does not expose a callable next()", null,
                     realm));
                 return;
             }
@@ -610,7 +592,7 @@ public static partial class StandardLibrary
                 var dynamicLength = (long)ToLengthOrZero(lengthValue);
                 if (dynamicLength > MaxConcreteArrayLength)
                 {
-                    RejectFailure(CreateRangeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
+                    RejectFailureJsValue(CreateRangeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
                     return;
                 }
 
@@ -622,7 +604,7 @@ public static partial class StandardLibrary
 
                 if (_index >= MaxConcreteArrayLength)
                 {
-                    RejectFailure(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
+                    RejectFailureJsValue(CreateTypeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));
                     return;
                 }
 
@@ -666,7 +648,7 @@ public static partial class StandardLibrary
                 }
                 catch (ThrowSignal signal)
                 {
-                    RejectFailure(signal.ThrownValue);
+                    RejectFailureJsValue(signal.ThrownValue);
                     return false;
                 }
 
@@ -686,12 +668,7 @@ public static partial class StandardLibrary
                 return CommitArrayLikeValueJsValue(key, mapperResult);
             }
 
-            return CommitArrayLikeValue(key, finalValue);
-        }
-
-        private bool CommitArrayLikeValue(string key, object? finalValue)
-        {
-            return CommitArrayLikeValueJsValue(key, JsValue.FromObjectUnsafe(finalValue));
+            return CommitArrayLikeValueJsValue(key, finalValue);
         }
 
         private bool CommitArrayLikeValueJsValue(string key, JsValue finalValue)
@@ -718,11 +695,6 @@ public static partial class StandardLibrary
         private void RejectSignal(ThrowSignal signal)
         {
             RejectFailureJsValue(signal.ThrownValue);
-        }
-
-        private void RejectFailure(object? reason)
-        {
-            RejectFailureJsValue(JsValue.FromObjectUnsafe(reason));
         }
 
         private void RejectFailureJsValue(JsValue reason)

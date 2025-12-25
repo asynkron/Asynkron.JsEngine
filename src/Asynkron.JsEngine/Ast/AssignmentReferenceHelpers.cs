@@ -77,32 +77,19 @@ public static partial class TypedAstEvaluator
             return;
         }
 
-        // Extract object for existing logic - primitives need proper handling
-        var targetObj = target.Kind switch
-        {
-            JsValueKind.Boolean => target.AsBoolean(),
-            JsValueKind.Number => target.NumberValue,
-            JsValueKind.String => target.ObjectValue,
-            JsValueKind.Symbol => target.ObjectValue,
-            JsValueKind.BigInt => target.ObjectValue,
-            JsValueKind.Object => target.ObjectValue,
-            _ => null
-        };
-        AssignPropertyValueWithNullCheckCore(target, targetObj, propertyName, value, context, isStrict);
+        AssignPropertyValueWithNullCheckCore(target, propertyName, value, context, isStrict);
     }
 
     private static void AssignPropertyValueWithNullCheckCore(
-        JsValue originalTarget,
-        object? target,
+        JsValue target,
         string propertyName,
         JsValue value,
         EvaluationContext context,
         bool isStrict)
     {
-
         // Per ES spec, [[Set]] on module namespace always returns false without triggering evaluation
         // Handle this early to avoid GetOwnPropertyDescriptor which would trigger evaluation
-        if (target is ModuleNamespace)
+        if (target.TryGetObject<ModuleNamespace>(out _))
         {
             if (isStrict)
             {
@@ -115,7 +102,7 @@ public static partial class TypedAstEvaluator
             return;
         }
 
-        if (target is JsObject jsObject)
+        if (target.TryGetObject<JsObject>(out var jsObject))
         {
             AssignmentReferenceResolver.AssignObjectProperty(
                 jsObject,
@@ -124,7 +111,7 @@ public static partial class TypedAstEvaluator
                 isStrict,
                 context,
                 context.RealmState,
-                target);
+                jsObject);
             return;
         }
 
@@ -137,7 +124,7 @@ public static partial class TypedAstEvaluator
             return;
         }
 
-        if (target is IJsPropertyAccessor accessor)
+        if (target.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             var descriptor = accessor.GetOwnPropertyDescriptor(propertyName);
             if (descriptor is not null)
@@ -157,7 +144,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    descriptor.Set.Invoke([value], JsValue.FromObjectUnsafe(target));
+                    descriptor.Set.Invoke([value], target);
                     return;
                 }
 
@@ -174,11 +161,11 @@ public static partial class TypedAstEvaluator
                     return;
                 }
 
-                accessor.SetProperty(propertyName, value, JsValue.FromObjectUnsafe(target));
+                accessor.SetProperty(propertyName, value, target);
                 return;
             }
 
-            if (target is IExtensibilityControl { IsExtensible: false })
+            if (accessor is IExtensibilityControl { IsExtensible: false })
             {
                 if (isStrict)
                 {
@@ -192,24 +179,17 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        JsOps.AssignPropertyValueJsValue(originalTarget, new JsValue(propertyName), value, context);
+        JsOps.AssignPropertyValueJsValue(target, new JsValue(propertyName), value, context);
     }
 
     /// <summary>
     ///     Returns true if the value is a primitive that has a wrapper object.
     ///     Per ES spec, this includes: string, number, boolean, symbol, and bigint.
     /// </summary>
-    private static bool IsPrimitiveBase(object? target)
+    private static bool IsPrimitiveBase(JsValue target)
     {
-        return target switch
-        {
-            string => true,
-            bool => true,
-            TypedAstSymbol => true,
-            JsBigInt => true,
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => true,
-            _ => false
-        };
+        return target.Kind is JsValueKind.String or JsValueKind.Number or JsValueKind.Boolean
+            or JsValueKind.Symbol or JsValueKind.BigInt;
     }
 
     /// <summary>
@@ -217,9 +197,8 @@ public static partial class TypedAstEvaluator
     ///     Converts the primitive to a wrapper object and attempts [[Set]] with the original
     ///     primitive as the receiver. The wrapper is temporary and changes don't persist.
     /// </summary>
-    /// TODO: why is this "object?" based?
     private static void AssignPrimitiveProperty(
-        object? primitiveTarget,
+        JsValue primitiveTarget,
         string propertyName,
         JsValue value,
         bool isStrict,
@@ -228,15 +207,14 @@ public static partial class TypedAstEvaluator
         var realm = context.RealmState;
 
         // ToObject: convert primitive to wrapper
-        var wrapper = primitiveTarget switch
+        var wrapper = primitiveTarget.Kind switch
         {
-            string s => StringHelper.CreateStringWrapper(s, context, realm),
-            bool b => CreateBooleanWrapper(b, realm),
-            TypedAstSymbol sym => CreateSymbolWrapper(sym, realm),
-            JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi, context, realm),
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte =>
-                NumberHelper.CreateNumberWrapper(Convert.ToDouble(primitiveTarget, CultureInfo.InvariantCulture), context, realm),
-            _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget?.GetType()}")
+            JsValueKind.String => StringHelper.CreateStringWrapper(primitiveTarget.AsString(), context, realm),
+            JsValueKind.Boolean => CreateBooleanWrapper(primitiveTarget.AsBoolean(), realm),
+            JsValueKind.Symbol when primitiveTarget.ObjectValue is TypedAstSymbol sym => CreateSymbolWrapper(sym, realm),
+            JsValueKind.BigInt when primitiveTarget.ObjectValue is JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi, context, realm),
+            JsValueKind.Number => NumberHelper.CreateNumberWrapper(primitiveTarget.NumberValue, context, realm),
+            _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget.Kind}")
         };
 
         // Per ES spec 6.2.3.2 PutValue, the [[Set]] operation is performed on the wrapper object
@@ -274,7 +252,7 @@ public static partial class TypedAstEvaluator
         JsObject wrapper,
         string propertyName,
         JsValue value,
-        object? receiver,
+        JsValue receiver,
         EvaluationContext context)
     {
         // First check if there's an own property on the wrapper
@@ -291,7 +269,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            InvokeCallableJsValue(ownDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver), context);
+            InvokeCallableJsValue(ownDescriptor.Set, [value], receiver, context);
             return true;
 
             // Accessor with only getter - [[Set]] returns false
@@ -315,7 +293,7 @@ public static partial class TypedAstEvaluator
             {
                 // Proxy's SetProperty will invoke the 'set' trap if defined
                 // The trap receives (target, propertyName, value, receiver)
-                proxy.SetProperty(propertyName, value, JsValue.FromObjectUnsafe(receiver));
+                proxy.SetProperty(propertyName, value, receiver);
                 return true;
             }
 
@@ -332,8 +310,7 @@ public static partial class TypedAstEvaluator
                     return false;
                 }
 
-                InvokeCallableJsValue(inheritedDescriptor.Set, [value], JsValue.FromObjectUnsafe(receiver),
-                    context);
+                InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiver, context);
                 return true;
 
                 // Accessor with only getter - [[Set]] returns false
@@ -387,15 +364,15 @@ public static partial class TypedAstEvaluator
         return obj;
     }
 
-    private static string GetPrimitiveTypeName(object? primitive)
+    private static string GetPrimitiveTypeName(JsValue primitive)
     {
-        return primitive switch
+        return primitive.Kind switch
         {
-            string => "string",
-            bool => "boolean",
-            TypedAstSymbol => "symbol",
-            JsBigInt => "bigint",
-            double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte => "number",
+            JsValueKind.String => "string",
+            JsValueKind.Boolean => "boolean",
+            JsValueKind.Symbol => "symbol",
+            JsValueKind.BigInt => "bigint",
+            JsValueKind.Number => "number",
             _ => "primitive"
         };
     }

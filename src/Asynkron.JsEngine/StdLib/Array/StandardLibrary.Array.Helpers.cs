@@ -296,16 +296,16 @@ public static partial class StandardLibrary
         throw ThrowTypeError($"{methodName} called on incompatible receiver", realm: realm);
     }
 
-    internal static bool TryGetCallableMethod(object? target, string propertyKey, string operation, RealmState? realm,
+    internal static bool TryGetCallableMethod(JsValue target, string propertyKey, string operation, RealmState? realm,
         out IJsCallable? callable)
     {
         callable = null;
-        if (target is null || ReferenceEquals(target, Symbol.Undefined))
+        if (target.IsNullOrUndefined)
         {
             return false;
         }
 
-        var accessor = target as IJsPropertyAccessor ?? ToPropertyAccessor(target, operation, realm);
+        var accessor = ToPropertyAccessor(target, operation, realm);
         if (!accessor.TryGetProperty(propertyKey, out var candidate) ||
             candidate.IsNullOrUndefined)
         {
@@ -321,14 +321,14 @@ public static partial class StandardLibrary
         return true;
     }
 
-    internal static IJsPropertyAccessor ToPropertyAccessor(object? value, string methodName, RealmState? realm)
+    internal static IJsPropertyAccessor ToPropertyAccessor(JsValue value, string methodName, RealmState? realm)
     {
-        if (value is IJsPropertyAccessor accessor)
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return accessor;
         }
 
-        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        if (value.IsNullOrUndefined)
         {
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
         }
@@ -341,14 +341,14 @@ public static partial class StandardLibrary
         throw ThrowTypeError($"{methodName} could not convert the source to an object", realm: realm);
     }
 
-    internal static IJsPropertyAccessor ToObjectPropertyAccessor(object? value, string methodName, RealmState? realm)
+    internal static IJsPropertyAccessor ToObjectPropertyAccessor(JsValue value, string methodName, RealmState? realm)
     {
-        if (value is IJsPropertyAccessor accessor)
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
             return accessor;
         }
 
-        if (value is null || ReferenceEquals(value, Symbol.Undefined))
+        if (value.IsNullOrUndefined)
         {
             throw ThrowTypeError($"{methodName} called on null or undefined", realm: realm);
         }

@@ -31,42 +31,6 @@ public static partial class TypedAstEvaluator
             _isGeneratorObject = isGeneratorObject;
         }
 
-        /// <summary>
-        /// Clears the cached result, signaling that the value has been consumed.
-        /// </summary>
-        public void ConsumeCachedResult()
-        {
-            _hasCachedResult = false;
-            _cachedResult = null;
-        }
-
-        /// <summary>
-        /// Gets the next result, either from cache or by advancing the iterator.
-        /// The result is cached until ConsumeResult is called.
-        /// </summary>
-        public (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike?
-            IteratorResultObject) GetOrFetchNext(
-                JsValue sendValue,
-                bool hasSendValue,
-                bool propagateThrow,
-                bool propagateReturn,
-                EvaluationContext context,
-                out bool awaitedPromise)
-        {
-            // If we have a pending send value (throw/return), we always need to advance
-            // because the send value needs to be passed to the inner iterator
-            if (!_hasCachedResult || hasSendValue || propagateThrow || propagateReturn)
-            {
-                var result = MoveNext(sendValue, propagateThrow, propagateReturn, context, out awaitedPromise);
-                _cachedResult = result;
-                _hasCachedResult = true;
-                return result;
-            }
-
-            awaitedPromise = false;
-            return _cachedResult!.Value;
-        }
-
         public static DelegatedYieldState FromIterator(IJsObjectLike iterator)
         {
             return new DelegatedYieldState(iterator, null, IsGeneratorObject(iterator));

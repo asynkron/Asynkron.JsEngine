@@ -1376,53 +1376,6 @@ internal sealed class SyncGeneratorIrBuilder
     }
 
     /// <summary>
-    /// Checks if an expression contains a destructuring assignment with yields in default values.
-    /// This handles both direct DestructuringAssignmentExpression and nested cases like:
-    /// result = [ {} = yield ] = vals;
-    /// </summary>
-    private static bool ExpressionContainsDestructuringWithYieldInDefaults(ExpressionNode expression)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case DestructuringAssignmentExpression destructuringExpr:
-                    // Direct destructuring assignment
-                    if (BindingTargetContainsYieldInDefaultValue(destructuringExpr.Target))
-                    {
-                        return true;
-                    }
-
-                    // Also check the value expression for nested destructurings
-                    expression = destructuringExpr.Value;
-                    continue;
-
-                case AssignmentExpression assignmentExpr:
-                    // Check the value side of the assignment for destructuring
-                    expression = assignmentExpr.Value;
-                    continue;
-
-                case PropertyAssignmentExpression propAssignExpr:
-                    expression = propAssignExpr.Value;
-                    continue;
-
-                case IndexAssignmentExpression indexAssignExpr:
-                    expression = indexAssignExpr.Value;
-                    continue;
-
-                case ConditionalExpression conditionalExpr:
-                    return ExpressionContainsDestructuringWithYieldInDefaults(conditionalExpr.Consequent) || ExpressionContainsDestructuringWithYieldInDefaults(conditionalExpr.Alternate);
-
-                case SequenceExpression seqExpr:
-                    return ExpressionContainsDestructuringWithYieldInDefaults(seqExpr.Left) || ExpressionContainsDestructuringWithYieldInDefaults(seqExpr.Right);
-
-                default:
-                    return false;
-            }
-        }
-    }
-
-    /// <summary>
     /// Checks if an expression contains a destructuring assignment with yields anywhere in
     /// the binding target - either in default values or in assignment target expressions.
     /// This handles patterns like: result = [ {}[ yield ] ] = vals;

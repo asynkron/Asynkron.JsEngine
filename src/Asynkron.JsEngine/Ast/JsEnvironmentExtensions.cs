@@ -12,16 +12,6 @@ public static partial class TypedAstEvaluator
 {
     extension(JsEnvironment environment)
     {
-        private ResumePayload GetResumePayload(int yieldIndex)
-        {
-            if (!environment.TryGetObject<YieldResumeContext>(Symbol.YieldResumeContextSymbol, out var resumeContext))
-            {
-                return ResumePayload.Empty;
-            }
-
-            return resumeContext.TakePayload(yieldIndex);
-        }
-
         private bool IsGeneratorContext()
         {
             return environment.TryGetObject<YieldResumeContext>(Symbol.YieldResumeContextSymbol, out _);

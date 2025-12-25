@@ -114,7 +114,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
                 throw ThrowTypeError("SharedArrayBuffer species constructor did not return an object", realm: Realm);
             }
 
-            targetBuffer = RequireArrayBuffer(newBuffer, Realm);
+            targetBuffer = RequireArrayBuffer(JsValue.FromObjectUnsafe(newBuffer), Realm);
             if (!ReferenceEquals(targetBuffer, newBuffer))
             {
                 if (newBuffer is JsObject obj)

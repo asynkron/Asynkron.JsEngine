@@ -22,26 +22,6 @@ public static partial class StandardLibrary
         return JsOps.StrictEquals(left, right);
     }
 
-    internal static IJsObjectLike ToArrayLike(object? value, RealmState? realm)
-    {
-        if (value is IJsObjectLike accessor)
-        {
-            return accessor;
-        }
-
-        if (value is null || ReferenceEquals(value, Symbol.Undefined))
-        {
-            throw ThrowTypeError("Array method called on null or undefined", realm: realm);
-        }
-
-        if (TryGetObject(value, realm ?? new RealmState(), out var boxed))
-        {
-            return boxed;
-        }
-
-        throw ThrowTypeError("Array method receiver is not object-like", realm: realm);
-    }
-
     internal static int GetArrayLikeLength(IJsObjectLike obj)
     {
         if (!obj.TryGetProperty("length", out var lengthVal))
@@ -76,14 +56,8 @@ public static partial class StandardLibrary
         target.SetProperty("length", (double)Math.Max(length, 0));
     }
 
-    internal static long LengthOfArrayLike(object? target, RealmState? realm, string operation)
+    internal static long LengthOfArrayLike(IJsPropertyAccessor accessor, RealmState? realm)
     {
-        if (target is null || ReferenceEquals(target, Symbol.Undefined))
-        {
-            throw ThrowTypeError($"{operation} requires an object", realm: realm);
-        }
-
-        var accessor = target as IJsPropertyAccessor ?? ToPropertyAccessor(target, operation, realm);
         var context = realm?.CreateContext();
         var value = accessor.TryGetProperty("length", out var lengthValue) ? lengthValue : 0d;
         return (long)ToLengthOrZero(value, context);

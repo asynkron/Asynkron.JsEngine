@@ -51,6 +51,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Benchmark
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{95C5BFA4-0A4E-46B9-AB43-9040A770C140}"
 	ProjectSection(SolutionItems) = preProject
+		tools\profile-manifest.json = tools\profile-manifest.json
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Helpers", "tests\Asynkron.JsEngine.Tests.Helpers\Asynkron.JsEngine.Tests.Helpers.csproj", "{EC08E5A7-AF36-4FA2-AE61-E27C17F4A091}"

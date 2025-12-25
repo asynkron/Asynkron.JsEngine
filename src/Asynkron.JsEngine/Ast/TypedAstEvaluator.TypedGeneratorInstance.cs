@@ -626,7 +626,7 @@ public static partial class TypedAstEvaluator
                                     // Check if the yield signal includes an original iterator result object (from yield*)
                                     var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
                                         ?.IteratorResultObject;
-                                    RecordYield(context);
+                                    RecordYield(context, environment);
                                     context.Clear();
                                     _state = GeneratorState.Suspended;
                                     // If we have an original iterator result object, return it to preserve done property
@@ -748,7 +748,7 @@ public static partial class TypedAstEvaluator
                                     // Check if the yield signal includes an original iterator result object (from yield*)
                                     var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
                                         ?.IteratorResultObject;
-                                    RecordYield(context);
+                                    RecordYield(context, environment);
                                     context.Clear();
                                     _state = GeneratorState.Suspended;
                                     // If we have an original iterator result object, return it to preserve done property
@@ -846,7 +846,7 @@ public static partial class TypedAstEvaluator
                                     var varYieldedValue = context.FlowValue;
                                     var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
                                         ?.IteratorResultObject;
-                                    RecordYield(context);
+                                    RecordYield(context, environment);
                                     context.Clear();
                                     _state = GeneratorState.Suspended;
                                     return varIteratorResultObject is not null
@@ -1020,7 +1020,7 @@ public static partial class TypedAstEvaluator
                                             ?.IteratorResultObject;
                                         context.Clear();
                                         _programCounter = _currentInstructionIndex;
-                                        RecordYield(context);
+                                        RecordYield(context, environment);
                                         _state = GeneratorState.Suspended;
                                         return nestedIteratorResult is not null
                                             ? JsValue.FromObjectUnsafe(nestedIteratorResult)
@@ -1029,7 +1029,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 _programCounter = yieldInstruction.Next;
-                                RecordYield(context);
+                                RecordYield(context, environment);
                                 _state = GeneratorState.Suspended;
                                 return CreateIteratorResult(yieldedValue, false);
 
@@ -2327,7 +2327,7 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private void RecordYield(EvaluationContext context)
+        private void RecordYield(EvaluationContext context, JsEnvironment? currentEnvironment = null)
         {
             // Remember the active yield slot so the next resume value is applied to the
             // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
@@ -2337,6 +2337,14 @@ public static partial class TypedAstEvaluator
             // These are used to set up resume state so the yield expression returns the resume value.
             _lastYieldSourceStart = context.LastYieldSourceStart;
             _lastYieldSourceEnd = context.LastYieldSourceEnd;
+
+            // Save the current environment so that when the generator resumes, it uses
+            // the correct per-iteration environment (for loops with let bindings).
+            // This is critical for `continue` to work correctly in generators.
+            if (currentEnvironment != null)
+            {
+                _executionEnvironment = currentEnvironment;
+            }
 
             // Clear the context's source positions for the next yield
             context.LastYieldSourceStart = -1;

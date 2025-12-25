@@ -359,12 +359,18 @@ public static partial class NumberHelper
         return (int)index;
     }
 
-    internal static long ToIndexAsLong(object? value, RealmState? realm = null)
+    internal static long ToIndexAsLong(JsValue value, RealmState? realm = null)
     {
         const double MaxLength = 9007199254740991d; // 2^53 - 1
         var context = realm?.CreateContext();
 
-        var numericJs = JsOps.ToNumericAsJsValue(JsValue.FromObjectUnsafe(value), context);
+        // Fast path for numbers
+        if (value.Kind == JsValueKind.Number)
+        {
+            return ToIndexAsLongFromNumber(value.NumberValue, MaxLength, context, realm);
+        }
+
+        var numericJs = JsOps.ToNumericAsJsValue(in value, context);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -378,11 +384,12 @@ public static partial class NumberHelper
         }
 
         var numberValue = numericJs.Kind == JsValueKind.Number ? numericJs.NumberValue : JsOps.ToNumber(numericJs);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
+        return ToIndexAsLongFromNumber(numberValue, MaxLength, context, realm);
+    }
 
+    private static long ToIndexAsLongFromNumber(double numberValue, double maxLength, EvaluationContext? context,
+        RealmState? realm)
+    {
         var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
             ? 0d
             : double.IsInfinity(numberValue)
@@ -394,7 +401,7 @@ public static partial class NumberHelper
             throw ThrowRangeError("Index must be a non-negative integer", context, realm);
         }
 
-        var index = integerIndex > MaxLength ? MaxLength : integerIndex;
+        var index = integerIndex > maxLength ? maxLength : integerIndex;
         var sameValueZero = integerIndex == index || (integerIndex == 0 && index == 0);
         if (!sameValueZero)
         {

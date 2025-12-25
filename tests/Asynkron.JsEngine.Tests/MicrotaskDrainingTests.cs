@@ -313,6 +313,148 @@ public class ForAwaitOfBugTests
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedForAwaitOf_MinimalCase_TwoOuterIterations()
+    {
+        // Minimal reproduction case for nested for-await-of
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (let i = 0; i < 2; i++) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        // Expected: 6 = (1+2) + (1+2)
+        Assert.Equal(6.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedForAwaitOf_TenOuterIterations()
+    {
+        // Test with 10 outer iterations
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2, 3];
+                for (let i = 0; i < 10; i++) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        // Expected: 60 = 6 * 10
+        Assert.Equal(60.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedForAwaitOf_HundredOuterIterations()
+    {
+        // Test with 100 outer iterations
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2, 3];
+                for (let i = 0; i < 100; i++) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        // Expected: 600 = 6 * 100
+        Assert.Equal(600.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedForAwaitOf_WithVarBinding()
+    {
+        // Test with var binding in outer loop (different scoping)
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (var i = 0; i < 3; i++) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        // Expected: 9 = 3 * 3
+        Assert.Equal(9.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedForAwaitOf_WhileOuter()
+    {
+        // Test with while loop as outer loop
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                let i = 0;
+                while (i < 3) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                    i++;
+                }
+            })();
+            sum;
+            """);
+
+        // Expected: 9 = 3 * 3
+        Assert.Equal(9.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedForAwaitOf_TripleNested()
+    {
+        // Test with three levels of nesting
+        await using var engine = new JsEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (let i = 0; i < 2; i++) {
+                    for (let j = 0; j < 2; j++) {
+                        for await (const n of arr) {
+                            sum += n;
+                        }
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        // Expected: 12 = 2 * 2 * (1+2)
+        Assert.Equal(12.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_TopLevelInModule_WorksCorrectly()
     {
         // WORKS: for await...of at top-level in an ES module completes correctly

@@ -1363,18 +1363,35 @@ public static partial class TypedAstEvaluator
                                 var iteratorState =
                                     CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
 
-                                // Store JsVariable directly on state object for O(1) access
-                                // This avoids dictionary lookups on every iteration
+                                // Find the correct environment for storing iterator state.
+                                // When a for-await-of loop is nested inside another loop with
+                                // per-iteration bindings, `environment` might be a child environment
+                                // with different slots. The iterator slot was allocated in a parent
+                                // scope, so we need to walk up the chain to find it.
+                                var iteratorEnv = environment;
                                 if (iteratorInitInstruction.IteratorSlotIndex >= 0)
                                 {
-                                    iteratorState.IteratorVariable = new JsVariable(environment, iteratorInitInstruction.IteratorSlotIndex);
+                                    while (iteratorEnv is not null &&
+                                           (!iteratorEnv.HasSlots ||
+                                            iteratorEnv._slots!.Length <= iteratorInitInstruction.IteratorSlotIndex))
+                                    {
+                                        iteratorEnv = iteratorEnv.Enclosing;
+                                    }
+                                    iteratorEnv ??= environment; // Fallback to current environment
+                                }
+
+                                // Store JsVariable directly on state object for O(1) access
+                                // This avoids dictionary lookups on every iteration
+                                if (iteratorInitInstruction.IteratorSlotIndex >= 0 && iteratorEnv.HasSlots)
+                                {
+                                    iteratorState.IteratorVariable = new JsVariable(iteratorEnv, iteratorInitInstruction.IteratorSlotIndex);
                                 }
 
                                 // Cache driver state for scope-correct access from child scopes
                                 _currentDriverState = iteratorState;
 
                                 // Use slot-based storage for O(1) access
-                                StoreValueBySlot(environment, iteratorInitInstruction.IteratorSlot,
+                                StoreValueBySlot(iteratorEnv, iteratorInitInstruction.IteratorSlot,
                                     iteratorInitInstruction.IteratorSlotIndex,
                                     JsValue.FromObjectUnsafe(iteratorState));
 
@@ -1417,9 +1434,13 @@ public static partial class TypedAstEvaluator
                                 // loop iteration. The value slot is allocated in the same scope as the iterator.
                                 if (!valueVar.IsValid && iteratorMoveNextInstruction.ValueSlotIndex >= 0)
                                 {
+                                    // Use the iterator's environment since value slot is in the same scope
                                     var loopScopeEnv = iterVar.IsValid ? iterVar.Environment : environment;
-                                    valueVar = new JsVariable(loopScopeEnv, iteratorMoveNextInstruction.ValueSlotIndex);
-                                    driverState.ValueVariable = valueVar;
+                                    if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length > iteratorMoveNextInstruction.ValueSlotIndex)
+                                    {
+                                        valueVar = new JsVariable(loopScopeEnv, iteratorMoveNextInstruction.ValueSlotIndex);
+                                        driverState.ValueVariable = valueVar;
+                                    }
                                 }
 
                                 if (!driverState.IsAsyncIterator)

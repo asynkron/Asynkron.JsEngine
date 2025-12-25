@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests to verify for-of loop optimizations are triggered correctly.
-/// Uses JsEnvironment.AllocationCount to track actual allocations.
+/// Uses FakeLogger to track JsEnvironment allocations via log messages.
 /// </summary>
 public class ForOfOptimizationTests
 {
@@ -22,23 +22,36 @@ public class ForOfOptimizationTests
         _output = output;
     }
 
+    /// <summary>
+    /// Counts JsEnvironment allocations by counting log messages containing "JsEnvironment allocated".
+    /// </summary>
+    private static int CountAllocations(FakeLogger logger, int afterIndex = 0)
+    {
+        return logger.Collector.Snapshot()
+            .Skip(afterIndex)
+            .Count(r => r.Message.Contains("JsEnvironment allocated", StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task ForOf_SimpleLoop_MinimalEnvironmentAllocations()
     {
-        await using var engine = new JsEngine();
+        var logger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
 
         // Warm up the engine
         await engine.Evaluate("1+1");
+        var warmupCount = logger.Collector.Snapshot().Count;
 
-        // Reset allocation counter before the actual test
-        JsEnvironment.ResetAllocationCounter();
-
-        // For a simple for-of loop with 100 iterations, we should create:
+        // For a simple for-of loop with 10 iterations, we should create:
         // - 1 function scope (for 'run')
         // - 1 TDZ environment (for const binding in head) - only if let/const
         // - 1 loop environment
         // - 1 iteration environment (reused) if CanReuseIterationEnvironment is true
-        // Total: around 4 environments, NOT 100+
+        // Total: around 4 environments, NOT 10+
         var result = await engine.Evaluate("""
             function run() {
                 let sum = 0;
@@ -50,7 +63,7 @@ public class ForOfOptimizationTests
             run();
             """);
 
-        var allocations = JsEnvironment.AllocationCount;
+        var allocations = CountAllocations(logger, warmupCount);
         _output.WriteLine($"Simple for-of (10 iterations): {allocations} JsEnvironment allocations");
         Assert.Equal(55d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
 
@@ -64,11 +77,16 @@ public class ForOfOptimizationTests
     [Fact(Timeout = 5000)]
     public async Task ForOf_WithClosure_CreatesPerIterationEnvironments()
     {
-        await using var engine = new JsEngine();
+        var logger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
 
         // Warm up
         await engine.Evaluate("1+1");
-        JsEnvironment.ResetAllocationCounter();
+        var warmupCount = logger.Collector.Snapshot().Count;
 
         // With closures, each iteration MUST create a new environment
         // because closures capture the iteration-specific bindings
@@ -83,7 +101,7 @@ public class ForOfOptimizationTests
             run();
             """);
 
-        var allocations = JsEnvironment.AllocationCount;
+        var allocations = CountAllocations(logger, warmupCount);
         _output.WriteLine($"With closure (3 iterations): {allocations} JsEnvironment allocations");
         Assert.Equal("1,2,3", result);
 
@@ -97,11 +115,16 @@ public class ForOfOptimizationTests
     [Fact(Timeout = 5000)]
     public async Task ForOf_VarBinding_ReusesLoopEnvironment()
     {
-        await using var engine = new JsEngine();
+        var logger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
 
         // Warm up
         await engine.Evaluate("1+1");
-        JsEnvironment.ResetAllocationCounter();
+        var warmupCount = logger.Collector.Snapshot().Count;
 
         // With 'var' binding, the loop variable is in the function scope,
         // not per-iteration scope. Should have minimal allocations.
@@ -116,7 +139,7 @@ public class ForOfOptimizationTests
             run();
             """);
 
-        var allocations = JsEnvironment.AllocationCount;
+        var allocations = CountAllocations(logger, warmupCount);
         _output.WriteLine($"Var binding (20 iterations): {allocations} JsEnvironment allocations");
         Assert.Equal(210d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
 
@@ -129,11 +152,16 @@ public class ForOfOptimizationTests
     [Fact(Timeout = 5000)]
     public async Task ForOf_100Iterations_PooledEnvironments()
     {
-        await using var engine = new JsEngine();
+        var logger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
 
         // Warm up
         await engine.Evaluate("1+1");
-        JsEnvironment.ResetAllocationCounter();
+        var warmupCount = logger.Collector.Snapshot().Count;
 
         // 100 iterations with let/const should still have minimal allocations
         // if environment reuse is working
@@ -151,7 +179,7 @@ public class ForOfOptimizationTests
             run();
             """);
 
-        var allocations = JsEnvironment.AllocationCount;
+        var allocations = CountAllocations(logger, warmupCount);
         _output.WriteLine($"100 iterations with regular for + for-of: {allocations} JsEnvironment allocations");
         Assert.Equal(4950d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
 
@@ -175,7 +203,7 @@ public class ForOfOptimizationTests
 
         // Warm up
         await engine.Evaluate("1+1");
-        JsEnvironment.ResetAllocationCounter();
+        var warmupCount = logger.Collector.Snapshot().Count;
 
         var result = await engine.Evaluate("""
             function run() {
@@ -188,7 +216,7 @@ public class ForOfOptimizationTests
             run();
             """);
 
-        var allocations = JsEnvironment.AllocationCount;
+        var allocations = CountAllocations(logger, warmupCount);
         _output.WriteLine($"Fast accumulator path (10 iterations): {allocations} JsEnvironment allocations");
         Assert.Equal(55d, JsOps.ToNumber(JsValue.FromObjectUnsafe(result), null));
 

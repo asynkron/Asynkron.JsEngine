@@ -21,21 +21,6 @@ public sealed class JsEnvironment : IRentable
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
 
-    /// <summary>
-    /// Counter for tracking JsEnvironment allocations (new instances only, not pool reuse).
-    /// Use <see cref="ResetAllocationCounter"/> and <see cref="AllocationCount"/> for testing.
-    /// </summary>
-    private static long _allocationCounter;
-
-    /// <summary>
-    /// Gets the number of JsEnvironment instances allocated since the last reset.
-    /// </summary>
-    public static long AllocationCount => Interlocked.Read(ref _allocationCounter);
-
-    /// <summary>
-    /// Resets the allocation counter to zero. Call before running a test.
-    /// </summary>
-    public static void ResetAllocationCounter() => Interlocked.Exchange(ref _allocationCounter, 0);
     private Dictionary<Symbol, List<Action<JsValue>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private SourceReference? _creatingSource;
@@ -81,8 +66,6 @@ public sealed class JsEnvironment : IRentable
         bool treatAsGlobalFunctionScope = false,
         bool inheritStrictness = true)
     {
-        Interlocked.Increment(ref _allocationCounter);
-
         Enclosing = enclosing;
         IsFunctionScope = isFunctionScope;
         _creatingSource = creatingSource;
@@ -103,6 +86,8 @@ public sealed class JsEnvironment : IRentable
             throw new InvalidOperationException(
                 $"Exceeded maximum environment depth of {MaxDepth}. Possible unbounded recursion detected.");
         }
+
+        RealmState?.Logger?.LogDebug("JsEnvironment allocated: {Description}", description ?? "unnamed");
     }
 
     /// <summary>

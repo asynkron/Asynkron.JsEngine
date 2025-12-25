@@ -21,26 +21,20 @@ public static partial class TypedAstEvaluator
             }
 
             var iterableEnvironment = environment;
-            JsEnvironment? pooledTdzEnv = null;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
-                // Use pooled environment for TDZ head when possible
-                pooledTdzEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
+                // Create TDZ environment for the for-of head bindings.
+                // NOTE: We do NOT pool this environment because closures in the iterable expression
+                // may capture it, and returning it to the pool would break their scope chain.
+                iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                     "for-each-head-tdz");
-                iterableEnvironment = pooledTdzEnv;
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
             var iterableJsValue = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
-
-            // Return TDZ environment to pool early - it's no longer needed after evaluating iterable
-            if (pooledTdzEnv is not null)
-            {
-                JsEnvironmentPool.Return(pooledTdzEnv);
-            }
 
             if (context.ShouldStopEvaluation)
             {
@@ -212,26 +206,20 @@ public static partial class TypedAstEvaluator
             EvaluationContext context, Symbol? loopLabel)
         {
             var iterableEnvironment = environment;
-            JsEnvironment? pooledTdzEnv = null;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
-                // Use pooled environment for TDZ head when possible
-                pooledTdzEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
+                // Create TDZ environment for the for-await-of head bindings.
+                // NOTE: We do NOT pool this environment because closures in the iterable expression
+                // may capture it, and returning it to the pool would break their scope chain.
+                iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                     "for-each-head-tdz");
-                iterableEnvironment = pooledTdzEnv;
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
             var iterableJs = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
-
-            // Return TDZ environment to pool early - it's no longer needed after evaluating iterable
-            if (pooledTdzEnv is not null)
-            {
-                JsEnvironmentPool.Return(pooledTdzEnv);
-            }
 
             if (context.ShouldStopEvaluation)
             {

@@ -135,4 +135,70 @@ public class EvalFunctionTests
                                            """);
         Assert.Equal(30d, result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarInForOfIterable_ModifiesOuterScope()
+    {
+        // Test262: language/statements/for-of/scope-head-var-none.js
+        // When eval('var x = 2;') is in the for-of iterable expression,
+        // the var should be created in the outer variable environment, not the TDZ.
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var x = 1;
+            for (let [_] of [[eval('var x = 2;')]]) { }
+            x;
+        """);
+        Assert.Equal(2d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarInForOfIterable_ClosuresSeeCurrent()
+    {
+        // Test262: language/statements/for-of/scope-head-var-none.js (full version with closures)
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var probeBefore = function() { return x; };
+            var x = 1;
+            var probeDecl, probeExpr, probeBody;
+
+            for (
+                let [_ = probeDecl = function() { return x; }]
+                of
+                [[eval('var x = 2;'), probeExpr = function() { return x; }]]
+              )
+              probeBody = function() { return x; };
+
+            JSON.stringify([probeBefore(), probeDecl(), probeExpr(), probeBody(), x]);
+        """);
+        // All should be 2 since eval modified the outer x
+        Assert.Equal("[2,2,2,2,2]", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOf_ClosureInIterable_SeesOuterScope_NoEval()
+    {
+        // Simpler test without eval - closure in iterable expression should see outer var x
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var x = 42;
+            var probe;
+            for (let [_] of [[1, probe = function() { return x; }]]) { }
+            probe();
+        """);
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOf_ClosureInDestructuringDefault_SeesLoopVar()
+    {
+        // Test262: language/statements/for-of/scope-body-lex-open.js
+        // Closure in destructuring default should see loop variable value
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("""
+            var probe;
+            for (let [x, _ = probe = function() { return x; }] of [['inside']]) { }
+            probe();
+        """);
+        Assert.Equal("inside", result);
+    }
 }

@@ -25,13 +25,11 @@ public static partial class TypedAstEvaluator
             var lastValueJs = JsValue.Undefined;
             var iteratorDone = false;
 
-            var state = new IteratorDriverState
-            {
-                IteratorObject = iterator,
-                Enumerator = enumerator,
-                IsAsyncIterator = plan.Kind == IteratorDriverKind.Await,
-                NextMethod = iterator?.GetIteratorNextCallable(context)
-            };
+            var state = IteratorDriverStatePool.Rent();
+            state.IteratorObject = iterator;
+            state.Enumerator = enumerator;
+            state.IsAsyncIterator = plan.Kind == IteratorDriverKind.Await;
+            state.NextMethod = iterator?.GetIteratorNextCallable(context);
 
             // OPTIMIZATION: Check if we can use the fast slot path for simple identifier bindings
             // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots per iteration
@@ -76,9 +74,12 @@ public static partial class TypedAstEvaluator
                 plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment, reusableIterationEnvironment ?? loopEnvironment,
                     fastPathSlotIndex, out lastValueJs))
             {
+                IteratorDriverStatePool.Return(state);
                 return lastValueJs;
             }
 
+            try
+            {
             while (!context.ShouldStopEvaluation)
             {
                 context.ThrowIfCancellationRequested();
@@ -416,6 +417,11 @@ public static partial class TypedAstEvaluator
             }
 
             return lastValueJs;
+            }
+            finally
+            {
+                IteratorDriverStatePool.Return(state);
+            }
         }
 
         private static void SyncIterationSlots(IteratorDriverPlan driverPlan, JsEnvironment iterationEnvironment,

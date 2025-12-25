@@ -21,17 +21,27 @@ public static partial class TypedAstEvaluator
             }
 
             var iterableEnvironment = environment;
+            JsEnvironment? pooledTdzEnv = null;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
-                iterableEnvironment = new JsEnvironment(environment, creatingSource: statement.Source,
-                    description: "for-each-head-tdz");
+                // Use pooled environment for TDZ head when possible
+                pooledTdzEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
+                    "for-each-head-tdz");
+                iterableEnvironment = pooledTdzEnv;
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
             var iterableJsValue = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
+
+            // Return TDZ environment to pool early - it's no longer needed after evaluating iterable
+            if (pooledTdzEnv is not null)
+            {
+                JsEnvironmentPool.Return(pooledTdzEnv);
+            }
+
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -65,10 +75,12 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            var loopEnvironment =
-                new JsEnvironment(environment, creatingSource: statement.Source, description: "for-each-loop");
+            // Use pooled environment for loop scope
+            var loopEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop");
             var lastValueJs = JsValue.Undefined;
 
+            try
+            {
             if (statement.Kind == ForEachKind.Of)
             {
                 var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
@@ -189,23 +201,38 @@ public static partial class TypedAstEvaluator
             }
 
             return lastValueJs;
+            }
+            finally
+            {
+                JsEnvironmentPool.Return(loopEnvironment);
+            }
         }
 
         private JsValue EvaluateForAwaitOfJsValue(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {
             var iterableEnvironment = environment;
+            JsEnvironment? pooledTdzEnv = null;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
-                iterableEnvironment = new JsEnvironment(environment, creatingSource: statement.Source,
-                    description: "for-each-head-tdz");
+                // Use pooled environment for TDZ head when possible
+                pooledTdzEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
+                    "for-each-head-tdz");
+                iterableEnvironment = pooledTdzEnv;
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
             var iterableJs = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
+
+            // Return TDZ environment to pool early - it's no longer needed after evaluating iterable
+            if (pooledTdzEnv is not null)
+            {
+                JsEnvironmentPool.Return(pooledTdzEnv);
+            }
+
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -218,9 +245,11 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
             }
 
-            var loopEnvironment =
-                new JsEnvironment(environment, creatingSource: statement.Source, description: "for-await-of loop");
+            // Use pooled environment for loop scope
+            var loopEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop");
 
+            try
+            {
             var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
             Func<JsEnvironment>? rentIterationEnvironment = null;
             if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
@@ -271,6 +300,11 @@ public static partial class TypedAstEvaluator
             }
 
             throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+            }
+            finally
+            {
+                JsEnvironmentPool.Return(loopEnvironment);
+            }
         }
     }
 }

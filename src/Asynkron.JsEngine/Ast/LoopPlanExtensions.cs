@@ -266,8 +266,19 @@ public static partial class TypedAstEvaluator
 
             // Per ECMAScript spec 13.7.4.9 CreatePerIterationEnvironment:
             // The new iteration environment's parent should be the OUTER environment (the loop environment),
-            // not the current iteration environment
-            var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
+            // not the current iteration environment.
+            //
+            // For the FIRST call: currentIterationEnvironment is the block scope containing the for loop.
+            //   We want the iteration env parent = block scope (so we can find let x in the block).
+            // For SUBSEQUENT calls: currentIterationEnvironment is a previous iteration environment.
+            //   We want the new iteration env parent = same outer environment (block scope).
+            //
+            // We distinguish these by checking if currentIterationEnvironment already has the iteration scope's ID.
+            var isSubsequentIteration = iterationScopeId >= 0 &&
+                                        currentIterationEnvironment.ScopeId == iterationScopeId;
+            var outerEnvironment = isSubsequentIteration
+                ? currentIterationEnvironment.Enclosing ?? currentIterationEnvironment
+                : currentIterationEnvironment;
 
             JsEnvironment newIterationEnvironment;
 

@@ -185,6 +185,8 @@ public sealed class ScopeAnalyzer
         /// <summary>
         /// Declares a variable in this scope and assigns it a slot index.
         /// Returns -1 for script-level variables (which use dictionary-based storage).
+        /// Script-level variables are NOT stored in _variables so GetSlot returns -1
+        /// (meaning "not found in this scope") and resolution falls through to runtime.
         /// </summary>
         public int DeclareVariable(Symbol name)
         {
@@ -193,10 +195,10 @@ public sealed class ScopeAnalyzer
                 return existingSlot; // Already declared (e.g., var hoisting)
             }
 
-            // Script-level variables use dictionary-based storage, not slots
+            // Script-level variables use dictionary-based storage, not slots.
+            // Don't store them in _variables - they'll be resolved at runtime via dictionary lookup.
             if (IsScriptScope)
             {
-                _variables[name] = -1;
                 return -1;
             }
 

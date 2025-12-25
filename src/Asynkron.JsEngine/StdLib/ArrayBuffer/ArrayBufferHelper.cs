@@ -16,48 +16,31 @@ public static class ArrayBufferHelper
         obj.SetProperty("_internalArrayBuffer", JsValue.FromObjectUnsafe(buffer));
     }
 
-    internal static JsArrayBuffer RequireArrayBuffer(object? thisVal, RealmState realm)
+    internal static JsArrayBuffer RequireArrayBuffer(JsValue thisVal, RealmState realm)
     {
-        // Handle boxed JsValue struct first - unwrap to get the underlying object
-        if (thisVal is JsValue jsVal)
+        if (thisVal.IsNullOrUndefined)
         {
-            if (jsVal is { Kind: JsValueKind.Object, ObjectValue: { } objVal })
-            {
-                thisVal = objVal;
-            }
-            else
-            {
-                if (jsVal.IsNullOrUndefined)
-                {
-                    throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
-                }
-
-                thisVal = jsVal.ObjectValue;
-            }
+            throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
         }
 
-        if (thisVal is JsArrayBuffer directBuffer)
+        // Direct JsArrayBuffer
+        if (thisVal.TryGetObject<JsArrayBuffer>(out var directBuffer))
         {
             return directBuffer;
         }
 
-        if (thisVal is JsObject obj)
+        // JsObject with internal slot
+        if (thisVal.TryGetObject<JsObject>(out var obj))
         {
             var descriptor = obj.GetOwnPropertyDescriptor("_internalArrayBuffer");
-            if ((descriptor != null ? descriptor.JsValue.ToObject() : null) is JsArrayBuffer internalBuffer)
+            if (descriptor?.JsValue.TryGetObject<JsArrayBuffer>(out var internalBuffer) == true)
             {
                 return internalBuffer;
             }
-
-            // Handle case where value is boxed JsValue struct
-            if ((descriptor != null ? descriptor.JsValue.ToObject() : null) is JsValue bufJsVal &&
-                bufJsVal.TryGetObject<JsArrayBuffer>(out var bufferFromJsValue))
-            {
-                return bufferFromJsValue;
-            }
         }
 
-        if (thisVal is IJsPropertyAccessor accessor &&
+        // IJsPropertyAccessor with internal slot
+        if (thisVal.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
             accessor.TryGetProperty("_internalArrayBuffer", out var internalVal) &&
             internalVal.TryGetObject<JsArrayBuffer>(out var bufferFromAccessor))
         {
@@ -67,23 +50,10 @@ public static class ArrayBufferHelper
         throw ThrowTypeError("ArrayBuffer method called on incompatible receiver", realm: realm);
     }
 
-    internal static IJsCallable ArrayBufferSpeciesCreate(object? thisVal, RealmState realm,
+    internal static IJsCallable ArrayBufferSpeciesCreate(JsValue thisVal, RealmState realm,
         HostFunction defaultConstructor)
     {
-        // Handle boxed JsValue struct first - unwrap to get the underlying object
-        if (thisVal is JsValue jsVal)
-        {
-            if (jsVal is { Kind: JsValueKind.Object, ObjectValue: { } objVal })
-            {
-                thisVal = objVal;
-            }
-            else
-            {
-                return defaultConstructor;
-            }
-        }
-
-        if (thisVal is not IJsPropertyAccessor accessor ||
+        if (!thisVal.TryGetObject<IJsPropertyAccessor>(out var accessor) ||
             !accessor.TryGetProperty("constructor", out var ctorVal))
         {
             return defaultConstructor;

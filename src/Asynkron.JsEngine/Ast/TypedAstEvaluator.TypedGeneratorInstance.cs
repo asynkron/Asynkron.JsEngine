@@ -935,10 +935,47 @@ public static partial class TypedAstEvaluator
                                         loopScope = environment;
                                     }
                                 }
+                                else if (_currentDriverState?.LoopScopeEnvironment is { } savedLoopScope)
+                                {
+                                    // Case 2c: First iteration after async resume, use LoopScopeEnvironment
+                                    // CurrentIterationEnvironment is not yet set (first iteration of this loop),
+                                    // but we have the loop scope saved from IteratorInit.
+                                    loopScope = savedLoopScope;
+                                }
                                 else
                                 {
-                                    // Case 3: First iteration, current env is the loop scope
-                                    loopScope = environment;
+                                    // Case 3: No driver state. This can happen when:
+                                    //   a) True first iteration of the loop (loopScope = current environment)
+                                    //   b) After an inner for-await-of completed and cleared _currentDriverState.
+                                    //      In this case, environment may point to an inner loop's iteration env,
+                                    //      NOT this loop's scope. We need to walk up to find the correct scope.
+                                    //
+                                    // Walk up the environment chain looking for an env with matching ScopeId
+                                    // (a previous iteration of THIS loop). If found, its Enclosing is the loop scope.
+                                    var searchEnv = environment;
+                                    JsEnvironment? foundPreviousIter = null;
+                                    var walkDepth = 0;
+                                    while (searchEnv != null && walkDepth < 100)
+                                    {
+                                        if (searchEnv.ScopeId == createEnvInstruction.ScopeId)
+                                        {
+                                            foundPreviousIter = searchEnv;
+                                            break;
+                                        }
+                                        searchEnv = searchEnv.Enclosing;
+                                        walkDepth++;
+                                    }
+
+                                    if (foundPreviousIter != null)
+                                    {
+                                        // Found a previous iteration env for this loop
+                                        loopScope = foundPreviousIter.Enclosing ?? environment;
+                                    }
+                                    else
+                                    {
+                                        // True first iteration
+                                        loopScope = environment;
+                                    }
                                 }
                                 var newIterationEnv = new JsEnvironment(
                                     loopScope,
@@ -1425,19 +1462,23 @@ public static partial class TypedAstEvaluator
                                 // per-iteration bindings, `environment` might be a child environment
                                 // with different slots. The iterator slot was allocated in a parent
                                 // scope, so we need to walk up the chain to find it.
+                                //
+                                // IMPORTANT: Skip per-iteration environments (ScopeId >= 0) to avoid
+                                // slot collisions with loop variables like `i`, `j`. Iterator temps
+                                // should be stored in function-level or module-level scopes.
                                 var iteratorEnv = environment;
                                 var walkCount = 0;
                                 if (iteratorInitInstruction.IteratorSlotIndex >= 0)
                                 {
                                     while (iteratorEnv is not null &&
-                                           (!iteratorEnv.HasSlots ||
+                                           (iteratorEnv.ScopeId >= 0 || // Skip per-iteration envs
+                                            !iteratorEnv.HasSlots ||
                                             iteratorEnv._slots!.Length <= iteratorInitInstruction.IteratorSlotIndex))
                                     {
                                         iteratorEnv = iteratorEnv.Enclosing;
                                         walkCount++;
                                         if (walkCount > 1000)
                                         {
-                                            Console.WriteLine($"[DEBUG] Environment chain walk exceeded 1000! SlotIndex={iteratorInitInstruction.IteratorSlotIndex}");
                                             break;
                                         }
                                     }
@@ -1450,6 +1491,11 @@ public static partial class TypedAstEvaluator
                                 {
                                     iteratorState.IteratorVariable = new JsVariable(iteratorEnv, iteratorInitInstruction.IteratorSlotIndex);
                                 }
+
+                                // Save the loop scope environment for nested loop support.
+                                // When async resume resets environment to function scope, CreateIterationEnv
+                                // needs this to create properly parented iteration environments.
+                                iteratorState.LoopScopeEnvironment = environment;
 
                                 // Cache driver state for scope-correct access from child scopes
                                 _currentDriverState = iteratorState;
@@ -1471,9 +1517,32 @@ public static partial class TypedAstEvaluator
 
                                 if (driverState is null)
                                 {
-                                    // Fallback: try to get iterator state from current environment
-                                    if (!TryGetValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                             iteratorMoveNextInstruction.IteratorSlotIndex, out var iteratorStateValue))
+                                    // Fallback: try to get iterator state from the correct scope.
+                                    // The iterator slot is stored in function/module scope (not per-iteration envs),
+                                    // so we need to walk up the chain to find it, similar to IteratorInit.
+                                    var slotEnv = environment;
+                                    var slotIdx = iteratorMoveNextInstruction.IteratorSlotIndex;
+
+                                    // Walk up to find the scope with the right slots
+                                    // Skip per-iteration envs (ScopeId >= 0) since iterator temps are stored
+                                    // in function scope to avoid slot collisions with loop variables
+                                    if (slotIdx >= 0)
+                                    {
+                                        var slotWalkCount = 0;
+                                        while (slotEnv != null &&
+                                               (slotEnv.ScopeId >= 0 || // Skip per-iteration envs
+                                                !slotEnv.HasSlots ||
+                                                slotEnv._slots!.Length <= slotIdx))
+                                        {
+                                            slotEnv = slotEnv.Enclosing;
+                                            slotWalkCount++;
+                                            if (slotWalkCount > 100) break;
+                                        }
+                                        slotEnv ??= environment;
+                                    }
+
+                                    if (slotEnv is null || !TryGetValueBySlot(slotEnv, iteratorMoveNextInstruction.IteratorSlot,
+                                             slotIdx, out var iteratorStateValue))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;

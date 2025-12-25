@@ -32,4 +32,12 @@ internal sealed class IteratorDriverState
     /// correct loop scope after async resume when the environment is reset to function scope.
     /// </summary>
     public JsEnvironment? CurrentIterationEnvironment { get; set; }
+
+    /// <summary>
+    /// The loop scope environment captured at IteratorInit time.
+    /// This is the environment BEFORE any per-iteration envs are created for this iterator loop.
+    /// Used by CreateIterationEnvironmentInstruction on first iteration after async resume
+    /// when CurrentIterationEnvironment is still null but environment has been reset to function scope.
+    /// </summary>
+    public JsEnvironment? LoopScopeEnvironment { get; set; }
 }

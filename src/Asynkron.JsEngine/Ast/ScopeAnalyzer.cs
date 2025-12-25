@@ -203,6 +203,32 @@ public sealed class ScopeAnalyzer
         }
 
         /// <summary>
+        /// Allocates an anonymous slot for non-variable purposes (e.g., cached loop environments).
+        /// </summary>
+        public int AllocateAnonymousSlot()
+        {
+            return SlotCount++;
+        }
+
+        /// <summary>
+        /// Gets the nearest enclosing function scope (or the current scope if it is a function scope).
+        /// Returns null if there is no enclosing function scope (should not happen in valid code).
+        /// </summary>
+        public ScopeInfo? GetEnclosingFunctionScope()
+        {
+            var scope = this;
+            while (scope is not null)
+            {
+                if (scope.IsFunctionScope)
+                {
+                    return scope;
+                }
+                scope = scope.Parent;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Checks if a variable is an immutable binding.
         /// </summary>
         public bool IsImmutable(Symbol name)
@@ -915,10 +941,24 @@ public sealed class ScopeAnalyzer
         var perIterationScopeId = -1;
         var perIterationSlotCount = -1;
         List<int>? perIterationSlotIndices = null;
+        var loopEnvSlotIndex = -1;
+        var loopEnvScopeId = -1;
 
         var parentScope = _currentScope;
         if (needsScope)
         {
+            // Allocate a slot in the FUNCTION scope for the cached iteration environment.
+            // This slot will hold a JsEnvironment that can be reused across loop entries
+            // when no closures capture the iteration variables.
+            // We use the function scope (not the immediate parent) to ensure the slot persists
+            // even when nested inside other loops with per-iteration bindings.
+            var functionScope = parentScope.GetEnclosingFunctionScope();
+            if (functionScope is not null)
+            {
+                loopEnvSlotIndex = functionScope.AllocateAnonymousSlot();
+                loopEnvScopeId = functionScope.ScopeId;
+            }
+
             _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
 
             // Collect the loop variable declaration
@@ -969,7 +1009,9 @@ public sealed class ScopeAnalyzer
         {
             PerIterationScopeId = perIterationScopeId,
             PerIterationSlotCount = perIterationSlotCount,
-            PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default
+            PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default,
+            LoopEnvSlotIndex = loopEnvSlotIndex,
+            LoopEnvScopeId = loopEnvScopeId
         };
     }
 
@@ -982,10 +1024,24 @@ public sealed class ScopeAnalyzer
         var perIterationSlotCount = -1;
         List<int>? perIterationSlotIndices = null;
         List<Symbol>? perIterationBindings = null;
+        var loopEnvSlotIndex = -1;
+        var loopEnvScopeId = -1;
 
         var parentScope = _currentScope;
         if (needsScope)
         {
+            // Allocate a slot in the FUNCTION scope for the cached iteration environment.
+            // This slot will hold a JsEnvironment that can be reused across loop entries
+            // when no closures capture the iteration variables.
+            // We use the function scope (not the immediate parent) to ensure the slot persists
+            // even when nested inside other loops with per-iteration bindings.
+            var functionScope = parentScope.GetEnclosingFunctionScope();
+            if (functionScope is not null)
+            {
+                loopEnvSlotIndex = functionScope.AllocateAnonymousSlot();
+                loopEnvScopeId = functionScope.ScopeId;
+            }
+
             _currentScope = new ScopeInfo(parentScope, false, true, _nextScopeId++);
             CollectBindingDeclarations(forEachStmt.Target);
 
@@ -1013,7 +1069,9 @@ public sealed class ScopeAnalyzer
             PerIterationScopeId = perIterationScopeId,
             PerIterationSlotCount = perIterationSlotCount,
             PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default,
-            PerIterationBindings = perIterationBindings?.ToImmutableArray() ?? default
+            PerIterationBindings = perIterationBindings?.ToImmutableArray() ?? default,
+            LoopEnvSlotIndex = loopEnvSlotIndex,
+            LoopEnvScopeId = loopEnvScopeId
         };
     }
 

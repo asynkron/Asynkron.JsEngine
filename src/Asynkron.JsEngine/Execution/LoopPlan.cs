@@ -24,7 +24,9 @@ internal sealed record LoopPlan(
     bool AllowIterationEnvironmentPooling = false,
     int IterationScopeId = -1,
     int IterationSlotCount = -1,
-    ImmutableArray<int> PerIterationSlotIndices = default)
+    ImmutableArray<int> PerIterationSlotIndices = default,
+    int LoopEnvSlotIndex = -1,
+    int LoopEnvScopeId = -1)
 {
     private bool _bodyNeedsEnvironment;
 

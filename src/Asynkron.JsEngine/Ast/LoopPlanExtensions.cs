@@ -269,20 +269,60 @@ public static partial class TypedAstEvaluator
             // not the current iteration environment
             var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
 
-            // Create a fresh environment for this iteration
-            var newIterationEnvironment = plan.AllowIterationEnvironmentPooling
-                ? JsEnvironmentPool.Rent(
-                    outerEnvironment,
-                    false,
-                    false,
-                    null,
-                    "for-iteration")
-                : new JsEnvironment(
-                    outerEnvironment,
-                    false,
-                    false,
-                    null,
-                    "for-iteration");
+            JsEnvironment newIterationEnvironment;
+
+            // SLOT-BASED CACHING: Try to get/create iteration environment from function scope slot
+            // We find the function scope by ScopeId and lazily initialize slots if needed.
+            JsEnvironment? functionEnv = null;
+            if (plan.LoopEnvSlotIndex >= 0 &&
+                plan.LoopEnvScopeId >= 0 &&
+                plan.AllowIterationEnvironmentPooling)
+            {
+                functionEnv = outerEnvironment.FindByScopeId(plan.LoopEnvScopeId);
+                // Lazily initialize or expand slots if needed
+                // (may need to expand if outer loop initialized fewer slots than inner loop needs)
+                // Use EnsureSlotCapacity to preserve existing slot values when expanding
+                if (functionEnv is not null && (!functionEnv.HasSlots || functionEnv.SlotCount <= plan.LoopEnvSlotIndex))
+                {
+                    var slotCount = plan.LoopEnvSlotIndex + 1; // At minimum we need this many slots
+                    functionEnv.EnsureSlotCapacity(slotCount);
+                }
+            }
+
+            if (functionEnv is not null && functionEnv.HasSlots && plan.LoopEnvSlotIndex < functionEnv.SlotCount)
+            {
+                ref var envSlot = ref functionEnv.GetSlotRef(plan.LoopEnvSlotIndex);
+                if (envSlot.IsUndefined)
+                {
+                    // First execution: create and cache the iteration environment
+                    newIterationEnvironment = new JsEnvironment(
+                        outerEnvironment, false, false, null, "for-iteration-cached");
+                    envSlot = JsValue.FromObjectUnsafe(newIterationEnvironment);
+                }
+                else
+                {
+                    // Subsequent execution: reset and reuse the cached environment
+                    newIterationEnvironment = (JsEnvironment)envSlot.ObjectValue!;
+                    newIterationEnvironment.Reset(outerEnvironment, false, false, null, "for-iteration-cached");
+                }
+            }
+            else
+            {
+                // Fallback: create fresh environment or use pool
+                newIterationEnvironment = plan.AllowIterationEnvironmentPooling
+                    ? JsEnvironmentPool.Rent(
+                        outerEnvironment,
+                        false,
+                        false,
+                        null,
+                        "for-iteration")
+                    : new JsEnvironment(
+                        outerEnvironment,
+                        false,
+                        false,
+                        null,
+                        "for-iteration");
+            }
 
             if (iterationSlotCount >= 0)
             {

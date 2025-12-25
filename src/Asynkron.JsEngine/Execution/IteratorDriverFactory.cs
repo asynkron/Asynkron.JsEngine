@@ -43,6 +43,8 @@ internal static class IteratorDriverFactory
             statement.PerIterationSlotIndices,
             statement.PerIterationBindings,
             canReuseIterationEnvironment,
-            canPoolLoopEnvironment);
+            canPoolLoopEnvironment,
+            statement.LoopEnvSlotIndex,
+            statement.LoopEnvScopeId);
     }
 }

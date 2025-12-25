@@ -21,7 +21,9 @@ public sealed record ForEachStatement(
     int PerIterationScopeId = -1,
     int PerIterationSlotCount = -1,
     ImmutableArray<int> PerIterationSlotIndices = default,
-    ImmutableArray<Symbol> PerIterationBindings = default) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>
+    ImmutableArray<Symbol> PerIterationBindings = default,
+    int LoopEnvSlotIndex = -1,
+    int LoopEnvScopeId = -1) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>
 {
     private IteratorDriverPlan? _cachedPlan;
 

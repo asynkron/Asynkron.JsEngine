@@ -887,22 +887,6 @@ public static partial class TypedAstEvaluator
                                 // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
                                 // 3. Scope chain doesn't grow unboundedly with iterations
                                 //
-                                // For the FIRST iteration of a loop, the current environment IS the loop scope.
-                                // For SUBSEQUENT iterations, the current environment is the previous iteration's
-                                // per-iteration environment. In that case, the loop scope is the enclosing
-                                // environment of the current environment.
-                                //
-                                // We determine which case we're in by checking if the current environment
-                                // was created by a previous CreateIterationEnvironmentInstruction (it will
-                                // have the same ScopeId as this instruction).
-                                // Determine the correct loop scope (parent for new iteration environment).
-                                // There are two cases to handle:
-                                //
-                                // 1. For the FIRST iteration of a loop, the current environment IS the loop scope.
-                                // 2. For SUBSEQUENT iterations, the current environment is the previous iteration's
-                                //    per-iteration environment. In that case, the loop scope is the enclosing
-                                //    environment of the current environment.
-                                //
                                 // We determine which case we're in by checking if the current environment
                                 // was created by a previous CreateIterationEnvironmentInstruction (it will
                                 // have the same ScopeId as this instruction).

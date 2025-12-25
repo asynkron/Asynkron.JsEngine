@@ -264,6 +264,9 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobalFunction("clearTimeout", ClearTimer);
         SetGlobalFunction("clearInterval", ClearTimer);
 
+        // Register microtask queue function (ECMAScript Web API)
+        SetGlobalFunction("queueMicrotask", QueueMicrotaskGlobal);
+
         // Register a dynamic import function
         var importFunction = new HostFunction((_, args) => DynamicImport(args, null, ImportPhase.Module, null),
             RealmState, false);
@@ -2326,6 +2329,22 @@ public sealed class JsEngine : IAsyncDisposable
         {
             _isDrainingMicrotasks = false;
         }
+    }
+
+    /// <summary>
+    ///     Implements the queueMicrotask global function.
+    ///     Queues a callback to be executed as a microtask, running after the current
+    ///     synchronous code completes but before the next macrotask.
+    /// </summary>
+    private JsValue QueueMicrotaskGlobal(IReadOnlyList<JsValue> args)
+    {
+        if (args.Count == 0 || !args[0].TryGetCallable(out var callback))
+        {
+            throw new ThrowSignal(new JsValue("TypeError: queueMicrotask requires a callable argument"));
+        }
+
+        QueueMicrotask(JsCallableMicrotask.Rent(callback));
+        return JsValue.Undefined;
     }
 
     /// <summary>

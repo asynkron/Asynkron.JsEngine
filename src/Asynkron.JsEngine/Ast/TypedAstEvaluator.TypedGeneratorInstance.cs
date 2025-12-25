@@ -887,20 +887,64 @@ public static partial class TypedAstEvaluator
                                 // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
                                 // 3. Scope chain doesn't grow unboundedly with iterations
                                 //
-                                // We determine which case we're in by checking if the current environment
-                                // was created by a previous CreateIterationEnvironmentInstruction (it will
-                                // have the same ScopeId as this instruction).
+                                // There are three cases to handle:
+                                //
+                                // Case 1: Normal subsequent iteration - environment.ScopeId matches instruction.
+                                //         The current environment is the previous iteration's per-iteration env.
+                                //         Loop scope = environment.Enclosing
+                                //
+                                // Case 2: After async resume - environment is reset to function scope.
+                                //         We use _currentDriverState.CurrentIterationEnvironment to find the
+                                //         previous iteration's environment.
+                                //
+                                // Case 3: First iteration - no previous iteration env exists.
+                                //         Loop scope = current environment.
+
                                 JsEnvironment loopScope;
+                                JsEnvironment? previousIterEnv = null;
+
                                 if (createEnvInstruction.ScopeId >= 0 &&
                                     environment.ScopeId == createEnvInstruction.ScopeId)
                                 {
-                                    // Current env is a per-iteration env from previous iteration - use its parent
+                                    // Case 1: Current env is a per-iteration env from previous iteration
+                                    previousIterEnv = environment;
                                     loopScope = environment.Enclosing ?? environment;
+                                    Console.WriteLine($"[DEBUG CreateIterEnv] Case 1: env.ScopeId={environment.ScopeId} matches instr.ScopeId={createEnvInstruction.ScopeId}, loopScope.Depth={loopScope.Depth}");
+                                }
+                                else if (_currentDriverState?.CurrentIterationEnvironment is { } savedIterEnv)
+                                {
+                                    // Case 2: After async resume, use saved iteration environment
+                                    // Walk up from saved env to find the correct loop scope for this instruction
+                                    Console.WriteLine($"[DEBUG CreateIterEnv] Case 2: savedIterEnv.ScopeId={savedIterEnv.ScopeId}, instr.ScopeId={createEnvInstruction.ScopeId}, env.ScopeId={environment.ScopeId}");
+                                    var searchEnv = savedIterEnv;
+                                    while (searchEnv != null && searchEnv.ScopeId != createEnvInstruction.ScopeId)
+                                    {
+                                        Console.WriteLine($"[DEBUG CreateIterEnv] Walking: searchEnv.ScopeId={searchEnv.ScopeId}");
+                                        searchEnv = searchEnv.Enclosing;
+                                    }
+
+                                    if (searchEnv != null)
+                                    {
+                                        // Found a matching scope - it's a previous iteration env
+                                        previousIterEnv = searchEnv;
+                                        loopScope = searchEnv.Enclosing ?? environment;
+                                        Console.WriteLine($"[DEBUG CreateIterEnv] Found match! loopScope.Depth={loopScope.Depth}");
+                                    }
+                                    else
+                                    {
+                                        // No match found - this is a fresh loop iteration.
+                                        // Use current environment as the loop scope.
+                                        // This happens for for-await-of creating its own iteration envs,
+                                        // or when an outer loop just created a new iteration env.
+                                        loopScope = environment;
+                                        Console.WriteLine($"[DEBUG CreateIterEnv] No match, using env as loopScope. loopScope.Depth={loopScope.Depth}");
+                                    }
                                 }
                                 else
                                 {
-                                    // Current env is the loop scope itself (first iteration)
+                                    // Case 3: First iteration, current env is the loop scope
                                     loopScope = environment;
+                                    Console.WriteLine($"[DEBUG CreateIterEnv] Case 3: First iteration, loopScope.Depth={loopScope.Depth}");
                                 }
 
                                 var newIterationEnv = new JsEnvironment(
@@ -928,14 +972,22 @@ public static partial class TypedAstEvaluator
 
                                 // Copy per-iteration bindings from PREVIOUS iteration environment (if any).
                                 // This ensures each iteration's closures capture separate values.
-                                // On first iteration, environment is the loop scope which has no per-iteration
-                                // bindings, so the copy loop is effectively a no-op.
+                                // Use previousIterEnv if found, otherwise environment (which may be loop scope
+                                // on first iteration where bindings won't exist).
+                                var copyFromEnv = previousIterEnv ?? environment;
                                 foreach (var binding in createEnvInstruction.PerIterationBindings)
                                 {
-                                    if (environment.TryGetJsValue(binding, out var value))
+                                    if (copyFromEnv.TryGetJsValue(binding, out var value))
                                     {
                                         newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
                                     }
+                                }
+
+                                // Update the saved iteration environment on the driver state
+                                // This ensures after async resume we can find the correct loop scope
+                                if (_currentDriverState != null)
+                                {
+                                    _currentDriverState.CurrentIterationEnvironment = newIterationEnv;
                                 }
 
                                 // Update environment reference to use the new iteration environment

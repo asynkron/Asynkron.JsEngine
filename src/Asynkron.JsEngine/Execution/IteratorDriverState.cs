@@ -25,4 +25,11 @@ internal sealed class IteratorDriverState
     /// Pre-resolved JsVariable for fast value access (avoids dictionary lookups per iteration).
     /// </summary>
     public JsVariable ValueVariable { get; set; }
+
+    /// <summary>
+    /// The current per-iteration environment for the enclosing loop(s).
+    /// This is updated by CreateIterationEnvironmentInstruction and used to find the
+    /// correct loop scope after async resume when the environment is reset to function scope.
+    /// </summary>
+    public JsEnvironment? CurrentIterationEnvironment { get; set; }
 }

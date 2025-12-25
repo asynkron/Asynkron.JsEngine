@@ -359,7 +359,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return Target.TryGetProperty(name, out _);
     }
 
-    internal object? GetPrototypeWithTrap()
+    internal IJsPropertyAccessor? GetPrototypeWithTrap()
     {
         if (TryGetTrap("getPrototypeOf", out var trap))
         {

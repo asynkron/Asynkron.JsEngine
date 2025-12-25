@@ -490,7 +490,7 @@ public sealed partial class StringPrototype
 
         var regex = ToRegExpValue(searchValue, string.Empty, false);
         var result = regex.Exec(value);
-        if (result is JsArray arr && arr.TryGetProperty("index", out var indexObj) &&
+        if (result is not null && result.TryGetProperty("index", out var indexObj) &&
             indexObj.TryGetDouble(out var d))
         {
             return new JsValue(d);

@@ -290,8 +290,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         var position = 0;
         while (resultArray.Length < limit)
         {
-            var execResult = splitter.Exec(input);
-            var matchObj = execResult as JsArray;
+            var matchObj = splitter.Exec(input);
             if (matchObj is null)
             {
                 break;

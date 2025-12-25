@@ -1195,6 +1195,73 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// Determines whether a binding target (destructuring pattern) contains inner function expressions.
+    /// Used to detect if destructuring defaults create closures that capture the iteration environment.
+    /// If inner functions exist, the iteration environment cannot be reused/pooled.
+    /// </summary>
+    internal static bool ContainsInnerFunctionExpression(BindingTarget target)
+    {
+        var work = new Stack<BindingTarget>();
+        work.Push(target);
+
+        while (work.Count > 0)
+        {
+            var binding = work.Pop();
+            switch (binding)
+            {
+                case IdentifierBinding:
+                    // Simple identifier, no expressions
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        // Check default value expression for inner functions
+                        if (element.DefaultValue is not null &&
+                            ContainsInnerFunctionExpression(element.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        // Recursively check nested binding target
+                        if (element.Target is not null)
+                        {
+                            work.Push(element.Target);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        work.Push(arrayBinding.RestElement);
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        // Check default value expression for inner functions
+                        if (property.DefaultValue is not null &&
+                            ContainsInnerFunctionExpression(property.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        // Recursively check nested binding target
+                        work.Push(property.Target);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        work.Push(objectBinding.RestElement);
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Checks if a function body contains any CallExpression where the callee is an identifier
     /// that is not one of the function's parameters. This detects recursive calls and calls
     /// to closure-captured functions which cannot use environment reuse optimization.

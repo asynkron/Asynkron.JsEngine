@@ -29,20 +29,20 @@ internal interface IRentable
 /// </example>
 internal readonly struct PooledObject<T> : IDisposable where T : class
 {
-    public readonly T Item;
+    private readonly T _item;
     private readonly ObjectPool<T> _pool;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal PooledObject(T item, ObjectPool<T> pool)
     {
-        Item = item;
+        _item = item;
         _pool = pool;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        _pool.Return(Item);
+        _pool.Return(_item);
     }
 }
 
@@ -57,16 +57,6 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
     private static readonly bool IsRentable = typeof(IRentable).IsAssignableFrom(typeof(T));
 
     private readonly T?[] _items = new T?[size];
-
-    /// <summary>
-    /// Rents an object from the pool, or creates a new one if the pool is empty.
-    /// Returns a disposable handle that auto-returns the object on dispose.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public PooledObject<T> RentOrCreate()
-    {
-        return new PooledObject<T>(Rent(), this);
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public T Rent()

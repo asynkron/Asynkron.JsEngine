@@ -1537,6 +1537,14 @@ public static partial class TypedAstEvaluator
                                                    JsOps.ToBoolean(doneValue);
                                         if (done)
                                         {
+                                            // When breaking out of iterator, restore environment to enclosing scope.
+                                            // This is critical for nested loops: after async resume, environment was
+                                            // reset to function scope, and we need to restore it to the loop scope
+                                            // so that variable lookups (like loop counter increments) work correctly.
+                                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv)
+                                            {
+                                                environment = enclosingEnv;
+                                            }
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1550,6 +1558,11 @@ public static partial class TypedAstEvaluator
                                     {
                                         if (!enumerator.MoveNext())
                                         {
+                                            // Restore environment to enclosing scope when iterator exhausted
+                                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv2)
+                                            {
+                                                environment = enclosingEnv2;
+                                            }
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1558,6 +1571,11 @@ public static partial class TypedAstEvaluator
                                     }
                                     else
                                     {
+                                        // Restore environment to enclosing scope when no iterator
+                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv3)
+                                        {
+                                            environment = enclosingEnv3;
+                                        }
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1683,6 +1701,11 @@ public static partial class TypedAstEvaluator
                                                 throw new ThrowSignal(thrownAwait);
                                             }
 
+                                            // Restore environment to enclosing scope when breaking
+                                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv4)
+                                            {
+                                                environment = enclosingEnv4;
+                                            }
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1708,6 +1731,11 @@ public static partial class TypedAstEvaluator
                                                     JsOps.ToBoolean(awaitDoneValue);
                                     if (doneAwait)
                                     {
+                                        // Restore environment to enclosing scope when async iterator exhausted
+                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv5)
+                                        {
+                                            environment = enclosingEnv5;
+                                        }
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1749,6 +1777,11 @@ public static partial class TypedAstEvaluator
                                             throw new ThrowSignal(thrownAwaitValue);
                                         }
 
+                                        // Restore environment to enclosing scope
+                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv6)
+                                        {
+                                            environment = enclosingEnv6;
+                                        }
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1759,6 +1792,11 @@ public static partial class TypedAstEvaluator
                                 {
                                     if (!awaitEnumerator.MoveNext())
                                     {
+                                        // Restore environment to enclosing scope when enumerator exhausted
+                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv7)
+                                        {
+                                            environment = enclosingEnv7;
+                                        }
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1799,6 +1837,11 @@ public static partial class TypedAstEvaluator
                                             throw new ThrowSignal(thrownAwaitEnum);
                                         }
 
+                                        // Restore environment to enclosing scope
+                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv8)
+                                        {
+                                            environment = enclosingEnv8;
+                                        }
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1807,6 +1850,11 @@ public static partial class TypedAstEvaluator
                                 }
                                 else
                                 {
+                                    // Restore environment to enclosing scope
+                                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv9)
+                                    {
+                                        environment = enclosingEnv9;
+                                    }
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }

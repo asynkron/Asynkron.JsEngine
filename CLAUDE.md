@@ -98,3 +98,60 @@ docs/                          # Detailed documentation
 ## Workflow
 
 The `continue.md` file at repo root contains rolling next steps. When completing a task, remove it from `continue.md` and update with new steps.
+
+## Git Worktree Workflow for Refactoring and Bugfixing
+
+All refactoring or bugfixing work MUST be performed using git worktrees for isolation. Follow this workflow:
+
+1. **Create git worktree for the feature/bug**
+   ```bash
+   git worktree add ../Asynkron.JsEngine-<short-name> -b feature/<feature-name>
+   # or for bugs:
+   git worktree add ../Asynkron.JsEngine-<short-name> -b fix/<bug-name>
+   ```
+
+2. **Make a plan** - Analyze the issue, identify affected files, and plan the implementation
+
+3. **Implement the fix/refactoring** - Make the necessary code changes
+
+4. **Run filtered tests** - Verify the specific fix works
+   ```bash
+   dotnet test --filter "FullyQualifiedName~RelevantTestName"
+   ```
+
+5. **Run full internal test suite**
+   ```bash
+   dotnet test tests/Asynkron.JsEngine.Tests
+   ```
+
+6. **Run CPU and memory profiler** - If a relevant profiling script exists for the feature
+   ```bash
+   ./tools/profile <script-name> --cpu
+   ./tools/profile <script-name> --memory
+   ```
+
+7. **Any problems?** - If tests fail or performance regresses, return to step 2 and iterate
+
+8. **Commit and push**
+   ```bash
+   git add -A && git commit -m "Description of changes"
+   git push -u origin <branch-name>
+   ```
+
+9. **Create GitHub PR using gh CLI**
+   ```bash
+   gh pr create --title "PR Title" --body "Description"
+   ```
+
+10. **Merge the PR using gh CLI**
+    ```bash
+    gh pr merge <pr-number> --squash
+    ```
+
+11. **Sync main and delete the worktree**
+    ```bash
+    # In main repo:
+    git fetch origin && git reset --hard origin/main
+    git worktree remove ../Asynkron.JsEngine-<short-name>
+    git branch -D <branch-name>
+    ```

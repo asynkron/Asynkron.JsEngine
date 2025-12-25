@@ -50,7 +50,8 @@ public static partial class TypedAstEvaluator
                 : default;
 
             // OPTIMIZATION: For let/const bindings when no closures exist in loop body,
-            // we can reuse the same iteration environment for all iterations.
+            // we can reuse the same iteration environment for all iterations AND across
+            // multiple executions of this for-of loop (cached on the IteratorDriverPlan).
             // This allows JsVariable caching similar to 'var' bindings.
             JsEnvironment? reusableIterationEnvironment = null;
             var cachedLetConstVariable = default(JsVariable);
@@ -60,15 +61,29 @@ public static partial class TypedAstEvaluator
             var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
             if (canReuseLetConstEnv)
             {
-                // Create ONE iteration environment before the loop and cache JsVariable
-                // Pool it since we can reuse (no closures in body/target)
-                var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source,
-                    "for-each-iteration-reused");
-                env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
-                reusableIterationEnvironment = env;
+                // Get or reset the cached iteration environment from the plan.
+                // This environment is cached at the AST level and reused across multiple
+                // executions of this for-of loop, avoiding allocation on each entry.
+                reusableIterationEnvironment = plan.GetOrResetIterationEnvironment(loopEnvironment, plan.Body.Source);
                 cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
                 context.RealmState.Logger?.LogDebug(
-                    "ForOf optimization: Reusing single iteration environment (CanReuseIterationEnvironment=true)");
+                    "ForOf optimization: Using cached iteration environment (CanReuseIterationEnvironment=true)");
+            }
+            else
+            {
+                // Log why we're NOT using the cached environment optimization
+                context.RealmState.Logger?.LogDebug(
+                    "ForOf optimization NOT used: canUseSlotFastPath={CanUseSlotFastPath}, " +
+                    "DeclarationKind={DeclarationKind}, CanReuseIterationEnvironment={CanReuse}, " +
+                    "TargetType={TargetType}, PerIterationSlotIndices.IsDefault={IsDefault}, " +
+                    "PerIterationSlotIndices.Length={Length}, hasSlotsConfigured={HasSlots}",
+                    canUseSlotFastPath,
+                    plan.DeclarationKind,
+                    plan.CanReuseIterationEnvironment,
+                    plan.Target?.GetType().Name ?? "null",
+                    plan.PerIterationSlotIndices.IsDefaultOrEmpty,
+                    plan.PerIterationSlotIndices.IsDefaultOrEmpty ? 0 : plan.PerIterationSlotIndices.Length,
+                    hasSlotsConfigured);
             }
 
             // FAST PATH: Try tight loop for simple accumulator patterns like: for (const n of arr) { sum += n; }
@@ -84,10 +99,7 @@ public static partial class TypedAstEvaluator
                 context.RealmState.Logger?.LogDebug(
                     "ForOf optimization: Fast accumulator path executed (TryExecuteFastForOfAccumulator=true)");
                 // Return pooled resources before early return
-                if (reusableIterationEnvironment is not null)
-                {
-                    JsEnvironmentPool.Return(reusableIterationEnvironment);
-                }
+                // Note: reusableIterationEnvironment is NOT returned to pool - it's cached on the plan
                 IteratorDriverStatePool.Return(state);
                 return lastValueJs;
             }
@@ -434,11 +446,8 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                // Return the reusable iteration environment to the pool if we created one
-                if (reusableIterationEnvironment is not null)
-                {
-                    JsEnvironmentPool.Return(reusableIterationEnvironment);
-                }
+                // Note: reusableIterationEnvironment is NOT returned to pool - it's cached on the plan
+                // for reuse across multiple executions of this for-of loop
                 IteratorDriverStatePool.Return(state);
             }
         }
@@ -654,16 +663,19 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// Creates a new iteration environment for per-iteration scope.
-        /// Used when closures exist and environment can't be reused/pooled.
+        /// Uses the pool to rent environments even when closures exist.
+        /// Note: These environments are NOT returned to the pool since closures may capture them.
         /// </summary>
         private static JsEnvironment CreateIterationEnvironment(
             JsEnvironment loopEnvironment,
             IteratorDriverPlan iteratorPlan,
             bool hasSlotsConfigured)
         {
-            // Don't pool since closures may capture this environment
-            var env = new JsEnvironment(loopEnvironment, creatingSource: iteratorPlan.Body.Source,
-                description: "for-each-iteration");
+            // Use pool to rent even though we won't return (closures may capture).
+            // This allows potential reuse if pool has available environments and is
+            // consistent with the pooling pattern used elsewhere.
+            var env = JsEnvironmentPool.Rent(loopEnvironment, false, false,
+                iteratorPlan.Body.Source, "for-each-iteration");
             if (hasSlotsConfigured)
             {
                 env.InitializeSlots(iteratorPlan.IterationSlotCount, iteratorPlan.IterationScopeId);

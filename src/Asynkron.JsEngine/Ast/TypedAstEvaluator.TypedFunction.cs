@@ -1032,37 +1032,20 @@ public static partial class TypedAstEvaluator
                     // Bind parameters
                     _function.BindFunctionParameters(arguments, parameterEnvironment, context);
 
-                    // Also store simple parameter values in slots for slot-based identifier resolution.
+                    // Copy parameter values from dictionary to slots for slot-based identifier resolution.
                     // Parameters are bound in parameterEnvironment via dictionary, but slot-based
                     // lookups use functionEnvironment._slots.
-                    // Only handle simple parameters (not rest, not destructuring, no default).
-                    // Complex parameters are handled via dictionary lookup fallback.
+                    // We iterate through the slot map and copy each binding's value to its slot.
                     if (functionEnvironment._slots is { } slots && _function.SlotMap is { } slotMap)
                     {
-                        var argIndex = 0;
-                        foreach (var param in _function.Parameters)
+                        foreach (var (name, slotIndex) in slotMap)
                         {
-                            if (param.IsRest || param.Pattern is not null)
+                            // Find the binding in parameterEnvironment and copy to slot
+                            if (parameterEnvironment.TryFindBindingJsValue(name, allowUninitialized: true,
+                                    out _, out var value))
                             {
-                                break; // Rest and destructuring patterns don't map directly to slots
+                                slots[slotIndex] = value;
                             }
-
-                            if (param.Name is { } paramName && slotMap.TryGetValue(paramName, out var slotIndex))
-                            {
-                                var value = argIndex < arguments.Count ? arguments[argIndex] : JsValue.Undefined;
-                                // If there's a default and arg is undefined, the actual value was computed
-                                // during BindFunctionParameters - skip slot storage for these cases
-                                if (value.IsUndefined && param.DefaultValue is not null)
-                                {
-                                    // Default was evaluated, skip - dictionary lookup will handle it
-                                }
-                                else
-                                {
-                                    slots[slotIndex] = value;
-                                }
-                            }
-
-                            argIndex++;
                         }
                     }
 

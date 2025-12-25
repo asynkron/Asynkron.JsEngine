@@ -33,22 +33,6 @@ internal static class IntlOptionHelpers
         throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
     }
 
-    public static IJsPropertyAccessor? GetOptionsObject(object? optionsArg, RealmState realm, string typeName)
-    {
-        if (ReferenceEquals(optionsArg, Symbol.Undefined))
-        {
-            return null;
-        }
-
-        if (optionsArg is null || !StandardLibrary.TryGetObject(optionsArg, realm, out var accessor) ||
-            accessor is not IJsPropertyAccessor propertyAccessor)
-        {
-            throw StandardLibrary.ThrowTypeError($"Intl.{typeName} options must be an object", realm: realm);
-        }
-
-        return propertyAccessor;
-    }
-
     public static string GetStringOption(
         IJsPropertyAccessor? options,
         string property,

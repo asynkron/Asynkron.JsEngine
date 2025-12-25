@@ -504,11 +504,6 @@ public static partial class StandardLibrary
         return true;
     }
 
-    internal static object? GetElementOrUndefined(IJsPropertyAccessor accessor, string propertyKey)
-    {
-        return accessor.TryGetProperty(propertyKey, out var value) ? value : Symbol.Undefined;
-    }
-
     /// <summary>
     /// Returns the element at the given property key as JsValue, avoiding boxing.
     /// </summary>

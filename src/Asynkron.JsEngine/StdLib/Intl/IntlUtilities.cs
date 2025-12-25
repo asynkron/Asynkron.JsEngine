@@ -245,14 +245,14 @@ internal static class IntlUtilities
         return supported;
     }
 
-    public static string NormalizeTimeZone(object? option, RealmState realm)
+    public static string NormalizeTimeZone(JsValue option, RealmState realm)
     {
-        if (option is null || ReferenceEquals(option, Symbol.Undefined))
+        if (option.IsNullOrUndefined)
         {
             return realm.Options.TimeZone.Id;
         }
 
-        if (option is not string tzString)
+        if (!option.TryGetString(out var tzString))
         {
             throw StandardLibrary.ThrowTypeError("Intl.DateTimeFormat timeZone option must be a string", realm: realm);
         }

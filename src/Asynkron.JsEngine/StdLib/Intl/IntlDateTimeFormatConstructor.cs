@@ -95,9 +95,9 @@ public sealed partial class IntlDateTimeFormatConstructor(IJsObjectLike prototyp
         throw ThrowTypeError("Intl.DateTimeFormat options must be an object", realm: Realm);
     }
 
-    private static object? GetOption(JsObject options, string propertyName)
+    private static JsValue GetOption(JsObject options, string propertyName)
     {
-        return options.TryGetProperty(propertyName, out var value) ? value : Symbol.Undefined;
+        return options.TryGetProperty(propertyName, out var value) ? value : JsValue.Undefined;
     }
 
     private string ReadStringOption(JsObject? options, string propertyName, IReadOnlyList<string> allowed,

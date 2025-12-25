@@ -22,41 +22,108 @@ finalSum;
 // Actual: 0
 ```
 
-## Key Findings
+## Root Cause Analysis
 
-### Exact Threshold
-- 998 outer iterations: works
-- 999+ outer iterations: fails silently (no error, just stops)
+### The Environment Chain Problem
 
-### Comparison with Simple Await
-- `for (let i = 0; i < 2000; i++) { await Promise.resolve(); }` - **WORKS** (2000 iterations)
-- `for (let i = 0; i < 2000; i++) { for await (const n of [1]) { ... } }` - **FAILS** at 998
+Each loop iteration was creating a **child environment** of the previous iteration instead of a **sibling**:
 
-The issue is specific to `for await...of`, not general async/await.
+```
+Expected (siblings - all share same parent):
+function scope → loop scope → iteration 0
+                            → iteration 1
+                            → iteration 2
+                            ...
 
-### Behavior at Failure
-```javascript
-var lastI = -1;
-for (let i = 0; i < 1001; i++) {
-    lastI = i;
-    for await (const n of arr) { ... }
-}
-// lastI = 998, meaning iteration 999 (i=999) never executes its inner loop
+Actual (chain - each is child of previous):
+function scope → loop scope → iter 0 → iter 1 → iter 2 → ... → iter 999
 ```
 
-The loop runs 999 times successfully (i=0 to i=998), but on the 1000th iteration (i=999), the for-await-of inner loop doesn't execute and the async function silently stops.
+After 999 iterations, the environment chain depth hit `MaxCallDepth = 1000` and silently stopped.
 
-### No Errors Logged
-No exceptions are thrown. No errors in the logger. The async function just stops progressing.
+### Why This Happened
 
-## Hypothesis
+1. **`CreateIterationEnvironmentInstruction`** creates per-iteration environments for `let`/`const` bindings
+2. After each iteration, `environment` variable still points to that iteration's environment
+3. On next iteration, when creating the new environment, the code was using `environment` as parent
+4. Should have used the **loop scope** (the parent of all iteration environments)
 
-The threshold of 999 iterations correlates with the environment chain depth limit (1000) or the `MaxCallDepth = 1000` setting. The environment chain walking fix may be creating a very deep chain that hits this limit.
+### The Fix: ScopeId Matching
 
-## Related Test
+Detect if we're in a subsequent iteration by checking if current environment was created by a previous `CreateIterationEnvironmentInstruction`:
 
-- `ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete2` in `MicrotaskDrainingTests.cs`
+```csharp
+if (environment.ScopeId == createEnvInstruction.ScopeId)
+{
+    // Current env is a per-iteration env from previous iteration
+    // Go up to the loop scope
+    loopScope = environment.Enclosing;
+}
+else
+{
+    // First iteration - current env IS the loop scope
+    loopScope = environment;
+}
+```
 
-## Status
+### Missing Piece: Regular For Loops
 
-**INVESTIGATING** - Issue is specific to for-await-of with 999+ outer iterations
+`TryBuildLoopPlan` in `SyncGeneratorIrBuilder.cs` was NOT emitting `CreateIterationEnvironmentInstruction` for regular `for` loops with `let` bindings. Only `for-of` and `for-await-of` loops had this.
+
+Added emission for regular for loops:
+```csharp
+// For lexical declarations (let/const), emit CreateIterationEnvironmentInstruction
+if (!plan.PerIterationBindings.IsDefaultOrEmpty)
+{
+    var createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+        bodyEntry,
+        plan.PerIterationBindings,
+        plan.IterationScopeId,
+        plan.IterationSlotCount,
+        slotMapBuilder.ToImmutable()));
+    iterationBodyEntry = createEnvIndex;
+}
+```
+
+## Remaining Issue: Triple Nested Loops
+
+The `NestedForAwaitOf_TripleNested` test still fails:
+
+```javascript
+for (let i = 0; i < 2; i++) {
+    for (let j = 0; j < 2; j++) {
+        for await (const n of arr) {
+            sum += n;
+        }
+    }
+}
+// Expected: 12, Actual: 3
+```
+
+### Why Triple Nested Fails
+
+After async resume (when `for-await-of` yields and resumes):
+1. The `environment` variable gets reset to **function scope** (not the per-iteration env)
+2. ScopeId matching fails because `environment.ScopeId` doesn't match the instruction's ScopeId
+3. We incorrectly treat it as "first iteration" and create a child of function scope
+
+### Potential Fix
+
+For `for-await-of` loops, `_currentDriverState.IteratorVariable.Environment` holds the correct loop scope. Need to:
+1. Use `_currentDriverState` for for-await-of loops after async resume
+2. Fall back to scopeId matching for regular for loops
+
+The challenge is distinguishing when `_currentDriverState` is relevant vs stale from a nested loop.
+
+## Test Results
+
+| Test | Status |
+|------|--------|
+| 5000 iteration test | PASSING |
+| Double nested | PASSING |
+| Triple nested | FAILING (expected 12, got 3) |
+
+## Files Modified
+
+- `src/Asynkron.JsEngine/Execution/SyncGeneratorIrBuilder.cs` - Added `CreateIterationEnvironmentInstruction` emission
+- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.TypedGeneratorInstance.cs` - ScopeId matching logic

@@ -576,8 +576,6 @@ public static partial class TypedAstEvaluator
                     {
                         _currentInstructionIndex = _programCounter;
                         var instruction = _plan.Instructions[_programCounter];
-                        if (environment.Depth > 2)
-                            Console.WriteLine($"[DEBUG] PC={_programCounter} Instr={instruction.GetType().Name.Replace("Instruction", "")} depth={environment.Depth}");
                         switch (instruction)
                         {
                             case StatementInstruction statementInstruction:
@@ -880,7 +878,7 @@ public static partial class TypedAstEvaluator
 
                             case CreateIterationEnvironmentInstruction createEnvInstruction:
                                 // Create a fresh environment for this iteration to support per-iteration
-                                // bindings for let/const in for-of loops. This ensures closures capture
+                                // bindings for let/const in loops. This ensures closures capture
                                 // separate values per iteration.
                                 //
                                 // IMPORTANT: The parent should always be the LOOP scope, not the previous
@@ -889,10 +887,37 @@ public static partial class TypedAstEvaluator
                                 // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
                                 // 3. Scope chain doesn't grow unboundedly with iterations
                                 //
-                                // Use the cached driver state's IteratorVariable environment as the loop scope.
-                                // It was captured in IteratorInitInstruction when we were in the loop scope.
-                                var loopScope = _currentDriverState?.IteratorVariable.Environment ?? environment;
-                                Console.WriteLine($"[DEBUG] CreateIterEnv: env.Depth={environment.Depth}, loopScope.Depth={loopScope?.Depth ?? -1}, hasIterVar={_currentDriverState?.IteratorVariable.IsValid ?? false}");
+                                // For the FIRST iteration of a loop, the current environment IS the loop scope.
+                                // For SUBSEQUENT iterations, the current environment is the previous iteration's
+                                // per-iteration environment. In that case, the loop scope is the enclosing
+                                // environment of the current environment.
+                                //
+                                // We determine which case we're in by checking if the current environment
+                                // was created by a previous CreateIterationEnvironmentInstruction (it will
+                                // have the same ScopeId as this instruction).
+                                // Determine the correct loop scope (parent for new iteration environment).
+                                // There are two cases to handle:
+                                //
+                                // 1. For the FIRST iteration of a loop, the current environment IS the loop scope.
+                                // 2. For SUBSEQUENT iterations, the current environment is the previous iteration's
+                                //    per-iteration environment. In that case, the loop scope is the enclosing
+                                //    environment of the current environment.
+                                //
+                                // We determine which case we're in by checking if the current environment
+                                // was created by a previous CreateIterationEnvironmentInstruction (it will
+                                // have the same ScopeId as this instruction).
+                                JsEnvironment loopScope;
+                                if (createEnvInstruction.ScopeId >= 0 &&
+                                    environment.ScopeId == createEnvInstruction.ScopeId)
+                                {
+                                    // Current env is a per-iteration env from previous iteration - use its parent
+                                    loopScope = environment.Enclosing ?? environment;
+                                }
+                                else
+                                {
+                                    // Current env is the loop scope itself (first iteration)
+                                    loopScope = environment;
+                                }
 
                                 var newIterationEnv = new JsEnvironment(
                                     loopScope,
@@ -1389,9 +1414,6 @@ public static partial class TypedAstEvaluator
                                     }
                                     iteratorEnv ??= environment; // Fallback to current environment
                                 }
-                                if (walkCount > 100)
-                                    Console.WriteLine($"[DEBUG] Environment walk count: {walkCount}");
-                                Console.WriteLine($"[DEBUG] IteratorInit: env.Depth={environment.Depth}, parent.Depth={environment.Enclosing?.Depth ?? -1}, iterEnv.Depth={iteratorEnv.Depth}");
 
                                 // Store JsVariable directly on state object for O(1) access
                                 // This avoids dictionary lookups on every iteration

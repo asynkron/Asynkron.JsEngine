@@ -607,7 +607,37 @@ internal sealed class SyncGeneratorIrBuilder
 
         _loopScopes.Pop();
 
-        var branchIndex = Append(new BranchInstruction(plan.Condition, bodyEntry, nextIndex));
+        // For lexical declarations (let/const), emit CreateIterationEnvironmentInstruction
+        // to create fresh per-iteration bindings. This ensures closures capture separate values.
+        // This also ensures the environment is reset to the loop scope at the start of each iteration,
+        // which is critical when the loop body contains async code (for-await-of) that creates
+        // its own nested iteration environments.
+        var iterationBodyEntry = bodyEntry;
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            // Build slot map from per-iteration bindings and slot indices
+            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+            var bindings = plan.PerIterationBindings;
+            var slotIndices = plan.PerIterationSlotIndices;
+            var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
+            for (var i = 0; i < count; i++)
+            {
+                if (slotIndices[i] >= 0)
+                {
+                    slotMapBuilder[bindings[i]] = slotIndices[i];
+                }
+            }
+
+            var createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+                bodyEntry,
+                plan.PerIterationBindings,
+                plan.IterationScopeId,
+                plan.IterationSlotCount,
+                slotMapBuilder.ToImmutable()));
+            iterationBodyEntry = createEnvIndex;
+        }
+
+        var branchIndex = Append(new BranchInstruction(plan.Condition, iterationBodyEntry, nextIndex));
 
         var conditionEntry = branchIndex;
         if (!plan.ConditionPrologue.IsDefaultOrEmpty)
@@ -622,7 +652,7 @@ internal sealed class SyncGeneratorIrBuilder
 
         _instructions[conditionJumpIndex] = new JumpInstruction(conditionEntry);
 
-        var loopEntry = plan.ConditionAfterBody ? bodyEntry : conditionJumpIndex;
+        var loopEntry = plan.ConditionAfterBody ? iterationBodyEntry : conditionJumpIndex;
 
         if (!plan.LeadingStatements.IsDefaultOrEmpty)
         {

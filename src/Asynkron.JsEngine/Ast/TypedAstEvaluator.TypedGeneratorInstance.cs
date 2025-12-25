@@ -641,7 +641,7 @@ public static partial class TypedAstEvaluator
                             case ThrowInstruction throwInstruction:
                                 // Evaluate the throw expression and throw it
                                 var throwValue = throwInstruction.Expression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingThrowResult))
+                                if (TryHandlePendingAwait(context, out var pendingThrowResult, environment))
                                 {
                                     return pendingThrowResult;
                                 }
@@ -702,7 +702,7 @@ public static partial class TypedAstEvaluator
                             case EvaluateAndDiscardInstruction evaluateInstruction:
                                 // Evaluate the expression and discard the result
                                 _ = evaluateInstruction.Expression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingEvalResult))
+                                if (TryHandlePendingAwait(context, out var pendingEvalResult, environment))
                                 {
                                     return pendingEvalResult;
                                 }
@@ -770,7 +770,7 @@ public static partial class TypedAstEvaluator
                                 var classValue = classDeclInstruction.Declaration.Definition.CreateClassValue(
                                     environment, context, classDeclInstruction.Declaration.Name);
 
-                                if (TryHandlePendingAwait(context, out var pendingClassResult))
+                                if (TryHandlePendingAwait(context, out var pendingClassResult, environment))
                                 {
                                     return pendingClassResult;
                                 }
@@ -801,7 +801,7 @@ public static partial class TypedAstEvaluator
                                     ? JsValue.Undefined
                                     : varDeclInstruction.Initializer.EvaluateExpression(environment, context);
 
-                                if (TryHandlePendingAwait(context, out var pendingVarResult))
+                                if (TryHandlePendingAwait(context, out var pendingVarResult, environment))
                                 {
                                     return pendingVarResult;
                                 }
@@ -994,7 +994,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
                                         context);
-                                    if (TryHandlePendingAwait(context, out var pendingYieldResult))
+                                    if (TryHandlePendingAwait(context, out var pendingYieldResult, environment))
                                     {
                                         return pendingYieldResult;
                                     }
@@ -1083,7 +1083,7 @@ public static partial class TypedAstEvaluator
                                     var yieldStarIterableValue =
                                         yieldStarInstruction.IterableExpression
                                             .EvaluateExpression(environment, context);
-                                    if (TryHandlePendingAwait(context, out var pendingYieldStarResult))
+                                    if (TryHandlePendingAwait(context, out var pendingYieldStarResult, environment))
                                     {
                                         return pendingYieldStarResult;
                                     }
@@ -1399,7 +1399,7 @@ public static partial class TypedAstEvaluator
                             case IteratorInitInstruction iteratorInitInstruction:
                                 var iterableValue =
                                     iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingIteratorResult))
+                                if (TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
                                 {
                                     return pendingIteratorResult;
                                 }
@@ -1896,7 +1896,7 @@ public static partial class TypedAstEvaluator
 
                             case BranchInstruction branchInstruction:
                                 var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingBranchResult))
+                                if (TryHandlePendingAwait(context, out var pendingBranchResult, environment))
                                 {
                                     return pendingBranchResult;
                                 }
@@ -1942,7 +1942,7 @@ public static partial class TypedAstEvaluator
                                 var returnValue = returnInstruction.ReturnExpression is null
                                     ? JsValue.Undefined
                                     : returnInstruction.ReturnExpression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingReturnResult))
+                                if (TryHandlePendingAwait(context, out var pendingReturnResult, environment))
                                 {
                                     return pendingReturnResult;
                                 }
@@ -1992,7 +1992,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var objValueJs =
                                     enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingWithResult))
+                                if (TryHandlePendingAwait(context, out var pendingWithResult, environment))
                                 {
                                     return pendingWithResult;
                                 }

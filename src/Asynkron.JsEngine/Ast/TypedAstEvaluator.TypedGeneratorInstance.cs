@@ -580,7 +580,7 @@ public static partial class TypedAstEvaluator
                         {
                             case StatementInstruction statementInstruction:
                                 _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingResult))
+                                if (TryHandlePendingAwait(context, out var pendingResult, environment))
                                 {
                                     return pendingResult;
                                 }
@@ -2309,7 +2309,7 @@ public static partial class TypedAstEvaluator
             return result;
         }
 
-        private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result)
+        private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result, JsEnvironment? currentEnvironment = null)
         {
             if (!context.IsPendingAwait)
             {
@@ -2319,6 +2319,15 @@ public static partial class TypedAstEvaluator
 
             context.Clear();
             _state = GeneratorState.Suspended;
+
+            // Save the current environment so that when the async function resumes after await,
+            // it uses the correct per-iteration environment (for loops with let bindings).
+            // This is critical for `continue` to work correctly in async loops.
+            if (currentEnvironment != null)
+            {
+                _executionEnvironment = currentEnvironment;
+            }
+
             // In async-step mode, surface the pending promise directly to the
             // caller without allocating an iterator result object.
             result = _asyncStepMode

@@ -380,14 +380,6 @@ public static partial class StandardLibrary
     ///     Converts a JavaScript value to its string representation, handling functions appropriately.
     ///     Exposed internally so prototype helpers can reuse the same semantics.
     /// </summary>
-    internal static string JsValueToString(object? value, RealmState? realm = null)
-    {
-        return value.ToJsString(null, realm);
-    }
-
-    /// <summary>
-    /// JsValue overload for JsValueToString. Avoids boxing.
-    /// </summary>
     internal static string JsValueToString(JsValue value, RealmState? realm = null)
     {
         return value.ToJsString(null, realm);

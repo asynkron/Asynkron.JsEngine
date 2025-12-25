@@ -80,9 +80,6 @@ internal static class IntlUtilities
         Array.Sort(NumberingSystemValues, StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// JsValue overload that avoids boxing.
-    /// </summary>
     public static IReadOnlyList<string> CanonicalizeLocaleList(JsValue locales, RealmState realm)
     {
         if (locales.Kind == JsValueKind.Undefined)
@@ -95,32 +92,9 @@ internal static class IntlUtilities
             throw StandardLibrary.ThrowTypeError("Intl locale list cannot be null", realm: realm);
         }
 
-        if (locales is { Kind: JsValueKind.String, ObjectValue: string single })
-        {
-            var seen = new List<string>();
-            AppendCanonicalLocale(seen, single, realm);
-            return seen;
-        }
-
-        // Fall back to object version for other types
-        return CanonicalizeLocaleList(locales.ObjectValue, realm);
-    }
-
-    public static IReadOnlyList<string> CanonicalizeLocaleList(object? locales, RealmState realm)
-    {
-        if (locales is null)
-        {
-            throw StandardLibrary.ThrowTypeError("Intl locale list cannot be null", realm: realm);
-        }
-
-        if (ReferenceEquals(locales, Symbol.Undefined))
-        {
-            return [];
-        }
-
         var seen = new List<string>();
 
-        if (locales is string single)
+        if (locales is { Kind: JsValueKind.String, ObjectValue: string single })
         {
             AppendCanonicalLocale(seen, single, realm);
             return seen;

@@ -20,7 +20,7 @@ public sealed class RealmState
     public RealmState()
     {
         _contextPool = new ObjectPool<EvaluationContext>(16, () => new EvaluationContext(this));
-        _environmentPool = new ObjectPool<JsEnvironment>(32, static () => new JsEnvironment(null, false, false));
+        _environmentPool = new ObjectPool<JsEnvironment>(32, static () => new JsEnvironment());
     }
 
     public IJsEngineOptions Options { get; internal init; } = JsEngineOptions.Default;
@@ -107,8 +107,6 @@ public sealed class RealmState
     public EvaluationContext RentContext(
         ScopeKind kind = ScopeKind.Function,
         ScopeMode mode = ScopeMode.Strict,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
         bool pushScope = true)
     {
         var context = _contextPool.Rent();
@@ -150,18 +148,4 @@ public sealed class RealmState
     /// Returns a JsEnvironment to the pool for reuse.
     /// </summary>
     public void ReturnEnvironment(JsEnvironment env) => _environmentPool.Return(env);
-
-    public EvaluationContext CreateStrictContext(
-        ScopeKind kind = ScopeKind.Function,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
-        bool pushScope = true)
-    {
-        return CreateContext(
-            kind,
-            ScopeMode.Strict,
-            cancellationToken,
-            executionKind,
-            pushScope);
-    }
 }

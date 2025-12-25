@@ -113,7 +113,7 @@ public static class DateHelper
         return timeValue;
     }
 
-    internal static JsObject RequireDateObject(JsValue thisVal, RealmState realm)
+    private static JsObject RequireDateObject(JsValue thisVal, RealmState realm)
     {
         RequireDateValue(thisVal, realm, out var obj);
         return obj;

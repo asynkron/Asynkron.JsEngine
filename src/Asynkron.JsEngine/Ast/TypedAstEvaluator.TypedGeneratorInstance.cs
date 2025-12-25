@@ -940,7 +940,6 @@ public static partial class TypedAstEvaluator
                                     // Case 3: First iteration, current env is the loop scope
                                     loopScope = environment;
                                 }
-
                                 var newIterationEnv = new JsEnvironment(
                                     loopScope,
                                     false,
@@ -1545,6 +1544,9 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv;
                                             }
+                                            // Clear driver state to prevent outer loop's CreateIterationEnv from
+                                            // incorrectly updating this driver's CurrentIterationEnvironment.
+                                            _currentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1563,6 +1565,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv2;
                                             }
+                                            _currentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1576,6 +1579,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv3;
                                         }
+                                        _currentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1706,6 +1710,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv4;
                                             }
+                                            _currentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1736,6 +1741,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv5;
                                         }
+                                        _currentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1782,6 +1788,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv6;
                                         }
+                                        _currentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1797,6 +1804,11 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv7;
                                         }
+
+                                        // Clear the driver state since this iterator loop is done.
+                                        // This prevents outer loop's CreateIterationEnv from incorrectly
+                                        // updating this driver's CurrentIterationEnvironment.
+                                        _currentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1842,6 +1854,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv8;
                                         }
+                                        _currentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1855,6 +1868,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         environment = enclosingEnv9;
                                     }
+                                    _currentDriverState = null;
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }

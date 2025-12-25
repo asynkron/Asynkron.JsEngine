@@ -34,14 +34,9 @@ public sealed class PropertyDescriptor
     /// </summary>
     public object? Value
     {
-#pragma warning disable CS0618 // Backward compatibility property returns object?
-        get => _jsValue.ToObject();
-#pragma warning restore CS0618
-        set
-        {
-            _jsValue = JsValue.FromObjectUnsafe(value);
-            HasValue = true;
-        }
+        get => JsValue.ToObject();
+
+        set => JsValue = JsValue.FromObjectUnsafe(value);
     }
 
     public bool Writable

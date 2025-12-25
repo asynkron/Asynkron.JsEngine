@@ -145,7 +145,7 @@ internal static class IntlUtilities
                 continue;
             }
 
-            var tag = ResolveLocaleEntry(elementJs.ObjectValue, realm);
+            var tag = ResolveLocaleEntry(elementJs, realm);
             AppendCanonicalLocale(seen, tag, realm);
         }
 
@@ -1153,39 +1153,28 @@ internal static class IntlUtilities
         return string.Join('-', output);
     }
 
-    private static string ResolveLocaleEntry(object? candidate, RealmState realm)
+    private static string ResolveLocaleEntry(JsValue candidate, RealmState realm)
     {
-        if (candidate is null || ReferenceEquals(candidate, Symbol.Undefined))
+        if (candidate.IsNullOrUndefined)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl locale list entries must be strings or Intl.Locale objects", realm: realm);
         }
 
-        if (candidate is bool
-            || candidate is double
-            || candidate is float
-            || candidate is decimal
-            || candidate is int
-            || candidate is uint
-            || candidate is long
-            || candidate is ulong
-            || candidate is short
-            || candidate is ushort
-            || candidate is byte
-            || candidate is sbyte
-            || candidate is JsBigInt)
+        // Reject primitive numeric types and BigInt
+        if (candidate.Kind is JsValueKind.Number or JsValueKind.Boolean or JsValueKind.BigInt)
         {
             throw StandardLibrary.ThrowTypeError(
                 "Intl locale list entries must be strings or Intl.Locale objects", realm: realm);
         }
 
-        if (candidate is JsObject jsObject &&
+        if (candidate.TryGetObject<JsObject>(out var jsObject) &&
             IntlLocalePrototype.TryBuildLocaleIdentifier(jsObject, out var localeIdentifier))
         {
             return localeIdentifier;
         }
 
-        return StandardLibrary.JsValueToString(candidate, realm);
+        return candidate.ToJsString();
     }
 
     private sealed class TimeZoneRegistry(

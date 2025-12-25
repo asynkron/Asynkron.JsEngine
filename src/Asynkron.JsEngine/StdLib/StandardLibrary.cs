@@ -386,6 +386,14 @@ public static partial class StandardLibrary
     }
 
     /// <summary>
+    /// JsValue overload for JsValueToString. Avoids boxing.
+    /// </summary>
+    internal static string JsValueToString(JsValue value, RealmState? realm = null)
+    {
+        return value.ToJsString(null, realm);
+    }
+
+    /// <summary>
     /// JsValue overload for TryFormatWithIntlNumberFormat. Avoids boxing/unboxing of JsValue arguments.
     /// Returns JsValue directly to avoid unnecessary boxing.
     /// </summary>

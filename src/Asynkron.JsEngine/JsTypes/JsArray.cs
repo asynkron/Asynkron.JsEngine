@@ -570,7 +570,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         SetElement(index, JsValue.FromObjectUnsafe(value));
     }
 
-    private void SetElement(uint index, JsValue value)
+    /// <summary>
+    /// Sets an element at the specified index.
+    /// </summary>
+    public void SetElement(uint index, JsValue value)
     {
         var extended = false;
         if (index < DenseIndexLimit)
@@ -637,6 +640,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return _properties.DeleteOwnProperty(name);
     }
 
+    /// <summary>
+    /// Pushes a JsValue onto the array.
+    /// </summary>
     public void Push(JsValue value)
     {
         _items.Add(value);
@@ -650,8 +656,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         // Handle case where value is already a boxed JsValue
         var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-        _items.Add(jsVal);
-        BumpLength((uint)_items.Count);
+        Push(jsVal);
     }
 
     public JsValue Pop()

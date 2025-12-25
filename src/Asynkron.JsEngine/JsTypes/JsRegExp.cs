@@ -87,14 +87,14 @@ public class JsRegExp
     public JsObject JsObject { get; }
     internal RealmState? RealmState { get; }
 
-    private void SetProperty(string name, object? value, object? receiver)
+    private void SetProperty(string name, JsValue value, JsValue receiver)
     {
-        JsObject.SetProperty(name, JsValue.FromObjectUnsafe(value), JsValue.FromObjectUnsafe(receiver ?? JsObject));
+        JsObject.SetProperty(name, value, receiver);
     }
 
-    public void SetProperty(string name, object? value)
+    public void SetProperty(string name, JsValue value)
     {
-        SetProperty(name, value, JsObject);
+        SetProperty(name, value, JsObject.AsJsValue);
     }
 
     /// <summary>
@@ -137,7 +137,7 @@ public class JsRegExp
     /// <summary>
     ///     Executes a search for a match and returns an array with match details.
     /// </summary>
-    public object? Exec(string input)
+    public JsArray? Exec(string input)
     {
         if (input == null)
         {

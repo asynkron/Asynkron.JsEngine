@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
@@ -15,10 +14,14 @@ namespace Asynkron.JsEngine.Runtime;
 /// </summary>
 public sealed class RealmState
 {
-    private const int MaxContextPoolSize = 16;
-    private const int MaxEnvironmentPoolSize = 32;
-    private readonly ConcurrentStack<EvaluationContext> _contextPool = new();
-    private readonly ConcurrentStack<JsEnvironment> _environmentPool = new();
+    private readonly ObjectPool<EvaluationContext> _contextPool;
+    private readonly ObjectPool<JsEnvironment> _environmentPool;
+
+    public RealmState()
+    {
+        _contextPool = new ObjectPool<EvaluationContext>(16, () => new EvaluationContext(this));
+        _environmentPool = new ObjectPool<JsEnvironment>(32, static () => new JsEnvironment(null, false, false));
+    }
 
     public IJsEngineOptions Options { get; internal init; } = JsEngineOptions.Default;
     internal JsEngine? Engine { get; init; }
@@ -108,14 +111,8 @@ public sealed class RealmState
         ExecutionKind executionKind = ExecutionKind.Script,
         bool pushScope = true)
     {
-        if (_contextPool.TryPop(out var context))
-        {
-            context.Reset();
-        }
-        else
-        {
-            context = new EvaluationContext(this, cancellationToken, executionKind);
-        }
+        var context = _contextPool.Rent();
+        context.Reset();
 
         if (pushScope)
         {
@@ -128,13 +125,7 @@ public sealed class RealmState
     /// <summary>
     /// Returns an EvaluationContext to the pool for reuse.
     /// </summary>
-    public void ReturnContext(EvaluationContext context)
-    {
-        if (_contextPool.Count < MaxContextPoolSize)
-        {
-            _contextPool.Push(context);
-        }
-    }
+    public void ReturnContext(EvaluationContext context) => _contextPool.Return(context);
 
     /// <summary>
     /// Rents a JsEnvironment from the pool or creates a new one.
@@ -149,27 +140,16 @@ public sealed class RealmState
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
-        if (_environmentPool.TryPop(out var env))
-        {
-            env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
-                isBodyEnvironment);
-            return env;
-        }
-
-        return new JsEnvironment(enclosing, isFunctionScope, isStrict, creatingSource, description,
-            isParameterEnvironment: isParameterEnvironment, isBodyEnvironment: isBodyEnvironment);
+        var env = _environmentPool.Rent();
+        env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
+            isBodyEnvironment);
+        return env;
     }
 
     /// <summary>
     /// Returns a JsEnvironment to the pool for reuse.
     /// </summary>
-    public void ReturnEnvironment(JsEnvironment env)
-    {
-        if (_environmentPool.Count < MaxEnvironmentPoolSize)
-        {
-            _environmentPool.Push(env);
-        }
-    }
+    public void ReturnEnvironment(JsEnvironment env) => _environmentPool.Return(env);
 
     public EvaluationContext CreateStrictContext(
         ScopeKind kind = ScopeKind.Function,

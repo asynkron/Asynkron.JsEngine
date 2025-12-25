@@ -18,7 +18,7 @@ namespace Asynkron.JsEngine;
 public sealed class EvaluationContext(
     RealmState realmState,
     CancellationToken cancellationToken = default,
-    ExecutionKind executionKind = ExecutionKind.Script)
+    ExecutionKind executionKind = ExecutionKind.Script) : IRentable
 {
     private readonly Stack<Symbol> _functionNameHints = new();
 
@@ -485,6 +485,11 @@ public sealed class EvaluationContext(
         _returnValue = state.ReturnValue;
         CurrentSignal = state.Signal;
     }
+
+    /// <summary>
+    ///     Resets the context for reuse. Clears all stacks and signals.
+    /// </summary>
+    void IRentable.Reset() => Reset();
 
     /// <summary>
     ///     Resets the context for reuse. Clears all stacks and signals.

@@ -517,7 +517,14 @@ public static partial class TypedAstEvaluator
             {
                 // Slot-based fast path (function-scoped code)
                 ref var accumRef = ref accumEnv.GetSlotRef(assignExpr.SlotIndex);
-                var accum = accumRef.IsNumber ? accumRef.NumberValue : 0.0;
+
+                // Only use fast path for numeric accumulators
+                if (!accumRef.IsNumber)
+                {
+                    return false;
+                }
+
+                var accum = accumRef.NumberValue;
 
                 while (enumerator.MoveNext())
                 {
@@ -542,7 +549,14 @@ public static partial class TypedAstEvaluator
                 // Dictionary-based fallback (top-level code)
                 // Read initial value
                 var initialValue = accumEnv.GetBindingValueDirect(accumName);
-                var accum = initialValue.IsNumber ? initialValue.NumberValue : 0.0;
+
+                // Only use fast path for numeric accumulators
+                if (!initialValue.IsNumber)
+                {
+                    return false;
+                }
+
+                var accum = initialValue.NumberValue;
 
                 while (enumerator.MoveNext())
                 {

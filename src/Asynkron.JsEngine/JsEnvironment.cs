@@ -217,11 +217,13 @@ public sealed class JsEnvironment : IRentable
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
         Depth = (enclosing?.Depth ?? -1) + 1;
-        // Reset slot-based state
+        // Reset slot-based state - return slots array to pool
+        JsValueArrayPool.Return(_slots);
         _slots = null;
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
+        _slotMap = EmptySlotMap;
     }
 
     /// <summary>
@@ -2922,14 +2924,16 @@ public sealed class JsEnvironment : IRentable
             return;
         }
 
-        // Reuse existing array if it's big enough, otherwise allocate
+        // Reuse existing array if it's big enough, otherwise rent from pool
         if (_slots is null || _slots.Length < slotCount)
         {
-            _slots = new JsValue[slotCount];
+            // Return old array to pool before getting new one
+            JsValueArrayPool.Return(_slots);
+            _slots = JsValueArrayPool.Rent(slotCount);
         }
 
-        // Initialize all slots to undefined
-        Array.Fill(_slots, JsValue.Undefined);
+        // Initialize all slots to undefined (only up to slotCount, not full array)
+        Array.Fill(_slots, JsValue.Undefined, 0, slotCount);
     }
 
     /// <summary>
@@ -2947,14 +2951,16 @@ public sealed class JsEnvironment : IRentable
             return;
         }
 
-        // Reuse existing array if it's big enough, otherwise allocate
+        // Reuse existing array if it's big enough, otherwise rent from pool
         if (_slots is null || _slots.Length < slotCount)
         {
-            _slots = new JsValue[slotCount];
+            // Return old array to pool before getting new one
+            JsValueArrayPool.Return(_slots);
+            _slots = JsValueArrayPool.Rent(slotCount);
         }
 
-        // Initialize all slots to undefined
-        Array.Fill(_slots, JsValue.Undefined);
+        // Initialize all slots to undefined (only up to slotCount, not full array)
+        Array.Fill(_slots, JsValue.Undefined, 0, slotCount);
     }
 
     /// <summary>
@@ -2976,14 +2982,16 @@ public sealed class JsEnvironment : IRentable
             return;
         }
 
-        // Reuse existing array if it's big enough, otherwise allocate
+        // Reuse existing array if it's big enough, otherwise rent from pool
         if (_slots is null || _slots.Length < slotCount)
         {
-            _slots = new JsValue[slotCount];
+            // Return old array to pool before getting new one
+            JsValueArrayPool.Return(_slots);
+            _slots = JsValueArrayPool.Rent(slotCount);
         }
 
-        // Initialize all slots to undefined
-        Array.Fill(_slots, JsValue.Undefined);
+        // Initialize all slots to undefined (only up to slotCount, not full array)
+        Array.Fill(_slots, JsValue.Undefined, 0, slotCount);
     }
 
     /// <summary>

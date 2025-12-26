@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestSimpleVar
+public abstract class TestSimpleVarBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task SimpleVarWithInitializer_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var x = 5;
             x;
@@ -18,11 +19,21 @@ public class TestSimpleVar
     [Fact]
     public async Task SimpleVarWithoutInitializer_ShouldBeUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var y;
             y;
         ");
         Assert.Equal(Symbol.Undefined, result);
     }
+}
+
+public class FastPath_TestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

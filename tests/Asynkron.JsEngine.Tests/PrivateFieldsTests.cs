@@ -1,58 +1,59 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class PrivateFieldsTests
+public abstract class PrivateFieldsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldBasicAccess()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Counter {
-                                                           #count = 0;
+                                                   class Counter {
+                                                       #count = 0;
 
-                                                           increment() {
-                                                               this.#count = this.#count + 1;
-                                                           }
-
-                                                           getValue() {
-                                                               return this.#count;
-                                                           }
+                                                       increment() {
+                                                           this.#count = this.#count + 1;
                                                        }
 
-                                                       let c = new Counter();
-                                                       c.increment();
-                                                       c.increment();
-                                                       c.getValue();
+                                                       getValue() {
+                                                           return this.#count;
+                                                       }
+                                                   }
 
-                                           """);
+                                                   let c = new Counter();
+                                                   c.increment();
+                                                   c.increment();
+                                                   c.getValue();
+
+                                       """);
         Assert.Equal(2d, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldInitializedInConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Counter {
-                                                           #count;
+                                                   class Counter {
+                                                       #count;
 
-                                                           constructor(initial) {
-                                                               this.#count = initial;
-                                                           }
-
-                                                           getValue() {
-                                                               return this.#count;
-                                                           }
+                                                       constructor(initial) {
+                                                           this.#count = initial;
                                                        }
 
-                                                       let c = new Counter(10);
-                                                       c.getValue();
+                                                       getValue() {
+                                                           return this.#count;
+                                                       }
+                                                   }
 
-                                           """);
+                                                   let c = new Counter(10);
+                                                   c.getValue();
+
+                                       """);
         Assert.Equal(10d, result);
     }
 
@@ -61,202 +62,212 @@ public class PrivateFieldsTests
     [Fact(Timeout = 2000)]
     public async Task MultiplePrivateFields()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Rectangle {
-                                                           #width = 0;
-                                                           #height = 0;
+                                                   class Rectangle {
+                                                       #width = 0;
+                                                       #height = 0;
 
-                                                           constructor(w, h) {
-                                                               this.#width = w;
-                                                               this.#height = h;
-                                                           }
-
-                                                           getArea() {
-                                                               return this.#width * this.#height;
-                                                           }
+                                                       constructor(w, h) {
+                                                           this.#width = w;
+                                                           this.#height = h;
                                                        }
 
-                                                       let rect = new Rectangle(5, 10);
-                                                       rect.getArea();
+                                                       getArea() {
+                                                           return this.#width * this.#height;
+                                                       }
+                                                   }
 
-                                           """);
+                                                   let rect = new Rectangle(5, 10);
+                                                   rect.getArea();
+
+                                       """);
         Assert.Equal(50d, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldNotAccessibleOutsideClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // c["#count"] accesses a regular property named "#count" (the string), not the private field
         // This returns undefined, not an error - private fields are only accessible with dot notation
         var result = await engine.Evaluate("""
 
-                                                       class Counter {
-                                                           #count = 42;
-                                                       }
+                                                   class Counter {
+                                                       #count = 42;
+                                                   }
 
-                                                       let c = new Counter();
-                                                       c["#count"];
+                                                   let c = new Counter();
+                                                   c["#count"];
 
-                                           """);
+                                       """);
         Assert.Equal(Symbol.Undefined, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldInGetter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Person {
-                                                           #name;
+                                                   class Person {
+                                                       #name;
 
-                                                           constructor(name) {
-                                                               this.#name = name;
-                                                           }
-
-                                                           get name() {
-                                                               return this.#name;
-                                                           }
+                                                       constructor(name) {
+                                                           this.#name = name;
                                                        }
 
-                                                       let p = new Person('Alice');
-                                                       p.name;
+                                                       get name() {
+                                                           return this.#name;
+                                                       }
+                                                   }
 
-                                           """);
+                                                   let p = new Person('Alice');
+                                                   p.name;
+
+                                       """);
         Assert.Equal("Alice", result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldInSetter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Person {
-                                                           #name;
+                                                   class Person {
+                                                       #name;
 
-                                                           get name() {
-                                                               return this.#name;
-                                                           }
-
-                                                           set name(value) {
-                                                               this.#name = value;
-                                                           }
+                                                       get name() {
+                                                           return this.#name;
                                                        }
 
-                                                       let p = new Person();
-                                                       p.name = 'Bob';
-                                                       p.name;
+                                                       set name(value) {
+                                                           this.#name = value;
+                                                       }
+                                                   }
 
-                                           """);
+                                                   let p = new Person();
+                                                   p.name = 'Bob';
+                                                   p.name;
+
+                                       """);
         Assert.Equal("Bob", result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldWithPublicField()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Mixed {
-                                                           #private = 10;
-                                                           public = 20;
+                                                   class Mixed {
+                                                       #private = 10;
+                                                       public = 20;
 
-                                                           getSum() {
-                                                               return this.#private + this.public;
-                                                           }
+                                                       getSum() {
+                                                           return this.#private + this.public;
                                                        }
+                                                   }
 
-                                                       let m = new Mixed();
-                                                       m.getSum();
+                                                   let m = new Mixed();
+                                                   m.getSum();
 
-                                           """);
+                                       """);
         Assert.Equal(30d, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldInInheritedClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Base {
-                                                           #secret = 100;
+                                                   class Base {
+                                                       #secret = 100;
 
-                                                           getSecret() {
-                                                               return this.#secret;
-                                                           }
+                                                       getSecret() {
+                                                           return this.#secret;
                                                        }
+                                                   }
 
-                                                       class Derived extends Base {
-                                                           getValue() {
-                                                               return this.getSecret();
-                                                           }
+                                                   class Derived extends Base {
+                                                       getValue() {
+                                                           return this.getSecret();
                                                        }
+                                                   }
 
-                                                       let d = new Derived();
-                                                       d.getValue();
+                                                   let d = new Derived();
+                                                   d.getValue();
 
-                                           """);
+                                       """);
         Assert.Equal(100d, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldsAreSeparateBetweenInstances()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Counter {
-                                                           #count = 0;
+                                                   class Counter {
+                                                       #count = 0;
 
-                                                           increment() {
-                                                               this.#count = this.#count + 1;
-                                                           }
-
-                                                           getValue() {
-                                                               return this.#count;
-                                                           }
+                                                       increment() {
+                                                           this.#count = this.#count + 1;
                                                        }
 
-                                                       let c1 = new Counter();
-                                                       let c2 = new Counter();
-                                                       c1.increment();
-                                                       c1.increment();
-                                                       c2.increment();
+                                                       getValue() {
+                                                           return this.#count;
+                                                       }
+                                                   }
 
-                                                       c1.getValue() + c2.getValue();
+                                                   let c1 = new Counter();
+                                                   let c2 = new Counter();
+                                                   c1.increment();
+                                                   c1.increment();
+                                                   c2.increment();
 
-                                           """);
+                                                   c1.getValue() + c2.getValue();
+
+                                       """);
         Assert.Equal(3d, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldWithSameNameAsPublic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
-                                                       class Test {
-                                                           #value = 10;
-                                                           value = 20;
+                                                   class Test {
+                                                       #value = 10;
+                                                       value = 20;
 
-                                                           getPrivate() {
-                                                               return this.#value;
-                                                           }
-
-                                                           getPublic() {
-                                                               return this.value;
-                                                           }
+                                                       getPrivate() {
+                                                           return this.#value;
                                                        }
 
-                                                       let t = new Test();
-                                                       t.getPrivate() + t.getPublic();
+                                                       getPublic() {
+                                                           return this.value;
+                                                       }
+                                                   }
 
-                                           """);
+                                                   let t = new Test();
+                                                   t.getPrivate() + t.getPublic();
+
+                                       """);
         Assert.Equal(30d, result);
     }
+}
+
+public class FastPath_PrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_PrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

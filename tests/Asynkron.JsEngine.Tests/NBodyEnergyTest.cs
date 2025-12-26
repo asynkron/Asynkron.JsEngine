@@ -2,16 +2,16 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyEnergyTest(ITestOutputHelper output)
+public abstract class NBodyEnergyTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Energy_MethodCall_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetGlobalFunction("__log", args =>
         {
-            output.WriteLine(string.Join(" ", args.Select(a => a.ToObject()?.ToString() ?? "null")));
+            Output.WriteLine(string.Join(" ", args.Select(a => a.ToObject()?.ToString() ?? "null")));
             return JsTypes.JsValue.Undefined;
         });
 
@@ -102,6 +102,16 @@ public class NBodyEnergyTest(ITestOutputHelper output)
         ");
 
         Assert.IsType<double>(result);
-        output.WriteLine($"Energy result: {result}");
+        Output.WriteLine($"Energy result: {result}");
     }
+}
+
+public class FastPath_NBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

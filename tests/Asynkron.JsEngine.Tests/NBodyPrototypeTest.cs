@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyPrototypeTest
+public abstract class NBodyPrototypeTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task PrototypeMethod_CallOnArrayElement_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function Body(x) {
                 this.x = x;
@@ -25,7 +27,7 @@ public class NBodyPrototypeTest
     [Fact]
     public async Task PrototypeMethod_CallOnArrayElementFromConstructorCreatedArray_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function Body(x) {
                 this.x = x;
@@ -49,7 +51,7 @@ public class NBodyPrototypeTest
     [Fact]
     public async Task OffsetMomentum_Simplified()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var SOLAR_MASS = 4 * 3.14 * 3.14;
 
@@ -74,4 +76,14 @@ public class NBodyPrototypeTest
         // Should be -10.0 / SOLAR_MASS
         Assert.NotEqual(0.0, result);
     }
+}
+
+public class FastPath_NBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

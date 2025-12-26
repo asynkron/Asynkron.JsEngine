@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class TestTypeofUndeclared
+public abstract class TestTypeofUndeclaredBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task TypeofUndeclaredVariable_ShouldReturnUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof undeclaredVar;");
         Assert.Equal("undefined", result);
     }
@@ -13,7 +15,7 @@ public class TestTypeofUndeclared
     [Fact]
     public async Task AccessUndeclaredVariable_ShouldThrow()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
         {
             await engine.Evaluate("undeclaredVar;");
@@ -21,4 +23,14 @@ public class TestTypeofUndeclared
 
         Assert.Contains("ReferenceError", ex.Message, StringComparison.Ordinal);
     }
+}
+
+public class FastPath_TestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

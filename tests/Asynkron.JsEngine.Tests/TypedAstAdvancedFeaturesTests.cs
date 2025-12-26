@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedAstAdvancedFeaturesTests
+public abstract class TypedAstAdvancedFeaturesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task TaggedTemplateLiteral_runs_through_typed_ast()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function tag(strings, ...values) {
                 return values[0] + values[1] + strings.length;
@@ -19,7 +21,7 @@ public class TypedAstAdvancedFeaturesTests
     [Fact]
     public async Task ObjectLiteral_with_spread_and_accessors_behaves_correctly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             const base = { seed: 1 };
             const target = {
@@ -40,7 +42,7 @@ public class TypedAstAdvancedFeaturesTests
     [Fact]
     public async Task ObjectDestructuring_with_rest_properties_supports_nested_members()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             const source = { keep: 1, skip: 2, inner: { value: 9, extra: 5 }, other: 3 };
             const { inner: { value, ...innerRest }, keep, ...rest } = source;
@@ -49,4 +51,14 @@ public class TypedAstAdvancedFeaturesTests
 
         Assert.Equal(18d, result);
     }
+}
+
+public class FastPath_TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

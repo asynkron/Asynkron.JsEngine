@@ -1,16 +1,17 @@
 // using Asynkron.JsEngine.JsTypes;
+// using Xunit.Abstractions;
 //
 // namespace Asynkron.JsEngine.Tests;
 //
-// public class NBodyFiveBodyTest
+// public abstract class NBodyFiveBodyTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 // {
 //     [Fact(Timeout = 10000)]
 //     public async Task FiveBodies_Energy_Works()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.SetGlobalFunction("__debug", _ =>  JsValue.Null);
 //
-//         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
+//         var content = SunSpiderTestsBase.GetEmbeddedFile("access-nbody.js");
 //
 //         await engine.Evaluate(content);
 //     }
@@ -18,10 +19,10 @@
 //     [Fact]
 //     public async Task FiveBodies_FullTest_Works()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.SetGlobalFunction("__debug", _ =>  JsValue.Null);
 //
-//         var content = SunSpiderTests.GetEmbeddedFile("access-nbody.js");
+//         var content = SunSpiderTestsBase.GetEmbeddedFile("access-nbody.js");
 //
 //         // Run the script - should throw a ThrowSignal with the expected error
 //         try
@@ -37,4 +38,14 @@
 //             throw new InvalidOperationException($"JavaScript error: {message}", ex);
 //         }
 //     }
+// }
+//
+// public class FastPath_NBodyFiveBodyTest(ITestOutputHelper output) : NBodyFiveBodyTestBase(output)
+// {
+//     protected override bool EnableFastPaths => true;
+// }
+//
+// public class Reference_NBodyFiveBodyTest(ITestOutputHelper output) : NBodyFiveBodyTestBase(output)
+// {
+//     protected override bool EnableFastPaths => false;
 // }

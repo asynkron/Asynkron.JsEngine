@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class EvalFunctionTests
+public abstract class EvalFunctionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Eval_EvaluatesSimpleExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        eval('2 + 2;');
@@ -19,7 +20,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_AccessesVariablesInScope()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = 10;
@@ -32,7 +33,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_CreatesVariables()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // Note: Only 'var' declarations in eval are visible in the enclosing scope.
         // 'let' and 'const' in eval are block-scoped to the eval and not accessible outside.
         var result = await engine.Evaluate("""
@@ -47,7 +48,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_WithString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        eval('"hello" + " " + "world";');
@@ -59,7 +60,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_WithFunction()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        eval('function add(a, b) { return a + b; }');
@@ -74,7 +75,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_WithNonStringReturnsValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        eval(42);
@@ -86,7 +87,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_WithNoArgumentsReturnsUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        eval();
@@ -98,7 +99,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_WithComplexExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let base = 5;
@@ -112,7 +113,7 @@ public class EvalFunctionTests
 //     [Fact(Timeout = 2000)]
 //     public async Task Eval_WithArrayExpression()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         // Array literals need to be properly parenthesized when used with eval
 //         var result = await engine.Evaluate("""
 //
@@ -126,7 +127,7 @@ public class EvalFunctionTests
     [Fact(Timeout = 2000)]
     public async Task Eval_WithObjectExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = eval('({ x: 10, y: 20 });');
@@ -142,7 +143,7 @@ public class EvalFunctionTests
         // Test262: language/statements/for-of/scope-head-var-none.js
         // When eval('var x = 2;') is in the for-of iterable expression,
         // the var should be created in the outer variable environment, not the TDZ.
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var x = 1;
             for (let [_] of [[eval('var x = 2;')]]) { }
@@ -155,7 +156,7 @@ public class EvalFunctionTests
     public async Task Eval_VarInForOfIterable_ClosuresSeeCurrent()
     {
         // Test262: language/statements/for-of/scope-head-var-none.js (full version with closures)
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var probeBefore = function() { return x; };
             var x = 1;
@@ -178,7 +179,7 @@ public class EvalFunctionTests
     public async Task ForOf_ClosureInIterable_SeesOuterScope_NoEval()
     {
         // Simpler test without eval - closure in iterable expression should see outer var x
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var x = 42;
             var probe;
@@ -193,7 +194,7 @@ public class EvalFunctionTests
     {
         // Test262: language/statements/for-of/scope-body-lex-open.js
         // Closure in destructuring default should see loop variable value
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var probe;
             for (let [x, _ = probe = function() { return x; }] of [['inside']]) { }
@@ -201,4 +202,14 @@ public class EvalFunctionTests
         """);
         Assert.Equal("inside", result);
     }
+}
+
+public class FastPath_EvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_EvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

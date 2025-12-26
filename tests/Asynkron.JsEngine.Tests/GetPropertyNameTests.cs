@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class GetPropertyNameTests
+public abstract class GetPropertyNameTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Get_As_Property_Name_In_Object_Literal()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 get: function () {
@@ -22,7 +23,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_And_Set_As_Property_Names()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 get: 10,
@@ -36,7 +37,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_With_Get_As_Property_Name()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var n = { x: 1, y: 2 };
             var a = {};
@@ -59,7 +60,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Real_Getter_Still_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 _value: 100,
@@ -75,7 +76,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Real_Setter_Still_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 _value: 0,
@@ -95,7 +96,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_As_Named_Function_Expression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 get: function get() {
@@ -110,7 +111,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Set_As_Named_Function_Expression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 set: function set(val) {
@@ -125,7 +126,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Get_As_Function_Name_With_Different_Property_Name()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 foo: function get() {
@@ -140,7 +141,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Set_As_Function_Name_With_Different_Property_Name()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = {
                 bar: function set() {
@@ -155,7 +156,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Async_Function_With_Get_As_Name()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("capture", args =>
@@ -178,7 +179,7 @@ public class GetPropertyNameTests
     [Fact(Timeout = 2000)]
     public async Task Async_Function_With_Set_As_Name()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("capture", args =>
@@ -197,4 +198,14 @@ public class GetPropertyNameTests
         """);
         Assert.Equal("42", result);
     }
+}
+
+public class FastPath_GetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_GetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

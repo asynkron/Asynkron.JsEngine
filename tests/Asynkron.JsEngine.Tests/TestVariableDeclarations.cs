@@ -1,14 +1,15 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestVariableDeclarations
+public abstract class TestVariableDeclarationsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task VarWithoutInitializer_ShouldBeUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var x;
             x;
@@ -19,7 +20,7 @@ public class TestVariableDeclarations
     [Fact]
     public async Task VarWithInitializer_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var y = 42;
             y;
@@ -30,7 +31,7 @@ public class TestVariableDeclarations
     [Fact]
     public async Task ConstWithoutInitializer_ShouldThrowParseException()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await Assert.ThrowsAsync<ParseException>(async () =>
         {
             await engine.Evaluate(@"
@@ -43,7 +44,7 @@ public class TestVariableDeclarations
     [Fact]
     public async Task ConstWithInitializer_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             const w = 100;
             w;
@@ -54,7 +55,7 @@ public class TestVariableDeclarations
     [Fact]
     public async Task MultipleVarDeclarationsWithMixedInitializers_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var a, b = 5, c;
             a === undefined && b === 5 && c === undefined;
@@ -65,7 +66,7 @@ public class TestVariableDeclarations
     [Fact]
     public async Task MixedLetVarDeclarations_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let x;
             var y;
@@ -73,4 +74,14 @@ public class TestVariableDeclarations
         ");
         Assert.Equal(true, result);
     }
+}
+
+public class FastPath_TestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class WeakCollectionsTests
+public abstract class WeakCollectionsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WeakMap_CoreMethods_BehaveLikeNode()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const key1 = {};
@@ -38,7 +40,7 @@ public class WeakCollectionsTests
     [Fact(Timeout = 2000)]
     public async Task WeakSet_CoreMethods_BehaveLikeNode()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const value1 = {};
@@ -63,3 +65,12 @@ public class WeakCollectionsTests
     }
 }
 
+public class FastPath_WeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_WeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
+}

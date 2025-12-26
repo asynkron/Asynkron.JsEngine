@@ -6,18 +6,18 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Test that object literal methods can access variables from enclosing scope
 /// </summary>
-public class ObjectLiteralScopeTests(ITestOutputHelper output)
+public abstract class ObjectLiteralScopeTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task ObjectMethodCanAccessGlobalVariable()
     {
-        output.WriteLine("=== Test: Object method accessing global variable ===");
+        Output.WriteLine("=== Test: Object method accessing global variable ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {msg}");
+            Output.WriteLine($"LOG: {msg}");
             return JsValue.Null;
         });
 
@@ -37,19 +37,19 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
         ");
 
         await Task.Delay(500);
-        output.WriteLine("✅ Test completed - method should have accessed global variable");
+        Output.WriteLine("Test completed - method should have accessed global variable");
     }
 
     [Fact(Timeout = 5000)]
     public async Task ObjectMethodInAsyncFunction()
     {
-        output.WriteLine("=== Test: Object method in async function ===");
+        Output.WriteLine("=== Test: Object method in async function ===");
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {msg}");
+            Output.WriteLine($"LOG: {msg}");
             return JsValue.Null;
         });
 
@@ -74,6 +74,16 @@ public class ObjectLiteralScopeTests(ITestOutputHelper output)
         ");
 
         await Task.Delay(1000);
-        output.WriteLine("✅ Test completed - method should work from async context");
+        Output.WriteLine("Test completed - method should work from async context");
     }
+}
+
+public class FastPath_ObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

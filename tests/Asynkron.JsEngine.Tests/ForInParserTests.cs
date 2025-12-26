@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ForInParserTests
+public abstract class ForInParserTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForInWithoutDeclarationParsesAndExecutes()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let source = { a: 1, b: 2 };
@@ -20,3 +22,12 @@ public class ForInParserTests
     }
 }
 
+public class FastPath_ForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
+}

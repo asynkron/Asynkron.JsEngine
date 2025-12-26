@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class TestOptionalCatchBinding
+public abstract class TestOptionalCatchBindingBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task OptionalCatchBinding_BasicTest_ShouldCatchError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var caught = false;
             try {
@@ -21,7 +23,7 @@ public class TestOptionalCatchBinding
     [Fact]
     public async Task OptionalCatchBinding_WithFinally_ShouldExecuteBoth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var finallyRan = false;
             var catchRan = false;
@@ -40,7 +42,7 @@ public class TestOptionalCatchBinding
     [Fact]
     public async Task OptionalCatchBinding_NoErrorThrown_ShouldSkipCatch()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var catchRan = false;
             try {
@@ -56,7 +58,7 @@ public class TestOptionalCatchBinding
     [Fact]
     public async Task OptionalCatchBinding_WithParameterStillWorks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var errorMessage = '';
             try {
@@ -72,7 +74,7 @@ public class TestOptionalCatchBinding
     [Fact]
     public async Task OptionalCatchBinding_CannotAccessError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // When there's no catch parameter, the error variable should not be accessible
         var result = await engine.Evaluate(@"
             var hasE = false;
@@ -94,7 +96,7 @@ public class TestOptionalCatchBinding
     [Fact]
     public async Task OptionalCatchBinding_LexicalScope()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var outer = 'outer';
             try {
@@ -107,4 +109,14 @@ public class TestOptionalCatchBinding
         ");
         Assert.Equal("modified", result);
     }
+}
+
+public class FastPath_TestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

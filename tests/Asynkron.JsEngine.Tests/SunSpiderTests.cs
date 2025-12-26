@@ -1,4 +1,5 @@
 // using System.Reflection;
+// using Xunit.Abstractions;
 //
 // namespace Asynkron.JsEngine.Tests;
 //
@@ -6,7 +7,7 @@
 // /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of known failures.
 // /// Current expectations are tracked per script via the <c>shouldSucceed</c> flag.
 // /// </summary>
-// public class SunSpiderTests
+// public abstract class SunSpiderTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 // {
 //     private const string ScriptResourcePrefix = "Asynkron.JsEngine.Tests.Scripts.";
 //
@@ -61,9 +62,9 @@
 //         await RunTest(content, timeout).WaitAsync(timeout);
 //     }
 //
-//     private static async Task RunTest(string source, TimeSpan timeout)
+//     private async Task RunTest(string source, TimeSpan timeout)
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.SetGlobalFunction("log", args =>
 //         {
 //             Console.WriteLine(args.Count > 0 ? args[0].ToObject()?.ToString() : string.Empty);
@@ -98,7 +99,7 @@
 //
 //     internal static string GetEmbeddedFile(string filename)
 //     {
-//         var assembly = typeof(SunSpiderTests).GetTypeInfo().Assembly;
+//         var assembly = typeof(SunSpiderTestsBase).GetTypeInfo().Assembly;
 //         var scriptPath = ScriptResourcePrefix + filename;
 //
 //         using var stream = assembly.GetManifestResourceStream(scriptPath);
@@ -110,4 +111,14 @@
 //         using var sr = new StreamReader(stream);
 //         return sr.ReadToEnd();
 //     }
+// }
+//
+// public class FastPath_SunSpiderTests(ITestOutputHelper output) : SunSpiderTestsBase(output)
+// {
+//     protected override bool EnableFastPaths => true;
+// }
+//
+// public class Reference_SunSpiderTests(ITestOutputHelper output) : SunSpiderTestsBase(output)
+// {
+//     protected override bool EnableFastPaths => false;
 // }

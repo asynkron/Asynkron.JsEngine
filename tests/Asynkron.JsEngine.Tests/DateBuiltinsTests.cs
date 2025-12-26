@@ -1,6 +1,8 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class DateBuiltinsTests
+public abstract class DateBuiltinsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Theory(Timeout = 2000)]
     [InlineData("new Date(Date.UTC(2001, 1, 3, 4, 5, 6, 789))",
@@ -27,7 +29,7 @@ public class DateBuiltinsTests
         string expectedIso,
         string expectedUtcString)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate($"var d = {ctorExpression};");
 
@@ -76,7 +78,7 @@ public class DateBuiltinsTests
         int ms,
         double expectedMs)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var expr =
             $"Date.UTC({year}, {monthZeroBased}, {day}, {hour}, {minute}, {second}, {ms});";
@@ -84,4 +86,14 @@ public class DateBuiltinsTests
 
         Assert.Equal(expectedMs, result);
     }
+}
+
+public class FastPath_DateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_DateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

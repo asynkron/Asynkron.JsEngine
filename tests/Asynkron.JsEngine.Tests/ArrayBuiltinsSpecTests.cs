@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ArrayBuiltinsSpecTests
+public abstract class ArrayBuiltinsSpecTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_toLocaleString_InvokesElementMethodWithArgs()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = Assert.IsType<JsObject>(await engine.Evaluate("""
             var callCount = 0;
@@ -32,7 +33,7 @@ public class ArrayBuiltinsSpecTests
     [Fact(Timeout = 2000)]
     public async Task Array_indexOf_ObservesPropertiesAddedDuringIteration()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var arr = {
@@ -61,7 +62,7 @@ public class ArrayBuiltinsSpecTests
     [Fact(Timeout = 2000)]
     public async Task Array_at_SymbolIndexThrowsTypeError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             "use strict";
@@ -95,4 +96,14 @@ public class ArrayBuiltinsSpecTests
         Assert.Equal("TypeError", name);
         Assert.NotNull(message);
     }
+}
+
+public class FastPath_ArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

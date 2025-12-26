@@ -1,14 +1,16 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for ES6 class statement features based on common Test262 class issues
 /// </summary>
-public class ClassStatementTests
+public abstract class ClassStatementTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ClassConstructorBehavior()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 constructor(x) {
@@ -25,7 +27,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassMethodDefinitions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 method() {
@@ -42,7 +44,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassExtendsSuper()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class Base {
                 constructor(x) {
@@ -73,7 +75,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassNameBindingInsideClassBody()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 getName() {
@@ -90,7 +92,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task StaticMethods()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 static staticMethod() {
@@ -106,7 +108,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassTDZ_TemporalDeadZone()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // This should throw a ReferenceError
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
@@ -123,7 +125,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassNameImmutable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // The class name binding is immutable (const)
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
@@ -145,7 +147,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassWithoutConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C { }
             var c = new C();
@@ -158,7 +160,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassPrototypeProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 method() {
@@ -174,7 +176,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassConstructorPropertyIsClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C { }
             C.prototype.constructor === C;
@@ -186,7 +188,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassSuperMethodCall()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class Base {
                 method() {
@@ -208,7 +210,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassStaticInheritance()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class Base {
                 static staticMethod() {
@@ -225,7 +227,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassInstanceOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class Base { }
             class Derived extends Base { }
@@ -242,7 +244,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassCannotBeCalledWithoutNew()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Class constructors must be called with new
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
@@ -259,7 +261,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassGetterSetter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 constructor() {
@@ -283,7 +285,7 @@ public class ClassStatementTests
     [Fact(Timeout = 2000)]
     public async Task ClassStaticGetterSetter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class C {
                 static get value() {
@@ -299,4 +301,14 @@ public class ClassStatementTests
 
         Assert.Equal(42.0, result);
     }
+}
+
+public class FastPath_ClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

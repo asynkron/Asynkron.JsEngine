@@ -1,3 +1,5 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
@@ -5,12 +7,12 @@ namespace Asynkron.JsEngine.Tests;
 /// queueMicrotask schedules a callback to run as a microtask, after the current
 /// synchronous code completes but before the next macrotask (like setTimeout).
 /// </summary>
-public class QueueMicrotaskTests
+public abstract class QueueMicrotaskTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ExecutesCallback()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             let executed = false;
@@ -29,7 +31,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ExecutesInOrder()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const order = [];
@@ -45,7 +47,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_MultipleCallbacksInSameScript()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const order = [];
@@ -62,7 +64,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_NestedMicrotasksExecuteInOrder()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const order = [];
@@ -83,7 +85,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_InterleavesWithPromises()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const order = [];
@@ -102,7 +104,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ThrowsOnNonCallable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
         {
@@ -115,7 +117,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ThrowsOnNoArguments()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
         {
@@ -128,7 +130,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_CallbackReceivesNoArguments()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let argCount = -1;
@@ -142,7 +144,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ReturnsUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             typeof queueMicrotask(() => {});
@@ -154,7 +156,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ExceptionInCallbackDoesNotStopOtherMicrotasks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const order = [];
@@ -171,7 +173,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_WorksWithArrowFunctions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let value = 0;
@@ -185,7 +187,7 @@ public class QueueMicrotaskTests
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_WorksWithBoundFunctions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             const obj = { value: 0 };
@@ -196,4 +198,14 @@ public class QueueMicrotaskTests
         var result = await engine.Evaluate("obj.value");
         Assert.Equal(42.0, result);
     }
+}
+
+public class FastPath_QueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_QueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

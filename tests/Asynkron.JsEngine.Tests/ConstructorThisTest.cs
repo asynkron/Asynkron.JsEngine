@@ -3,12 +3,12 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ConstructorThisTest(ITestOutputHelper output)
+public abstract class ConstructorThisTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Constructor_SetsProperty_WithSimpleValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function MyClass(value) {
                 this.value = value;
@@ -18,14 +18,14 @@ public class ConstructorThisTest(ITestOutputHelper output)
             obj.value;
         ");
 
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result: {result}");
         Assert.Equal(42.0, result);
     }
 
     [Fact]
     public async Task Constructor_SetsProperty_WithArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function MyClass(arr) {
                 this.arr = arr;
@@ -36,15 +36,15 @@ public class ConstructorThisTest(ITestOutputHelper output)
             obj.arr;
         ");
 
-        output.WriteLine($"Result: {result}");
-        output.WriteLine($"Result type: {result?.GetType()}");
+        Output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result type: {result?.GetType()}");
         Assert.IsType<JsArray>(result);
     }
 
     [Fact]
     public async Task Constructor_SetsProperty_WithArrayFromArrayConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function MyClass(arr) {
                 console.log('Constructor called with:', typeof arr, arr);
@@ -59,15 +59,15 @@ public class ConstructorThisTest(ITestOutputHelper output)
             obj.arr;
         ");
 
-        output.WriteLine($"Result: {result}");
-        output.WriteLine($"Result type: {result?.GetType()}");
+        Output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result type: {result?.GetType()}");
         Assert.IsType<JsArray>(result);
     }
 
     [Fact]
     public async Task Constructor_AccessesPropertyLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function MyClass(arr) {
                 this.arr = arr;
@@ -77,7 +77,17 @@ public class ConstructorThisTest(ITestOutputHelper output)
             obj.arr.length;
         ");
 
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result: {result}");
         Assert.Equal(3.0, result);
     }
+}
+
+public class FastPath_ConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

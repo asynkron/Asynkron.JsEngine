@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorCloseDestructuringTests
+public abstract class IteratorCloseDestructuringTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task DestructuringAssignment_IteratorCloseNonObjectThrows()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(
             """
             var nextCount = 0;
@@ -40,7 +41,7 @@ public class IteratorCloseDestructuringTests
     [Fact(Timeout = 2000)]
     public async Task ForOfDestructuring_IteratorCloseNonObjectThrows()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(
             """
             var nextCount = 0;
@@ -73,7 +74,7 @@ public class IteratorCloseDestructuringTests
     [Fact(Timeout = 2000)]
     public async Task DestructuringAssignment_TypeErrorIsCatchableInJs()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(
             """
             var nextCount = 0;
@@ -151,7 +152,7 @@ public class IteratorCloseDestructuringTests
     [Fact(Timeout = 2000)]
     public async Task Test262StyleHarness_CatchesIteratorCloseTypeError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(
             """
             var assert = {
@@ -208,4 +209,14 @@ public class IteratorCloseDestructuringTests
             assert.sameValue(unreachable, 0);
             """);
     }
+}
+
+public class FastPath_IteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_IteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ArrayIteratorMethodsTests
+public abstract class ArrayIteratorMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_Entries_ReturnsIndexValuePairs()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = ['a', 'b', 'c'];
@@ -19,7 +21,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Entries_WithMultipleElements()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -33,7 +35,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Entries_ReturnsCorrectLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -49,7 +51,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Keys_ReturnsIndices()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = ['a', 'b', 'c'];
@@ -63,7 +65,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Keys_ReturnsCorrectLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4];
@@ -77,7 +79,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Values_ReturnsElementValues()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -91,7 +93,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Values_ReturnsCorrectLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3];
@@ -105,7 +107,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Values_WithStringArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = ['hello', 'world'];
@@ -119,7 +121,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Entries_CanBeIterated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3];
@@ -137,7 +139,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Keys_CanBeIterated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -155,7 +157,7 @@ public class ArrayIteratorMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Array_Values_CanBeIterated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [5, 10, 15];
@@ -169,4 +171,14 @@ public class ArrayIteratorMethodsTests
                                            """);
         Assert.Equal(750d, result); // 5 * 10 * 15
     }
+}
+
+public class FastPath_ArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

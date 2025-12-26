@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayResizeCoercionTests
+public abstract class TypedArrayResizeCoercionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ValueOfCoercionCanResizeBackingBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             (function() {
               const rab = new ArrayBuffer(4, { maxByteLength: 8 });
@@ -41,4 +42,14 @@ public class TypedArrayResizeCoercionTests
         Assert.Equal(2d, obj["afterBytes"]);
         Assert.Equal(-1d, obj["result"]);
     }
+}
+
+public class FastPath_TypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -3,19 +3,19 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorIncrementTest(ITestOutputHelper output)
+public abstract class IteratorIncrementTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {    // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 
     [Fact(Timeout = 2000)]
     public async Task TestIteratorIncrement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {msg}");
+            Output.WriteLine($"LOG: {msg}");
             return JsValue.Null;
         });
 
@@ -38,4 +38,14 @@ public class IteratorIncrementTest(ITestOutputHelper output)
 
                          """);
     }
+}
+
+public class FastPath_IteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_IteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

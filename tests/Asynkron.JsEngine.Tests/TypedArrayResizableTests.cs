@@ -1,9 +1,10 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayResizableTests
+public abstract class TypedArrayResizableTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void LastIndexOfReturnsMinusOneWhenFixedLengthViewShrinksOutOfBounds()
@@ -38,4 +39,14 @@ public class TypedArrayResizableTests
         Assert.Throws<ThrowSignal>(() =>
             TypedArrayBase.LastIndexOfInternal(fixedLength, new List<JsValue> { new JsValue(new JsBigInt(0)), new JsValue(2d) }));
     }
+}
+
+public class FastPath_TypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

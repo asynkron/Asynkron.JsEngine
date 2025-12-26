@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class NumericObjectKeysTests
+public abstract class NumericObjectKeysTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Numeric_Keys_In_Object_Literals()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var validation = {
                 20: 2889.0000000000045,
@@ -21,7 +23,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Access_Numeric_Keys_With_String()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var obj = { 42: 'hello' };
             obj['42'];
@@ -32,7 +34,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Access_Numeric_Keys_With_Number()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var obj = { 42: 'hello' };
             obj[42];
@@ -43,7 +45,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Object_Keys_Should_Return_Numeric_Keys_As_Strings()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var validation = {
                 20: 1,
@@ -60,7 +62,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Mixed_String_And_Numeric_Keys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var obj = {
                 name: 'test',
@@ -76,7 +78,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Floating_Point_Keys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var obj = { 3.14: 'pi' };
             obj[3.14];
@@ -87,7 +89,7 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Zero_As_Key()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var obj = { 0: 'zero' };
             obj[0];
@@ -100,11 +102,21 @@ public class NumericObjectKeysTests
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Negative_Number_Keys_With_Computed_Property()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var obj = { [-5]: 'negative' };
             obj[-5];
         ");
         Assert.Equal("negative", result);
     }
+}
+
+public class FastPath_NumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

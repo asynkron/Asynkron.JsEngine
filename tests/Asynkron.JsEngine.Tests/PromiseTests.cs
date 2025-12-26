@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class PromiseTests
+public abstract class PromiseTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Promise_CanBeResolved()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var resolved = false;
         var resolvedValue = "";
 
@@ -41,7 +43,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_CanBeRejected()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var rejected = false;
         var rejectedReason = "";
 
@@ -75,7 +77,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_ThenReturnsNewPromise()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -108,7 +110,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_CanChainMultipleThen()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var results = new List<string>();
 
         engine.SetGlobalFunction("addResult", args =>
@@ -145,7 +147,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_Resolve_CreatesResolvedPromise()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -173,7 +175,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_Reject_CreatesRejectedPromise()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -202,7 +204,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_CatchHandlesRejection()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var caught = false;
 
         engine.SetGlobalFunction("markCaught", _ =>
@@ -231,7 +233,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_Finally_ExecutesOnBothResolveAndReject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var finallyCount = 0;
 
         engine.SetGlobalFunction("incrementFinally", _ =>
@@ -260,7 +262,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_All_ResolvesWhenAllResolve()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var results = new List<string>();
 
         engine.SetGlobalFunction("addResult", args =>
@@ -293,7 +295,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_All_RejectsWhenOneRejects()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var rejected = false;
         var reason = "";
 
@@ -328,7 +330,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_Race_ResolvesWithFirstSettled()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -358,7 +360,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_IntegrationWithSetTimeout()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -391,7 +393,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_ExecutorRunsImmediately()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var executorCount = 0;
 
         engine.SetGlobalFunction("markExecutorRan", _ =>
@@ -415,7 +417,7 @@ public class PromiseTests
     [Fact(Timeout = 2000)]
     public async Task Promise_CatchReturnsResolvedPromise()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var finalValue = "";
 
         engine.SetGlobalFunction("captureFinal", args =>
@@ -443,4 +445,14 @@ public class PromiseTests
 
         Assert.Equal("recovered", finalValue);
     }
+}
+
+public class FastPath_PromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_PromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AdditionalObjectMethodsTests
+public abstract class AdditionalObjectMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3 };
@@ -21,7 +22,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_IncludesProperties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10, y: 20 };
@@ -35,7 +36,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_WithEmptyObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -49,7 +50,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_ReturnsDescriptor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -63,7 +64,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_HasWritableProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -77,7 +78,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_HasEnumerableProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -91,7 +92,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_HasConfigurableProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -105,7 +106,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_ForFrozenObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -120,7 +121,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyDescriptor_ReturnsUndefinedForNonExistent()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -133,7 +134,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_DefinesNewProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -147,7 +148,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_ReturnsObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -161,7 +162,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_UpdatesExistingProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -175,7 +176,7 @@ public class AdditionalObjectMethodsTests
     [Fact(Timeout = 2000)]
     public async Task Object_DefineProperty_WithMultipleProperties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -186,4 +187,14 @@ public class AdditionalObjectMethodsTests
                                            """);
         Assert.Equal(3d, result);
     }
+}
+
+public class FastPath_AdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

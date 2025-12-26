@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ModuleTests
+public abstract class ModuleTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultFunction()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Set up a module loader
         engine.SetModuleLoader(modulePath =>
@@ -37,7 +39,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -67,7 +69,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportNamedValues()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -97,7 +99,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportNamedFunctions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -132,7 +134,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ImportWithAlias()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -163,7 +165,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ImportNamespace()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -198,7 +200,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportList()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -230,7 +232,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportWithAlias()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -260,7 +262,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ModuleCaching()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var loadCount = 0;
 
         engine.SetModuleLoader(modulePath =>
@@ -306,7 +308,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportConst()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -336,7 +338,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -375,7 +377,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DefaultAndNamedImports()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => !string.Equals(modulePath, "module.js", StringComparison.Ordinal) ? throw new FileNotFoundException($"Module not found: {modulePath}") : """
 
@@ -402,7 +404,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task SideEffectImport()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -433,7 +435,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => string.Equals(modulePath, "Rectangle.js", StringComparison.Ordinal) ? """
 
@@ -464,7 +466,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultAnonymousClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => string.Equals(modulePath, "anonymous.js", StringComparison.Ordinal) ? """
                                 export default class {
@@ -490,7 +492,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task MultipleImportsFromSameModule()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => string.Equals(modulePath, "math.js", StringComparison.Ordinal) ? """
 
@@ -514,7 +516,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_LoadsModuleAsynchronously()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => string.Equals(modulePath, "dynamic.js", StringComparison.Ordinal) ? """
 
@@ -540,7 +542,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_WithAsyncAwait()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => string.Equals(modulePath, "calculator.js", StringComparison.Ordinal) ? """
 
@@ -574,7 +576,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_DefaultExport()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => string.Equals(modulePath, "counter.js", StringComparison.Ordinal) ? """
 
@@ -600,7 +602,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_ModuleIsCached()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var loadCount = 0;
         engine.SetModuleLoader(modulePath =>
@@ -645,7 +647,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task DynamicImport_ErrorHandling()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath => { throw new FileNotFoundException($"Module not found: {modulePath}"); });
 
@@ -665,7 +667,7 @@ public class ModuleTests
     [Fact(Timeout = 2000)]
     public async Task SelfImportAnonymousDefaultExport()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -693,7 +695,7 @@ public class ModuleTests
     public async Task SelfImportAnonymousDefaultExportSingleFile()
     {
         // This mimics the Test262 scenario more closely - single file that imports itself
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -723,7 +725,7 @@ public class ModuleTests
     public async Task Test262StyleSelfImport()
     {
         // This exactly mimics the Test262 instn-named-bndng-dflt-fun-anon.js test
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var testCode = @"
 f();
@@ -750,7 +752,7 @@ export default function() { return 23; };
     [Fact(Timeout = 2000)]
     public async Task SelfImportAnonymousDefaultGeneratorExport()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -779,7 +781,7 @@ export default function() { return 23; };
     {
         // Test262: language/module-code/eval-gtbndng-indirect-update-dflt.js
         // A named function exported as default can reassign its own binding
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetModuleLoader(modulePath =>
         {
@@ -814,7 +816,7 @@ export default function() { return 23; };
     public async Task TopLevelAwait_IfStatement()
     {
         // Test that top-level await works inside if statements
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
                                                  var completed = 0;
@@ -834,7 +836,7 @@ export default function() { return 23; };
     public async Task TopLevelAwait_BlockStatement()
     {
         // Test that top-level await works inside block statements
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
                                                  if (true) {
@@ -850,7 +852,7 @@ export default function() { return 23; };
     public async Task TopLevelAwait_WhileLoop()
     {
         // Simple while loop with await - condition is false immediately after first iteration
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
                                                  var count = 0;
@@ -871,7 +873,7 @@ export default function() { return 23; };
     public async Task TopLevelAwait_ForLoop()
     {
         // For loop with await in condition
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
                                                  var count = 0;
@@ -888,7 +890,7 @@ export default function() { return 23; };
     public async Task TopLevelAwait_ForAwaitOf()
     {
         // for await...of loop with async generator
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
                                                  var sum = 0;
@@ -910,7 +912,7 @@ export default function() { return 23; };
     public async Task TopLevelAwait_TryCatch()
     {
         // Try/catch with await
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
                                                  var caught = false;
@@ -924,4 +926,14 @@ export default function() { return 23; };
 
         Assert.True((bool)result!);
     }
+}
+
+public class FastPath_ModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

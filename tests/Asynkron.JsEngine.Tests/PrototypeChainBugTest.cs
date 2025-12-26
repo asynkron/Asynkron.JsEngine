@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class PrototypeChainBugTest
+public abstract class PrototypeChainBugTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task PrototypeMethod_CanAccessObjectPropertyOnThis()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function Container(obj){
                this.obj = obj;
@@ -26,7 +28,7 @@ public class PrototypeChainBugTest
     [Fact]
     public async Task PrototypeMethod_CanAccessArrayPropertyOnThis()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function Container(arr){
                this.arr = arr;
@@ -42,4 +44,14 @@ public class PrototypeChainBugTest
 
         Assert.Equal(1.0, result);
     }
+}
+
+public class FastPath_PrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_PrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

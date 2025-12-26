@@ -1,14 +1,16 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for String prototype methods.
 /// </summary>
-public class StringMethodsTests
+public abstract class StringMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task String_Length_Property()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -21,7 +23,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CharAt()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -34,7 +36,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CharAt_OutOfBounds()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -47,7 +49,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CharCodeAt()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -60,7 +62,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_IndexOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -73,7 +75,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_IndexOf_NotFound()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -86,7 +88,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_IndexOf_WithPosition()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello";
@@ -99,7 +101,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_LastIndexOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world hello";
@@ -112,7 +114,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Substring()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -125,7 +127,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Substring_OneArg()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -138,7 +140,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Substring_SwapsIfStartGreaterThanEnd()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -151,7 +153,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Slice()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -164,7 +166,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Slice_NegativeIndices()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -177,7 +179,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_ToLowerCase()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "HELLO World";
@@ -190,7 +192,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_ToUpperCase()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello World";
@@ -203,7 +205,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Trim()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  hello world  ";
@@ -216,7 +218,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_TrimStart()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  hello  ";
@@ -229,7 +231,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_TrimEnd()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  hello  ";
@@ -242,7 +244,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Split()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "a,b,c";
@@ -256,7 +258,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Split_WithLimit()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "a,b,c,d";
@@ -270,7 +272,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Split_EmptySeparator()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "abc";
@@ -284,7 +286,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Replace()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -297,7 +299,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Replace_OnlyFirstOccurrence()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello";
@@ -310,7 +312,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_StartsWith()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -323,7 +325,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_StartsWith_WithPosition()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -336,7 +338,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_EndsWith()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -349,7 +351,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_EndsWith_WithLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -362,7 +364,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Includes()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -377,7 +379,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Includes_NotFound()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -390,7 +392,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Repeat()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "abc";
@@ -403,7 +405,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_PadStart()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "5";
@@ -416,7 +418,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_PadEnd()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "5";
@@ -429,7 +431,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Chaining()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "  HELLO WORLD  ";
@@ -442,7 +444,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Methods_InLoop()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let words = "apple,banana,cherry".split(",");
@@ -464,7 +466,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CodePointAt()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -477,7 +479,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_CodePointAt_WithSurrogatePair()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "𝟘𝟙𝟚"; // Mathematical bold digits
@@ -490,7 +492,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_LocaleCompare()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let a = "apple";
@@ -504,7 +506,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Normalize()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "café";
@@ -517,7 +519,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_MatchAll()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "test1test2test3";
@@ -532,7 +534,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Anchor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -545,7 +547,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Link()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "click here";
@@ -558,7 +560,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_FromCodePoint()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String.fromCodePoint(65, 66, 67);
@@ -570,7 +572,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_FromCodePoint_WithSurrogatePairs()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String.fromCodePoint(128512); // Grinning face emoji (0x1F600)
@@ -582,7 +584,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_FromCharCode()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String.fromCharCode(72, 101, 108, 108, 111);
@@ -594,7 +596,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String(123);
@@ -606,7 +608,7 @@ public class StringMethodsTests
     [Fact(Timeout = 2000)]
     public async Task String_Constructor_WithBoolean()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String(true);
@@ -614,4 +616,14 @@ public class StringMethodsTests
                                            """);
         Assert.Equal("true", result);
     }
+}
+
+public class FastPath_StringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_StringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -9,15 +9,9 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for generator functions (function*) and the iterator protocol.
 /// </summary>
-[Collection("GeneratorIrCollection")]
-public class GeneratorTests
+public abstract class GeneratorTestsBase(ITestOutputHelper testOutputHelper) : FastPathTestBase(testOutputHelper)
 {
-    private readonly ITestOutputHelper _testOutputHelper;
-
-    public GeneratorTests(ITestOutputHelper testOutputHelper)
-    {
-        _testOutputHelper = testOutputHelper;
-    }
+    private readonly ITestOutputHelper _testOutputHelper = testOutputHelper;
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 
@@ -25,7 +19,7 @@ public class GeneratorTests
     public async Task GeneratorFunction_CanBeDeclared()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
         var temp = await engine.Evaluate("""
@@ -41,7 +35,7 @@ public class GeneratorTests
     public async Task GeneratorFunction_ReturnsIteratorObject()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var result = await engine.Evaluate("""
@@ -62,7 +56,7 @@ public class GeneratorTests
     public async Task Generator_HasNextMethod()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -83,7 +77,7 @@ public class GeneratorTests
     public async Task Generator_YieldsSingleValue()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -107,7 +101,7 @@ public class GeneratorTests
     public async Task Generator_YieldsMultipleValues()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -135,7 +129,7 @@ public class GeneratorTests
     public async Task Generator_ReturnsIteratorResult()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -157,7 +151,7 @@ public class GeneratorTests
     public async Task Generator_IteratorResultHasValueAndDone()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -183,7 +177,7 @@ public class GeneratorTests
     public async Task Generator_CompletesWithDoneTrue()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -209,7 +203,7 @@ public class GeneratorTests
     public async Task Generator_YieldsExpressions()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -234,7 +228,7 @@ public class GeneratorTests
     public async Task Generator_YieldsVariables()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -261,7 +255,7 @@ public class GeneratorTests
     public async Task Generator_WithParameters()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -286,7 +280,7 @@ public class GeneratorTests
     public async Task Generator_CanBeCalledMultipleTimes()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -316,7 +310,7 @@ public class GeneratorTests
     public async Task Generator_EmptyGenerator()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -338,7 +332,7 @@ public class GeneratorTests
     public async Task Generator_WithReturn()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -369,7 +363,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Array()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Simpler test: just yield* [1, 2, 3] without prior yield
         var temp = await engine.Evaluate("""
@@ -408,7 +402,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_DelegatesValues()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -454,7 +448,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_ReturnValueUsedByOuterGenerator()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -493,7 +487,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReceivesSentValuesIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* inner() {
@@ -535,7 +529,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowDeliversCleanupIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -583,7 +577,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnDeliversCleanupIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let returnLog = [];
@@ -633,7 +627,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowContinuesWhenIteratorResumesIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -688,7 +682,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowRequiresIteratorResultObjectIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -721,7 +715,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnRequiresIteratorResultObjectIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -773,7 +767,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowAwaitedPromiseIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -822,7 +816,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowPromiseRejectsIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -856,7 +850,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnAwaitedPromiseIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -908,7 +902,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnDoneFalseContinuesIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function makeIterator() {
@@ -960,7 +954,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarNestedTryFinallyThrowMidFinalIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -1029,7 +1023,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarNestedTryFinallyReturnMidFinalIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -1100,7 +1094,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_NextValueIsDeliveredToYield()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate("""
 
                                          function* gen() {
@@ -1127,7 +1121,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_NextDefaultsToUndefinedWhenNoValueProvided()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate("""
 
                                          function* gen() {
@@ -1152,7 +1146,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ThrowDeliversExceptionToYield()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate("""
 
                                          function* gen() {
@@ -1188,7 +1182,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ThrowWithoutCatchPropagatesError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
             await engine.Evaluate("""
                 function* gen() {
@@ -1206,7 +1200,7 @@ public class GeneratorTests
     public async Task GeneratorExpression_CanBeAssigned()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -1229,7 +1223,7 @@ public class GeneratorTests
     public async Task Generator_HasReturnMethod()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -1251,7 +1245,7 @@ public class GeneratorTests
     public async Task Generator_ReturnMethodCompletesGenerator()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -1281,7 +1275,7 @@ public class GeneratorTests
     public async Task Generator_HasThrowMethod()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act
         var temp = await engine.Evaluate("""
@@ -1301,7 +1295,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_InitializationRunsOnce()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let hits = 0;
@@ -1326,7 +1320,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_CanReceiveSentValues()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1344,7 +1338,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_BreakStatementExitsLoop()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* breakExample() {
@@ -1370,7 +1364,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ContinueStatementSkipsLoopBody()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* continueExample() {
@@ -1395,7 +1389,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_LabeledBreakTargetsOuterLoop()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* labeledBreak() {
@@ -1425,7 +1419,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_LabeledContinueTargetsOuterLoop()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* labeledContinue() {
@@ -1451,7 +1445,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_WhileLoopsExecuteWithIrPlan()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* loop(limit) {
@@ -1478,7 +1472,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_IrPathReceivesSentValues()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* echoTwice() {
@@ -1496,7 +1490,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_AssignmentReceivesSentValuesIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* assignGen() {
@@ -1516,7 +1510,7 @@ public class GeneratorTests
     public async Task Generator_AssignmentReceivesSentValuesIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* assignGen() {
@@ -1536,7 +1530,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryCatchHandlesThrowIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1563,7 +1557,7 @@ public class GeneratorTests
     public async Task Generator_TryCatchHandlesThrowIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1586,7 +1580,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyRunsOnReturnIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* cleanup() {
@@ -1617,7 +1611,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyRunsOnThrowIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let flag = 0;
@@ -1650,7 +1644,7 @@ public class GeneratorTests
     public async Task Generator_TryFinallyRunsOnThrowIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let flag = 0;
@@ -1674,7 +1668,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedBreakIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1707,7 +1701,7 @@ public class GeneratorTests
     public async Task Generator_TryFinallyNestedThrowIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1757,7 +1751,7 @@ public class GeneratorTests
     public async Task Generator_TryFinallyNestedReturnIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1803,7 +1797,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedThrowInterpreter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1846,7 +1840,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedReturnInterpreter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1887,7 +1881,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyThrowMidFinalIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1922,7 +1916,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyReturnMidFinalIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -1960,7 +1954,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_CatchFinallyNestedThrowIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let catchFinallyLog = [];
@@ -2003,7 +1997,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_CatchFinallyNestedReturnIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let catchFinallyReturnLog = [];
@@ -2049,7 +2043,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_BreakRunsFinallyIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let hits = 0;
@@ -2076,7 +2070,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ContinueRunsFinallyIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let hits = 0;
@@ -2105,7 +2099,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_DoWhileLoopsExecuteWithIrPlan()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* doLoop(limit) {
@@ -2130,7 +2124,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForLoopsExecuteWithIrPlan()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* forLoop(limit) {
@@ -2155,7 +2149,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForLoopContinueRunsIncrement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* evens(limit) {
@@ -2183,7 +2177,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfYieldsValuesIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2209,7 +2203,7 @@ public class GeneratorTests
     public async Task Generator_ForOfYieldsValuesIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2230,7 +2224,7 @@ public class GeneratorTests
     public async Task Generator_ForLoopsExecuteWithIrPlan_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* forLoop(limit) {
@@ -2251,7 +2245,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarReceivesSentValuesIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* inner() {
@@ -2276,7 +2270,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfBreaksEarlyIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2307,7 +2301,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfLetCreatesNewBindingIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2334,7 +2328,7 @@ public class GeneratorTests
     public async Task Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2360,7 +2354,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfDestructuringIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2384,7 +2378,7 @@ public class GeneratorTests
     public async Task Generator_ForOfDestructuringIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2407,7 +2401,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_VariableInitializerWithMultipleYieldsIr_UsesIrPlan()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         GeneratorIrDiagnostics.Reset();
         await engine.Evaluate("""
@@ -2452,7 +2446,7 @@ public class GeneratorTests
     public async Task Generator_IfConditionComplexYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2473,7 +2467,7 @@ public class GeneratorTests
     public async Task Generator_ForConditionYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2494,7 +2488,7 @@ public class GeneratorTests
     public async Task Generator_WhileConditionComplexYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2519,7 +2513,7 @@ public class GeneratorTests
     public async Task Generator_DoWhileConditionComplexYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2543,7 +2537,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ForIncrementYieldIr_UsesIrPlan()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         GeneratorIrDiagnostics.Reset();
         await engine.Evaluate("""
@@ -2568,7 +2562,7 @@ public class GeneratorTests
     public async Task Generator_ForIncrementMultipleYieldsIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2619,7 +2613,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_SwitchStatementIr_UsesIrPlan()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         GeneratorIrDiagnostics.Reset();
         await engine.Evaluate("""
@@ -2649,7 +2643,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_SwitchStatementSemanticsIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* describe(value) {
@@ -2696,7 +2690,7 @@ public class GeneratorTests
     public async Task Generator_SwitchStatementDefaultNotLastIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2740,7 +2734,7 @@ public class GeneratorTests
     public async Task Generator_SwitchStatementMultipleBreaksIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen(x) {
@@ -2804,7 +2798,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ReturnSkipsRemainingStatementsIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let updates = 0;
@@ -2830,7 +2824,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ThrowSkipsRemainingStatementsIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let updates = 0;
@@ -2851,7 +2845,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_ReturnYieldIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2878,7 +2872,7 @@ public class GeneratorTests
     public async Task Generator_IfConditionYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2903,7 +2897,7 @@ public class GeneratorTests
     public async Task Generator_WhileConditionYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2928,7 +2922,7 @@ public class GeneratorTests
     public async Task Generator_ReturnYieldIr_UsesIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2945,7 +2939,7 @@ public class GeneratorTests
     [Fact(Timeout = 2000)]
     public async Task Generator_IfConditionYieldIr()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* gen() {
@@ -2980,7 +2974,7 @@ public class GeneratorTests
     public async Task Generator_AllCoreIrShapes_UseIrPlan()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             function* whileYield(log) {
@@ -3040,7 +3034,7 @@ public class GeneratorTests
     public async Task Generator_ForAwaitFallsBackIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
                                      let result = "";
@@ -3072,7 +3066,7 @@ public class GeneratorTests
     public async Task Generator_ForAwaitAsyncIteratorAwaitsValuesIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
                                      let result = "";
@@ -3119,7 +3113,7 @@ public class GeneratorTests
     public async Task Generator_ForAwaitPromiseValuesAreAwaitedIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
                                      let result = "";
@@ -3157,7 +3151,7 @@ public class GeneratorTests
     public async Task Generator_ForAwaitAsyncIteratorRejectsPropagatesIr()
     {
         GeneratorIrDiagnostics.Reset();
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var errorCaught = false;
 
         engine.SetGlobalFunction("log", args =>
@@ -3230,7 +3224,7 @@ public class GeneratorTests
     public async Task ParseGeneratorSyntax_FunctionStar()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should parse without error
         var program = engine.Parse("""
@@ -3248,7 +3242,7 @@ public class GeneratorTests
     public async Task ParseYieldExpression()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should parse without error
         var program = engine.Parse("""
@@ -3267,7 +3261,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarPreservesOriginalIteratorResult()
     {
         // Test that yield* preserves the original iterator result object, including when done is absent
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var logs = new List<string>();
         engine.SetGlobalFunction("log", args =>
@@ -3328,7 +3322,7 @@ public class GeneratorTests
     {
         // This test reproduces the failing Test262 test: star-rhs-iter-nrml-next-invoke.js
         // The test verifies that yield* properly calls the iterator's next() method
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             var callCount = 0;
@@ -3357,7 +3351,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarCallsIteratorNext_StrictMode()
     {
         // Same as above but in strict mode - to match Test262 test
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             "use strict";
@@ -3387,7 +3381,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarCallsIteratorNext_WithHarness()
     {
         // Simulates Test262 harness loading
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Load assert.js-like harness
         await engine.Evaluate("""
@@ -3442,7 +3436,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarCallsIteratorNext_InlineCheck()
     {
         // Same as above but check inline - this is closer to Test262 execution
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // All in one evaluation - no harness at all
         await engine.Evaluate("""
@@ -3471,7 +3465,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarCallsIteratorNext_TwoEvalsWithCheck()
     {
         // First evaluation defines stuff, second calls iter.next() and checks
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // First evaluation - define everything
         await engine.Evaluate("""
@@ -3503,7 +3497,7 @@ public class GeneratorTests
     public async Task Generator_YieldStarCallsIteratorNext_ThreeEvalsWithCheck()
     {
         // Three evaluations - closer to Test262 structure
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // First evaluation - harness-like setup
         await engine.Evaluate("""
@@ -3536,7 +3530,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoEvaluations()
     {
         // Test: define generator in first evaluation, call it in second
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             var callCount = 0;
@@ -3569,7 +3563,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultipleEvaluations()
     {
         // Test: more evaluations like Test262
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Evaluation 1: simple harness setup
         await engine.Evaluate("""
@@ -3604,7 +3598,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_ManyEvaluations()
     {
         // Test: lots of evaluations like Test262 harness actually does
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Evaluation 1: assert.js content simulation
         await engine.Evaluate("""
@@ -3655,7 +3649,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_RealHarness()
     {
         // Use the real Test262 harness content
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Evaluation 1: sta.js (Test262Error class)
         await engine.Evaluate("""
@@ -3768,7 +3762,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_WithCompareArrayPatch()
     {
         // Test with the CompareArray patch that Test262 uses
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Evaluation 1: sta.js
         await engine.Evaluate("""
@@ -3845,7 +3839,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_SyncExecution()
     {
         // Test using .Wait() like Test262 harness does
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Evaluation 1: sta.js using Wait()
         await engine.Evaluate("""
@@ -3902,7 +3896,7 @@ public class GeneratorTests
     {
         // This test has code before the generator that assigns to outer vars
         // The issue seems to be related to how the function captures outer vars
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Simplified test - just return callCount directly
         var testCode = """
@@ -3937,7 +3931,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_WithoutArgsVar()
     {
         // Same test but without args/thisValue at beginning
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var callCount = 0;
@@ -3968,7 +3962,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_FullTest262WithAssertions()
     {
         // Exact Test262 test code including the 4 assertions
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First define assert.sameValue
         await engine.Evaluate("""
@@ -4019,7 +4013,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TrailingCodeNoMultiEval()
     {
         // Same test but ALL in one evaluation - check if multi-eval is the issue
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Everything in a single evaluation
         var testCode = """
@@ -4066,7 +4060,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TrailingCodeSimple()
     {
         // Simple test with just trailing code (no multi-eval, no assert)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -4103,7 +4097,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TrailingFunctionCall()
     {
         // Test with a simple function call after iter.next()
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function doNothing() {}
@@ -4141,7 +4135,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TrailingFunctionCallWithArg()
     {
         // Test with a function call that uses callCount after iter.next()
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function check(val) { return val; }
@@ -4178,7 +4172,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoArgFunctionCall()
     {
         // Test with a function call that takes 2 args (like assert.sameValue)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function compare(a, b) {
@@ -4218,7 +4212,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_PropertyAssignmentAfterNext()
     {
         // Test with a function that has property access like assert.sameValue
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var checker = {};
@@ -4259,7 +4253,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalMinimal()
     {
         // Minimal multi-eval case - define function in first eval, use in second
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define the helper function
         await engine.Evaluate("""
@@ -4300,7 +4294,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalWithoutCheck()
     {
         // Multi-eval but WITHOUT the check function call
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define something (doesn't matter what)
         await engine.Evaluate("""
@@ -4340,7 +4334,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalCallCheckFromFirstEval()
     {
         // Multi-eval - calling a function defined in first eval
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define the function
         await engine.Evaluate("""
@@ -4364,7 +4358,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalNoGeneratorButCheck()
     {
         // Multi-eval - calling function from first eval, but no generator
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define the function
         await engine.Evaluate("""
@@ -4392,7 +4386,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalMethodOnObject()
     {
         // Multi-eval - method on object from first eval (like assert.sameValue)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define assert with sameValue method
         await engine.Evaluate("""
@@ -4438,7 +4432,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalMethodOnObjectMultipleCalls()
     {
         // Multi-eval - multiple assert.sameValue calls (like actual Test262)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define assert with sameValue method
         await engine.Evaluate("""
@@ -4490,7 +4484,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalMethodOnObject_TwoCalls()
     {
         // Multi-eval - TWO assert.sameValue calls
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define assert with sameValue method
         await engine.Evaluate("""
@@ -4540,7 +4534,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_MultiEvalTwoFunctionCalls()
     {
         // Multi-eval - two function calls (but NOT assert.sameValue)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // First eval - define function
         await engine.Evaluate("""
@@ -4585,7 +4579,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_SameEvalTwoFunctionCalls()
     {
         // SAME eval - two function calls - should pass if it's cross-eval problem
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function check(a, b) {
@@ -4626,7 +4620,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoPropertyAccesses()
     {
         // Two property accesses (not function calls) after iter.next()
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -4663,7 +4657,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoVariableAssignments()
     {
         // Two variable assignments after iter.next()
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -4700,7 +4694,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoInlineFunctionCalls()
     {
         // Two inline function expressions called after iter.next()
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -4737,7 +4731,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoNamedFunctionCallsLocalScope()
     {
         // Two named function calls (function defined INSIDE the same script but AFTER generator)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -4778,7 +4772,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_TwoNamedFunctionCallsBeforeGenerator()
     {
         // Two named function calls (function defined BEFORE generator)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function localCheck(a, b) {
@@ -4819,7 +4813,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_DebugIterNextResult_OneFuncDecl()
     {
         // Debug: check what iter.next() returns - with ONE function decl
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function localCheck(a, b) {
@@ -4863,7 +4857,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_DebugIterNextResult_TwoFuncDecls()
     {
         // Debug: check what iter.next() returns - with TWO function decls
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function localCheck(a, b) {
@@ -4908,7 +4902,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_DebugIterNextResult_TwoFuncCalls_Constant()
     {
         // Debug: check what iter.next() returns - with TWO function calls with constant args
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function localCheck(a, b) {
@@ -4956,7 +4950,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_DebugIterNextResult_TwoFuncCalls_VarRef()
     {
         // Debug: check what iter.next() returns - with TWO function calls referencing variables
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function localCheck(a, b) {
@@ -5004,7 +4998,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_OneCheck_Works()
     {
         // Confirm that ONE localCheck call works
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             function localCheck(a, b) {
@@ -5041,7 +5035,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_WithCommaVar_NoAssignment()
     {
         // Test with comma-separated var BUT no assignment inside the function
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -5073,7 +5067,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_OnlyArgsAssignment()
     {
         // Test with just args assignment
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args;
@@ -5106,7 +5100,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_OnlyThisValueAssignment()
     {
         // Test with just thisValue assignment
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var thisValue;
@@ -5139,7 +5133,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_BothAssignmentsSeparateVars()
     {
         // Test with both assignments but separate var declarations
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args;
@@ -5174,7 +5168,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_BothAssignmentsCommaVar()
     {
         // Test with both assignments and comma var declaration (exactly like failing test)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args, thisValue;
@@ -5208,7 +5202,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_WithArgsVarSeparate()
     {
         // Same test with args/thisValue but declared separately
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var testCode = """
             var args;
@@ -5243,7 +5237,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_WithPriorExecutions()
     {
         // This test executes multiple scripts before the test, simulating Test262 harness
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Simulate loading assert.js (large script with multiple functions)
         await engine.Evaluate("""
@@ -5399,7 +5393,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_Isolation_SingleEval_TwoCallsVarRef()
     {
         // This test isolates the bug: TWO function calls with variable refs in SINGLE eval
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Setup in first eval
         await engine.Evaluate("""
@@ -5441,7 +5435,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_Isolation_SeparateEvals_TwoCallsVarRef()
     {
         // This test isolates the bug: TWO function calls with variable refs in SEPARATE evals
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Setup in first eval
         await engine.Evaluate("""
@@ -5483,7 +5477,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_Isolation_SingleEval_TwoCallsConstant()
     {
         // This should work: TWO function calls with CONSTANT args in SINGLE eval
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         // Setup in first eval
         await engine.Evaluate("""
@@ -5523,7 +5517,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_AllInOneEval_TwoCallsVarRef()
     {
         // This is the EXACT pattern that fails: EVERYTHING in single eval
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var exception = await Record.ExceptionAsync(async () =>
         {
@@ -5559,7 +5553,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_AllInOneEval_OneCallVarRef()
     {
         // This should work: just ONE check call with var ref in ALL-IN-ONE eval
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var exception = await Record.ExceptionAsync(async () =>
         {
@@ -5594,7 +5588,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_AllInOneEval_TwoCallsConstant()
     {
         // This should work: CONSTANT args (regardless of single/multiple evals)
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         await engine.Evaluate("""
             function check(a, b) {
@@ -5629,7 +5623,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_ExactMatch_WithArgsProperty()
     {
         // This EXACTLY matches the failing test - includes args.length property access
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var exception = await Record.ExceptionAsync(async () =>
         {
@@ -5678,7 +5672,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_NoArgsProperty()
     {
         // Same as above but WITHOUT args.length property access
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var exception = await Record.ExceptionAsync(async () =>
         {
@@ -5727,7 +5721,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_OnlyArgsLengthCheck()
     {
         // Only ONE check with args.length
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var exception = await Record.ExceptionAsync(async () =>
         {
@@ -5773,7 +5767,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_ArgsLengthAfterIterNext_NoGenerator()
     {
         // Same pattern but WITHOUT generator to isolate if it's the generator
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         await engine.Evaluate("""
             function localCheck(a, b) {
@@ -5805,7 +5799,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_ArgsLengthOnly_NoLocalCheck()
     {
         // Just access args.length without any function call
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         await engine.Evaluate("""
             var args, thisValue;
@@ -5843,7 +5837,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_ArgsLengthInSameEval_NoFunctionCall()
     {
         // Access args.length in same eval but without function call
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var args, thisValue;
@@ -5879,7 +5873,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_CheckArgsZero()
     {
         // Check what's actually in args[0]
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var args, thisValue;
@@ -5923,7 +5917,7 @@ public class GeneratorTests
     public async Task Generator_YieldStar_Bug_DirectCallWithArg()
     {
         // Call inner iterator directly with arg
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var args;
@@ -5957,7 +5951,7 @@ public class GeneratorTests
         // Per ES spec, the first .next() call's argument is always ignored
         // But the inner iterator's next() IS called, so args should be an Arguments object with length 1
         // The bug is: what argument is being passed to the inner iterator's next()?
-        var engine = new JsEngine();
+        var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var args;
@@ -6001,7 +5995,7 @@ public class GeneratorTests
     {
         // This tests the pattern: [yield 1]
         // The yield inside an array literal should work correctly
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g1() { [yield 1] }
@@ -6025,7 +6019,7 @@ public class GeneratorTests
     {
         // This tests the pattern: yield, yield
         // Sequence of yields should work correctly
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g4() { yield, yield; }
@@ -6050,7 +6044,7 @@ public class GeneratorTests
     {
         // This tests the pattern: [ x = yield ] = vals
         // Yield in destructuring default should work correctly
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var x;
@@ -6078,7 +6072,7 @@ public class GeneratorTests
     {
         // This tests the pattern: for ([ x = yield ] of [[]])
         // Yield in for-of destructuring default should work correctly
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var x;
@@ -6105,7 +6099,7 @@ public class GeneratorTests
     public async Task Generator_ParenthesizedYield()
     {
         // Test: (yield)
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g1() { (yield) }
@@ -6124,7 +6118,7 @@ public class GeneratorTests
     public async Task Generator_BlockWithYield()
     {
         // Test: {yield} - this is a block containing a yield expression statement
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g3() { {yield} }
@@ -6143,7 +6137,7 @@ public class GeneratorTests
     public async Task Generator_ConditionalWithYields()
     {
         // Test: (yield) ? yield : yield
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g5() { (yield) ? yield : yield; }
@@ -6164,7 +6158,7 @@ public class GeneratorTests
     public async Task Generator_ArrayWithYieldNoOperand()
     {
         // Test: [yield] - bare yield without operand in array literal
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g2() { [yield] }
@@ -6183,7 +6177,7 @@ public class GeneratorTests
     public async Task Generator_SequenceWithTwoYields()
     {
         // Test: yield, yield - sequence expression with two yields
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g4() { yield, yield; }
@@ -6204,7 +6198,7 @@ public class GeneratorTests
     public async Task Generator_ObjectMethodWithYieldPatterns()
     {
         // Test generator methods in object literals with yield patterns
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var obj = {
@@ -6249,7 +6243,7 @@ public class GeneratorTests
     public async Task Generator_AllRhsOmittedPatterns()
     {
         // Comprehensive test matching rhs-omitted.js from Test262
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             function* g1() { (yield) }
@@ -6328,7 +6322,7 @@ public class GeneratorTests
     {
         // Test262: result = [ x = yield ] = vals;
         // This is an assignment expression where value is a destructuring assignment
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var x;
@@ -6358,7 +6352,7 @@ public class GeneratorTests
     {
         // Test262: result = [[x[yield]]] = vals;
         // Nested array destructuring with yield in computed property target
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var value = [[22]];
@@ -6382,4 +6376,16 @@ public class GeneratorTests
         Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
         Assert.Contains("\"xProp\":22", resultStr, StringComparison.Ordinal);
     }
+}
+
+[Collection("GeneratorIrCollection")]
+public class FastPath_GeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+[Collection("GeneratorIrCollection")]
+public class Reference_GeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

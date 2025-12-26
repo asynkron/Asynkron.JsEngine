@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedAstDestructuringTests
+public abstract class TypedAstDestructuringTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ArrayDestructuring_WithDefaultValue_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let [a, b = 2] = [1];
             a + b;
@@ -17,7 +19,7 @@ public class TypedAstDestructuringTests
     [Fact]
     public async Task ObjectDestructuring_WithNestedPattern_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let { x, inner: { z = 5 } } = { x: 1, inner: {} };
             x + z;
@@ -29,7 +31,7 @@ public class TypedAstDestructuringTests
     [Fact]
     public async Task ForLoop_WithInnerDestructuring_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let total = 0;
             for (const pair of [[1, 2], [3, 4]]) {
@@ -45,7 +47,7 @@ public class TypedAstDestructuringTests
     [Fact]
     public async Task FunctionParameter_DestructuringBinding_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function combine({ left, right: { value } }) {
                 return left + value;
@@ -59,7 +61,7 @@ public class TypedAstDestructuringTests
     [Fact]
     public async Task ArrayDestructuringAssignment_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let first = 0;
             let second = 0;
@@ -73,7 +75,7 @@ public class TypedAstDestructuringTests
     [Fact]
     public async Task ObjectDestructuringAssignment_WithNestedPattern_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let x = 0;
             let y = 0;
@@ -83,4 +85,14 @@ public class TypedAstDestructuringTests
 
         Assert.Equal(7.0, result);
     }
+}
+
+public class FastPath_TypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

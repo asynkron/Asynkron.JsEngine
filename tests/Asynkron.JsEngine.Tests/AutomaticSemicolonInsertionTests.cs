@@ -1,17 +1,18 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AutomaticSemicolonInsertionTests
+public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ReturnWithLineBreakReturnsUndefined()
     {
         // return\n{} should be parsed as: return; {}
         // The {} becomes a separate block statement, not returned
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function test() {
                 return
@@ -28,7 +29,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task ReturnWithObjectOnSameLine()
     {
         // return { on same line should parse the object with computed property
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function test() {
                 return {
@@ -45,7 +46,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task ExpressionStatementWithoutSemicolon()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let x = 1
             let y = 2
@@ -58,7 +59,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task VariableDeclarationWithoutSemicolon()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let a = 10
             let b = 20
@@ -72,7 +73,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task MultiLineExpressionNoASI()
     {
         // a = b + c should parse as one expression
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let a = 1
             let b = 2
@@ -88,7 +89,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task PropertyAccessAcrossLines()
     {
         // obj.prop should work across lines
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let obj = { value: 42 }
             obj
@@ -104,7 +105,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task ArrayAccessAcrossLines()
     {
         // arr[0] should work across lines
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let arr = [1, 2, 3]
             arr
@@ -118,7 +119,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task FunctionCallAcrossLines()
     {
         // func() should work across lines
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function getValue() { return 100 }
             getValue
@@ -131,7 +132,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task ClosingBraceTriggersASI()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function test() {
                 let x = 5
@@ -146,7 +147,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task EOFTriggersASI()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let value = 42
             value");
@@ -158,7 +159,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task ThrowWithLineBreakFails()
     {
         // throw\nexpression should fail - line terminator not allowed after throw
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await Assert.ThrowsAsync<ParseException>(async () =>
         {
@@ -175,7 +176,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task ThrowWithExpressionOnSameLine()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // This should throw a ThrowSignal with the error message
         var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
@@ -195,7 +196,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task ContinueStatementASI()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let sum = 0
             for (let i = 0; i < 10; i = i + 1) {
@@ -214,7 +215,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task BreakStatementASI()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let sum = 0
             for (let i = 0; i < 10; i = i + 1) {
@@ -233,7 +234,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task IfStatementWithoutBraces()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let x = 5
             if (x > 0)
@@ -247,7 +248,7 @@ public class AutomaticSemicolonInsertionTests
     [Fact(Timeout = 2000)]
     public async Task ComplexCodeWithASI()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function calculate(a, b) {
                 let sum = a + b
@@ -269,7 +270,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task ReturnWithCommaOperator()
     {
         // Simple test: comma operator returns last value
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function test() {
                 return 1, 2, 3;
@@ -284,7 +285,7 @@ public class AutomaticSemicolonInsertionTests
     public async Task ReturnWithCommaOperatorComplex()
     {
         // Test return statement with comma operator (sequences multiple expressions)
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function createCommonjsModule(fn, basedir, module) {
                 return module = {
@@ -311,4 +312,14 @@ public class AutomaticSemicolonInsertionTests
 
         Assert.Equal("/base", result);
     }
+}
+
+public class FastPath_AutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

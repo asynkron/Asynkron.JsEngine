@@ -1,14 +1,16 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for Regular Expression support.
 /// </summary>
-public class RegExpTests
+public abstract class RegExpTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("hello");
@@ -21,7 +23,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_WithFlags()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("hello", "i");
@@ -34,7 +36,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Test_Matches()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("world");
@@ -47,7 +49,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Test_NoMatch()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("xyz");
@@ -60,7 +62,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Test_CaseInsensitive()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("HELLO", "i");
@@ -73,7 +75,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_ReturnsMatchArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("world");
@@ -87,7 +89,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_ReturnsIndex()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("world");
@@ -101,7 +103,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_WithCaptureGroups()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("([a-z]+)@([a-z]+)");
@@ -115,7 +117,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Exec_NoMatch_ReturnsNull()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("xyz");
@@ -128,7 +130,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task String_Match_WithRegExp()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -143,7 +145,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task String_Match_GlobalFlag()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello hello";
@@ -158,7 +160,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task String_Search_ReturnsIndex()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -172,7 +174,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task String_Search_NoMatch()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello";
@@ -186,7 +188,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task String_Replace_WithRegExp()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello world";
@@ -202,7 +204,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task String_Replace_GlobalFlag()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello hello";
@@ -216,7 +218,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_GlobalFlag_Test_UpdatesLastIndex()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("o", "g");
@@ -236,7 +238,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Pattern_WithDigits()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("[0-9]+");
@@ -249,7 +251,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Pattern_EmailLike()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("[a-z]+@[a-z]+\.[a-z]+", "i");
@@ -262,7 +264,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegExp_Multiline_Flag()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = new RegExp("^world", "m");
@@ -276,7 +278,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_Basic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /hello/;
@@ -289,7 +291,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_WithFlags()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /hello/i;
@@ -302,7 +304,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_MultipleFlags()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var temp = await engine.Evaluate("""
 
                                                      let regex = /hello/gi;
@@ -317,7 +319,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_Test()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /world/;
@@ -330,7 +332,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_TestCaseInsensitive()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /HELLO/i;
@@ -343,7 +345,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_Exec()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /world/;
@@ -357,7 +359,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_WithEscapes()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\d+/;
@@ -370,7 +372,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_WithCharacterClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /[0-9]+/;
@@ -383,7 +385,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InAssignment()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let pattern = /test/i;
@@ -396,7 +398,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InFunctionCall()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function testPattern(regex) {
@@ -411,7 +413,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let patterns = [/hello/, /world/];
@@ -424,7 +426,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_InObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { pattern: /test/ };
@@ -437,7 +439,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_StringMatch()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "I have 2 cats and 3 dogs";
@@ -451,7 +453,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_StringReplace()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "hello hello hello";
@@ -464,7 +466,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_StringSearch()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "The year is 2024";
@@ -477,7 +479,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_ComplexPattern()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let emailPattern = /([a-z]+)@([a-z]+)\.([a-z]+)/i;
@@ -491,7 +493,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_AfterReturn()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function getPattern() {
@@ -506,7 +508,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_AfterComma()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function check(a, b) {
@@ -521,7 +523,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_EscapedSlash()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\//;
@@ -534,7 +536,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_ComplexCharacterClass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /[a-zA-Z0-9_]/;
@@ -547,7 +549,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_ComplexEscapeSequences()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "test.*?";
@@ -560,7 +562,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_EscapeSequences_Dot()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\./;
@@ -573,7 +575,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_EscapeSequences_Star()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\*/;
@@ -586,7 +588,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_EscapeSequences_Question()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\?/;
@@ -599,7 +601,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_EscapeSequences_Plus()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\+/;
@@ -612,7 +614,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_MultipleEscapes_WithAnchors()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = "start.*?end";
@@ -625,7 +627,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_ParenthesesEscape()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\(test\)/;
@@ -638,7 +640,7 @@ public class RegExpTests
     [Fact(Timeout = 2000)]
     public async Task RegexLiteral_BracketsEscape()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let regex = /\[test\]/;
@@ -647,4 +649,14 @@ public class RegExpTests
                                            """);
         Assert.True((bool)result!);
     }
+}
+
+public class FastPath_RegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_RegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

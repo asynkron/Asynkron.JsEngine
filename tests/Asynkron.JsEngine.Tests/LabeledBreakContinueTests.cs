@@ -1,9 +1,11 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for labeled break and continue statements with runtime execution.
 /// </summary>
-public class LabeledBreakContinueTests
+public abstract class LabeledBreakContinueTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task LabeledBreakExitsOuterLoop()
@@ -21,7 +23,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // Should be: 00, 01, 02, 10, 11 (breaks at i=1, j=1)
@@ -44,7 +46,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // Should be: 00, (skips 01, 02), 10, (skips 11, 12)
@@ -68,7 +70,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // Should be: 00, X, 10, X (break only exits inner loop)
@@ -95,7 +97,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // Should break out of outer loop at i=1, j=1
@@ -123,7 +125,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // Should continue outer loop when j=1
@@ -148,7 +150,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // Should break out of outer block
@@ -176,7 +178,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // 000, 001, 010 (break b), 100, 101 (break a)
@@ -200,7 +202,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // a0, a1, b0 (break outer)
@@ -224,7 +226,7 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // x0, y0, z0 (skips i=1 each time)
@@ -251,10 +253,20 @@ public class LabeledBreakContinueTests
             result;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
 
         // 00, 01, 02, 10, 11 (break outer)
         Assert.Equal("00,01,02,10,11,", result);
     }
+}
+
+public class FastPath_LabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_LabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

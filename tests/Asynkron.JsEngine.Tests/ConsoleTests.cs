@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ConsoleTests
+public abstract class ConsoleTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Console_Log_Should_Be_Available()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // This should not throw "Undefined symbol 'console'"
         var result = await engine.Evaluate("console.log('Hello, World!')");
@@ -19,7 +20,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Log_Multiple_Arguments()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(@"
             console.log('Hello', 42, true, null, undefined);
@@ -31,7 +32,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Error_Should_Be_Available()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("console.error('Error message')");
 
@@ -41,7 +42,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Warn_Should_Be_Available()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("console.warn('Warning message')");
 
@@ -51,7 +52,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Info_Should_Be_Available()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("console.info('Info message')");
 
@@ -61,7 +62,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Debug_Should_Be_Available()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("console.debug('Debug message')");
 
@@ -71,7 +72,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Log_With_Objects()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(@"
             let obj = { name: 'John', age: 30 };
@@ -84,7 +85,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Log_With_Arrays()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(@"
             let arr = [1, 2, 3, 4, 5];
@@ -97,7 +98,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Object_Should_Be_Accessible()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("typeof console");
 
@@ -107,7 +108,7 @@ public class ConsoleTests
     [Fact]
     public async Task Console_Methods_Should_Be_Functions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(@"
             typeof console.log === 'function' &&
@@ -119,4 +120,14 @@ public class ConsoleTests
 
         Assert.True((bool)result!);
     }
+}
+
+public class FastPath_ConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

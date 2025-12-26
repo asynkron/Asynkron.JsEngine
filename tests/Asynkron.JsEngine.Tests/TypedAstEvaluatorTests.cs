@@ -5,7 +5,7 @@
 //
 // namespace Asynkron.JsEngine.Tests;
 //
-// public class TypedAstEvaluatorTests
+// public abstract class TypedAstEvaluatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 // {
 //     [Theory]
 //     [InlineData("let sum = 0; let i = 0; while (i < 4) { sum = sum + i; i = i + 1; } sum;", 6d)]
@@ -40,4 +40,14 @@
 //         var legacy = ProgramEvaluator.EvaluateProgram(program, legacyEnv);
 //         return (typed, legacy);
 //     }
+// }
+//
+// public class FastPath_TypedAstEvaluatorTests(ITestOutputHelper output) : TypedAstEvaluatorTestsBase(output)
+// {
+//     protected override bool EnableFastPaths => true;
+// }
+//
+// public class Reference_TypedAstEvaluatorTests(ITestOutputHelper output) : TypedAstEvaluatorTestsBase(output)
+// {
+//     protected override bool EnableFastPaths => false;
 // }

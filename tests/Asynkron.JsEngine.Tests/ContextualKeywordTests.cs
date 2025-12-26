@@ -1,15 +1,17 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for contextual keywords (async, await, yield, get, set) being used as identifiers.
 /// In JavaScript, these keywords can be used as identifiers in many contexts.
 /// </summary>
-public class ContextualKeywordTests
+public abstract class ContextualKeywordTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsParameterName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function functionDeclaration(id, params, body, generator, async) {
                 return async;
@@ -22,7 +24,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedAsParameterName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function test(await) {
                 return await;
@@ -35,7 +37,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedAsParameterName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function test(yield) {
                 return yield;
@@ -48,7 +50,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Get_CanBeUsedAsParameterName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function test(get) {
                 return get;
@@ -61,7 +63,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Set_CanBeUsedAsParameterName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function test(set) {
                 return set;
@@ -74,7 +76,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsVariableName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var async = 123;
             async;
@@ -85,7 +87,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedAsVariableName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var await = 456;
             await;
@@ -96,7 +98,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedAsVariableName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var yield = 789;
             yield;
@@ -107,7 +109,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsObjectPropertyName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = { async: 111 };
             obj.async;
@@ -118,7 +120,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedAsObjectPropertyName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = { await: 222 };
             obj.await;
@@ -129,7 +131,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedAsObjectPropertyName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var obj = { yield: 333 };
             obj.yield;
@@ -140,7 +142,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task MultipleContextualKeywords_CanBeUsedAsParameters()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // Test with 3 contextual keywords (limitation: 4+ causes evaluator issues)
         var result = await engine.Evaluate("""
             function test(async, await, yield) {
@@ -154,7 +156,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedInArrowFunctionParameters()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const fn = (async) => async * 2;
             fn(10);
@@ -165,7 +167,7 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Await_CanBeUsedInArrowFunctionParameters()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const fn = (await) => await * 3;
             fn(10);
@@ -176,11 +178,21 @@ public class ContextualKeywordTests
     [Fact(Timeout = 2000)]
     public async Task Yield_CanBeUsedInArrowFunctionParameters()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const fn = (yield) => yield * 4;
             fn(10);
             """);
         Assert.Equal(40.0, result);
     }
+}
+
+public class FastPath_ContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,14 +1,15 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayTests
+public abstract class TypedArrayTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_CreatesWithLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -21,7 +22,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_Slice_CreatesNewBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer1 = new ArrayBuffer(16);
@@ -35,7 +36,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_IsView_ReturnsFalseForBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -48,7 +49,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_IsView_ReturnsTrueForTypedArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array(8);
@@ -61,7 +62,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int8Array_CreatesFromLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int8Array(4);
@@ -74,7 +75,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int8Array_ElementAccess()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int8Array(3);
@@ -90,7 +91,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int8Array_HandlesOverflow()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int8Array(2);
@@ -105,7 +106,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Uint8Array_CreatesFromArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array([10, 20, 30]);
@@ -118,7 +119,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Uint8Array_ByteLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array(10);
@@ -131,7 +132,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Uint8ClampedArray_ClampsToRange()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8ClampedArray(3);
@@ -147,7 +148,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int16Array_BytesPerElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int16Array(5);
@@ -160,7 +161,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int16Array_ElementStorage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int16Array(2);
@@ -175,7 +176,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Uint16Array_ElementStorage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint16Array(2);
@@ -190,7 +191,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int32Array_BytesPerElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int32Array(5);
@@ -203,7 +204,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Int32Array_ElementStorage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Int32Array(2);
@@ -218,7 +219,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Uint32Array_ElementStorage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint32Array(2);
@@ -233,7 +234,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Float32Array_BytesPerElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Float32Array(5);
@@ -246,7 +247,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Float32Array_ElementStorage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Float32Array(2);
@@ -261,7 +262,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Float64Array_BytesPerElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Float64Array(5);
@@ -274,7 +275,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task Float64Array_ElementStorage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Float64Array(2);
@@ -289,7 +290,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_CreatesFromBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -303,7 +304,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_CreatesFromBufferWithOffset()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -317,7 +318,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_CreatesFromBufferWithOffsetAndLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -331,7 +332,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_BufferProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -345,7 +346,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ByteOffsetProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -359,7 +360,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Subarray_CreatesView()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr1 = new Uint8Array([0, 1, 2, 3, 4, 5]);
@@ -374,7 +375,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Slice_CopiesData()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr1 = new Uint8Array([0, 1, 2, 3, 4, 5]);
@@ -389,7 +390,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Set_FromTypedArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr1 = new Uint8Array([1, 2, 3]);
@@ -404,7 +405,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Set_FromArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array(5);
@@ -418,7 +419,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_CreatesFromBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -432,7 +433,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt8()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(4);
@@ -450,7 +451,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_GetSetUint8()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(4);
@@ -466,7 +467,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt16()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -481,7 +482,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_GetSetInt32()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -496,7 +497,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_GetSetFloat32()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -511,7 +512,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_GetSetFloat64()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -526,7 +527,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_SharedBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -542,7 +543,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_WithOffset()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -556,7 +557,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task DataView_WithOffsetAndLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(16);
@@ -570,7 +571,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_MultipleViewsShareBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let buffer = new ArrayBuffer(8);
@@ -593,7 +594,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ConstructorBYTES_PER_ELEMENT()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        Int8Array.BYTES_PER_ELEMENT +
@@ -607,7 +608,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ZeroLengthArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array(0);
@@ -620,7 +621,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_LargeArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array(1000);
@@ -634,7 +635,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_SubarrayNegativeIndices()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array([0, 1, 2, 3, 4, 5]);
@@ -648,7 +649,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_SliceNegativeIndices()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = new Uint8Array([0, 1, 2, 3, 4, 5]);
@@ -662,7 +663,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Map_UsesSpeciesConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        let hits = 0;
                                                        const arr = new Uint8Array([1, 2, 3]);
@@ -684,7 +685,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ToReversed_UsesSpeciesConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([1, 2, 3]);
                                                        const reversed = arr.toReversed();
@@ -705,7 +706,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ToSorted_DefaultCompare()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Int16Array([3, 1, 2]);
                                                        const sorted = arr.toSorted();
@@ -722,7 +723,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Every_AppliesCallback()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const calls = [];
                                                        const arr = new Uint8Array([1, 2, 3]);
@@ -747,7 +748,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Every_UsesThisArg()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const ctx = { touched: 0 };
                                                        const arr = new Int16Array([1]);
@@ -760,7 +761,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Every_DefaultThisIsUndefinedInStrictMode()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        "use strict";
                                                        let seen;
@@ -774,7 +775,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Reverse_InPlace()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([1, 2, 3]);
                                                        const ret = arr.reverse();
@@ -791,7 +792,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Reverse_BigInt()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new BigInt64Array([1n, -2n, 3n]);
                                                        arr.reverse();
@@ -809,7 +810,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Fill_ReplacesRange()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Int16Array([1, 2, 3, 4]);
                                                        arr.fill(9, 1, 3);
@@ -825,7 +826,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_Fill_DefaultsToZeroForUint8()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([5, 6]);
                                                        arr.fill();
@@ -839,7 +840,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_CopyWithin_Basic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Int16Array([1, 2, 3, 4]);
                                                        arr.copyWithin(1, 2);
@@ -855,7 +856,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_CopyWithin_HandlesOverlap()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([0, 1, 2, 3]);
                                                        arr.copyWithin(0, 1, 3);
@@ -871,7 +872,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ToSpliced_ReplacesSegment()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([1, 2, 3, 4]);
                                                        const spliced = arr.toSpliced(1, 2, 99, 100);
@@ -887,7 +888,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_ToSpliced_TreatsUndefinedDeleteCountAsWholeTail()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([1, 2, 3]);
                                                        const spliced = arr.toSpliced(1, undefined, 42);
@@ -902,7 +903,7 @@ public class TypedArrayTests
     [Fact(Timeout = 2000)]
     public async Task TypedArray_With_ReplacesElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
                                                        const arr = new Uint8Array([5, 6, 7]);
                                                        const copy = arr.with(1, 42);
@@ -914,4 +915,14 @@ public class TypedArrayTests
         Assert.Equal(3d, obj["len"]);
     }
 
+}
+
+public class FastPath_TypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorCloseHarnessTests
+public abstract class IteratorCloseHarnessTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForOfDestructuring_IteratorCloseNonObjectCaught_Sloppy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(HarnessForOfScript(useStrict: false));
 
         var obj = Assert.IsType<JsObject>(result);
@@ -21,7 +22,7 @@ public class IteratorCloseHarnessTests
     [Fact(Timeout = 2000)]
     public async Task ForOfDestructuring_IteratorCloseNonObjectCaught_Strict()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(HarnessForOfScript(useStrict: true));
 
         var obj = Assert.IsType<JsObject>(result);
@@ -93,4 +94,14 @@ public class IteratorCloseHarnessTests
             ({ caught, errName, nextCount, returnCount, unreachable });
             """;
     }
+}
+
+public class FastPath_IteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_IteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

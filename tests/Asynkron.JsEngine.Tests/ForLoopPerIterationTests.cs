@@ -9,15 +9,8 @@ namespace Asynkron.JsEngine.Tests;
 /// Layered reproductions of test262 for-loop per-iteration scope semantics.
 /// These mirror key failing test262 cases so we can debug without the full harness.
 /// </summary>
-public class ForLoopPerIterationTests
+public abstract class ForLoopPerIterationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public ForLoopPerIterationTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact]
     public async Task ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen()
     {
@@ -44,8 +37,9 @@ public class ForLoopPerIterationTests
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTests),
-            new XunitLogger(_output, nameof(ForLoopPerIterationTests)));
+            nameof(ForLoopPerIterationTestsBase),
+            new XunitLogger(Output, nameof(ForLoopPerIterationTestsBase)),
+            EnableFastPaths);
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal("outside", array.GetElement(0).ToObject());
@@ -72,8 +66,9 @@ public class ForLoopPerIterationTests
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTests),
-            new XunitLogger(_output, nameof(ForLoopPerIterationTests)));
+            nameof(ForLoopPerIterationTestsBase),
+            new XunitLogger(Output, nameof(ForLoopPerIterationTestsBase)),
+            EnableFastPaths);
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(0d, array.GetElement(0).ToObject());
@@ -97,12 +92,23 @@ public class ForLoopPerIterationTests
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTests),
-            new XunitLogger(_output, nameof(ForLoopPerIterationTests)));
+            nameof(ForLoopPerIterationTestsBase),
+            new XunitLogger(Output, nameof(ForLoopPerIterationTestsBase)),
+            EnableFastPaths);
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(0d, array.GetElement(0).ToObject());
         Assert.Equal(1d, array.GetElement(1).ToObject());
         Assert.Equal(2d, array.GetElement(2).ToObject());
     }
+}
+
+public class FastPath_ForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

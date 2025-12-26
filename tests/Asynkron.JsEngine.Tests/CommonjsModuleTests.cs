@@ -1,6 +1,8 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class CommonjsModuleTests
+public abstract class CommonjsModuleTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task CreateCommonjsModule_FunctionIsCallable()
@@ -23,7 +25,7 @@ var browser$5 = createCommonjsModule(function (module, exports) {
 var result = browser$5.ok === true;
 ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(script);
 
         var result = await engine.Evaluate("result;") as bool?;
@@ -55,10 +57,20 @@ function factory() {
 var result = factory();
 ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(script);
 
         var result = await engine.Evaluate("result;") as bool?;
         Assert.True(result);
     }
+}
+
+public class FastPath_CommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_CommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

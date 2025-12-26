@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class OptionalChainingTests
+public abstract class OptionalChainingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task OptionalPropertyAccessNull()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = null;
@@ -20,7 +21,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalPropertyAccessDefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { name: 'Alice' };
@@ -33,7 +34,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalPropertyChain()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { user: { name: 'Bob' } };
@@ -46,7 +47,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalPropertyChainNull()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { user: null };
@@ -59,7 +60,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalMethodCallNull()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = null;
@@ -72,7 +73,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalMethodCallDefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let greet = function() { return 'Hello'; };
@@ -87,7 +88,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalIndexAccessNull()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = null;
@@ -100,7 +101,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalIndexAccessDefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -113,7 +114,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalChainingShortCircuit()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = null;
@@ -129,7 +130,7 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalChainingWithUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = undefined;
@@ -142,8 +143,18 @@ public class OptionalChainingTests
     [Fact(Timeout = 2000)]
     public async Task OptionalChainingOnFunctionExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("(function foo() {}?.name)");
         Assert.Equal("foo", result);
     }
+}
+
+public class FastPath_OptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_OptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

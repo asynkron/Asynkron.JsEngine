@@ -1,15 +1,16 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ObjectDescriptorTests
+public abstract class ObjectDescriptorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // Tests for Object.defineProperty with writable descriptor
 
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Writable_False_Prevents_Modification()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -27,7 +28,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Writable_True_Allows_Modification()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -45,7 +46,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Default_Writable_Is_False()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                        let obj = {};
@@ -62,7 +63,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Enumerable_False_Hides_From_Keys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -77,7 +78,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Enumerable_False_Visible_In_GetOwnPropertyNames()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -91,7 +92,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Enumerable_True_Shows_In_Keys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -107,7 +108,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Multiple_Properties_Different_Enumerable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -125,7 +126,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Configurable_False_Prevents_Redefinition()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -150,7 +151,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Configurable_True_Allows_Redefinition()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -172,7 +173,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { _value: 5 };
@@ -188,7 +189,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Setter_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -205,7 +206,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_And_Setter_Work_Together()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -223,7 +224,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Getter_Only_Property_Cannot_Be_Set()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -242,7 +243,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Value()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -256,7 +257,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Writable_True_For_Normal_Property()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -270,7 +271,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Writable_False_For_Readonly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -288,7 +289,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Enumerable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -306,7 +307,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Configurable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -324,7 +325,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Undefined_For_Nonexistent()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 42 };
@@ -337,7 +338,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Getter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -354,7 +355,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Returns_Setter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -371,7 +372,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyDescriptor_Accessor_Has_No_Value_Or_Writable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -390,7 +391,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyNames_Returns_All_Properties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -405,7 +406,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task GetOwnPropertyNames_Includes_Non_Enumerable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -421,7 +422,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Create_With_Property_Descriptors()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = Object.create(null, {
@@ -436,7 +437,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Create_Property_Descriptors_Default_Enumerable_False()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = Object.create(null, {
@@ -451,7 +452,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Create_Property_Descriptors_Can_Be_Enumerable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = Object.create(null, {
@@ -466,7 +467,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Create_Multiple_Properties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = Object.create(null, {
@@ -482,7 +483,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Create_With_Accessor_Descriptor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = Object.create(null, {
@@ -502,7 +503,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Frozen_Object_Properties_Become_Non_Writable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -517,7 +518,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Frozen_Object_Properties_Become_Non_Configurable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -532,7 +533,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Sealed_Object_Properties_Become_Non_Configurable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -547,7 +548,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Sealed_Object_Properties_Remain_Writable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -564,7 +565,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Returns_The_Object()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -578,7 +579,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_On_Frozen_Object_Is_Ignored()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -598,7 +599,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task DefineProperty_Modify_Frozen_Property_Is_Ignored()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10 };
@@ -618,7 +619,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Keys_Respects_Enumerable_Flag()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -635,7 +636,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Values_Respects_Enumerable_Flag()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -652,7 +653,7 @@ public class ObjectDescriptorTests
     [Fact(Timeout = 2000)]
     public async Task Object_Entries_Respects_Enumerable_Flag()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {};
@@ -664,4 +665,14 @@ public class ObjectDescriptorTests
                                            """);
         Assert.Equal(true, result);
     }
+}
+
+public class FastPath_ObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

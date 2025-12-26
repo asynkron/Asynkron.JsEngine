@@ -3,18 +3,18 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class MethodShorthandParsingTests(ITestOutputHelper output)
+public abstract class MethodShorthandParsingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task TestJ_ParseMethodShorthandVsRegularFunction()
     {
-        output.WriteLine("=== Test J: Parse and Compare S-Expressions ===");
+        Output.WriteLine("=== Test J: Parse and Compare S-Expressions ===");
 
         await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {msg}");
+            Output.WriteLine($"LOG: {msg}");
             return JsValue.Null;
         });
 
@@ -76,27 +76,27 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             exceptions.Add(ex);
         }
 
-        output.WriteLine("");
-        output.WriteLine($"=== EXCEPTIONS: {exceptions.Count} ===");
+        Output.WriteLine("");
+        Output.WriteLine($"=== EXCEPTIONS: {exceptions.Count} ===");
         foreach (var ex in exceptions)
         {
-            output.WriteLine($"  - {ex.Message} (Context: {ex.Context})");
+            Output.WriteLine($"  - {ex.Message} (Context: {ex.Context})");
         }
 
-        output.WriteLine("");
-        output.WriteLine("This directly tests if method shorthand fails when returned from Symbol.iterator");
+        Output.WriteLine("");
+        Output.WriteLine("This directly tests if method shorthand fails when returned from Symbol.iterator");
     }
 
     [Fact(Timeout = 5000)]
     public async Task TestK_MethodShorthandInDifferentContexts()
     {
-        output.WriteLine("=== Test K: Method Shorthand in Different Contexts ===");
+        Output.WriteLine("=== Test K: Method Shorthand in Different Contexts ===");
 
         await using var engine = CreateDebugEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {msg}");
+            Output.WriteLine($"LOG: {msg}");
             return JsValue.Null;
         });
 
@@ -173,19 +173,29 @@ public class MethodShorthandParsingTests(ITestOutputHelper output)
             exceptions.Add(ex);
         }
 
-        output.WriteLine("");
-        output.WriteLine($"=== EXCEPTIONS: {exceptions.Count} ===");
+        Output.WriteLine("");
+        Output.WriteLine($"=== EXCEPTIONS: {exceptions.Count} ===");
         foreach (var ex in exceptions)
         {
-            output.WriteLine($"  - {ex.Message} (Context: {ex.Context})");
+            Output.WriteLine($"  - {ex.Message} (Context: {ex.Context})");
         }
 
-        output.WriteLine("");
-        output.WriteLine("This tests method shorthand in progressively complex scenarios");
+        Output.WriteLine("");
+        Output.WriteLine("This tests method shorthand in progressively complex scenarios");
     }
 
-    private static JsEngine CreateDebugEngine()
+    private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(MethodShorthandParsingTests));
+        return TestEngineFactory.CreateDebugEngine(nameof(MethodShorthandParsingTestsBase), enableFastPaths: EnableFastPaths);
     }
+}
+
+public class FastPath_MethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_MethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

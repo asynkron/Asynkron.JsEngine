@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestMultipleVarDeclarations
+public abstract class TestMultipleVarDeclarationsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task MultipleVarDeclarations_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function test() {
                 var c, bi3b = 5;
@@ -21,7 +22,7 @@ public class TestMultipleVarDeclarations
     [Fact]
     public async Task MultipleVarDeclarationsUninitializedVariable_ShouldBeUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function test() {
                 var c, bi3b = 5;
@@ -31,4 +32,14 @@ public class TestMultipleVarDeclarations
         ");
         Assert.Equal(Symbol.Undefined, result);
     }
+}
+
+public class FastPath_TestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

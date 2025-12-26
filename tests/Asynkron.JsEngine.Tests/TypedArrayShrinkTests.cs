@@ -1,8 +1,9 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayShrinkTests
+public abstract class TypedArrayShrinkTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Theory]
     [InlineData("Int8Array", 1)]
@@ -11,7 +12,7 @@ public class TypedArrayShrinkTests
     [InlineData("BigInt64Array", 8)]
     public async Task FixedLengthViewGoesOobAfterResize(string ctor, int bpe)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var script = $@"
             (function() {{
               const rab = new ArrayBuffer({4 * bpe}, {{ maxByteLength: {8 * bpe} }});
@@ -49,7 +50,7 @@ public class TypedArrayShrinkTests
     [InlineData("BigInt64Array", 8, "BigInt(2)")]
     public async Task LengthTrackingViewShrinksDuringFromIndex(string ctor, int bpe, string targetValue)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var script = $@"
             (function() {{
               const rab = new ArrayBuffer({4 * bpe}, {{ maxByteLength: {8 * bpe} }});
@@ -84,7 +85,7 @@ public class TypedArrayShrinkTests
     [Fact]
     public async Task LastIndexOfThrowsWhenViewIsAlreadyOutOfBounds()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -106,7 +107,7 @@ public class TypedArrayShrinkTests
     [Fact]
     public async Task LastIndexOfDoesNotCoerceFromIndexWhenLengthIsZero()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -126,4 +127,14 @@ public class TypedArrayShrinkTests
         Assert.Equal(-1d, obj["res"]);
         Assert.False(obj.TryGetValue("threw", out var threw) && threw is bool b && b);
     }
+}
+
+public class FastPath_TypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,12 +1,14 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class AdditionalMethodsTests
+public abstract class AdditionalMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // String methods
     [Fact(Timeout = 2000)]
     public async Task StringReplaceAll()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'hello world hello';
@@ -19,7 +21,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task StringAt()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'hello';
@@ -32,7 +34,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task StringAtNegative()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'hello';
@@ -45,7 +47,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task StringTrimStart()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = '  hello  ';
@@ -58,7 +60,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task StringTrimEnd()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = '  hello  ';
@@ -72,7 +74,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayAt()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -85,7 +87,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayAtNegative()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -98,7 +100,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFlat()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, [2, 3], [4, [5, 6]]];
@@ -112,7 +114,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFlatDepth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, [2, [3, [4]]]];
@@ -126,7 +128,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFlatMap()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3];
@@ -140,7 +142,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFindLast()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -153,7 +155,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFindLastIndex()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -167,7 +169,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectFromEntries()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let entries = [['a', 1], ['b', 2]];
@@ -183,7 +185,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectHasOwn()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1 };
@@ -196,7 +198,7 @@ public class AdditionalMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectHasOwnFalse()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1 };
@@ -205,4 +207,14 @@ public class AdditionalMethodsTests
                                            """);
         Assert.False((bool)result!);
     }
+}
+
+public class FastPath_AdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class SymbolTests
+public abstract class SymbolTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Symbol_Creates_Unique_Symbols()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s1 = Symbol();
@@ -19,7 +21,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_With_Description()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let sym = Symbol("test");
@@ -32,7 +34,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_Typeof_Returns_Symbol()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        typeof Symbol();
@@ -44,7 +46,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_For_Creates_Global_Symbol()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s1 = Symbol.for("shared");
@@ -58,7 +60,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_For_Different_Keys_Creates_Different_Symbols()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s1 = Symbol.for("key1");
@@ -72,7 +74,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_KeyFor_Returns_Key_For_Global_Symbol()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s = Symbol.for("myKey");
@@ -85,7 +87,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_KeyFor_Returns_Undefined_For_Non_Global_Symbol()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s = Symbol();
@@ -99,7 +101,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_Can_Be_Used_As_Object_Property_Key()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let sym = Symbol("id");
@@ -117,7 +119,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_Properties_Are_Not_Enumerable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let sym = Symbol("secret");
@@ -137,7 +139,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Symbol_Works_With_Undefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s = Symbol(undefined);
@@ -150,7 +152,7 @@ public class SymbolTests
     [Fact(Timeout = 2000)]
     public async Task Multiple_Global_Symbols_Work_Correctly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let s1 = Symbol.for("a");
@@ -165,4 +167,14 @@ public class SymbolTests
                                            """);
         Assert.True((bool)result!);
     }
+}
+
+public class FastPath_SymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_SymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

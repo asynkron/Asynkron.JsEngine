@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ClassComputedAccessorTests
+public abstract class ClassComputedAccessorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ComputedAccessorAllowsInExpressions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        var empty = Object.create(null);
@@ -40,7 +42,7 @@ public class ClassComputedAccessorTests
     [Fact(Timeout = 2000)]
     public async Task ComputedAccessorAllowsYieldExpressions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var yieldSet, C, iter;
             function* g() {
@@ -64,4 +66,14 @@ public class ClassComputedAccessorTests
         Assert.Equal("set yield", array.GetElement(1).AsString());
     }
 
+}
+
+public class FastPath_ClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

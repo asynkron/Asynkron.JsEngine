@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.Ast;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestLetDeclaration
+public abstract class TestLetDeclarationBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task LetWithoutInitializer_ShouldBeUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let x;
             x;
@@ -18,7 +19,7 @@ public class TestLetDeclaration
     [Fact]
     public async Task LetWithInitializer_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let y = 42;
             y;
@@ -29,7 +30,7 @@ public class TestLetDeclaration
     [Fact]
     public async Task MultipleLetDeclarationsWithMixedInitializers_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let a, b = 5, c;
             a === undefined && b === 5 && c === undefined;
@@ -40,7 +41,7 @@ public class TestLetDeclaration
     [Fact]
     public async Task LetWithoutInitializer_CanBeAssignedLater()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let x;
             x = 10;
@@ -48,4 +49,14 @@ public class TestLetDeclaration
         ");
         Assert.Equal(10.0, result);
     }
+}
+
+public class FastPath_TestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

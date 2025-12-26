@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class TimerTests
+public abstract class TimerTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_ExecutesCallbackAfterDelay()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var executed = false;
 
         engine.SetGlobalFunction("callback", _ =>
@@ -26,7 +28,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_ReturnsTimerId()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -42,7 +44,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task ClearTimeout_PreventsExecution()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var executed = false;
 
         engine.SetGlobalFunction("callback", _ =>
@@ -67,7 +69,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetInterval_ExecutesCallbackRepeatedly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var count = 0;
 
         engine.SetGlobalFunction("callback", _ =>
@@ -95,7 +97,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task ClearInterval_StopsExecution()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var count = 0;
 
         engine.SetGlobalFunction("callback", _ =>
@@ -122,7 +124,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_WithZeroDelay_ExecutesAsynchronously()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var order = new List<string>();
 
         engine.SetGlobalFunction("addToOrder", args =>
@@ -151,7 +153,7 @@ public class TimerTests
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_CanAccessClosureVariables()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var capturedValue = "";
 
         engine.SetGlobalFunction("capture", args =>
@@ -175,4 +177,14 @@ public class TimerTests
 
         Assert.Equal("Hello from closure", capturedValue);
     }
+}
+
+public class FastPath_TimerTests(ITestOutputHelper output) : TimerTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TimerTests(ITestOutputHelper output) : TimerTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class EventQueueTests
+public abstract class EventQueueTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Run_ExecutesCodeAndReturnsResult()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("2 + 3;");
         Assert.Equal(5d, result);
     }
@@ -15,7 +16,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ProcessesScheduledTasks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var executed = false;
 
         // Schedule a task before running code
@@ -31,7 +32,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ProcessesMultipleScheduledTasks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var executionOrder = new List<int>();
 
         engine.ScheduleTask(() => executionOrder.Add(1));
@@ -46,7 +47,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_ProcessesTasksScheduledDuringExecution()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var executionOrder = new List<int>();
 
         // Schedule a task that schedules another task
@@ -64,7 +65,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_CompletesWhenQueueIsEmpty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Run with no scheduled tasks - should complete immediately
         var result = await engine.Evaluate("5 + 5;");
@@ -75,7 +76,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task ScheduleTask_CanBeCalledMultipleTimes()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var count = 0;
 
         for (var i = 0; i < 10; i++)
@@ -89,7 +90,7 @@ public class EventQueueTests
     [Fact(Timeout = 2000)]
     public async Task Run_AllowsInteractionWithHostFunctions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var capturedValues = new List<JsValue>();
 
         engine.SetGlobalFunction("capture", args =>
@@ -107,4 +108,14 @@ public class EventQueueTests
         Assert.Contains(3d, capturedValues);
         Assert.Contains("from-task", capturedValues);
     }
+}
+
+public class FastPath_EventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_EventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

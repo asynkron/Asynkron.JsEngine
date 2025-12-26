@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class FunctionConstructorTests
+public abstract class FunctionConstructorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task NewFunctionCreatesCallableBody()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("(new Function('a', 'b', 'return a + b;'))(2, 3);");
 
@@ -17,7 +18,7 @@ public class FunctionConstructorTests
     [Fact]
     public async Task NewFunctionCanBuildTypedArraySubclass()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -36,4 +37,14 @@ public class FunctionConstructorTests
         Assert.Equal(4d, obj["length"]);
         Assert.True(obj["isView"] as bool?);
     }
+}
+
+public class FastPath_FunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_FunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

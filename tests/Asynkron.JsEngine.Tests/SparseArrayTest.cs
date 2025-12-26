@@ -2,12 +2,12 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class SparseArrayTest(ITestOutputHelper output)
+public abstract class SparseArrayTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task SparseArray_ReturnsUndefined_ForHoles()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var arr = [];
             arr[0] = 10;
@@ -23,7 +23,7 @@ public class SparseArrayTest(ITestOutputHelper output)
             results.join(', ');
         ");
 
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result: {result}");
         Assert.Contains("length=6", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("arr[1]===undefined=true", result?.ToString(), StringComparison.Ordinal);
     }
@@ -31,7 +31,7 @@ public class SparseArrayTest(ITestOutputHelper output)
     [Fact]
     public async Task SparseArray_WithOrEquals_CoercesUndefinedToZero()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var arr = [];
             arr[0] |= 50;
@@ -47,10 +47,20 @@ public class SparseArrayTest(ITestOutputHelper output)
             results.join(', ');
         ");
 
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result: {result}");
         Assert.Contains("length=6", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("arr[0]=50", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("arr[1]===undefined=true", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("arr[5]=100", result?.ToString(), StringComparison.Ordinal);
     }
+}
+
+public class FastPath_SparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_SparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

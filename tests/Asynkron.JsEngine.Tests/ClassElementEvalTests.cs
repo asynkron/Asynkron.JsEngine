@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ClassElementEvalTests
+public abstract class ClassElementEvalTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task InstanceFieldEvalCanAccessSuperProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        var executed = false;
@@ -30,7 +32,7 @@ public class ClassElementEvalTests
     [Fact(Timeout = 2000)]
     public async Task StaticFieldEvalCanAccessSuperProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        var executed = false;
@@ -54,7 +56,7 @@ public class ClassElementEvalTests
     [Fact(Timeout = 2000)]
     public async Task EvalProducedArrowFunctionCanUseSuper()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        var executed = false;
@@ -80,7 +82,7 @@ public class ClassElementEvalTests
     [Fact(Timeout = 2000)]
     public async Task EvalArrowSuperMissingPropertyReturnsUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        class Base {}
@@ -96,4 +98,14 @@ public class ClassElementEvalTests
 
         Assert.True((bool)result!);
     }
+}
+
+public class FastPath_ClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ErrorTypesTests
+public abstract class ErrorTypesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Error_CanBeCreated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new Error('test message');
@@ -18,7 +20,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_HasName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new Error('test');
@@ -31,7 +33,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_ToString_WithMessage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new Error('test message');
@@ -44,7 +46,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task TypeError_CanBeCreated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new TypeError('type error message');
@@ -57,7 +59,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task TypeError_HasCorrectName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new TypeError('test');
@@ -70,7 +72,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task RangeError_CanBeCreated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new RangeError('out of range');
@@ -83,7 +85,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task RangeError_HasCorrectName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new RangeError('test');
@@ -96,7 +98,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task ReferenceError_CanBeCreated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new ReferenceError('reference not found');
@@ -111,7 +113,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task ReferenceError_HasCorrectName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new ReferenceError('test');
@@ -124,7 +126,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task SyntaxError_CanBeCreated()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new SyntaxError('syntax issue');
@@ -137,7 +139,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task SyntaxError_HasCorrectName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new SyntaxError('test');
@@ -150,7 +152,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_WithNoMessage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new Error();
@@ -163,7 +165,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_ToString_WithNoMessage()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let err = new TypeError();
@@ -176,7 +178,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task TypeError_CanBeThrown()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let caught = null;
@@ -194,7 +196,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task RangeError_CanBeThrown()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let caught = null;
@@ -212,7 +214,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task ReferenceError_CanBeThrown()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let caught = null;
@@ -230,7 +232,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task SyntaxError_CanBeThrown()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let caught = null;
@@ -248,7 +250,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_PreservesPropertiesWhenCaught()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let caught = null;
@@ -268,7 +270,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task MultipleErrorTypes_CanBeDistinguished()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let results = [];
@@ -300,7 +302,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_CanBeRethrown()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let caught = null;
@@ -322,7 +324,7 @@ public class ErrorTypesTests
     [Fact(Timeout = 2000)]
     public async Task Error_InFunctionCall()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function throwsError() {
@@ -340,4 +342,14 @@ public class ErrorTypesTests
                                            """);
         Assert.Equal("RangeError: function error", result);
     }
+}
+
+public class FastPath_ErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,12 +1,14 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class StaticMethodsTests
+public abstract class StaticMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // Object static methods tests
     [Fact(Timeout = 2000)]
     public async Task ObjectKeys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3 };
@@ -20,7 +22,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectValues()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 10, b: 20, c: 30 };
@@ -34,7 +36,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectEntries()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 1, y: 2 };
@@ -48,7 +50,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectAssign()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let target = { a: 1 };
@@ -64,7 +66,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ObjectAssignOverwrites()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let target = { a: 1, b: 2 };
@@ -80,7 +82,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayIsArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3];
@@ -94,7 +96,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayIsArrayString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'hello';
@@ -107,7 +109,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayIsArrayThrowsOnRevokedProxy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        const handle = Proxy.revocable([], {});
@@ -126,7 +128,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFrom()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'abc';
@@ -140,7 +142,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayFromArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let original = [1, 2, 3];
@@ -154,7 +156,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = Array.of(1, 2, 3, 4);
@@ -167,7 +169,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayOfSingle()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = Array.of(5);
@@ -180,7 +182,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayOfReturnsArrayWhenReceiverIsNotConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        const receivers = [Array, undefined, Math.cos, Math.cos.bind(Math)];
@@ -197,7 +199,7 @@ public class StaticMethodsTests
     [Fact(Timeout = 2000)]
     public async Task ArrayOfThrowsWhenElementsCannotBeDefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function Frozen() {
@@ -223,4 +225,14 @@ public class StaticMethodsTests
                                            """);
         Assert.Equal(true, result);
     }
+}
+
+public class FastPath_StaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_StaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

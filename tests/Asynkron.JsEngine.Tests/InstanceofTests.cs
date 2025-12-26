@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class InstanceofTests
+public abstract class InstanceofTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithClass_ReturnsTrue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             class MyClass {}
             let obj = new MyClass();
@@ -17,7 +19,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithDifferentClass_ReturnsFalse()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             class MyClass {}
             class OtherClass {}
@@ -30,7 +32,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithFunction_ReturnsTrue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function MyConstructor() {}
             let obj = new MyConstructor();
@@ -42,7 +44,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithInheritance_ReturnsTrue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             class Base {}
             class Derived extends Base {}
@@ -55,7 +57,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithNonObject_ReturnsFalse()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             class MyClass {}
             42 instanceof MyClass;
@@ -66,7 +68,7 @@ public class InstanceofTests
     [Fact(Timeout = 2000)]
     public async Task Instanceof_ErrorInIfCondition_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             class CustomTypeError {
                 constructor(msg) {
@@ -82,4 +84,14 @@ public class InstanceofTests
         ");
         Assert.Equal("correct", result);
     }
+}
+
+public class FastPath_InstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_InstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

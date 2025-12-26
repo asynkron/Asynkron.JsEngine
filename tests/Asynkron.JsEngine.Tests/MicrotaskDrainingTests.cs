@@ -1,3 +1,5 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
@@ -14,14 +16,14 @@ namespace Asynkron.JsEngine.Tests;
 ///   node -e "let y=0; (async()=>{y=await Promise.resolve(42)})(); console.log(y)"
 ///   Output: 0 (not 42)
 /// </summary>
-public class MicrotaskDrainingTests
+public abstract class MicrotaskDrainingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task MicrotasksRunAfterScriptCompletion_NotDuring()
     {
         // This test verifies that we follow ECMAScript semantics:
         // Microtasks run AFTER the current synchronous execution, not during.
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // First, execute code that schedules a microtask
         var result = await engine.Evaluate("""
@@ -43,7 +45,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task AsyncIIFE_ReturnValueIsPreAsyncCompletion()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             let finalResult = 0;
@@ -64,7 +66,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task MultipleScripts_MicrotasksDrainBetweenThem()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // First script: schedule a microtask
         await engine.Evaluate("""
@@ -80,7 +82,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task NestedPromises_AllResolveBeforeNextScript()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -99,7 +101,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task AsyncFunctionCall_CompletesBeforeNextScript()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -124,7 +126,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task PromiseConstructor_ResolvesBeforeNextScript()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -145,7 +147,7 @@ public class MicrotaskDrainingTests
     {
         // EvaluateAndAwait is a convenience method that returns the value of
         // the trailing identifier AFTER microtasks have drained (like Jint).
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
@@ -160,7 +162,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task EvaluateAndAwait_AsyncIIFE_ReturnsResolvedValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
@@ -176,7 +178,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task EvaluateAndAwait_NestedPromises_ReturnsResolvedValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
@@ -195,7 +197,7 @@ public class MicrotaskDrainingTests
     public async Task EvaluateAndAwait_NoTrailingIdentifier_ReturnsNormally()
     {
         // When there's no trailing identifier, EvaluateAndAwait behaves like Evaluate
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let x = 1 + 2;
@@ -208,7 +210,7 @@ public class MicrotaskDrainingTests
     [Fact(Timeout = 5000)]
     public async Task EvaluateAndAwait_ComplexAsyncLoop_ReturnsResolvedValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalResult = 0;
@@ -230,19 +232,29 @@ public class MicrotaskDrainingTests
     }
 }
 
+public class FastPath_MicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_MicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
+}
+
 /// <summary>
 /// Tests demonstrating the for await...of bug where async iteration
 /// doesn't complete when used inside an async IIFE.
 /// However, for await...of DOES work correctly with top-level await in ES modules.
 /// </summary>
-public class ForAwaitOfBugTests
+public abstract class ForAwaitOfBugTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_DoesNotComplete()
     {
         // BUG: for await...of inside an async IIFE doesn't complete
         // within a single Evaluate call, even after microtasks drain.
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
@@ -265,7 +277,7 @@ public class ForAwaitOfBugTests
     [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete2()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
                                                    'use strict'
@@ -290,7 +302,7 @@ public class ForAwaitOfBugTests
     [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_MultipleIterations_DoesNotComplete()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
@@ -316,7 +328,7 @@ public class ForAwaitOfBugTests
     public async Task NestedForAwaitOf_MinimalCase_TwoOuterIterations()
     {
         // Minimal reproduction case for nested for-await-of
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -339,7 +351,7 @@ public class ForAwaitOfBugTests
     public async Task NestedForAwaitOf_TenOuterIterations()
     {
         // Test with 10 outer iterations
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -362,7 +374,7 @@ public class ForAwaitOfBugTests
     public async Task NestedForAwaitOf_HundredOuterIterations()
     {
         // Test with 100 outer iterations
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -385,7 +397,7 @@ public class ForAwaitOfBugTests
     public async Task NestedForAwaitOf_WithVarBinding()
     {
         // Test with var binding in outer loop (different scoping)
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -408,7 +420,7 @@ public class ForAwaitOfBugTests
     public async Task NestedForAwaitOf_WhileOuter()
     {
         // Test with while loop as outer loop
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -433,7 +445,7 @@ public class ForAwaitOfBugTests
     public async Task NestedForAwaitOf_TripleNested()
     {
         // Test with three levels of nesting
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -462,7 +474,7 @@ public class ForAwaitOfBugTests
     public async Task TripleNestedForLoops_SyncOnly_WithLet()
     {
         // 3 nested regular for loops with let - no async at all
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -484,7 +496,7 @@ public class ForAwaitOfBugTests
     public async Task TripleNestedForAwaitOf_AllAsync()
     {
         // 3 nested for-await-of loops
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -511,7 +523,7 @@ public class ForAwaitOfBugTests
     public async Task TripleNestedForAwaitOf_AllAsync_2x2x2()
     {
         // 3 nested for-await-of loops with 2 elements each
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -536,7 +548,7 @@ public class ForAwaitOfBugTests
     public async Task ForAwaitOf_For_ForAwaitOf_Mixed()
     {
         // for-await-of, then for, then for-await-of
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -561,7 +573,7 @@ public class ForAwaitOfBugTests
     public async Task For_ForAwaitOf_For_Mixed()
     {
         // for, then for-await-of, then for
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -586,7 +598,7 @@ public class ForAwaitOfBugTests
     public async Task DoubleNestedFor_ForAwaitOf_Inner()
     {
         // 2 nested for loops, then for-await-of innermost
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -611,7 +623,7 @@ public class ForAwaitOfBugTests
     public async Task DoubleNestedForAwaitOf_For_Inner()
     {
         // 2 nested for-await-of, then for innermost
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -636,7 +648,7 @@ public class ForAwaitOfBugTests
     public async Task For_DoubleNestedForAwaitOf()
     {
         // for outer, then 2 nested for-await-of
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -661,7 +673,7 @@ public class ForAwaitOfBugTests
     public async Task ForAwaitOf_DoubleNestedFor()
     {
         // for-await-of outer, then 2 nested for loops
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -686,7 +698,7 @@ public class ForAwaitOfBugTests
     public async Task TripleNestedFor_WithVar_NoPerIterationEnv()
     {
         // 3 nested for loops with var - should NOT create per-iteration envs
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -711,7 +723,7 @@ public class ForAwaitOfBugTests
     public async Task NestedFor_MixedLetVar_OuterVar()
     {
         // Outer var, middle let, inner for-await-of
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -736,7 +748,7 @@ public class ForAwaitOfBugTests
     public async Task NestedFor_MixedLetVar_MiddleVar()
     {
         // Outer let, middle var, inner for-await-of
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;
@@ -765,7 +777,7 @@ public class ForAwaitOfBugTests
     public async Task ForAwaitOf_TopLevelInModule_WorksCorrectly()
     {
         // WORKS: for await...of at top-level in an ES module completes correctly
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
             const arr = [1, 2, 3, 4, 5];
@@ -784,7 +796,7 @@ public class ForAwaitOfBugTests
     public async Task ForAwaitOf_TopLevelInModule_MultipleIterations_WorksCorrectly()
     {
         // WORKS: for await...of at top-level with multiple iterations
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateModule("""
             const arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -806,7 +818,7 @@ public class ForAwaitOfBugTests
     {
         // COMPARISON: Regular await inside a for loop in IIFE DOES work correctly
         // This shows the issue is specific to for await...of in IIFEs
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
@@ -824,4 +836,14 @@ public class ForAwaitOfBugTests
         // This works correctly - regular await in a loop completes
         Assert.Equal(15.0, result);
     }
+}
+
+public class FastPath_ForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

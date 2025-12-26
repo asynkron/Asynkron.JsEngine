@@ -1,14 +1,15 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class WithStatementTests
+public abstract class WithStatementTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task With_UnscopablesGetterCalledOnceForIncrement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             let toggled = true;
             const env = {
@@ -32,7 +33,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_UnscopablesGetterSkippedWhenPropertyAbsent()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             let getterCount = 0;
             const env = {};
@@ -59,7 +60,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_EvalUsesSingleUnscopablesLookup()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             let getterCount = 0;
             const env = {
@@ -87,7 +88,7 @@ public class WithStatementTests
     [InlineData("null")]
     public async Task With_NullishValueThrowsTypeError(string expression)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var script = $@"
             let caught = false;
             try {{
@@ -106,7 +107,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_TypedArrayBindingUsesOriginalObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const view = new Int32Array([1, 2, 3]);
             Object.defineProperty(view, "marker", { value: 42, configurable: true });
@@ -123,7 +124,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_VarInitializerUpdatesBindingObjectWhenPropertyExists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const env = { value: 1 };
 
@@ -143,7 +144,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_VarInitializerFallsBackToFunctionScopeWhenPropertyMissing()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             with ({}) {
                 var created = 7;
@@ -160,7 +161,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_EmptyBodyProducesUndefinedCompletion()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var emptyResult = await engine.Evaluate("1; with ({}) { }");
         Assert.Same(Symbol.Undefined, emptyResult);
 
@@ -171,7 +172,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_ProxyBindingTracksHasAndGet()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const log = [];
             const target = { value: 1 };
@@ -204,7 +205,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_ProxyBindingTracksHasGetSetForAssignments()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             const log = [];
             const target = { p: 0 };
@@ -256,7 +257,7 @@ public class WithStatementTests
     [Fact(Timeout = 2000)]
     public async Task With_PropertyShadowsGlobalVariable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var myObj = {
                 parseInt: 'obj_parseInt'
@@ -280,7 +281,7 @@ public class WithStatementTests
         // This tests that functions defined inside a with block properly resolve
         // identifiers through the with object, even though the function's own body
         // doesn't contain any with statements.
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var myObj = {
                 parseInt: function() { return 'obj_parseInt'; }
@@ -305,7 +306,7 @@ public class WithStatementTests
     public async Task While_BreakCompletionValue_EmptyBody()
     {
         // Test: eval('1; while (true) { break; }') should return undefined
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("eval('1; while (true) { break; }')");
         Assert.True(ReferenceEquals(result, Symbol.Undefined)); // undefined
     }
@@ -314,8 +315,18 @@ public class WithStatementTests
     public async Task While_BreakCompletionValue_WithValue()
     {
         // Test: eval('2; while (true) { 3; break; }') should return 3
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("eval('2; while (true) { 3; break; }')");
         Assert.Equal(3.0, result);
     }
+}
+
+public class FastPath_WithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_WithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

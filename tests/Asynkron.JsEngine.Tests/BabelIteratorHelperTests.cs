@@ -1,6 +1,8 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class BabelIteratorHelperTests
+public abstract class BabelIteratorHelperTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task CreateForOfIteratorHelperLoose_WorksForArrays()
@@ -39,7 +41,7 @@ public class BabelIteratorHelperTests
             values.push(iter().value);
         """;
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(script);
 
         var typeOfIt = await engine.Evaluate("debugTypeOfIt;");
@@ -65,10 +67,20 @@ public class BabelIteratorHelperTests
             const result = Object.hasOwnProperty.call(obj, "foo");
         """;
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(script);
 
         var result = await engine.Evaluate("result;");
         Assert.Equal(true, result);
     }
+}
+
+public class FastPath_BabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_BabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

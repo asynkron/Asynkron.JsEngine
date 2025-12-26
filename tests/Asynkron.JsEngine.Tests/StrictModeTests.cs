@@ -1,16 +1,17 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class StrictModeTests
+public abstract class StrictModeTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task StrictMode_DetectedAndParsed()
     {
         // Verify that "use strict" directive is detected and added to the AST
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var program = engine.Parse("""
 
@@ -25,7 +26,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_CanAccessGlobalEval()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             "use strict";
@@ -38,7 +39,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_DirectEvalInvokesSuccessfully()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             "use strict";
@@ -52,7 +53,7 @@ public class StrictModeTests
     public async Task StrictMode_ErrorMessageFormat()
     {
         // In strict mode, assigning to an undefined variable should throw a ReferenceError
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
@@ -68,7 +69,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_ProperDeclarationsWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -86,7 +87,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_DetectedInFunctionBody()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
 
@@ -104,7 +105,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_NestedFunctions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -127,7 +128,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_WithClasses()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -151,7 +152,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_AssignmentToConstFails()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var ex = await Assert.ThrowsAnyAsync<Exception>(async () => await engine.Evaluate("""
 
@@ -189,7 +190,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_LetDeclarationsWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -208,7 +209,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_InBlockScope()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -226,7 +227,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_MultipleStatements()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -247,7 +248,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_WithForLoops()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -266,7 +267,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_WithObjectLiterals()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -288,7 +289,7 @@ public class StrictModeTests
     [Fact(Timeout = 2000)]
     public async Task StrictMode_WithArrays()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -313,7 +314,7 @@ public class StrictModeTests
     public async Task NonStrictMode_AllowsUndefinedVariableAssignment()
     {
         // In non-strict mode (default), assigning to an undefined variable should create a global variable
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
                             x = 7;
@@ -327,7 +328,7 @@ public class StrictModeTests
     public async Task NonStrictMode_CanReadBackAssignedVariable()
     {
         // Verify that the created variable persists and can be read back
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("myGlobalVar = 42;");
         var result = await engine.Evaluate("myGlobalVar + 1;");
@@ -339,7 +340,7 @@ public class StrictModeTests
     public async Task NonStrictMode_MultipleUndefinedAssignments()
     {
         // Multiple undefined variable assignments should work
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
                             a = 1;
@@ -358,7 +359,7 @@ public class StrictModeTests
     [InlineData("; 'use strict';")]
     public async Task NonCanonicalDirectives_DoNotEnableStrictMode(string directiveLine)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         Assert.True(engine.GlobalEnvironment.GetJsValue(Symbol.This).TryGetObject<JsObject>(out _));
 
@@ -376,4 +377,14 @@ public class StrictModeTests
 
         Assert.True(result is bool b && b);
     }
+}
+
+public class FastPath_StrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_StrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

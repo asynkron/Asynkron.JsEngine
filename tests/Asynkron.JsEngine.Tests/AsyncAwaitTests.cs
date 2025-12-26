@@ -1,17 +1,18 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for async/await functionality.
 /// </summary>
-public class AsyncAwaitTests
+public abstract class AsyncAwaitTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeParsed()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
         var program = engine.Parse("""
@@ -29,7 +30,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_CanBeDeclared()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
         var temp = await engine.Evaluate("""
@@ -44,7 +45,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunctionExpression_CanBeParsed()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
         var program = engine.Parse("""
@@ -62,7 +63,7 @@ public class AsyncAwaitTests
     public async Task AwaitExpression_CanBeParsed()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
         var program = engine.Parse("""
@@ -81,7 +82,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_ReturnsPromise()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -115,7 +116,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithAwait_ReturnsValue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -146,7 +147,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithMultipleAwaits()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -180,7 +181,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithAwaitInExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -214,7 +215,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_HandlesRejection()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var caught = false;
 
         engine.SetGlobalFunction("markCaught", _ =>
@@ -244,7 +245,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithTryCatch()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -282,7 +283,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_ChainedCalls()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -326,7 +327,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunctionExpression_Works()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -360,7 +361,7 @@ public class AsyncAwaitTests
 //     public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
 //     {
 //         // Arrange
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var transformer = new CpsTransformer();
 //
 //         // engine.Parse() already applies CPS transformation, so the result
@@ -384,7 +385,7 @@ public class AsyncAwaitTests
 //     public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
 //     {
 //         // Arrange
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var transformer = new CpsTransformer();
 //
 //         // engine.Parse() already applies CPS transformation, so the result
@@ -409,7 +410,7 @@ public class AsyncAwaitTests
 //     public async Task CpsTransformer_TransformIsIdempotent()
 //     {
 //         // Arrange
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var transformer = new CpsTransformer();
 //
 //         // engine.Parse() already applies CPS transformation
@@ -432,7 +433,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_SequentialAwaits()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -468,7 +469,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_ReturnsNull()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var wasCalled = false;
 
         engine.SetGlobalFunction("markCalled", _ =>
@@ -498,7 +499,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_NoReturn()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var wasCalled = false;
 
         engine.SetGlobalFunction("markCalled", _ =>
@@ -528,7 +529,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithSetTimeoutDelay_ReturnsValue()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -568,7 +569,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -616,7 +617,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithDelayAndComputation()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -662,7 +663,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var results = new List<string>();
 
         engine.SetGlobalFunction("addResult", args =>
@@ -709,7 +710,7 @@ public class AsyncAwaitTests
     public async Task AsyncFunction_WithNestedDelays()
     {
         // Arrange
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -832,7 +833,7 @@ public class AsyncAwaitTests
         // This tests ES2024 behavior: when eval tries to declare 'arguments'
         // in a function with non-simple parameters, it should throw SyntaxError.
         // For async functions, this should result in a rejected promise.
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             var result = 'initial';
@@ -856,7 +857,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 5000)]
     public async Task DotNetTask_BridgesToJsPromise_WithAsyncFunction()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -890,7 +891,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 5000)]
     public async Task DotNetTask_BridgesToJsPromise_WithMultipleAwaits()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -926,7 +927,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 5000)]
     public async Task DotNetTask_BridgesToJsPromise_HandlesRejection()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -964,7 +965,7 @@ public class AsyncAwaitTests
     [Fact(Timeout = 5000)]
     public async Task CreatePromiseFromTask_WithConverter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = "";
 
         engine.SetGlobalFunction("captureResult", args =>
@@ -998,8 +999,18 @@ public class AsyncAwaitTests
         Assert.Equal("84", result);
     }
 
-    private static JsEngine CreateDebugEngine()
+    private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTests));
+        return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTestsBase), enableFastPaths: EnableFastPaths);
     }
+}
+
+public class FastPath_AsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

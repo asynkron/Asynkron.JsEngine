@@ -56,10 +56,11 @@ public static partial class TypedAstEvaluator
         // The driverState.IteratorVariable holds the loop scope environment reference.
         private IteratorDriverState? _currentDriverState;
 
-        // Tracks whether we just resumed from a suspend (await/yield).
-        // When true, we should NOT return iteration environments to the pool because
-        // the previous iteration might still be in progress (we suspended mid-iteration).
-        private bool _justResumedFromSuspend;
+        // Tracks the specific environment we resumed with after a suspend (await/yield).
+        // We should NOT return this specific environment to the pool because
+        // it might still be in progress (we suspended mid-iteration).
+        // Other environments (from completed iterations) can still be returned.
+        private JsEnvironment? _resumedWithEnvironment;
 
         public TypedGeneratorInstance(
             FunctionExpression function,
@@ -493,10 +494,13 @@ public static partial class TypedAstEvaluator
             }
 
             _state = GeneratorState.Executing;
-            _justResumedFromSuspend = !wasStart;
             PreparePendingResumeValue(mode, resumeValue, wasStart);
 
             var environment = EnsureExecutionEnvironment();
+
+            // Track the environment we resumed with (if resuming from suspend).
+            // This prevents returning it to the pool while we're still using it.
+            _resumedWithEnvironment = wasStart ? null : environment;
             var context = EnsureEvaluationContext();
 
             // If we're resuming from a yield that happened during AST evaluation
@@ -1056,19 +1060,20 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Only return previous iteration environment to pool if:
-                                // 1. Pooling is allowed (no closures or awaits in loop body)
+                                // 1. Pooling is allowed (no closures in loop body)
                                 // 2. We have a previous iteration environment
-                                // 3. We're NOT resuming from a suspend (await/yield)
-                                //    If we just resumed, the previous iteration might still be in progress
-                                //    (we suspended mid-iteration), so don't return it yet.
-                                if (allowPooling && previousIterEnv != null && !_justResumedFromSuspend)
+                                // 3. The previous env is NOT the one we resumed with
+                                //    If previousIterEnv == _resumedWithEnvironment, we suspended mid-iteration
+                                //    and the iteration is still in progress - don't return it yet.
+                                //    If they differ, that iteration completed and we can safely return it.
+                                if (allowPooling && previousIterEnv != null &&
+                                    !ReferenceEquals(previousIterEnv, _resumedWithEnvironment))
                                 {
                                     JsEnvironmentPool.Return(previousIterEnv);
                                 }
 
-                                // Clear the flag - subsequent CreateIterationEnvironments in this
-                                // execution are for fresh iterations, not resume continuations
-                                _justResumedFromSuspend = false;
+                                // Clear the resumed-with reference since we've now transitioned to a new iteration
+                                _resumedWithEnvironment = null;
 
                                 // Update the saved iteration environment on the driver state
                                 // This ensures after async resume we can find the correct loop scope

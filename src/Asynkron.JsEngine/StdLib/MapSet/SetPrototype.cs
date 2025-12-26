@@ -139,66 +139,199 @@ public sealed partial class SetPrototype
         Values
     }
 
-    /* FLAKY */
     [JsHostMethod("difference", Length = 1d)]
     public JsValue Difference(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.difference
-        // Returns a new set with elements in this set but not in the other set
-        throw new NotImplementedException("Set.prototype.difference is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Create result set
+        var resultSet = new JsSet();
+        resultSet.SetPrototype(Realm.SetPrototype);
+        
+        // Get other set - it could be a Set or any iterable
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.difference requires a Set argument", realm: Realm);
+        }
+        
+        // Add elements from this set that are not in the other set
+        foreach (var value in thisSet.Values())
+        {
+            if (!otherSet.Has(value))
+            {
+                resultSet.Add(value);
+            }
+        }
+        
+        return resultSet.AsJsValue;
     }
 
-    /* FLAKY */
     [JsHostMethod("intersection", Length = 1d)]
     public JsValue Intersection(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.intersection
-        // Returns a new set with elements in both this set and the other set
-        throw new NotImplementedException("Set.prototype.intersection is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Create result set
+        var resultSet = new JsSet();
+        resultSet.SetPrototype(Realm.SetPrototype);
+        
+        // Get other set
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.intersection requires a Set argument", realm: Realm);
+        }
+        
+        // Add elements that exist in both sets
+        foreach (var value in thisSet.Values())
+        {
+            if (otherSet.Has(value))
+            {
+                resultSet.Add(value);
+            }
+        }
+        
+        return resultSet.AsJsValue;
     }
 
-    /* FLAKY */
     [JsHostMethod("isDisjointFrom", Length = 1d)]
     public JsValue IsDisjointFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.isDisjointFrom
-        // Returns true if this set has no elements in common with the other set
-        throw new NotImplementedException("Set.prototype.isDisjointFrom is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Get other set
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.isDisjointFrom requires a Set argument", realm: Realm);
+        }
+        
+        // Check if there are any common elements
+        foreach (var value in thisSet.Values())
+        {
+            if (otherSet.Has(value))
+            {
+                return false; // Found a common element, sets are not disjoint
+            }
+        }
+        
+        return true;
     }
 
-    /* FLAKY */
     [JsHostMethod("isSubsetOf", Length = 1d)]
     public JsValue IsSubsetOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.isSubsetOf
-        // Returns true if all elements of this set are in the other set
-        throw new NotImplementedException("Set.prototype.isSubsetOf is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Get other set
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.isSubsetOf requires a Set argument", realm: Realm);
+        }
+        
+        // Check if all elements of this set are in the other set
+        foreach (var value in thisSet.Values())
+        {
+            if (!otherSet.Has(value))
+            {
+                return false; // Found an element not in other set
+            }
+        }
+        
+        return true;
     }
 
-    /* FLAKY */
     [JsHostMethod("isSupersetOf", Length = 1d)]
     public JsValue IsSupersetOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.isSupersetOf
-        // Returns true if all elements of the other set are in this set
-        throw new NotImplementedException("Set.prototype.isSupersetOf is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Get other set
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.isSupersetOf requires a Set argument", realm: Realm);
+        }
+        
+        // Check if all elements of the other set are in this set
+        foreach (var value in otherSet.Values())
+        {
+            if (!thisSet.Has(value))
+            {
+                return false; // Found an element of other set not in this set
+            }
+        }
+        
+        return true;
     }
 
-    /* FLAKY */
     [JsHostMethod("symmetricDifference", Length = 1d)]
     public JsValue SymmetricDifference(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.symmetricDifference
-        // Returns a new set with elements in either set but not in both
-        throw new NotImplementedException("Set.prototype.symmetricDifference is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Create result set
+        var resultSet = new JsSet();
+        resultSet.SetPrototype(Realm.SetPrototype);
+        
+        // Get other set
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.symmetricDifference requires a Set argument", realm: Realm);
+        }
+        
+        // Add elements from this set that are not in the other set
+        foreach (var value in thisSet.Values())
+        {
+            if (!otherSet.Has(value))
+            {
+                resultSet.Add(value);
+            }
+        }
+        
+        // Add elements from the other set that are not in this set
+        foreach (var value in otherSet.Values())
+        {
+            if (!thisSet.Has(value))
+            {
+                resultSet.Add(value);
+            }
+        }
+        
+        return resultSet.AsJsValue;
     }
 
-    /* FLAKY */
     [JsHostMethod("union", Length = 1d)]
     public JsValue Union(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Set.prototype.union
-        // Returns a new set with all elements from both sets
-        throw new NotImplementedException("Set.prototype.union is not yet implemented");
+        var thisSet = RequireInstance(thisValue);
+        var otherValue = args.GetArgument(0);
+        
+        // Create result set
+        var resultSet = new JsSet();
+        resultSet.SetPrototype(Realm.SetPrototype);
+        
+        // Get other set
+        if (!otherValue.TryGetObject<JsSet>(out var otherSet) || otherSet is null)
+        {
+            throw StandardLibrary.ThrowTypeError("Set.prototype.union requires a Set argument", realm: Realm);
+        }
+        
+        // Add all elements from this set
+        foreach (var value in thisSet.Values())
+        {
+            resultSet.Add(value);
+        }
+        
+        // Add all elements from the other set (duplicates will be ignored)
+        foreach (var value in otherSet.Values())
+        {
+            resultSet.Add(value);
+        }
+        
+        return resultSet.AsJsValue;
     }
 }

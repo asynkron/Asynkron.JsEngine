@@ -1,12 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-[Collection("GeneratorIrCollection")]
-public class AsyncGeneratorTests
+public abstract class AsyncGeneratorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForAwaitCollectsSequence()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -33,7 +34,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_AwaitsBeforeYield()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -65,7 +66,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForLoopWithYield()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -93,7 +94,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_WhileAndDoWhileWithAwaitAndYield()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -136,7 +137,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_SwitchInBody()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -179,7 +180,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_TryCatchWithThrow()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -217,7 +218,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_TryFinallyWithYieldInFinally()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -252,7 +253,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ReturnValueVisibleViaNext()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -286,7 +287,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForAwaitOverAsyncGenerator()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
             let log = [];
@@ -313,7 +314,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_DelayedAwaitInsideBody_UsesHostDelay()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -348,7 +349,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_DelayedAwaitInLoopBody()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -383,7 +384,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_DelayedAwaitNestedGenerators()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -425,7 +426,7 @@ public class AsyncGeneratorTests
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_DelayedAwaitBetweenYields()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -454,4 +455,16 @@ public class AsyncGeneratorTests
             "before-first-yield|yielded:first|after-await:x|yielded:second",
             result);
     }
+}
+
+[Collection("GeneratorIrCollection")]
+public class FastPath_AsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+[Collection("GeneratorIrCollection")]
+public class Reference_AsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

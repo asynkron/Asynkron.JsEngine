@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyFiveBodiesPrototypeTest
+public abstract class NBodyFiveBodiesPrototypeTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task FiveBodies_PrototypeMethod_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(@"
             function Body(x) {
@@ -30,4 +32,14 @@ public class NBodyFiveBodiesPrototypeTest
 
         Assert.Equal(5.0, result);
     }
+}
+
+public class FastPath_NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

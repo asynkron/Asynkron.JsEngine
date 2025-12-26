@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AnonymousFunctionDebugTest(ITestOutputHelper testOutputHelper)
+public abstract class AnonymousFunctionDebugTestBase(ITestOutputHelper testOutputHelper) : FastPathTestBase(testOutputHelper)
 {
     [Fact]
     public async Task Debug_AnonymousRecursiveFunction_ShowEnvironments()
@@ -34,25 +34,25 @@ public class AnonymousFunctionDebugTest(ITestOutputHelper testOutputHelper)
 
         // Print what we captured - focus on first call
         var firstMsg = messages[0];
-        testOutputHelper.WriteLine("=== Debug call 1 (arg=3) ===");
-        testOutputHelper.WriteLine($"Environment chain ({firstMsg.EnvironmentChain.Count} environments):");
+        Output.WriteLine("=== Debug call 1 (arg=3) ===");
+        Output.WriteLine($"Environment chain ({firstMsg.EnvironmentChain.Count} environments):");
         foreach (var (env, i) in firstMsg.EnvironmentChain.Select((e, i) => (e, i)))
         {
-            testOutputHelper.WriteLine($"  [{i}] ScopeId={env.ScopeId}, HasSlots={env.HasSlots}, SlotCount={env.SlotCount}, Desc={env.Description ?? "(none)"}");
+            Output.WriteLine($"  [{i}] ScopeId={env.ScopeId}, HasSlots={env.HasSlots}, SlotCount={env.SlotCount}, Desc={env.Description ?? "(none)"}");
             if (env.SlotVariables.Count > 0)
             {
-                testOutputHelper.WriteLine("      Slots:");
+                Output.WriteLine("      Slots:");
                 foreach (var kvp in env.SlotVariables)
                 {
-                    testOutputHelper.WriteLine($"        [{kvp.Key}] = {kvp.Value}");
+                    Output.WriteLine($"        [{kvp.Key}] = {kvp.Value}");
                 }
             }
             if (env.DictionaryVariables.Count > 0)
             {
-                testOutputHelper.WriteLine("      Dictionary:");
+                Output.WriteLine("      Dictionary:");
                 foreach (var kvp in env.DictionaryVariables)
                 {
-                    testOutputHelper.WriteLine($"        {kvp.Key} = {kvp.Value}");
+                    Output.WriteLine($"        {kvp.Key} = {kvp.Value}");
                 }
             }
         }
@@ -63,16 +63,26 @@ public class AnonymousFunctionDebugTest(ITestOutputHelper testOutputHelper)
         // Find the environment with arg in slots
         var funcEnv = firstMsg.EnvironmentChain.FirstOrDefault(e => e.HasSlots && e.SlotCount > 0);
         Assert.NotNull(funcEnv);
-        testOutputHelper.WriteLine($"\nFunction env: ScopeId={funcEnv.ScopeId}, arg in slot 0 = {funcEnv.SlotVariables.GetValueOrDefault(0)}");
+        Output.WriteLine($"\nFunction env: ScopeId={funcEnv.ScopeId}, arg in slot 0 = {funcEnv.SlotVariables.GetValueOrDefault(0)}");
 
         // Find the script env with __func
         var scriptEnv = firstMsg.EnvironmentChain.FirstOrDefault(e => e.DictionaryVariables.ContainsKey("__func"));
         Assert.NotNull(scriptEnv);
-        testOutputHelper.WriteLine($"Script env: ScopeId={scriptEnv.ScopeId}, has __func in dictionary");
+        Output.WriteLine($"Script env: ScopeId={scriptEnv.ScopeId}, has __func in dictionary");
     }
 
-    private static JsEngine CreateDebugEngine()
+    private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(AnonymousFunctionDebugTest));
+        return TestEngineFactory.CreateDebugEngine(nameof(AnonymousFunctionDebugTestBase), enableFastPaths: EnableFastPaths);
     }
+}
+
+public class FastPath_AnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

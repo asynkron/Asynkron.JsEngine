@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IntlSupportedValuesTests
+public abstract class IntlSupportedValuesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task SupportedValuesRejectSymbolKeys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await Assert.ThrowsAsync<ThrowSignal>(async () =>
             await engine.Evaluate("Intl.supportedValuesOf(Symbol('k'));"));
     }
@@ -15,7 +16,7 @@ public class IntlSupportedValuesTests
     [Fact]
     public async Task CurrencyValuesAlignWithDisplayNamesAndNumberFormat()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             (function () {
                 var currencies = Intl.supportedValuesOf("currency");
@@ -56,7 +57,7 @@ public class IntlSupportedValuesTests
     [Fact]
     public async Task SupportedValuesCoerceKeysWithToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var baseline = Assert.IsType<JsArray>(await engine.Evaluate("Intl.supportedValuesOf('calendar');"));
         var viaStringObject =
             Assert.IsType<JsArray>(await engine.Evaluate("Intl.supportedValuesOf(new String('calendar'));"));
@@ -71,4 +72,14 @@ public class IntlSupportedValuesTests
         Assert.Equal(baseline.Items, viaStringObject.Items);
         Assert.Equal(baseline.Items, viaPlainObject.Items);
     }
+}
+
+public class FastPath_IntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_IntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

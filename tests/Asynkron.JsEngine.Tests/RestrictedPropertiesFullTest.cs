@@ -2,12 +2,12 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
+public abstract class RestrictedPropertiesFullTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Test262_AssertThrows_Pattern()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Use the exact Test262 assert.throws pattern
         await engine.Evaluate("""
@@ -57,11 +57,11 @@ public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
 
         // Test 1: hasOwnProperty should return false
         var hasOwnCaller = await engine.Evaluate("generator.hasOwnProperty('caller');");
-        testOutputHelper.WriteLine($"hasOwnProperty('caller') = {hasOwnCaller}");
+        Output.WriteLine($"hasOwnProperty('caller') = {hasOwnCaller}");
         Assert.False((bool)hasOwnCaller!);
 
         // Test 2: assert.throws with generator.caller - this is the critical test
-        testOutputHelper.WriteLine("Running assert.throws for generator.caller access...");
+        Output.WriteLine("Running assert.throws for generator.caller access...");
         await engine.Evaluate("""
 
                               assert.throws(TypeError, function() {
@@ -69,13 +69,13 @@ public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
                               });
 
                               """);
-        testOutputHelper.WriteLine("assert.throws completed successfully!");
+        Output.WriteLine("assert.throws completed successfully!");
     }
 
     [Fact]
     public async Task AssertThrows_Works_With_GeneratorCallerAccess()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // First verify assert.throws is defined and works
         await engine.Evaluate("""
@@ -104,7 +104,7 @@ public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
         await engine.Evaluate("function* generator() {}");
 
         // Now try assert.throws with generator.caller
-        testOutputHelper.WriteLine("Testing assert.throws with generator.caller...");
+        Output.WriteLine("Testing assert.throws with generator.caller...");
 
         try {
             await engine.Evaluate("""
@@ -115,9 +115,9 @@ public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
                                   console.log('assert.throws completed successfully');
 
                                   """);
-            testOutputHelper.WriteLine("Test passed - assert.throws worked correctly");
+            Output.WriteLine("Test passed - assert.throws worked correctly");
         } catch (Exception e) {
-            testOutputHelper.WriteLine($"Test failed: {e.GetType().Name}: {e.Message}");
+            Output.WriteLine($"Test failed: {e.GetType().Name}: {e.Message}");
             throw;
         }
     }
@@ -125,7 +125,7 @@ public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
     [Fact]
     public async Task DirectAccess_Generator_Caller_Throws_TypeError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate("function* generator() {}");
 
         // Direct access should throw
@@ -133,10 +133,20 @@ public class RestrictedPropertiesFullTest(ITestOutputHelper testOutputHelper)
             await engine.Evaluate("generator.caller")
         );
 
-        testOutputHelper.WriteLine($"Thrown value type: {ex.ThrownValue.GetType().Name}");
-        testOutputHelper.WriteLine($"Thrown value: {ex.ThrownValue}");
+        Output.WriteLine($"Thrown value type: {ex.ThrownValue.GetType().Name}");
+        Output.WriteLine($"Thrown value: {ex.ThrownValue}");
 
         // Check it's a TypeError
         Assert.True(ex.ThrownValue.ToObject() is JsTypes.JsObject, "Should be a JsObject");
     }
+}
+
+public class FastPath_RestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_RestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

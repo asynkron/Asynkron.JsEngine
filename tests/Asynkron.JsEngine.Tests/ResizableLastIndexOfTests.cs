@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ResizableLastIndexOfTests
+public abstract class ResizableLastIndexOfTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ArrayPrototypeLastIndexOfUsesPreCoercionLengthWhenBufferGrows()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -23,7 +25,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task TypedArrayLastIndexOfThrowsOnDetachedBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -44,7 +46,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task BigIntTypedArrayLastIndexOfThrowsOnDetachedBuffer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -65,7 +67,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task TypedArrayLastIndexOfThrowsOnNonObjectThis()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -85,7 +87,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task TypedArrayLastIndexOfThrowsOnNonTypedArrayReceiver()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -105,7 +107,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task ArrayPrototypeLastIndexOfLengthTrackingSubclassIgnoresGrowth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -124,7 +126,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task TypedArrayLastIndexOfLengthTrackingSubclassIgnoresGrowth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -143,7 +145,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task ArrayPrototypeLastIndexOfResizableGrowthMatchesTest262Ctors()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -207,7 +209,7 @@ public class ResizableLastIndexOfTests
     [Fact]
     public async Task TypedArrayLastIndexOfResizableGrowthMatchesTest262Ctors()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
             (function() {
@@ -267,4 +269,14 @@ public class ResizableLastIndexOfTests
 
         Assert.Equal("ok", result);
     }
+}
+
+public class FastPath_ResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

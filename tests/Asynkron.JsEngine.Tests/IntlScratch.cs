@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IntlScratch
+public abstract class IntlScratchBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task InspectSupportedValuesCoercion()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             (function () {
                 var calendars = Intl.supportedValuesOf("calendar");
@@ -46,4 +47,14 @@ public class IntlScratch
         Assert.False(array.GetElement(10).AsBoolean());
         Assert.True(array.GetElement(11).AsDouble() > 0);
     }
+}
+
+public class FastPath_IntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_IntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

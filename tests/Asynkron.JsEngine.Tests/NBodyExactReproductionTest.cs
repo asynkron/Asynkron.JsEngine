@@ -2,17 +2,17 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyExactReproductionTest(ITestOutputHelper output)
+public abstract class NBodyExactReproductionTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task NBodySystem_ConstructorLogic_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Add debug output
         engine.SetGlobalFunction("__log", args =>
         {
-            output.WriteLine(string.Join(" ", args.Select(a => a.ToObject()?.ToString() ?? "null")));
+            Output.WriteLine(string.Join(" ", args.Select(a => a.ToObject()?.ToString() ?? "null")));
             return JsTypes.JsValue.Undefined;
         });
 
@@ -62,4 +62,14 @@ public class NBodyExactReproductionTest(ITestOutputHelper output)
 
         Assert.Equal("done", result);
     }
+}
+
+public class FastPath_NBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

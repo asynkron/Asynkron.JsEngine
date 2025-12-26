@@ -85,10 +85,6 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetProperty("split", (JsValue)Symbols.Split);
         constructor.SetProperty("species", (JsValue)Symbols.Species);
         constructor.SetProperty("isConcatSpreadable", (JsValue)Symbols.IsConcatSpreadable);
-        
-        // TODO: Add Symbol.dispose and Symbol.asyncDispose once defined in Symbols class
-        // constructor.SetProperty("dispose", (JsValue)Symbols.Dispose);
-        // constructor.SetProperty("asyncDispose", (JsValue)Symbols.AsyncDispose);
     }
 
     /* FLAKY */

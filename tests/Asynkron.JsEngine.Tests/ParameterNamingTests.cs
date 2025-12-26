@@ -1,14 +1,16 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for parameter naming including contextual keywords
 /// </summary>
-public class ParameterNamingTests
+public abstract class ParameterNamingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task FunctionParameter_Named_Set_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             function isInAstralSet(code, set) {
                 return set[0];
@@ -23,7 +25,7 @@ public class ParameterNamingTests
     [Fact]
     public async Task FunctionParameter_Named_Get_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             function test(get, value) {
                 return get + value;
@@ -38,7 +40,7 @@ public class ParameterNamingTests
     [Fact]
     public async Task ArrowFunction_Parameter_Named_Set_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             const fn = (code, set) => set[0];
             fn(100, [42]);
@@ -52,7 +54,7 @@ public class ParameterNamingTests
     [Fact]
     public async Task GetterSetter_InObjectLiteral_StillWorks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             var obj = {
                 _value: 0,
@@ -70,7 +72,7 @@ public class ParameterNamingTests
     [Fact]
     public async Task GetterSetter_InClass_StillWorks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             class MyClass {
                 constructor() { this._value = 0; }
@@ -89,7 +91,7 @@ public class ParameterNamingTests
     [Fact]
     public async Task MixedUsage_GetSetAsParametersAndGetters()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             // Function with 'set' as parameter name
             function processData(get, set) {
@@ -118,7 +120,7 @@ public class ParameterNamingTests
     [Fact]
     public async Task IsInAstralSet_ExactExample_FromProblemStatement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
             // This is the function from the problem statement that was failing to parse
             function isInAstralSet(code, set) {
@@ -134,4 +136,14 @@ public class ParameterNamingTests
         var result = await engine.Evaluate(code);
         Assert.Equal(42.0, result);
     }
+}
+
+public class FastPath_ParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

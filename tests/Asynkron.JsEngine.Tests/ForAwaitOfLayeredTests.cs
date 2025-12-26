@@ -14,7 +14,7 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// The tests use FakeLogger to trace execution and understand what's happening.
 /// </summary>
-public class ForAwaitOfLayeredTests(ITestOutputHelper output)
+public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // ==================== LAYER 1: Basic Async Function ====================
 
@@ -22,7 +22,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer1_AsyncFunction_CanBeDefinedAndCalled()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         var result = await engine.Evaluate("""
             async function asyncAdd(a, b) {
@@ -32,13 +32,13 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
             """);
 
         // Async function returns a promise
-        output.WriteLine($"Result type: {result?.GetType().Name}");
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result type: {result?.GetType().Name}");
+        Output.WriteLine($"Result: {result}");
 
         // Log any messages
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         Assert.NotNull(result);
@@ -48,7 +48,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer1_AsyncFunction_AwaitedReturnsValue()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         // Use EvaluateModule for top-level await support, then read the result
         await engine.EvaluateModule("""
@@ -60,11 +60,11 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
 
         var result = await engine.Evaluate("moduleResult");
 
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         Assert.Equal(3.0, result);
@@ -76,7 +76,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer2_AsyncIIFE_ExecutesAndCompletesWithSimpleAwait()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -88,11 +88,11 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         // After the script, microtasks should have drained
         var result = await engine.Evaluate("finalResult");
 
-        output.WriteLine($"finalResult: {result}");
+        Output.WriteLine($"finalResult: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         Assert.Equal(42.0, result);
@@ -102,7 +102,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer2_AsyncIIFE_ExecutesWithMultipleAwaits()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -116,11 +116,11 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
 
         var result = await engine.Evaluate("finalResult");
 
-        output.WriteLine($"finalResult: {result}");
+        Output.WriteLine($"finalResult: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         Assert.Equal(60.0, result);
@@ -132,7 +132,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer3_RegularAwaitInForLoop_Works()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -148,11 +148,11 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
 
         var result = await engine.Evaluate("finalSum");
 
-        output.WriteLine($"finalSum: {result}");
+        Output.WriteLine($"finalSum: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // 1+2+3+4+5 = 15
@@ -163,7 +163,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer3_RegularAwaitInWhileLoop_Works()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -180,11 +180,11 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
 
         var result = await engine.Evaluate("finalSum");
 
-        output.WriteLine($"finalSum: {result}");
+        Output.WriteLine($"finalSum: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // 1+2+3+4+5 = 15
@@ -197,7 +197,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer4_ForAwaitOf_SingleIteration_Debug()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         // Simplest possible for await...of - just one element
         await engine.Evaluate("""
@@ -215,13 +215,13 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         var finalResult = await engine.Evaluate("finalResult");
         var iterationCount = await engine.Evaluate("iterationCount");
 
-        output.WriteLine($"finalResult: {finalResult}");
-        output.WriteLine($"iterationCount: {iterationCount}");
-        output.WriteLine("--- Logs ---");
+        Output.WriteLine($"finalResult: {finalResult}");
+        Output.WriteLine($"iterationCount: {iterationCount}");
+        Output.WriteLine("--- Logs ---");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // Expected: iterationCount = 1, finalResult = 42
@@ -233,7 +233,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     public async Task Layer4_ForAwaitOf_MultipleIterations_Debug()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -252,13 +252,13 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         var finalSum = await engine.Evaluate("finalSum");
         var iterationCount = await engine.Evaluate("iterationCount");
 
-        output.WriteLine($"finalSum: {finalSum}");
-        output.WriteLine($"iterationCount: {iterationCount}");
-        output.WriteLine("--- Logs ---");
+        Output.WriteLine($"finalSum: {finalSum}");
+        Output.WriteLine($"iterationCount: {iterationCount}");
+        Output.WriteLine("--- Logs ---");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // Expected: iterationCount = 5, finalSum = 15
@@ -275,7 +275,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         // to isolate exactly where the behavior differs
 
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         // First: regular for loop with await (known working)
         await engine.Evaluate("""
@@ -293,7 +293,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         var regularResult = await engine.Evaluate("resultRegular");
         var regularCount = await engine.Evaluate("countRegular");
 
-        output.WriteLine($"Regular for loop: count={regularCount}, result={regularResult}");
+        Output.WriteLine($"Regular for loop: count={regularCount}, result={regularResult}");
 
         // Second: for await...of (the bug)
         await engine.Evaluate("""
@@ -311,12 +311,12 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         var forAwaitResult = await engine.Evaluate("resultForAwait");
         var forAwaitCount = await engine.Evaluate("countForAwait");
 
-        output.WriteLine($"For await...of: count={forAwaitCount}, result={forAwaitResult}");
-        output.WriteLine("--- Logs ---");
+        Output.WriteLine($"For await...of: count={forAwaitCount}, result={forAwaitResult}");
+        Output.WriteLine("--- Logs ---");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // Both should give the same result
@@ -331,7 +331,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     {
         // For await...of at top level in a module DOES work
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         var result = await engine.EvaluateModule("""
             const arr = [1, 2, 3, 4, 5];
@@ -342,11 +342,11 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
             sum;
             """);
 
-        output.WriteLine($"Top-level for await...of result: {result}");
+        Output.WriteLine($"Top-level for await...of result: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         Assert.Equal(15.0, result);
@@ -360,7 +360,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         // Manually implement what for await...of should do
         // to see if the issue is in iteration or async handling
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -380,12 +380,12 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         var finalSum = await engine.Evaluate("finalSum");
         var iterCount = await engine.Evaluate("iterCount");
 
-        output.WriteLine($"Manual iteration: count={iterCount}, sum={finalSum}");
-        output.WriteLine("--- Logs ---");
+        Output.WriteLine($"Manual iteration: count={iterCount}, sum={finalSum}");
+        Output.WriteLine("--- Logs ---");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // If this works but for await...of doesn't, the bug is in for await...of specifically
@@ -402,7 +402,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
         // where finalSum is returned before the IIFE completes.
         // This is expected to fail - it's not a bug, it's how async works!
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         // Single evaluation - finalSum is checked immediately after IIFE call
         var result = await engine.Evaluate("""
@@ -418,15 +418,15 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
             finalSum;  // This is returned BEFORE the IIFE completes
             """);
 
-        output.WriteLine($"Immediate finalSum: {result}");
+        Output.WriteLine($"Immediate finalSum: {result}");
 
         // Now check after microtasks have drained
         var finalSumAfter = await engine.Evaluate("finalSum");
-        output.WriteLine($"After microtask drain: {finalSumAfter}");
+        Output.WriteLine($"After microtask drain: {finalSumAfter}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // The immediate result should be 0 (IIFE hasn't completed)
@@ -440,7 +440,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
     {
         // Test if EvaluateAndAwait drains microtasks from fire-and-forget IIFEs
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+        await using var engine = CreateEngine(opts => opts.Logger = logger);
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;
@@ -455,16 +455,26 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output)
             finalSum;
             """);
 
-        output.WriteLine($"EvaluateAndAwait result: {result}");
+        Output.WriteLine($"EvaluateAndAwait result: {result}");
 
         foreach (var msg in logger.Collector.Snapshot())
         {
-            output.WriteLine($"LOG: {msg.Message}");
+            Output.WriteLine($"LOG: {msg.Message}");
         }
 
         // What does EvaluateAndAwait actually return?
         // If it drains microtasks, it should be 15. If not, it will be 0.
-        output.WriteLine($"Expected: 15 (if microtasks drained) or 0 (if not)");
+        Output.WriteLine($"Expected: 15 (if microtasks drained) or 0 (if not)");
         // We're testing the actual behavior, not asserting expected behavior yet
     }
+}
+
+public class FastPath_ForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

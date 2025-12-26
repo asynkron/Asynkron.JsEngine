@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class AssignmentReferenceTests
+public abstract class AssignmentReferenceTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task InheritedNonWritableDataProperty_Sloppy_IgnoresWrite()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
 function Foo() {}
 Object.defineProperty(Foo.prototype, 'bar', { value: 1, writable: false });
@@ -24,7 +26,7 @@ o.bar = 2;
     [Fact]
     public async Task InheritedNonWritableDataProperty_Strict_ThrowsTypeError()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
         {
             await engine.Evaluate(@"
@@ -38,4 +40,14 @@ o.bar = 2;
 
         Assert.IsType<JsTypes.JsObject>(ex.ThrownValue.ToObject());
     }
+}
+
+public class FastPath_AssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

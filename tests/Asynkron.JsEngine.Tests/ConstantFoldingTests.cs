@@ -6,12 +6,12 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for constant expression folding transformation.
 /// </summary>
-public class ConstantFoldingTests(ITestOutputHelper output)
+public abstract class ConstantFoldingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_ArithmeticExpression_FoldsToResult()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let x = 1 + 2 * 7; x;");
 
         // 1 + 2 * 7 = 1 + 14 = 15
@@ -21,7 +21,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_SimpleAddition_FoldsToResult()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let x = 1 + 2; x;");
 
         Assert.Equal(3d, result);
@@ -32,7 +32,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_StringConcatenation_FoldsToResult()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let x = \"hello\" + \" \" + \"world\"; x;");
 
         Assert.Equal("hello world", result);
@@ -41,7 +41,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_BooleanLogic_FoldsToResult()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let x = true && false; x;");
 
         Assert.Equal(false, result);
@@ -50,7 +50,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_Comparison_FoldsToResult()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let x = 5 > 3; x;");
 
         Assert.Equal(true, result);
@@ -59,7 +59,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_WithVariables_DoesNotFold()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let y = 5; let x = y + 2; x;");
 
         Assert.Equal(7d, result);
@@ -68,7 +68,7 @@ public class ConstantFoldingTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_ShowsTransformation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var source = "let x = 1 + 2 * 7;";
 
         var (original, typedConstantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
@@ -89,9 +89,19 @@ public class ConstantFoldingTests(ITestOutputHelper output)
         // The folded value should be 15 (1 + 2 * 7 = 1 + 14 = 15)
         Assert.Equal(15d, literal.Value);
 
-        output.WriteLine("Original typed AST:");
-        output.WriteLine(original.ToString());
-        output.WriteLine("\nAfter typed constant folding:");
-        output.WriteLine(typedConstantFolded.ToString());
+        Output.WriteLine("Original typed AST:");
+        Output.WriteLine(original.ToString());
+        Output.WriteLine("\nAfter typed constant folding:");
+        Output.WriteLine(typedConstantFolded.ToString());
     }
+}
+
+public class FastPath_ConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

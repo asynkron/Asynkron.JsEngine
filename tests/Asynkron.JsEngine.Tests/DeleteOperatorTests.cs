@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class DeleteOperatorTests
+public abstract class DeleteOperatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Delete_RemovesPropertyUsingDotNotation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { prop: 'value' };
@@ -19,7 +21,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_RemovesPropertyUsingBracketNotation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { prop: 'value' };
@@ -33,7 +35,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_RemovesPropertyWithVariableKey()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { a: 1, b: 2, c: 3 };
@@ -48,7 +50,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_ReturnsTrue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { prop: 'value' };
@@ -61,7 +63,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_OnNonExistentProperty_ReturnsTrue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { prop: 'value' };
@@ -76,7 +78,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_OnArrayElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const arr = [1, 2, 3, 4, 5];
@@ -90,7 +92,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_OriginalProblemStatement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const DYNAMIC_REQUIRE_CACHE = Object.create(null);
@@ -106,7 +108,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_WithNestedPropertyAccess()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { nested: { prop: 'value' } };
@@ -120,7 +122,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_AsMethodName_InObjectLiteral()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = {
@@ -137,7 +139,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_AsMethodName_WithDotNotation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = {
@@ -154,7 +156,7 @@ public class DeleteOperatorTests
     [Fact(Timeout = 2000)]
     public async Task Delete_MultipleProperties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                    const obj = { a: 1, b: 2, c: 3, d: 4 };
@@ -165,4 +167,14 @@ public class DeleteOperatorTests
                                            """);
         Assert.True((bool)result!);
     }
+}
+
+public class FastPath_DeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_DeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

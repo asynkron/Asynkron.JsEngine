@@ -1,18 +1,30 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class GlobalStateIsolationTests
+public abstract class GlobalStateIsolationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task PrototypeMutationsDoNotLeakBetweenEngines()
     {
-        await using (var first = new JsEngine())
+        await using (var first = CreateEngine())
         {
             await first.Evaluate(@"Array.prototype.__leak__ = 123;");
         }
 
-        await using var second = new JsEngine();
+        await using var second = CreateEngine();
         var hasLeak = (bool)(await second.Evaluate(@"Array.prototype.hasOwnProperty('__leak__');"))!;
 
         Assert.False(hasLeak);
     }
+}
+
+public class FastPath_GlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_GlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

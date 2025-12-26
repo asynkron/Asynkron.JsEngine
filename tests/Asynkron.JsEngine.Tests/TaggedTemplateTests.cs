@@ -1,14 +1,16 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for tagged template literals.
 /// </summary>
-public class TaggedTemplateTests
+public abstract class TaggedTemplateTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_BasicFunction()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function myTag(strings, ...values) {
@@ -24,7 +26,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_MultipleSubstitutions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings, ...values) {
@@ -48,7 +50,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_StringsArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
@@ -63,7 +65,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_NoSubstitutions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
@@ -78,7 +80,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_WithExpressions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings, ...values) {
@@ -93,7 +95,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task String_Raw_Basic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String.raw`Hello\nWorld`;
@@ -105,7 +107,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task String_Raw_WithSubstitutions()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let name = "Alice";
@@ -118,7 +120,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task String_Raw_MultipleLines()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        String.raw`First\nSecond\rThird\tFourth`;
@@ -130,7 +132,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_RawProperty()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
@@ -145,7 +147,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_CompareRawAndCooked()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function tag(strings) {
@@ -160,7 +162,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_AsMethodCall()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = {
@@ -179,7 +181,7 @@ public class TaggedTemplateTests
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_ChainedAccess()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function createTagFunction() {
@@ -192,4 +194,14 @@ public class TaggedTemplateTests
                                            """);
         Assert.Equal(42d, result);
     }
+}
+
+public class FastPath_TaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

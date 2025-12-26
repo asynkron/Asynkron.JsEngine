@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class ParameterShadowingTest
+public abstract class ParameterShadowingTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Parameter_ShadowsFunctionName()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Parameter 'foo' should shadow function name 'foo'
         var result = await engine.Evaluate(@"
@@ -20,7 +22,7 @@ public class ParameterShadowingTest
     [Fact]
     public async Task Parameter_ShadowsGlobalVariable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate(@"
             var x = 100;
@@ -31,4 +33,14 @@ public class ParameterShadowingTest
         ");
         Assert.Equal(10.0, result);
     }
+}
+
+public class FastPath_ParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

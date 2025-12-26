@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class GeneratorYieldSendTests
+public abstract class GeneratorYieldSendTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task YieldYieldForwardsSentValues()
     {
-        var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function* g(){ yield yield; }
             var iter = g();
@@ -43,7 +44,7 @@ public class GeneratorYieldSendTests
     [Fact]
     public async Task YieldYieldSpreadSuspendsAcrossOperandAndOuterYield()
     {
-        var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             let steps;
             try {
@@ -96,7 +97,7 @@ public class GeneratorYieldSendTests
     [Fact]
     public async Task YieldInDestructuringDefaultReceivesSentValue()
     {
-        var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var x;
             var vals = {};
@@ -149,4 +150,16 @@ public class GeneratorYieldSendTests
         Assert.True(obj.TryGetProperty("x", out var xValue));
         Assert.Equal(86d, xValue.AsDouble());
     }
+}
+
+[Collection("GeneratorIrCollection")]
+public class FastPath_GeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+[Collection("GeneratorIrCollection")]
+public class Reference_GeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -4,13 +4,13 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AsyncIterationTests(ITestOutputHelper output)
+public abstract class AsyncIterationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task RegularForOf_WithAwaitInBody()
     {
         // Test that regular for-of with await in body works
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -41,7 +41,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
 
@@ -65,12 +65,12 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithGenerator()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {message}");
+            Output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
@@ -103,14 +103,14 @@ public class AsyncIterationTests(ITestOutputHelper output)
                          """);
 
         var result = await engine.Evaluate("sum;");
-        output.WriteLine($"Final sum: '{result}'");
+        Output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(6.0, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
 
@@ -133,12 +133,12 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithBreak()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {message}");
+            Output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
@@ -169,19 +169,19 @@ public class AsyncIterationTests(ITestOutputHelper output)
                          """);
 
         var result = await engine.Evaluate("count;");
-        output.WriteLine($"Final count: '{result}'");
+        Output.WriteLine($"Final count: '{result}'");
         Assert.Equal(3.0, result);
     }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithContinue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {message}");
+            Output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
@@ -210,14 +210,14 @@ public class AsyncIterationTests(ITestOutputHelper output)
                          """);
 
         var result = await engine.Evaluate("sum;");
-        output.WriteLine($"Final sum: '{result}'");
+        Output.WriteLine($"Final sum: '{result}'");
         Assert.Equal(12.0, result); // 1 + 2 + 4 + 5 = 12
     }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_RequiresAsyncFunction()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // for await...of must be used inside an async function.
         // In spec-compliant ECMAScript this construct is a parse-time error.
@@ -238,7 +238,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task SymbolAsyncIterator_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result = await engine.Evaluate("""
 
@@ -255,7 +255,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
         // NOTE: This test demonstrates a limitation - for-await-of with promises
         // in arrays requires CPS transformation support.
         // Currently, promises in arrays are treated as objects, not awaited.
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -290,7 +290,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_AllowsAwaitAfterLoop()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -324,7 +324,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithCustomAsyncIterator()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -369,7 +369,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
     public async Task ForAwaitOf_WithCustomSyncAsyncIterator()
     {
         // This test shows that Symbol.asyncIterator works when it returns synchronous values
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
 
@@ -409,20 +409,20 @@ public class AsyncIterationTests(ITestOutputHelper output)
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_ErrorPropagation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var errorCaught = false;
 
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {message}");
+            Output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
-            output.WriteLine("LOG: Error caught!");
+            Output.WriteLine("LOG: Error caught!");
             return JsValue.Null;
         });
 
@@ -470,7 +470,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
                          """);
 
-        output.WriteLine($"Error caught: {errorCaught}");
+        Output.WriteLine($"Error caught: {errorCaught}");
         Assert.True(errorCaught);
     }
 
@@ -478,20 +478,20 @@ public class AsyncIterationTests(ITestOutputHelper output)
     public async Task ForAwaitOf_SyncErrorPropagation()
     {
         // Test error handling with synchronous iterators
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var errorCaught = false;
 
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            output.WriteLine($"LOG: {message}");
+            Output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
-            output.WriteLine("LOG: Error caught!");
+            Output.WriteLine("LOG: Error caught!");
             return JsValue.Null;
         });
 
@@ -539,7 +539,7 @@ public class AsyncIterationTests(ITestOutputHelper output)
 
                          """);
 
-        output.WriteLine($"Error caught: {errorCaught}");
+        Output.WriteLine($"Error caught: {errorCaught}");
         Assert.True(errorCaught);
     }
 
@@ -646,8 +646,18 @@ public class AsyncIterationTests(ITestOutputHelper output)
         Assert.Equal("z", debugMessages[2].Variables["item"]);
     }
 
-    private static JsEngine CreateDebugEngine()
+    private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(AsyncIterationTests));
+        return TestEngineFactory.CreateDebugEngine(nameof(AsyncIterationTestsBase), enableFastPaths: EnableFastPaths);
     }
+}
+
+public class FastPath_AsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_AsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

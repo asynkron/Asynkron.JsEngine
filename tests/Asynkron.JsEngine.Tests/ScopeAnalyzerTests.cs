@@ -1,12 +1,15 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for the ScopeAnalyzer to verify correct scope ID and slot index assignment.
+/// Note: These tests use the parser and scope analyzer directly, so the EnableFastPaths
+/// setting does not affect their behavior. Both FastPath and Reference modes run identically.
 /// </summary>
-public class ScopeAnalyzerTests
+public abstract class ScopeAnalyzerTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     private static ProgramNode ParseAndAnalyze(string source)
     {
@@ -241,4 +244,14 @@ public class ScopeAnalyzerTests
         // innerFn parameter scope: ScopeId=5
         Assert.True(innerFunc.ScopeId > innerFunc.FunctionNameScopeId);
     }
+}
+
+public class FastPath_ScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

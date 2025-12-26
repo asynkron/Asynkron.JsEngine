@@ -1,14 +1,15 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class VoidOperatorTests
+public abstract class VoidOperatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task VoidZero_ShouldReturnUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("void 0;");
 
         // Result should be the Undefined symbol
@@ -20,7 +21,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task TypeofVoidZero_ShouldReturnUndefinedString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof (void 0);");
         Assert.Equal("undefined", result);
     }
@@ -28,7 +29,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task VoidExpression_ShouldEvaluateExpressionAndReturnUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("void (1 + 2);");
 
         Assert.IsType<Symbol>(result);
@@ -39,7 +40,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task VarAssignmentWithVoid_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("var value = void 0; value;");
 
         Assert.IsType<Symbol>(result);
@@ -50,7 +51,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task VarAssignmentWithVoid_TypeofShouldReturnUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate("var value = void 0;");
         var result = await engine.Evaluate("typeof value;");
         Assert.Equal("undefined", result);
@@ -59,7 +60,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task VoidWithSideEffects_ShouldEvaluateExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = """
             let x = 0;
             let result = void (x = 42);
@@ -72,7 +73,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task VoidFunctionCall_ShouldCallFunctionAndReturnUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = """
             let called = false;
             function test() { called = true; return 42; }
@@ -97,7 +98,7 @@ public class VoidOperatorTests
     [Fact]
     public async Task VoidAnyValue_ShouldReturnUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Test with various values
         var testCases = new[]
@@ -125,8 +126,18 @@ public class VoidOperatorTests
     [Fact]
     public async Task VoidInExpression_ShouldWork()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof (void 0) === 'undefined';");
         Assert.Equal(true, result);
     }
+}
+
+public class FastPath_VoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_VoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

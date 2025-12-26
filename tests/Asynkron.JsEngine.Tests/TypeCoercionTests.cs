@@ -1,9 +1,11 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests for comprehensive type coercion rules (toString, toNumber conversions)
 /// </summary>
-public class TypeCoercionTests
+public abstract class TypeCoercionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // ========================================
     // Array to String Conversion
@@ -12,7 +14,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToString_EmptyArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"value: \" + [];");
         Assert.Equal("value: ", result);
     }
@@ -20,7 +22,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToString_SingleElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"value: \" + [5];");
         Assert.Equal("value: 5", result);
     }
@@ -28,7 +30,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToString_MultipleElements()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"value: \" + [1, 2, 3];");
         Assert.Equal("value: 1,2,3", result);
     }
@@ -36,7 +38,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToString_NestedArrays()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"value: \" + [[1], [2], [3]];");
         Assert.Equal("value: 1,2,3", result);
     }
@@ -44,7 +46,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToString_WithNullUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // Per ECMAScript spec Section 22.1.3.28 (Array.prototype.toString):
         // null and undefined elements are converted to empty strings
         var result1 = await engine.Evaluate("\"value: \" + [1, null, 3];");
@@ -61,7 +63,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ObjectToString_EmptyObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"value: \" + {};");
         Assert.Equal("value: [object Object]", result);
     }
@@ -71,7 +73,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ObjectToString_ObjectWithProperties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let obj = { a: 1, b: 2 }; \"value: \" + obj;");
         Assert.Equal("value: [object Object]", result);
     }
@@ -83,7 +85,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToNumber_EmptyArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[] - 0;");
         Assert.Equal(0d, result);
     }
@@ -91,7 +93,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToNumber_SingleElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[5] - 0;");
         Assert.Equal(5d, result);
     }
@@ -99,7 +101,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToNumber_SingleStringElement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[\"10\"] - 0;");
         Assert.Equal(10d, result);
     }
@@ -107,7 +109,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToNumber_MultipleElements()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[1, 2] - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
@@ -115,7 +117,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ArrayToNumber_InArithmetic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[] + 5;");
         Assert.Equal("5", result);
     }
@@ -127,7 +129,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ObjectToNumber_EmptyObject()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // Note: {} at the start of a statement is parsed as a block, not an object literal
         // Using parentheses forces it to be parsed as an expression
         var result = await engine.Evaluate("({}) - 0;");
@@ -137,7 +139,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task ObjectToNumber_ObjectWithProperties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("let obj = { a: 1 }; obj - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
@@ -149,7 +151,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task StringToNumber_EmptyString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"\" - 0;");
         Assert.Equal(0d, result);
     }
@@ -157,7 +159,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task StringToNumber_WhitespaceOnly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result1 = await engine.Evaluate("\"   \" - 0;");
         Assert.Equal(0d, result1);
 
@@ -170,7 +172,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task StringToNumber_ValidNumber()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"123\" - 0;");
         Assert.Equal(123d, result);
     }
@@ -178,7 +180,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task StringToNumber_NumberWithWhitespace()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"  123  \" - 0;");
         Assert.Equal(123d, result);
     }
@@ -186,7 +188,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task StringToNumber_InvalidNumber()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"123abc\" - 0;");
         Assert.True(double.IsNaN((double)result!));
     }
@@ -194,7 +196,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task StringToNumber_Decimal()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("\"3.14\" - 0;");
         Assert.Equal(3.14d, result);
     }
@@ -206,7 +208,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_NumberAndString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result1 = await engine.Evaluate("0 == \"\";");
         Assert.True((bool)result1!);
@@ -221,7 +223,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_BooleanAndString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result1 = await engine.Evaluate("false == \"\";");
         Assert.True((bool)result1!);
@@ -236,7 +238,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_BooleanAndNumber()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result1 = await engine.Evaluate("false == 0;");
         Assert.True((bool)result1!);
@@ -248,7 +250,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_WhitespaceStringAndNumber()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Note: Using actual whitespace instead of escape sequences
         var result = await engine.Evaluate("\"   \" == 0;");
@@ -258,7 +260,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_ArrayAndString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result1 = await engine.Evaluate("[] == \"\";");
         Assert.True((bool)result1!);
@@ -273,7 +275,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_ArrayAndNumber()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var result1 = await engine.Evaluate("[] == 0;");
         Assert.True((bool)result1!);
@@ -288,7 +290,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task LooseEquality_StrictInequalityPreserved()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Strict inequality should not perform type coercion
         var result1 = await engine.Evaluate("0 === \"\";");
@@ -308,7 +310,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task Addition_ArrayConcatenation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[1, 2] + [3, 4];");
         Assert.Equal("1,23,4", result);
     }
@@ -316,7 +318,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task Addition_EmptyArrays()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[] + [];");
         Assert.Equal("", result);
     }
@@ -324,7 +326,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task Addition_ObjectAndArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // Note: {} at the start of a statement is parsed as a block, not an object literal
         // Using parentheses forces it to be parsed as an expression
         var result = await engine.Evaluate("({}) + [];");
@@ -334,7 +336,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task Addition_ArrayAndNumber()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("[1, 2] + 3;");
         Assert.Equal("1,23", result);
     }
@@ -346,7 +348,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task Truthiness_NaNIsFalsy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // NaN should be falsy
         var result = await engine.Evaluate("Math.sqrt(-1) ? 1 : 0;");
@@ -356,7 +358,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task Truthiness_InvalidStringConversionProducesNaN()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Invalid string to number conversion produces NaN which is falsy
         var result = await engine.Evaluate("(\"abc\" - 0) ? 1 : 0;");
@@ -370,7 +372,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task TypeCoercion_NullAndUndefinedInArithmetic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // null converts to 0
         var result1 = await engine.Evaluate("null + 5;");
@@ -384,7 +386,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task TypeCoercion_BooleanInArithmetic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // true converts to 1, false to 0
         var result1 = await engine.Evaluate("true + 5;");
@@ -397,7 +399,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task TypeCoercion_MixedOperations()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Complex chain of type coercions
         var result = await engine.Evaluate("\"5\" - \"2\" + 3;");
@@ -407,7 +409,7 @@ public class TypeCoercionTests
     [Fact(Timeout = 2000)]
     public async Task TypeCoercion_ArrayInLooseEquality()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Array converts to primitive for comparison
         var result1 = await engine.Evaluate("[10] == 10;");
@@ -416,4 +418,14 @@ public class TypeCoercionTests
         var result2 = await engine.Evaluate("[10] == \"10\";");
         Assert.True((bool)result2!);
     }
+}
+
+public class FastPath_TypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_TypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

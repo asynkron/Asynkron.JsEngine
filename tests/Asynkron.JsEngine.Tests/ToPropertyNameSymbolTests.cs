@@ -1,10 +1,11 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ToPropertyNameSymbolTests
+public abstract class ToPropertyNameSymbolTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void ThrowsWhenSymbolToPrimitiveIsNotCallable()
@@ -27,7 +28,7 @@ public class ToPropertyNameSymbolTests
     [Fact]
     public async Task ObjectLiteralStoresWellKnownSymbolKeys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("var obj = { [Symbol.toPrimitive]: 1 }; obj;");
         var obj = Assert.IsType<JsObject>(result);
 
@@ -40,7 +41,7 @@ public class ToPropertyNameSymbolTests
     [Fact]
     public async Task ObjectLiteralWithExoticToPrimitiveFailsConversion()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("var obj = { [Symbol.toPrimitive]: 42 }; obj;");
         var obj = Assert.IsType<JsObject>(result);
 
@@ -52,7 +53,17 @@ public class ToPropertyNameSymbolTests
     [InlineData("var obj = { [Symbol.toPrimitive]: {} }; class C { [obj] = 0; };")]
     public async Task ClassComputedNamesRespectExoticToPrimitiveErrors(string source)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await Assert.ThrowsAsync<ThrowSignal>(() => engine.Evaluate(source));
     }
+}
+
+public class FastPath_ToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class LogicalAssignmentOperatorsTests
+public abstract class LogicalAssignmentOperatorsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task LogicalAndAssignment_AssignsWhenTruthy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = 5;
@@ -19,7 +21,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task LogicalAndAssignment_DoesNotAssignWhenFalsy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = 0;
@@ -33,7 +35,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task LogicalOrAssignment_AssignsWhenFalsy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = 0;
@@ -47,7 +49,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task LogicalOrAssignment_DoesNotAssignWhenTruthy()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = 5;
@@ -61,7 +63,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task NullishCoalescingAssignment_AssignsWhenNullOrUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = null;
@@ -75,7 +77,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task NullishCoalescingAssignment_DoesNotAssignWhenNotNullish()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = 0;
@@ -89,7 +91,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task LogicalAssignment_WorksWithObjects()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 5, b: 0 };
@@ -104,7 +106,7 @@ public class LogicalAssignmentOperatorsTests
     [Fact(Timeout = 2000)]
     public async Task NullishCoalescingAssignment_WithUndefined()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let x = undefined;
@@ -114,4 +116,14 @@ public class LogicalAssignmentOperatorsTests
                                            """);
         Assert.Equal(42d, result);
     }
+}
+
+public class FastPath_LogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_LogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

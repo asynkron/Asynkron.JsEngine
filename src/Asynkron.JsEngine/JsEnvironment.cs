@@ -20,6 +20,14 @@ public sealed class JsEnvironment : IRentable
 {
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
+
+    /// <summary>
+    /// Cached empty slot map with reference equality comparer.
+    /// Avoids allocating ImmutableDictionary + Comparers on every environment creation.
+    /// </summary>
+    private static readonly ImmutableDictionary<Symbol, int> EmptySlotMap =
+        ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+
     private Dictionary<Symbol, List<Action<JsValue>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private SourceReference? _creatingSource;
@@ -31,8 +39,7 @@ public sealed class JsEnvironment : IRentable
     private bool _isDefaultDerivedConstructor;
     private HashSet<Symbol>? _simpleCatchParameters;
 
-    private ImmutableDictionary<Symbol, int> _slotMap =
-        ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+    private ImmutableDictionary<Symbol, int> _slotMap = EmptySlotMap;
 
     /// <summary>
     /// Slot-based storage for fast variable access when scope analysis is available.
@@ -255,7 +262,7 @@ public sealed class JsEnvironment : IRentable
         IsBodyEnvironment = false;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
-        _slotMap = ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+        _slotMap = EmptySlotMap;
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;

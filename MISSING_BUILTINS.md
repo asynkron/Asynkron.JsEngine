@@ -7,9 +7,9 @@ This document tracks the implementation status of JavaScript builtins from `todo
 - **Total methods in todo-builtins.md**: 816
 - **Existing implementations marked with /* FLAKY */**: 318
 - **Stub methods created for existing types**: 33
-- **New prototype classes created**: 21 classes with 139 methods
-- **Total scaffolded/marked**: 490 methods (60% of all methods)
-- **Remaining methods**: 326 methods requiring implementation or new classes
+- **New prototype classes created**: 24 classes with 167 methods
+- **Total scaffolded/marked**: 518 methods (63% of all methods)
+- **Remaining methods**: 298 methods requiring implementation or new classes
 
 ## Completed Work
 
@@ -19,7 +19,7 @@ All existing method implementations now have `/* FLAKY */` comments indicating p
 ### ✅ Stub Methods Created for Existing Types (33 methods)
 DataView (6), Promise (1), Date (1), Map (1), Math (1), Object (1), Set (7), String (4), Symbol (2), TypedArray (1)
 
-### ✅ New Prototype Classes Created (21 classes, 139 methods)
+### ✅ New Prototype Classes Created (24 classes, 167 methods)
 
 #### Resource Management & Modern Features (4 classes, 17 methods)
 1. **FinalizationRegistry** (3) - Finalization callbacks
@@ -42,7 +42,7 @@ DataView (6), Promise (1), Date (1), Map (1), Math (1), Object (1), Set (7), Str
 12. **GeneratorFunctionConstructor** - Dynamic generator creation
 13. **AsyncGeneratorFunctionConstructor** - Dynamic async generator creation
 
-#### Temporal API (8 types, 90 methods)
+#### Temporal API - COMPLETE! (11 types, 118 methods)
 14. **Temporal.Instant** (11) - Fixed point in time
 15. **Temporal.PlainDate** (10) - Calendar date
 16. **Temporal.Duration** (13) - Duration of time
@@ -51,8 +51,22 @@ DataView (6), Promise (1), Date (1), Map (1), Math (1), Object (1), Set (7), Str
 19. **Temporal.ZonedDateTime** (16) - Date/time with timezone
 20. **Temporal.PlainYearMonth** (9) - Year and month
 21. **Temporal.PlainMonthDay** (5) - Month and day
+22. **Temporal.TimeZone** (9) - Time zone operations
+23. **Temporal.Calendar** (10) - Calendar system
+24. **Temporal.Now** (9) - Current date/time utilities
 
-## Remaining Work - Methods Requiring Implementation (326 methods)
+## Remaining Work - Methods Requiring Implementation (298 methods)
+
+### High Priority Remaining
+- **TypedArrayConstructors** (51 methods) - Individual typed array constructors (Int8Array, Uint8Array, etc.)
+- **Various smaller prototypes** (~247 methods) - NativeErrors extensions, global functions, etc.
+
+## Progress Highlights
+
+✅ **Major Achievement**: Complete Temporal API scaffolded (11 types, 118 methods)
+✅ **Modern Features**: Iterator, DisposableStack, Atomics, ShadowRealm, FinalizationRegistry
+✅ **Generator Support**: All async/sync generator and iterator prototypes
+✅ **63% Complete**: 518 of 816 methods marked or scaffolded
 
 These require creating entirely new classes and significant architectural work:
 

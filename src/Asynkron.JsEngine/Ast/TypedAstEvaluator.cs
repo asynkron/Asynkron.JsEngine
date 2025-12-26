@@ -557,7 +557,7 @@ public static partial class TypedAstEvaluator
     private static JsValue BitwiseNotJsValue(in JsValue operand, EvaluationContext context)
     {
         // Fast path for number (most common case)
-        if (operand.IsNumber)
+        if (context.RealmState.EnableFastPaths && operand.IsNumber)
         {
             var int32 = JsNumericConversions.ToInt32(operand.NumberValue);
             return new JsValue((double)~int32);
@@ -584,7 +584,7 @@ public static partial class TypedAstEvaluator
     private static JsValue LeftShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if (left.IsNumber && right.IsNumber)
+        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
         {
             var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
@@ -631,7 +631,7 @@ public static partial class TypedAstEvaluator
     private static JsValue RightShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if (left.IsNumber && right.IsNumber)
+        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
         {
             var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
@@ -678,7 +678,7 @@ public static partial class TypedAstEvaluator
     private static JsValue UnsignedRightShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if (left.IsNumber && right.IsNumber)
+        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
         {
             var leftUInt = JsNumericConversions.ToUInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
@@ -718,7 +718,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if (left.IsNumber && right.IsNumber)
+        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
         {
             var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue);

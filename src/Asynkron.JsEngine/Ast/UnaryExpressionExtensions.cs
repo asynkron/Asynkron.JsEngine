@@ -222,6 +222,11 @@ public static partial class TypedAstEvaluator
                 case UnaryOperator.Delete:
                     return expression.Operand.EvaluateDelete(environment, context) ? JsValue.True : JsValue.False;
 
+                case UnaryOperator.Increment:
+                case UnaryOperator.Decrement:
+                    // When fast paths are disabled, use the full reference-based implementation
+                    return expression.EvaluateUnaryMemberIncrement(environment, context);
+
                 case UnaryOperator.TypeOf:
                 {
                     if (expression.Operand is IdentifierExpression identifier)

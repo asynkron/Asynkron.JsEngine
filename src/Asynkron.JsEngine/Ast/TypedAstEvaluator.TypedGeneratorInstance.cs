@@ -987,12 +987,34 @@ public static partial class TypedAstEvaluator
                                         loopScope = environment;
                                     }
                                 }
-                                var newIterationEnv = new JsEnvironment(
-                                    loopScope,
-                                    false,
-                                    false,
-                                    null,
-                                    "for-iteration");
+                                // When pooling is allowed (no closures in loop body), reuse environments
+                                // to avoid per-iteration allocations
+                                JsEnvironment newIterationEnv;
+                                if (createEnvInstruction.AllowPooling)
+                                {
+                                    // Return previous iteration environment to pool before getting new one
+                                    if (previousIterEnv != null)
+                                    {
+                                        JsEnvironmentPool.Return(previousIterEnv);
+                                    }
+
+                                    newIterationEnv = JsEnvironmentPool.Rent(
+                                        loopScope,
+                                        false,
+                                        false,
+                                        null,
+                                        "for-iteration");
+                                }
+                                else
+                                {
+                                    // Closures may capture this environment - cannot pool
+                                    newIterationEnv = new JsEnvironment(
+                                        loopScope,
+                                        false,
+                                        false,
+                                        null,
+                                        "for-iteration");
+                                }
 
                                 // Initialize slots with the iteration scope's metadata.
                                 // This enables O(1) slot-based lookups for identifiers in the loop body.

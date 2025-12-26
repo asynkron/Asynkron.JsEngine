@@ -633,7 +633,8 @@ internal sealed class SyncGeneratorIrBuilder
                 plan.PerIterationBindings,
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
-                slotMapBuilder.ToImmutable()));
+                slotMapBuilder.ToImmutable(),
+                plan.AllowIterationEnvironmentPooling));
             iterationBodyEntry = createEnvIndex;
         }
 
@@ -1010,7 +1011,8 @@ internal sealed class SyncGeneratorIrBuilder
                 iteratorPlan.PerIterationBindings,
                 iteratorPlan.IterationScopeId,
                 iteratorPlan.IterationSlotCount,
-                slotMapBuilder.ToImmutable()));
+                slotMapBuilder.ToImmutable(),
+                iteratorPlan.CanReuseIterationEnvironment));
             loopEntry = createEnvIndex;
         }
 

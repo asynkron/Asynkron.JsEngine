@@ -989,32 +989,10 @@ public static partial class TypedAstEvaluator
                                 }
                                 // When pooling is allowed (no closures in loop body), reuse environments
                                 // to avoid per-iteration allocations
-                                JsEnvironment newIterationEnv;
-                                if (createEnvInstruction.AllowPooling)
-                                {
-                                    // Return previous iteration environment to pool before getting new one
-                                    if (previousIterEnv != null)
-                                    {
-                                        JsEnvironmentPool.Return(previousIterEnv);
-                                    }
-
-                                    newIterationEnv = JsEnvironmentPool.Rent(
-                                        loopScope,
-                                        false,
-                                        false,
-                                        null,
-                                        "for-iteration");
-                                }
-                                else
-                                {
-                                    // Closures may capture this environment - cannot pool
-                                    newIterationEnv = new JsEnvironment(
-                                        loopScope,
-                                        false,
-                                        false,
-                                        null,
-                                        "for-iteration");
-                                }
+                                var allowPooling = createEnvInstruction.AllowPooling;
+                                var newIterationEnv = allowPooling
+                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, "for-iteration")
+                                    : new JsEnvironment(loopScope, false, false, null, "for-iteration");
 
                                 // Initialize slots with the iteration scope's metadata.
                                 // This enables O(1) slot-based lookups for identifiers in the loop body.
@@ -1034,15 +1012,47 @@ public static partial class TypedAstEvaluator
 
                                 // Copy per-iteration bindings from PREVIOUS iteration environment (if any).
                                 // This ensures each iteration's closures capture separate values.
-                                // Use previousIterEnv if found, otherwise environment (which may be loop scope
-                                // on first iteration where bindings won't exist).
-                                var copyFromEnv = previousIterEnv ?? environment;
-                                foreach (var binding in createEnvInstruction.PerIterationBindings)
+                                // IMPORTANT: Must copy BEFORE returning previousIterEnv to pool!
+
+                                // Use fast slot-based copying when we have a previous iteration environment
+                                // with matching scope ID and slots. This avoids dictionary allocations.
+                                // On first iteration (no previousIterEnv), we fall through to DefineJsValue
+                                // which is fine since it only happens once per loop.
+                                var useSlotCopy = previousIterEnv != null &&
+                                                  newIterationEnv.HasSlots &&
+                                                  previousIterEnv.HasSlots &&
+                                                  previousIterEnv.ScopeId == createEnvInstruction.ScopeId &&
+                                                  !createEnvInstruction.SlotMap.IsEmpty;
+
+                                if (useSlotCopy)
                                 {
-                                    if (copyFromEnv.TryGetJsValue(binding, out var value))
+                                    // Fast path: direct slot copy from previous iteration
+                                    foreach (var binding in createEnvInstruction.PerIterationBindings)
                                     {
-                                        newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
+                                        if (createEnvInstruction.SlotMap.TryGetValue(binding, out var slotIndex))
+                                        {
+                                            var value = previousIterEnv!.GetSlotRef(slotIndex);
+                                            newIterationEnv.SetSlotDirect(slotIndex, value);
+                                        }
                                     }
+                                }
+                                else
+                                {
+                                    // Slow path: first iteration or no slots - use dictionary copy
+                                    var copyFromEnv = previousIterEnv ?? environment;
+                                    foreach (var binding in createEnvInstruction.PerIterationBindings)
+                                    {
+                                        if (copyFromEnv.TryGetJsValue(binding, out var value))
+                                        {
+                                            newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
+                                        }
+                                    }
+                                }
+
+                                // Now safe to return previous iteration environment to pool
+                                if (allowPooling && previousIterEnv != null)
+                                {
+                                    JsEnvironmentPool.Return(previousIterEnv);
                                 }
 
                                 // Update the saved iteration environment on the driver state

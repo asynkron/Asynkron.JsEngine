@@ -3107,6 +3107,17 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Sets a slot value directly without any lookups.
+    /// Used for fast per-iteration binding copies in generators.
+    /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlotDirect(int slotIndex, JsValue value)
+    {
+        _slots![slotIndex] = value;
+    }
+
+    /// <summary>
     /// Resolves an identifier to its target environment and slot index.
     /// Returns true if the identifier can be accessed via slots, false if dictionary fallback is needed.
     /// </summary>

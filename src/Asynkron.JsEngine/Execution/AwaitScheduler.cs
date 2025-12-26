@@ -344,12 +344,12 @@ internal static class AwaitScheduler
         // call to execute before the loop continues.
         //
         // Use ResolvedPromiseValue instead of full Promise.resolve() to avoid
-        // JsPromise + JsObject allocation overhead.
+        // JsPromise + JsObject allocation overhead. Pool is used to reduce allocations.
         var engine = context.RealmState.Engine;
         if (engine is not null)
         {
-            var resolvedPromise = new ResolvedPromiseValue(candidate, engine);
-            pendingPromise = JsValue.FromObjectUnsafe(resolvedPromise);
+            var resolvedPromise = ResolvedPromiseValue.Rent(candidate, engine);
+            pendingPromise = resolvedPromise.AsJsValue;
             resolvedValue = JsValue.Undefined;
             return false;
         }

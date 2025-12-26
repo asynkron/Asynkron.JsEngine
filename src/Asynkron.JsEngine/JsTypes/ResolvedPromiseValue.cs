@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -5,15 +7,51 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Used for wrapping non-promise values in async/await contexts where we need promise-like semantics
 ///     but the value is already known and resolved.
 /// </summary>
-internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
+internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
 {
-    private readonly JsValue _value;
-    private readonly JsEngine _engine;
+    private static readonly ObjectPool<ResolvedPromiseValue> Pool = new(64, static () => new ResolvedPromiseValue());
 
-    public ResolvedPromiseValue(JsValue value, JsEngine engine)
+    private JsValue _value;
+    private JsEngine? _engine;
+    private JsValue _cachedJsValue;
+
+    private ResolvedPromiseValue()
     {
-        _value = value;
-        _engine = engine;
+    }
+
+    /// <summary>
+    /// Rents a ResolvedPromiseValue from the pool.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ResolvedPromiseValue Rent(JsValue value, JsEngine engine)
+    {
+        var instance = Pool.Rent();
+        instance._value = value;
+        instance._engine = engine;
+        return instance;
+    }
+
+    /// <summary>
+    /// Returns this instance to the pool.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Return()
+    {
+        _value = default;
+        _engine = null;
+        Pool.Return(this);
+    }
+
+    public ref readonly JsValue AsJsValue
+    {
+        get
+        {
+            if (_cachedJsValue.ObjectValue is null)
+            {
+                _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+            }
+            return ref _cachedJsValue;
+        }
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -21,14 +59,14 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
         switch (name)
         {
             case "then":
-                value = JsValue.FromObjectUnsafe(new ThenMethod(this, _engine));
+                value = JsValue.FromObjectUnsafe(new ThenMethod(this, _engine!));
                 return true;
             case "catch":
                 // catch is just then(undefined, onRejected) - but we're resolved, so it returns this
-                value = JsValue.FromObjectUnsafe(new CatchMethod(this, _engine));
+                value = JsValue.FromObjectUnsafe(new CatchMethod(this, _engine!));
                 return true;
             case "finally":
-                value = JsValue.FromObjectUnsafe(new FinallyMethod(this, _engine));
+                value = JsValue.FromObjectUnsafe(new FinallyMethod(this, _engine!));
                 return true;
             default:
                 value = JsValue.Undefined;
@@ -64,6 +102,9 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
         {
             var onFulfilled = args.Count > 0 ? args[0] : JsValue.Undefined;
 
+            // Capture value before returning to pool (JsValue is a struct, so this is a copy)
+            var resolvedValue = _resolved._value;
+
             // Create a new promise for chaining
             var nextPromise = new JsPromise(_engine);
 
@@ -71,14 +112,18 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor
             {
                 // Use pooled microtask to avoid lambda closure allocation
                 _engine.QueueMicrotask(
-                    ResolvedPromiseFulfilledMicrotask.Rent(fulfilledCallback, _resolved._value, nextPromise));
+                    ResolvedPromiseFulfilledMicrotask.Rent(fulfilledCallback, resolvedValue, nextPromise));
             }
             else
             {
                 // No onFulfilled callback - pass through the value
                 _engine.QueueMicrotask(
-                    ResolvedPromisePassthroughMicrotask.Rent(_resolved._value, nextPromise));
+                    ResolvedPromisePassthroughMicrotask.Rent(resolvedValue, nextPromise));
             }
+
+            // Return the ResolvedPromiseValue to pool - it's no longer needed after .then()
+            // The value has been captured and passed to the microtask
+            _resolved.Return();
 
             // Return the JsPromise directly without forcing JsObject creation
             // The await machinery can find the promise via TryGetInternalPromise

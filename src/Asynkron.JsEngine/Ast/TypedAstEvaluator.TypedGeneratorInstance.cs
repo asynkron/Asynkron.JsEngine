@@ -490,6 +490,10 @@ public static partial class TypedAstEvaluator
 
             // If we're resuming from a yield that happened during AST evaluation
             // (via StatementInstruction), handle based on the resume mode.
+            _realmState.Logger?.LogInformation(
+                "ExecutePlan resume check: wasStart={WasStart} mode={Mode} _lastYieldSourceStart={Start}",
+                wasStart, mode, _lastYieldSourceStart);
+
             if (!wasStart && _lastYieldSourceStart >= 0)
             {
                 switch (mode)
@@ -501,6 +505,7 @@ public static partial class TypedAstEvaluator
                     case ResumeMode.Return:
                         // For return(), close any active iterators and complete the generator.
                         // Don't re-evaluate the statement - just close and return.
+                        _realmState.Logger?.LogInformation("ExecutePlan: early CompleteReturn for Return mode");
                         _lastYieldSourceStart = -1;
                         _lastYieldSourceEnd = -1;
                         return CompleteReturn(resumeValue);
@@ -2418,6 +2423,10 @@ public static partial class TypedAstEvaluator
             // These are used to set up resume state so the yield expression returns the resume value.
             _lastYieldSourceStart = context.LastYieldSourceStart;
             _lastYieldSourceEnd = context.LastYieldSourceEnd;
+
+            _realmState.Logger?.LogInformation(
+                "RecordYield: yieldIndex={YieldIndex} sourceStart={Start} sourceEnd={End}",
+                _lastYieldIndex, _lastYieldSourceStart, _lastYieldSourceEnd);
 
             // Save the current environment so that when the generator resumes, it uses
             // the correct per-iteration environment (for loops with let bindings).

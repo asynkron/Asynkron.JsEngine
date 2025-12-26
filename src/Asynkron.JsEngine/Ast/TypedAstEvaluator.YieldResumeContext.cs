@@ -27,16 +27,6 @@ public static partial class TypedAstEvaluator
             _pending[yieldIndex] = ResumePayload.FromReturn(value);
         }
 
-        public ResumePayload TakePayload(int yieldIndex)
-        {
-            if (_pending.TryGetValue(yieldIndex, out var payload))
-            {
-                return payload;
-            }
-
-            return ResumePayload.Empty;
-        }
-
         public void Clear()
         {
             _pending.Clear();

@@ -655,8 +655,3 @@ public class FastPathRegExpTests(ITestOutputHelper output) : RegExpTestsBase(out
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceRegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

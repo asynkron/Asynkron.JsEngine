@@ -191,8 +191,3 @@ public class FastPathContextualKeywordTests(ITestOutputHelper output) : Contextu
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

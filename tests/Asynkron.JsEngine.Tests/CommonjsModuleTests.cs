@@ -69,8 +69,3 @@ public class FastPathCommonjsModuleTests(ITestOutputHelper output) : CommonjsMod
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceCommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

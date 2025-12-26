@@ -758,8 +758,3 @@ public class FastPathJavaScriptComplianceTests(ITestOutputHelper output) : JavaS
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceJavaScriptComplianceTests(ITestOutputHelper output) : JavaScriptComplianceTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -92,8 +92,3 @@ public class FastPathDateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsT
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceDateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

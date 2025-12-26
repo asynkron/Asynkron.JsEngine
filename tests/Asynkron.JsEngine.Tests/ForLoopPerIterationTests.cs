@@ -107,8 +107,3 @@ public class FastPathForLoopPerIterationTests(ITestOutputHelper output) : ForLoo
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

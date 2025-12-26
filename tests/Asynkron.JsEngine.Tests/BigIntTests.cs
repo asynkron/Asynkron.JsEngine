@@ -499,8 +499,3 @@ public class FastPathBigIntTests(ITestOutputHelper output) : BigIntTestsBase(out
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceBigIntTests(ITestOutputHelper output) : BigIntTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

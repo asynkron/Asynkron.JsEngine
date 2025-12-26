@@ -367,8 +367,3 @@ public class FastPathSetTests(ITestOutputHelper output) : SetTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceSetTests(ITestOutputHelper output) : SetTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

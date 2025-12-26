@@ -115,8 +115,3 @@ public class FastPathTestOptionalCatchBinding(ITestOutputHelper output) : TestOp
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

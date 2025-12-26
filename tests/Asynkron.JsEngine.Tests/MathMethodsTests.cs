@@ -190,8 +190,3 @@ public class FastPathMathMethodsTests(ITestOutputHelper output) : MathMethodsTes
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceMathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -1954,8 +1954,3 @@ public class FastPathFoundationTests(ITestOutputHelper output) : FoundationTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceFoundationTests(ITestOutputHelper output) : FoundationTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -265,8 +265,3 @@ public class FastPathLabeledBreakContinueTests(ITestOutputHelper output) : Label
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceLabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

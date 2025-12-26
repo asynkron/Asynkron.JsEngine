@@ -66,8 +66,3 @@ public class FastPathNBodyStepByStepTest(ITestOutputHelper output) : NBodyStepBy
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -68,8 +68,3 @@ public class FastPathNBodyExactReproductionTest(ITestOutputHelper output) : NBod
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

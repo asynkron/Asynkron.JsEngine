@@ -213,8 +213,3 @@ public class FastPathAdditionalMethodsTests(ITestOutputHelper output) : Addition
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

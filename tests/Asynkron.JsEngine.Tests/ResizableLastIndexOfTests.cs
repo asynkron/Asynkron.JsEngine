@@ -275,8 +275,3 @@ public class FastPathResizableLastIndexOfTests(ITestOutputHelper output) : Resiz
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

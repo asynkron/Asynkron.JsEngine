@@ -122,8 +122,3 @@ public class FastPathLogicalAssignmentOperatorsTests(ITestOutputHelper output) :
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceLogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

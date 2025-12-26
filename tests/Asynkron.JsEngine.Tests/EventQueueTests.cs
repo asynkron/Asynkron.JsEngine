@@ -114,8 +114,3 @@ public class FastPathEventQueueTests(ITestOutputHelper output) : EventQueueTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceEventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

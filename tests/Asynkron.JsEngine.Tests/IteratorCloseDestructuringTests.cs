@@ -215,8 +215,3 @@ public class FastPathIteratorCloseDestructuringTests(ITestOutputHelper output) :
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceIteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

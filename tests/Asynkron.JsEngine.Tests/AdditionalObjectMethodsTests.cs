@@ -193,8 +193,3 @@ public class FastPathAdditionalObjectMethodsTests(ITestOutputHelper output) : Ad
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

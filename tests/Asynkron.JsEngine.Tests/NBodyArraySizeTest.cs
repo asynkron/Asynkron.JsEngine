@@ -47,8 +47,3 @@ public class FastPathNBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySi
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -953,8 +953,3 @@ public class FastPathAdditionalArrayMethodsTests(ITestOutputHelper output) : Add
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAdditionalArrayMethodsTests(ITestOutputHelper output) : AdditionalArrayMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

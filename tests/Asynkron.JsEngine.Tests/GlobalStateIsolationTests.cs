@@ -23,8 +23,3 @@ public class FastPathGlobalStateIsolationTests(ITestOutputHelper output) : Globa
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceGlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

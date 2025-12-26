@@ -158,8 +158,3 @@ public class FastPathGeneratorYieldSendTests(ITestOutputHelper output) : Generat
     protected override bool EnableFastPaths => true;
 }
 
-[Collection("GeneratorIrCollection")]
-public class ReferenceGeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

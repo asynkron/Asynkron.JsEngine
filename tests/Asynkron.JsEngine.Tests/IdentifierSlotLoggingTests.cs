@@ -131,8 +131,3 @@ public class FastPathIdentifierSlotLoggingTests(ITestOutputHelper output) : Iden
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceIdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

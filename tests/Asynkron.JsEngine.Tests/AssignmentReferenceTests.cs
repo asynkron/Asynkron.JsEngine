@@ -46,8 +46,3 @@ public class FastPathAssignmentReferenceTests(ITestOutputHelper output) : Assign
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

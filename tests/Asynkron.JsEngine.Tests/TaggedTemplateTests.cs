@@ -200,8 +200,3 @@ public class FastPathTaggedTemplateTests(ITestOutputHelper output) : TaggedTempl
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

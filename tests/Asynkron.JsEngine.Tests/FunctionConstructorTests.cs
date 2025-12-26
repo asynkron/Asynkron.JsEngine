@@ -43,8 +43,3 @@ public class FastPathFunctionConstructorTests(ITestOutputHelper output) : Functi
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceFunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

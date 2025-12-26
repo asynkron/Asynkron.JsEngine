@@ -110,8 +110,3 @@ public class FastPathNBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTest
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

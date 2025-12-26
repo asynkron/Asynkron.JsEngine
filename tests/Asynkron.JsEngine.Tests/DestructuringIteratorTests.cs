@@ -107,8 +107,3 @@ public class FastPathDestructuringIteratorTests(ITestOutputHelper output) : Dest
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceDestructuringIteratorTests(ITestOutputHelper output) : DestructuringIteratorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

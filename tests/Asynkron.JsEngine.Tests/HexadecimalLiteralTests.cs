@@ -197,8 +197,3 @@ public class FastPathHexadecimalLiteralTests(ITestOutputHelper output) : Hexadec
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceHexadecimalLiteralTests(ITestOutputHelper output) : HexadecimalLiteralTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

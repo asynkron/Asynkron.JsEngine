@@ -364,8 +364,3 @@ public class FastPathNewFeaturesTests(ITestOutputHelper output) : NewFeaturesTes
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNewFeaturesTests(ITestOutputHelper output) : NewFeaturesTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

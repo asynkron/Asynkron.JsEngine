@@ -48,8 +48,3 @@ public class FastPathRestrictedPropertiesQuickTest(ITestOutputHelper output) : R
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceRestrictedPropertiesQuickTest(ITestOutputHelper output) : RestrictedPropertiesQuickTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

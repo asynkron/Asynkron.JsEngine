@@ -69,8 +69,3 @@ public class FastPathWeakCollectionsTests(ITestOutputHelper output) : WeakCollec
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceWeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

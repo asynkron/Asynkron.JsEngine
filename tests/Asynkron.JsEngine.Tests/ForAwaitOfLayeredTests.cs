@@ -473,8 +473,3 @@ public class FastPathForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwait
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

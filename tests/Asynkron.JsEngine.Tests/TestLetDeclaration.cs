@@ -55,8 +55,3 @@ public class FastPathTestLetDeclaration(ITestOutputHelper output) : TestLetDecla
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

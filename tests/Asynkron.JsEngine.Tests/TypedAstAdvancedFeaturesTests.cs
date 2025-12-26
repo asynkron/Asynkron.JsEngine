@@ -57,8 +57,3 @@ public class FastPathTypedAstAdvancedFeaturesTests(ITestOutputHelper output) : T
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

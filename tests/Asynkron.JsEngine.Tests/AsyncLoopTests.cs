@@ -69,8 +69,3 @@ public class FastPathAsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBa
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

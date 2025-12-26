@@ -104,8 +104,3 @@ public class FastPathClassElementEvalTests(ITestOutputHelper output) : ClassElem
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

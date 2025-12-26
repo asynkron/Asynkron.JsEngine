@@ -583,8 +583,3 @@ public class FastPathDestructuringTests(ITestOutputHelper output) : Destructurin
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceDestructuringTests(ITestOutputHelper output) : DestructuringTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

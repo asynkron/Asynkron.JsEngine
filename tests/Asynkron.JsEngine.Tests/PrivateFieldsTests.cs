@@ -266,8 +266,3 @@ public class FastPathPrivateFieldsTests(ITestOutputHelper output) : PrivateField
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferencePrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

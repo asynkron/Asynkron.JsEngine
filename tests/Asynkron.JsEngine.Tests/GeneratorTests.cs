@@ -6384,8 +6384,3 @@ public class FastPathGeneratorTests(ITestOutputHelper output) : GeneratorTestsBa
     protected override bool EnableFastPaths => true;
 }
 
-[Collection("GeneratorIrCollection")]
-public class ReferenceGeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

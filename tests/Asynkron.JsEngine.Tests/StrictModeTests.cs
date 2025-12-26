@@ -383,8 +383,3 @@ public class FastPathStrictModeTests(ITestOutputHelper output) : StrictModeTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceStrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

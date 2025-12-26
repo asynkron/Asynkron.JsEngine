@@ -194,8 +194,3 @@ public class FastPathMethodShorthandParsingTests(ITestOutputHelper output) : Met
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceMethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

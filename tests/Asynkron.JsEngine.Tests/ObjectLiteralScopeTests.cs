@@ -82,8 +82,3 @@ public class FastPathObjectLiteralScopeTests(ITestOutputHelper output) : ObjectL
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

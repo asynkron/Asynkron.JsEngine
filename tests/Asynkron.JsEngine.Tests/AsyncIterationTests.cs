@@ -656,8 +656,3 @@ public class FastPathAsyncIterationTests(ITestOutputHelper output) : AsyncIterat
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

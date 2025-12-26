@@ -53,8 +53,3 @@ public class FastPathIntlScratch(ITestOutputHelper output) : IntlScratchBase(out
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceIntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

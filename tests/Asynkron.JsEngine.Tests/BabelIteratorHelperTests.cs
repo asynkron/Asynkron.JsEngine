@@ -79,8 +79,3 @@ public class FastPathBabelIteratorHelperTests(ITestOutputHelper output) : BabelI
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceBabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

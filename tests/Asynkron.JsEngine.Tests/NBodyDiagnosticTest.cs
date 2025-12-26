@@ -88,8 +88,3 @@ public class FastPathNBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagno
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

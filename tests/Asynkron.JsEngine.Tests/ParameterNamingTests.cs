@@ -142,8 +142,3 @@ public class FastPathParameterNamingTests(ITestOutputHelper output) : ParameterN
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

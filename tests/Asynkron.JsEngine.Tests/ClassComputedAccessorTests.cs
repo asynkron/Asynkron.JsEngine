@@ -72,8 +72,3 @@ public class FastPathClassComputedAccessorTests(ITestOutputHelper output) : Clas
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

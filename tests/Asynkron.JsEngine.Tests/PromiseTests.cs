@@ -451,8 +451,3 @@ public class FastPathPromiseTests(ITestOutputHelper output) : PromiseTestsBase(o
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferencePromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

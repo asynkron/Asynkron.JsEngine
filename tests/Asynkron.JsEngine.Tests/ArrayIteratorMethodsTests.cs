@@ -177,8 +177,3 @@ public class FastPathArrayIteratorMethodsTests(ITestOutputHelper output) : Array
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

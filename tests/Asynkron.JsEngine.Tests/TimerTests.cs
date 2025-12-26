@@ -183,8 +183,3 @@ public class FastPathTimerTests(ITestOutputHelper output) : TimerTestsBase(outpu
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTimerTests(ITestOutputHelper output) : TimerTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

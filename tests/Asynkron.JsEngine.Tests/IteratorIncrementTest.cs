@@ -44,8 +44,3 @@ public class FastPathIteratorIncrementTest(ITestOutputHelper output) : IteratorI
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceIteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

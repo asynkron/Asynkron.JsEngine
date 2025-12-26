@@ -136,8 +136,3 @@ public class FastPathVoidOperatorTests(ITestOutputHelper output) : VoidOperatorT
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceVoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

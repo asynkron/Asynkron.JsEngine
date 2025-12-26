@@ -38,8 +38,3 @@ public class FastPathNBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NB
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

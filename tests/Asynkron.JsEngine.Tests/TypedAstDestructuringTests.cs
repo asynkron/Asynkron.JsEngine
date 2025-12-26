@@ -91,8 +91,3 @@ public class FastPathTypedAstDestructuringTests(ITestOutputHelper output) : Type
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

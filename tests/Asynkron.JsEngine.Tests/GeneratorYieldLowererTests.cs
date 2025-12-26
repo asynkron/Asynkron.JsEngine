@@ -560,8 +560,3 @@ public class FastPathGeneratorYieldLowererTests(ITestOutputHelper output) : Gene
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceGeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

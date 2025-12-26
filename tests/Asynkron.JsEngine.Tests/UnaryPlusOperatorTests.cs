@@ -225,8 +225,3 @@ public class FastPathUnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlu
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceUnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlusOperatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

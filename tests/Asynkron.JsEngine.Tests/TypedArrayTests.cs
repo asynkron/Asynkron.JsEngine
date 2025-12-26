@@ -921,8 +921,3 @@ public class FastPathTypedArrayTests(ITestOutputHelper output) : TypedArrayTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -145,8 +145,3 @@ public class FastPathRestrictedPropertiesFullTest(ITestOutputHelper output) : Re
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceRestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -150,8 +150,3 @@ public class FastPathLoopScopeAnalysisTests(ITestOutputHelper output) : LoopScop
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceLoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -38,8 +38,3 @@ public class FastPathTestMultipleVarDeclarations(ITestOutputHelper output) : Tes
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

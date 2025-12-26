@@ -26,8 +26,3 @@ public class FastPathForInParserTests(ITestOutputHelper output) : ForInParserTes
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

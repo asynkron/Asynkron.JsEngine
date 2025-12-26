@@ -2011,8 +2011,3 @@ public class FastPathJsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTes
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceJsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

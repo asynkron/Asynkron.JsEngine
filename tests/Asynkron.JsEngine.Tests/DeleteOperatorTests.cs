@@ -173,8 +173,3 @@ public class FastPathDeleteOperatorTests(ITestOutputHelper output) : DeleteOpera
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceDeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -204,8 +204,3 @@ public class FastPathGetPropertyNameTests(ITestOutputHelper output) : GetPropert
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceGetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

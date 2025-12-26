@@ -82,8 +82,3 @@ public class FastPathNBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototy
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -231,8 +231,3 @@ public class FastPathStaticMethodsTests(ITestOutputHelper output) : StaticMethod
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceStaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

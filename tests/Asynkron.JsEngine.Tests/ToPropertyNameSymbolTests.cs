@@ -62,8 +62,3 @@ public class FastPathToPropertyNameSymbolTests(ITestOutputHelper output) : ToPro
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

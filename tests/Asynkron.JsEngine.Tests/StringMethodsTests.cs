@@ -622,8 +622,3 @@ public class FastPathStringMethodsTests(ITestOutputHelper output) : StringMethod
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceStringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

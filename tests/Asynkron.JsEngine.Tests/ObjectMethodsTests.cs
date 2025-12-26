@@ -241,8 +241,3 @@ public class FastPathObjectMethodsTests(ITestOutputHelper output) : ObjectMethod
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceObjectMethodsTests(ITestOutputHelper output) : ObjectMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

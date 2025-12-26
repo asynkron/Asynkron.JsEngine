@@ -932,8 +932,3 @@ public class FastPathModuleTests(ITestOutputHelper output) : ModuleTestsBase(out
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

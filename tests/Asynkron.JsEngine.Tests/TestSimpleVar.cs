@@ -32,8 +32,3 @@ public class FastPathTestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

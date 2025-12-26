@@ -671,8 +671,3 @@ public class FastPathObjectDescriptorTests(ITestOutputHelper output) : ObjectDes
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

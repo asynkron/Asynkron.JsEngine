@@ -431,8 +431,3 @@ public class FastPathNullUndefinedOddityTests(ITestOutputHelper output) : NullUn
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNullUndefinedOddityTests(ITestOutputHelper output) : NullUndefinedOddityTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

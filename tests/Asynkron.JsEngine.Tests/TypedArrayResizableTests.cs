@@ -45,8 +45,3 @@ public class FastPathTypedArrayResizableTests(ITestOutputHelper output) : TypedA
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

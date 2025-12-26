@@ -80,8 +80,3 @@ public class FastPathTestVariableDeclarations(ITestOutputHelper output) : TestVa
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

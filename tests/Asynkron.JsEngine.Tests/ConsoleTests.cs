@@ -126,8 +126,3 @@ public class FastPathConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(o
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

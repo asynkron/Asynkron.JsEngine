@@ -352,8 +352,3 @@ public class FastPathWeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(o
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceWeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

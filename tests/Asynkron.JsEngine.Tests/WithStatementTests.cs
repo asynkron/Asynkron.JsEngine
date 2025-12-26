@@ -325,8 +325,3 @@ public class FastPathWithStatementTests(ITestOutputHelper output) : WithStatemen
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceWithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

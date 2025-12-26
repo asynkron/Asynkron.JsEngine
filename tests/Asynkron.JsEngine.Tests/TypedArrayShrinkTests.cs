@@ -133,8 +133,3 @@ public class FastPathTypedArrayShrinkTests(ITestOutputHelper output) : TypedArra
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

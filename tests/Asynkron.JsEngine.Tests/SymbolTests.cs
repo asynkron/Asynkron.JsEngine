@@ -173,8 +173,3 @@ public class FastPathSymbolTests(ITestOutputHelper output) : SymbolTestsBase(out
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceSymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

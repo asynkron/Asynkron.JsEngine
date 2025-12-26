@@ -123,8 +123,3 @@ public class FastPathScientificNotationTests(ITestOutputHelper output) : Scienti
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceScientificNotationTests(ITestOutputHelper output) : ScientificNotationTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

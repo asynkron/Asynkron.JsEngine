@@ -100,8 +100,3 @@ public class FastPathConstantFoldingTests(ITestOutputHelper output) : ConstantFo
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

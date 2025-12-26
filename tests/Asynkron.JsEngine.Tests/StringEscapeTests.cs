@@ -125,8 +125,3 @@ public class FastPathStringEscapeTests(ITestOutputHelper output) : StringEscapeT
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceStringEscapeTests(ITestOutputHelper output) : StringEscapeTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -153,8 +153,3 @@ public class FastPathOptionalChainingTests(ITestOutputHelper output) : OptionalC
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceOptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

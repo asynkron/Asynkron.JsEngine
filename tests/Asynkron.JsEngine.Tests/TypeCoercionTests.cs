@@ -424,8 +424,3 @@ public class FastPathTypeCoercionTests(ITestOutputHelper output) : TypeCoercionT
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

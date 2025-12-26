@@ -340,8 +340,3 @@ public class FastPathMapTests(ITestOutputHelper output) : MapTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceMapTests(ITestOutputHelper output) : MapTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

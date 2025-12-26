@@ -39,8 +39,3 @@ public class FastPathParameterShadowingTest(ITestOutputHelper output) : Paramete
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

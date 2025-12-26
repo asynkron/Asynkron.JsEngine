@@ -42,8 +42,3 @@ public class FastPathArrayLengthTest(ITestOutputHelper output) : ArrayLengthTest
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

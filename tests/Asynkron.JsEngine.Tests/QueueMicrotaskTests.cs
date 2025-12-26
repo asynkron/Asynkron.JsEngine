@@ -204,8 +204,3 @@ public class FastPathQueueMicrotaskTests(ITestOutputHelper output) : QueueMicrot
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceQueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

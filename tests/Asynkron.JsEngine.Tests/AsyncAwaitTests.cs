@@ -1009,8 +1009,3 @@ public class FastPathAsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

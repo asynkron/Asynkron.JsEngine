@@ -130,9 +130,3 @@ public class FastPathDebugScopeTests(ITestOutputHelper output) : DebugScopeTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-// Run all tests with fast paths disabled (reference implementation)
-public class ReferenceDebugScopeTests(ITestOutputHelper output) : DebugScopeTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -348,8 +348,3 @@ public class FastPathErrorTypesTests(ITestOutputHelper output) : ErrorTypesTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

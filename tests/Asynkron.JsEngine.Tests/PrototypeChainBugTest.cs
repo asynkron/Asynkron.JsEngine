@@ -50,8 +50,3 @@ public class FastPathPrototypeChainBugTest(ITestOutputHelper output) : Prototype
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferencePrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -237,11 +237,6 @@ public class FastPathMicrotaskDrainingTests(ITestOutputHelper output) : Microtas
     protected override bool EnableFastPaths => true;
 }
 
-public class ReferenceMicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}
-
 /// <summary>
 /// Tests demonstrating the for await...of bug where async iteration
 /// doesn't complete when used inside an async IIFE.
@@ -841,9 +836,4 @@ public abstract class ForAwaitOfBugTestsBase(ITestOutputHelper output) : FastPat
 public class FastPathForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
-}
-
-public class ReferenceForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
 }

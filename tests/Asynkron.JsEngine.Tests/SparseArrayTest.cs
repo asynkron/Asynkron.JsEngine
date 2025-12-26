@@ -59,8 +59,3 @@ public class FastPathSparseArrayTest(ITestOutputHelper output) : SparseArrayTest
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceSparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

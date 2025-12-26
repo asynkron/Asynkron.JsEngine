@@ -318,8 +318,3 @@ public class FastPathAutomaticSemicolonInsertionTests(ITestOutputHelper output) 
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

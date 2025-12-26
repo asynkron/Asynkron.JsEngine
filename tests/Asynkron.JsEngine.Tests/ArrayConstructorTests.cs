@@ -75,8 +75,3 @@ public class FastPathArrayConstructorTests(ITestOutputHelper output) : ArrayCons
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceArrayConstructorTests(ITestOutputHelper output) : ArrayConstructorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

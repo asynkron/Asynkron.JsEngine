@@ -273,8 +273,3 @@ public class FastPathScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyze
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

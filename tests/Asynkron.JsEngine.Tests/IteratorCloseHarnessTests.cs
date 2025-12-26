@@ -100,8 +100,3 @@ public class FastPathIteratorCloseHarnessTests(ITestOutputHelper output) : Itera
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceIteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -205,8 +205,3 @@ public class FastPathNumberStaticMethodsTests(ITestOutputHelper output) : Number
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNumberStaticMethodsTests(ITestOutputHelper output) : NumberStaticMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

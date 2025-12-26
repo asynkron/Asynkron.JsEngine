@@ -528,8 +528,3 @@ public class FastPathAsyncIterableDebugTests(ITestOutputHelper output) : AsyncIt
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceAsyncIterableDebugTests(ITestOutputHelper output) : AsyncIterableDebugTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

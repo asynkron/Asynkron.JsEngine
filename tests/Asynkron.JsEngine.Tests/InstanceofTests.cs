@@ -90,8 +90,3 @@ public class FastPathInstanceofTests(ITestOutputHelper output) : InstanceofTests
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceInstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

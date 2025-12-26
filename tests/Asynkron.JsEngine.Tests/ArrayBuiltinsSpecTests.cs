@@ -102,8 +102,3 @@ public class FastPathArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBui
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

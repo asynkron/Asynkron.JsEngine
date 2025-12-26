@@ -29,8 +29,3 @@ public class FastPathTestTypeofUndeclared(ITestOutputHelper output) : TestTypeof
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

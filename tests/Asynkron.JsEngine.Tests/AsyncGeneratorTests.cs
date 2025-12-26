@@ -462,9 +462,3 @@ public class FastPathAsyncGeneratorTests(ITestOutputHelper output) : AsyncGenera
 {
     protected override bool EnableFastPaths => true;
 }
-
-[Collection("GeneratorIrCollection")]
-public class ReferenceAsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

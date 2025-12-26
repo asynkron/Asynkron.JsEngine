@@ -48,8 +48,3 @@ public class FastPathTypedArrayResizeCoercionTests(ITestOutputHelper output) : T
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceTypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

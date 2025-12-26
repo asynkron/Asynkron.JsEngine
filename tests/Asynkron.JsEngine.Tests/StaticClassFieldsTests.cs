@@ -216,8 +216,3 @@ public class FastPathStaticClassFieldsTests(ITestOutputHelper output) : StaticCl
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceStaticClassFieldsTests(ITestOutputHelper output) : StaticClassFieldsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

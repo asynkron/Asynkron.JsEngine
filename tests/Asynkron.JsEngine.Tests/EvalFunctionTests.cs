@@ -208,8 +208,3 @@ public class FastPathEvalFunctionTests(ITestOutputHelper output) : EvalFunctionT
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceEvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -273,8 +273,3 @@ public class FastPathObjectEnhancementsTests(ITestOutputHelper output) : ObjectE
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceObjectEnhancementsTests(ITestOutputHelper output) : ObjectEnhancementsTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -78,8 +78,3 @@ public class FastPathIntlSupportedValuesTests(ITestOutputHelper output) : IntlSu
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceIntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

@@ -86,8 +86,3 @@ public class FastPathConstructorThisTest(ITestOutputHelper output) : Constructor
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

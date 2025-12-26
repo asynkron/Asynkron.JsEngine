@@ -115,8 +115,3 @@ public class FastPathNumericObjectKeysTests(ITestOutputHelper output) : NumericO
 {
     protected override bool EnableFastPaths => true;
 }
-
-public class ReferenceNumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
-{
-    protected override bool EnableFastPaths => false;
-}

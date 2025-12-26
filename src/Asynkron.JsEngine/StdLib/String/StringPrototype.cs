@@ -706,23 +706,43 @@ public sealed partial class StringPrototype
     private JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0 || !args[0].TryGetDouble(out var d))
+        var len = value.Length;
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var indexArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var context = Realm?.CreateContext();
+        var relativeIndex = ToIntegerOrInfinity(indexArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Handle infinity cases - they result in out-of-bounds
+        if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
         {
             return JsValue.Undefined;
         }
 
-        var index = (int)d;
-        if (index < 0)
+        int k;
+        if (relativeIndex >= 0)
         {
-            index = value.Length + index;
+            if (relativeIndex >= len)
+            {
+                return JsValue.Undefined;
+            }
+
+            k = (int)relativeIndex;
+        }
+        else
+        {
+            k = len + (int)relativeIndex;
+            if (k < 0)
+            {
+                return JsValue.Undefined;
+            }
         }
 
-        if (index < 0 || index >= value.Length)
-        {
-            return JsValue.Undefined;
-        }
-
-        return new JsValue(value[index].ToString());
+        return new JsValue(value[k].ToString());
     }
 
     [JsHostMethod("codePointAt", Length = 1d)]

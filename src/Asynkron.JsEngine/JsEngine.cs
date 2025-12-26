@@ -81,7 +81,7 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         _asyncIteratorTracingEnabled = _debugMode;
-        RealmState = new RealmState { Options = Options, Engine = this, Logger = Options.Logger };
+        RealmState = new RealmState { Options = Options, Engine = this, Logger = Options.Logger, EnableFastPaths = Options.EnableFastPaths };
         GlobalEnvironment.SetRealmState(RealmState);
         GlobalExecutionScope = GlobalEnvironment;
         // Bind the global `this` value to a dedicated JS object so that

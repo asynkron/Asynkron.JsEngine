@@ -23,7 +23,8 @@ public static partial class TypedAstEvaluator
         {
             // Ultra-fast path for simple identifier calls to TypedFunctions (e.g., fib(n-1))
             // This is the most common case in recursive benchmarks
-            if (expression is { IsOptional: false, Callee: IdentifierExpression calleeId, Arguments.Length: <= 2 })
+            if (context.RealmState.EnableFastPaths &&
+                expression is { IsOptional: false, Callee: IdentifierExpression calleeId, Arguments.Length: <= 2 })
             {
                 // If the identifier was NOT statically resolved (SlotIndex < 0), it might be
                 // in a dynamic scope (with/eval). Check for 'with' environment - if found, we need
@@ -138,7 +139,8 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateCallSlow(JsEnvironment environment, EvaluationContext context)
         {
             // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
-            if (CallExpression.TryFastPathMapSetCall(expression, environment, context, out var fastResult))
+            if (context.RealmState.EnableFastPaths &&
+                CallExpression.TryFastPathMapSetCall(expression, environment, context, out var fastResult))
             {
                 return fastResult;
             }

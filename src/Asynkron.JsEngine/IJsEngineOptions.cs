@@ -35,4 +35,10 @@ public interface IJsEngineOptions
     ///     Optional logger used for realm-level diagnostics such as identifier slot hit/miss tracing.
     /// </summary>
     ILogger? Logger { get; }
+
+    /// <summary>
+    ///     When true (default), enables optimized fast paths for common operations.
+    ///     Set to false to use only the base implementation for debugging/testing correctness.
+    /// </summary>
+    bool EnableFastPaths { get; }
 }

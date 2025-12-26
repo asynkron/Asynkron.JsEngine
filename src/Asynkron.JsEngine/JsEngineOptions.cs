@@ -24,4 +24,10 @@ public sealed class JsEngineOptions : IJsEngineOptions
     /// Optional logger to receive realm traces and diagnostics.
     /// </summary>
     public ILogger? Logger { get; init; }
+
+    /// <summary>
+    /// When true (default), enables optimized fast paths for common operations.
+    /// Set to false to use only the base implementation for debugging/testing correctness.
+    /// </summary>
+    public bool EnableFastPaths { get; init; } = true;
 }

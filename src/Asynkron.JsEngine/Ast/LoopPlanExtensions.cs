@@ -107,9 +107,11 @@ public static partial class TypedAstEvaluator
             // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
             var singleStatement = plan.SingleBodyStatement;
 
+            var enableFastPaths = context.RealmState.EnableFastPaths;
+
             // Try ultra-fast path for simple numeric for loops
             // Pattern: for (let i = 0; i < limit; i++) { s += i; }
-            if (plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
+            if (enableFastPaths && plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
             {
                 return fastResult;
             }
@@ -160,7 +162,7 @@ public static partial class TypedAstEvaluator
                 // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
                 // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
                 JsValue bodyResult;
-                if (singleStatement is not null)
+                if (enableFastPaths && singleStatement is not null)
                 {
                     bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
                 }
@@ -291,7 +293,8 @@ public static partial class TypedAstEvaluator
 
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
             // Fast path: use direct slot access when slot indices are available
-            var canUseSlotFastPath = iterationSlotCount >= 0 &&
+            var canUseSlotFastPath = context.RealmState.EnableFastPaths &&
+                                     iterationSlotCount >= 0 &&
                                      !iterationSlotIndices.IsDefaultOrEmpty &&
                                      currentIterationEnvironment.HasSlots &&
                                      currentIterationEnvironment.ScopeId == iterationScopeId;
@@ -380,7 +383,8 @@ public static partial class TypedAstEvaluator
                 var slotIndices = plan.PerIterationSlotIndices;
 
                 // Fast path: use direct slot access when slot indices are available
-                var canUseSlotFastPath = plan.IterationSlotCount >= 0 &&
+                var canUseSlotFastPath = context.RealmState.EnableFastPaths &&
+                                         plan.IterationSlotCount >= 0 &&
                                          !slotIndices.IsDefaultOrEmpty &&
                                          currentIterationEnvironment.HasSlots &&
                                          currentIterationEnvironment.ScopeId == plan.IterationScopeId;

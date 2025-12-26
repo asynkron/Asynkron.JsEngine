@@ -64,8 +64,10 @@ public static partial class TypedAstEvaluator
         {
             var op = expression.Operator;
 
+            var enableFastPaths = context.RealmState.EnableFastPaths;
+
             // Hot path: increment/decrement on simple identifiers with slots
-            if (op == UnaryOperator.Increment || op == UnaryOperator.Decrement)
+            if (enableFastPaths && (op == UnaryOperator.Increment || op == UnaryOperator.Decrement))
             {
                 var targetOperand = expression.Operand;
                 while (targetOperand is UnaryExpression

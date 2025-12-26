@@ -535,7 +535,7 @@ public static partial class TypedAstEvaluator
         {
             // Fast-path for simple functions - uses precomputed _canUseFastPathBase
             // Only check newTarget at runtime (everything else is fixed after construction)
-            if (_canUseFastPathBase && newTarget.IsUndefined)
+            if ((callingContext?.RealmState.EnableFastPaths ?? true) && _canUseFastPathBase && newTarget.IsUndefined)
             {
                 return InvokeSimpleFast(arguments, thisValue, callingContext);
             }
@@ -552,7 +552,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (_canUseFastPathBase)
+            if (callingContext.RealmState.EnableFastPaths && _canUseFastPathBase)
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
@@ -571,7 +571,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
-            if (_canUseFastPathBase)
+            if (callingContext.RealmState.EnableFastPaths && _canUseFastPathBase)
             {
                 return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
@@ -589,7 +589,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (_canUseFastPathBase)
+            if (callingContext.RealmState.EnableFastPaths && _canUseFastPathBase)
             {
                 return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
             }

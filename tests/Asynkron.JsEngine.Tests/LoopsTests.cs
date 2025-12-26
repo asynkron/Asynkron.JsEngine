@@ -1,12 +1,12 @@
 namespace Asynkron.JsEngine.Tests;
 
-public class LoopsTests
+public class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(fixture)
 {
     // Traditional for loop tests with comma expressions
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInInitializer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -23,7 +23,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithMultipleCommaExpressionsInInitializer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let result = '';
@@ -39,7 +39,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaExpressionAndComplexInitializer()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30, 40];
@@ -56,7 +56,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInCondition()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let sum = 0;
@@ -72,7 +72,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInIncrement()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let sum = 0;
@@ -91,7 +91,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopBasic()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3 };
@@ -108,7 +108,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopWithValues()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { x: 10, y: 20, z: 30 };
@@ -127,7 +127,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -144,7 +144,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopWithBreak()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3, d: 4 };
@@ -164,7 +164,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForInLoopWithContinue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let obj = { a: 1, b: 2, c: 3, d: 4 };
@@ -185,7 +185,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [10, 20, 30];
@@ -202,7 +202,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let str = 'abc';
@@ -219,7 +219,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopWithBreak()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -239,7 +239,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopWithContinue()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let arr = [1, 2, 3, 4, 5];
@@ -259,7 +259,7 @@ public class LoopsTests
     [Fact(Timeout = 2000)]
     public async Task ForOfLoopNested()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let matrix = [[1, 2], [3, 4]];

@@ -38,19 +38,50 @@ public static partial class TypedAstEvaluator
 
         private void CreateUninitializedLexicalBindings(JsEnvironment environment, bool isConst)
         {
-            target.WalkBindingTargets(id => environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
+            // Fast path for simple identifier binding (most common case: `for (let x of arr)`)
+            // Avoids Action<> delegate allocation
+            if (target is IdentifierBinding id)
+            {
+                environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
+                    isLexical: true, blocksFunctionScopeOverride: true);
+                return;
+            }
+
+            // Slow path for destructuring: `for (let {a, b} of arr)` or `for (let [x, y] of arr)`
+            target.WalkBindingTargets(binding => environment.DefineJsValue(binding.Name, JsValue.Uninitialized, isConst,
                 isLexical: true, blocksFunctionScopeOverride: true));
         }
 
         private void CollectSymbolsFromBinding(HashSet<Symbol> names)
         {
-            target.WalkBindingTargets(id => names.Add(id.Name));
+            // Fast path for simple identifier binding
+            if (target is IdentifierBinding id)
+            {
+                names.Add(id.Name);
+                return;
+            }
+
+            target.WalkBindingTargets(binding => names.Add(binding.Name));
         }
 
         private void HoistFromBindingTarget(JsEnvironment environment,
             EvaluationContext context,
             HashSet<Symbol>? lexicalNames = null)
         {
+            // Fast path for simple identifier binding (most common case)
+            if (target is IdentifierBinding id)
+            {
+                if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(id.Name) == true)
+                {
+                    return;
+                }
+
+                environment.DefineFunctionScoped(id.Name, JsValue.Undefined, false, context: context,
+                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
+                return;
+            }
+
+            // Slow path for destructuring patterns
             target.WalkBindingTargets(identifier =>
             {
                 if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)

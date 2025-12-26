@@ -84,19 +84,10 @@ public static partial class TypedAstEvaluator
             if (statement.Kind == ForEachKind.Of)
             {
                 var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                Func<JsEnvironment>? rentIterationEnvironment = null;
-                if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
+                var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                     statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                        or VariableKind.AwaitUsing)
-                {
-                    rentIterationEnvironment = () =>
-                    {
-                        var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                            "for-each-iteration");
-                        env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
-                        return env;
-                    };
-                }
+                        or VariableKind.AwaitUsing;
 
                 // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
                 // This avoids allocating iterator result objects {done, value} per iteration.
@@ -111,7 +102,7 @@ public static partial class TypedAstEvaluator
                             environment,
                             context,
                             loopLabel,
-                            rentIterationEnvironment);
+                            useIterationSlots);
                     }
                     finally
                     {
@@ -129,7 +120,7 @@ public static partial class TypedAstEvaluator
                         environment,
                         context,
                         loopLabel,
-                        rentIterationEnvironment);
+                        useIterationSlots);
                 }
 
                 throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
@@ -141,20 +132,11 @@ public static partial class TypedAstEvaluator
                 _ => throw new ArgumentOutOfRangeException()
             };
 
-            Func<JsEnvironment>? rentLoopIterationEnv = null;
             var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            if (cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+            // OPTIMIZATION: Compute bool instead of allocating Func<JsEnvironment> lambda
+            var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                 statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                    or VariableKind.AwaitUsing)
-            {
-                rentLoopIterationEnv = () =>
-                {
-                    var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                        "for-each-iteration");
-                    env.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
-                    return env;
-                };
-            }
+                    or VariableKind.AwaitUsing;
 
             foreach (var value in values)
             {
@@ -163,13 +145,27 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                var iterationEnvironment = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    or VariableKind.Using or VariableKind.AwaitUsing
-                    ? rentLoopIterationEnv is not null
-                        ? rentLoopIterationEnv()
-                        : new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                            description: "for-each-iteration")
-                    : loopEnvironment;
+                // OPTIMIZATION: Inline environment creation to avoid lambda allocation
+                JsEnvironment iterationEnvironment;
+                if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                    or VariableKind.Using or VariableKind.AwaitUsing)
+                {
+                    if (useIterationSlotsForIn)
+                    {
+                        iterationEnvironment = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
+                            "for-each-iteration");
+                        iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
+                    }
+                    else
+                    {
+                        iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                            description: "for-each-iteration");
+                    }
+                }
+                else
+                {
+                    iterationEnvironment = loopEnvironment;
+                }
 
                 statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
                     statement.DeclarationKind);
@@ -261,19 +257,10 @@ public static partial class TypedAstEvaluator
             try
             {
             var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            Func<JsEnvironment>? rentIterationEnvironment = null;
-            if (plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+            // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
+            var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                 statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                    or VariableKind.AwaitUsing)
-            {
-                rentIterationEnvironment = () =>
-                {
-                    var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                        "for-each-iteration");
-                    env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
-                    return env;
-                };
-            }
+                    or VariableKind.AwaitUsing;
 
             // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
             // This avoids iterator result object allocations while maintaining async semantics.
@@ -288,7 +275,7 @@ public static partial class TypedAstEvaluator
                         environment,
                         context,
                         loopLabel,
-                        rentIterationEnvironment);
+                        useIterationSlots);
                 }
                 finally
                 {
@@ -306,7 +293,7 @@ public static partial class TypedAstEvaluator
                     environment,
                     context,
                     loopLabel,
-                    rentIterationEnvironment);
+                    useIterationSlots);
             }
 
             throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);

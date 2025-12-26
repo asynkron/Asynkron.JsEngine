@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.Tests;

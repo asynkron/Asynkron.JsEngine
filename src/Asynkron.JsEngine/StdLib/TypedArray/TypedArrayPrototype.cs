@@ -926,13 +926,25 @@ public sealed partial class TypedArrayPrototype
         return relative < 0 ? 0 : relative;
     }
 
-    /* FLAKY */
     [JsHostMethod("subarray", Length = 2d)]
     public JsValue Subarray(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement TypedArray.prototype.subarray
-        // Returns a new TypedArray view on the same ArrayBuffer
-        throw new NotImplementedException("TypedArray.prototype.subarray is not yet implemented");
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.subarray");
+
+        var begin = 0;
+        var end = typedArray.Length;
+
+        if (args.Count > 0 && !args[0].IsUndefined)
+        {
+            begin = (int)args[0].ToNumber();
+        }
+
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            end = (int)args[1].ToNumber();
+        }
+
+        return (JsValue)typedArray.Subarray(begin, end);
     }
 
     #endregion

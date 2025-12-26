@@ -2880,11 +2880,11 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     /// Initializes slot storage for this environment.
-    /// Call this when creating an environment for a scope that has been analyzed.
+    /// Internal use only - prefer Initialize() for public API.
     /// </summary>
     /// <param name="slotCount">Number of slots needed for this scope.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void InitializeSlots(int slotCount)
+    internal void InitializeSlots(int slotCount)
     {
         if (slotCount <= 0)
         {
@@ -2903,12 +2903,12 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     /// Initializes slot storage and scope ID for this environment.
-    /// Call this when creating an environment for a scope that has been analyzed.
+    /// Internal use only - prefer Initialize() for public API.
     /// </summary>
     /// <param name="slotCount">Number of slots needed for this scope.</param>
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void InitializeSlots(int slotCount, int scopeId)
+    internal void InitializeSlots(int slotCount, int scopeId)
     {
         ScopeId = scopeId;
         if (slotCount <= 0)
@@ -2927,19 +2927,38 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
-    /// Initializes slot storage, scope ID, and slot map for this environment.
-    /// Use this overload when the slot map is available (e.g., for per-iteration loop environments).
+    /// Initializes all scope-related metadata for this environment: scope ID, slot map, and slots array.
+    /// This is the primary method to call when setting up an environment for a function or block scope.
+    /// The slot count is derived from the slot map.
     /// </summary>
-    /// <param name="slotCount">Number of slots needed for this scope.</param>
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     /// <param name="slotMap">Mapping from symbol names to slot indices.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void InitializeSlots(int slotCount, int scopeId, ImmutableDictionary<Symbol, int> slotMap)
+    public void Initialize(int scopeId, ImmutableDictionary<Symbol, int> slotMap)
     {
-        InitializeSlots(slotCount, scopeId);
+        ScopeId = scopeId;
         _slotMap = slotMap;
+
+        var slotCount = slotMap.Count;
+        if (slotCount <= 0)
+        {
+            return;
+        }
+
+        // Reuse existing array if it's big enough, otherwise allocate
+        if (_slots is null || _slots.Length < slotCount)
+        {
+            _slots = new JsValue[slotCount];
+        }
+
+        // Initialize all slots to undefined
+        Array.Fill(_slots, JsValue.Undefined);
     }
 
+    /// <summary>
+    /// Sets the slot map for this environment.
+    /// Internal use only - prefer Initialize() for public API.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
     {

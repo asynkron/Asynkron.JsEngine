@@ -303,10 +303,7 @@ public static partial class TypedAstEvaluator
                 iterationScopeId,
                 iterationSlotCount);
 
-            if (iterationSlotCount >= 0)
-            {
-                newIterationEnvironment.InitializeSlots(iterationSlotCount, iterationScopeId, plan.IterationSlotMap);
-            }
+            newIterationEnvironment.Initialize(iterationScopeId, plan.IterationSlotMap);
 
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
             // Fast path: use direct slot access when slot indices are available
@@ -469,10 +466,7 @@ public static partial class TypedAstEvaluator
                     null,
                     "for-iteration");
 
-                if (plan.IterationSlotCount >= 0)
-                {
-                    currentIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId, plan.IterationSlotMap);
-                }
+                currentIterationEnvironment.Initialize(plan.IterationScopeId, plan.IterationSlotMap);
 
                 for (var i = 0; i < count; i++)
                 {

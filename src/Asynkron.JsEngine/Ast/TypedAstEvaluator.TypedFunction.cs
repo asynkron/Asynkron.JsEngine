@@ -695,10 +695,8 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Don't initialize slots for complex parameter expressions (destructuring, defaults)
-                // Values are bound via dictionary, not slots
-                functionEnvironment.ScopeId = _function.ScopeId;
-                functionEnvironment.SetSlotMap(_function.SlotMap);
+                // Initialize scope metadata and slots for slot-based access
+                functionEnvironment.Initialize(_function.ScopeId, _function.SlotMap);
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
@@ -714,10 +712,8 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Don't initialize slots in InvokeWithContext - values are bound via dictionary
-                // Only InvokeSimpleFast uses slot-based parameter binding
-                functionEnvironment.ScopeId = _function.ScopeId;
-                functionEnvironment.SetSlotMap(_function.SlotMap);
+                // Initialize scope metadata and slots for slot-based access
+                functionEnvironment.Initialize(_function.ScopeId, _function.SlotMap);
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }

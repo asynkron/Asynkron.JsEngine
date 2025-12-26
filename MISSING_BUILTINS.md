@@ -7,9 +7,9 @@ This document tracks the implementation status of JavaScript builtins from `todo
 - **Total methods in todo-builtins.md**: 816
 - **Existing implementations marked with /* FLAKY */**: 318
 - **Stub methods created for existing types**: 33
-- **New prototype classes created**: 13 classes with 49 methods
-- **Total scaffolded/marked**: 400 methods (49% of all methods)
-- **Remaining methods**: 416 methods requiring implementation or new classes
+- **New prototype classes created**: 18 classes with 109 methods
+- **Total scaffolded/marked**: 460 methods (56% of all methods)
+- **Remaining methods**: 356 methods requiring implementation or new classes
 
 ## Completed Work
 
@@ -30,58 +30,37 @@ All existing method implementations now have `/* FLAKY */` comments indicating p
 - **Symbol** (2): asyncDispose, dispose
 - **TypedArray** (1): subarray
 
-### ✅ New Prototype Classes Created (13 classes, 49 methods)
+### ✅ New Prototype Classes Created (18 classes, 109 methods)
 
-#### 1. FinalizationRegistry (3 methods)
-- register, unregister methods + constructor
-- Enables WeakRef-based finalization callbacks
+#### Resource Management & Modern Features
+1. **FinalizationRegistry** (3 methods) - Finalization callbacks
+2. **DisposableStack** (6 methods) - Sync resource management
+3. **AsyncDisposableStack** (6 methods) - Async resource management
+4. **ShadowRealm** (2 methods) - Isolated execution contexts
 
-#### 2. Atomics (13 methods)
-- add, and, or, xor, sub, compareExchange, exchange, load, store, isLockFree, wait, waitAsync, notify
-- Atomic operations on SharedArrayBuffer
+#### Concurrency
+5. **Atomics** (13 methods) - Atomic operations on SharedArrayBuffer
 
-#### 3. DisposableStack (6 methods)
-- use, adopt, defer, move, dispose + disposed getter
-- Synchronous explicit resource management
+#### Iteration
+6. **Iterator** (12 methods) - Iterator helpers (map, filter, reduce, etc.)
+7. **AsyncIteratorPrototype** - Base for async iterators
+8. **ArrayIteratorPrototype** (1 method) - Array iteration
+9. **GeneratorPrototype** (3 methods) - Generator control
+10. **AsyncGeneratorPrototype** (3 methods) - Async generator control
 
-#### 4. AsyncDisposableStack (6 methods)
-- use, adopt, defer, move, disposeAsync + disposed getter
-- Asynchronous explicit resource management
+#### Function Constructors
+11. **AsyncFunctionConstructor** - Dynamic async function creation
+12. **GeneratorFunctionConstructor** - Dynamic generator creation
+13. **AsyncGeneratorFunctionConstructor** - Dynamic async generator creation
 
-#### 5. Iterator (12 methods)
-- map, filter, take, drop, flatMap, reduce, toArray, forEach, some, every, find + from()
-- Iterator helpers proposal
+#### Temporal API (5 types, 60 methods)
+14. **Temporal.Instant** (11 methods) - Fixed point in time
+15. **Temporal.PlainDate** (10 methods) - Calendar date
+16. **Temporal.Duration** (13 methods) - Duration of time
+17. **Temporal.PlainTime** (12 methods) - Wall-clock time
+18. **Temporal.PlainDateTime** (14 methods) - Date and time
 
-#### 6. ShadowRealm (2 methods)
-- evaluate, importValue
-- Isolated execution contexts
-
-#### 7. AsyncIteratorPrototype
-- Base prototype for async iterators
-- Uses Symbol.asyncIterator
-
-#### 8. ArrayIteratorPrototype (1 method)
-- next() method
-- For array iterator objects
-
-#### 9. GeneratorPrototype (3 methods)
-- next, return, throw
-- For generator instances
-
-#### 10. AsyncGeneratorPrototype (3 methods)
-- next, return, throw
-- For async generator instances
-
-#### 11. AsyncFunctionConstructor
-- Constructor for creating async functions dynamically
-
-#### 12. GeneratorFunctionConstructor
-- Constructor for creating generator functions dynamically
-
-#### 13. AsyncGeneratorFunctionConstructor
-- Constructor for creating async generator functions dynamically
-
-## Remaining Work - Methods Requiring Implementation (416 methods)
+## Remaining Work - Methods Requiring Implementation (356 methods)
 
 These require creating entirely new classes and significant architectural work:
 

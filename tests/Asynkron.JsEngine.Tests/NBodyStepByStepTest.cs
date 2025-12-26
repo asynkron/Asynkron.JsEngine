@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyStepByStepTest
+public abstract class NBodyStepByStepTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Step1_Array_With_Constructor_Calls()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function Body(x) {
                 this.x = x;
@@ -29,7 +31,7 @@ public class NBodyStepByStepTest
     [Fact]
     public async Task Step2_PassArrayToConstructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function NBodySystem(bodies) {
                 this.bodies = bodies;
@@ -46,7 +48,7 @@ public class NBodyStepByStepTest
     [Fact]
     public async Task Step3_CombinedInOneExpression()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function NBodySystem(bodies) {
                 this.bodies = bodies;
@@ -58,4 +60,14 @@ public class NBodyStepByStepTest
 
         Assert.Equal(2.0, result);
     }
+}
+
+public class FastPath_NBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

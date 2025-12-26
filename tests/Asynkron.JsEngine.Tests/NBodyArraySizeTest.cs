@@ -1,6 +1,8 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyArraySizeTest
+public abstract class NBodyArraySizeTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Theory]
     [InlineData(1)]
@@ -10,7 +12,7 @@ public class NBodyArraySizeTest
     [InlineData(5)]
     public async Task ArraySize_PrototypeMethod_Works(int count)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var makes = string.Join(", ", Enumerable.Range(1, count).Select(i => $"make({i})"));
 
@@ -39,4 +41,14 @@ public class NBodyArraySizeTest
 
         Assert.Equal((double)count, result);
     }
+}
+
+public class FastPath_NBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

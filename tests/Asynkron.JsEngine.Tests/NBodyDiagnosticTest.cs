@@ -1,13 +1,14 @@
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyDiagnosticTest
+public abstract class NBodyDiagnosticTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Array_ConstructorWithMultipleArguments_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Array(1, 2, 3);");
 
         Assert.IsType<JsArray>(result);
@@ -21,7 +22,7 @@ public class NBodyDiagnosticTest
     [Fact]
     public async Task Array_ConstructorWithFunctionResults_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function getNum() { return 42; }
             Array(getNum(), getNum());
@@ -37,7 +38,7 @@ public class NBodyDiagnosticTest
     [Fact]
     public async Task Array_ConstructorWithObjectResults_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function makeObj(x) {
                 return { value: x };
@@ -56,7 +57,7 @@ public class NBodyDiagnosticTest
     [Fact]
     public async Task NBody_SimplifiedScenario_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             function Body(x) {
                 this.x = x;
@@ -81,4 +82,14 @@ public class NBodyDiagnosticTest
 
         Assert.Equal(2.0, result);
     }
+}
+
+public class FastPath_NBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_NBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

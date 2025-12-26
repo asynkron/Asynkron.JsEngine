@@ -22,7 +22,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer1_AsyncFunction_CanBeDefinedAndCalled()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         var result = await engine.Evaluate("""
             async function asyncAdd(a, b) {
@@ -48,7 +48,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer1_AsyncFunction_AwaitedReturnsValue()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         // Use EvaluateModule for top-level await support, then read the result
         await engine.EvaluateModule("""
@@ -76,7 +76,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer2_AsyncIIFE_ExecutesAndCompletesWithSimpleAwait()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -102,7 +102,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer2_AsyncIIFE_ExecutesWithMultipleAwaits()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         await engine.Evaluate("""
             let finalResult = 0;
@@ -132,7 +132,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer3_RegularAwaitInForLoop_Works()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -163,7 +163,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer3_RegularAwaitInWhileLoop_Works()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -197,7 +197,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer4_ForAwaitOf_SingleIteration_Debug()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         // Simplest possible for await...of - just one element
         await engine.Evaluate("""
@@ -233,7 +233,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     public async Task Layer4_ForAwaitOf_MultipleIterations_Debug()
     {
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -275,7 +275,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
         // to isolate exactly where the behavior differs
 
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         // First: regular for loop with await (known working)
         await engine.Evaluate("""
@@ -331,7 +331,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     {
         // For await...of at top level in a module DOES work
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         var result = await engine.EvaluateModule("""
             const arr = [1, 2, 3, 4, 5];
@@ -360,7 +360,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
         // Manually implement what for await...of should do
         // to see if the issue is in iteration or async handling
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         await engine.Evaluate("""
             let finalSum = 0;
@@ -402,7 +402,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
         // where finalSum is returned before the IIFE completes.
         // This is expected to fail - it's not a bug, it's how async works!
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         // Single evaluation - finalSum is checked immediately after IIFE call
         var result = await engine.Evaluate("""
@@ -440,7 +440,7 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     {
         // Test if EvaluateAndAwait drains microtasks from fire-and-forget IIFEs
         var logger = new FakeLogger();
-        await using var engine = CreateEngine(opts => opts.Logger = logger);
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions { EnableFastPaths = fp, Logger = logger });
 
         var result = await engine.EvaluateAndAwait("""
             let finalSum = 0;

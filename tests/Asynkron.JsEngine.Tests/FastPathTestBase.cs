@@ -32,4 +32,13 @@ public abstract class FastPathTestBase(ITestOutputHelper output)
         configure(options);
         return new JsEngine(options);
     }
+
+    /// <summary>
+    /// Creates a JsEngine with the provided options factory. Use this for options with init-only properties.
+    /// The factory receives EnableFastPaths and should include it in the options.
+    /// </summary>
+    protected JsEngine CreateEngineWithOptions(Func<bool, JsEngineOptions> optionsFactory)
+    {
+        return new JsEngine(optionsFactory(EnableFastPaths));
+    }
 }

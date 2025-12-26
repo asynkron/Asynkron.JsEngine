@@ -5,17 +5,19 @@ using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging.Testing;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IdentifierSlotLoggingTests
+public abstract class IdentifierSlotLoggingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ForLoop_UsesSlotFastPathWithoutMisses()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
+            EnableFastPaths = fp,
             DebugMode = true,
             Logger = logger
         });
@@ -52,8 +54,9 @@ public class IdentifierSlotLoggingTests
     public async Task WhileLoop_UsesSlotFastPathWithoutMisses()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
+            EnableFastPaths = fp,
             DebugMode = true,
             Logger = logger
         });
@@ -88,8 +91,9 @@ public class IdentifierSlotLoggingTests
     public async Task CommonjsModule_ParametersStayInSlots()
     {
         var logger = new FakeLogger();
-        await using var engine = new JsEngine(new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
+            EnableFastPaths = fp,
             DebugMode = true,
             Logger = logger
         });
@@ -121,4 +125,14 @@ var result = browser$5.ok === true;
         Assert.DoesNotContain(messages, m => m.Contains("Identifier slot read miss name=module", StringComparison.Ordinal));
         Assert.DoesNotContain(messages, m => m.Contains("Identifier slot write miss name=module", StringComparison.Ordinal));
     }
+}
+
+public class FastPath_IdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_IdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

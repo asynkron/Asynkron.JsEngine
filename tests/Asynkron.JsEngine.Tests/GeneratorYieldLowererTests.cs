@@ -1,10 +1,11 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class GeneratorYieldLowererTests
+public abstract class GeneratorYieldLowererTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void Lowerer_RewritesYieldingDeclarationAssignmentAndReturn()
@@ -553,4 +554,14 @@ public class GeneratorYieldLowererTests
         Assert.Equal(firstTemp.Name, leftId.Name);
         Assert.Equal(secondTemp.Name, rightId.Name);
     }
+}
+
+public class FastPath_GeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_GeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

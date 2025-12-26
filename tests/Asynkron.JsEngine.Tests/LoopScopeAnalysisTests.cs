@@ -1,10 +1,11 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Tests.Helpers;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class LoopScopeAnalysisTests
+public abstract class LoopScopeAnalysisTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void ForLoopWithLetInitializer_TracksPerIterationSlotsAndPlanBindings()
@@ -114,7 +115,7 @@ public class LoopScopeAnalysisTests
     [Fact]
     public async Task ForInLetBinding_BindsActualKeyValueAtRuntime()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             let obj = { a: 1, b: 2 };
             let seen = '';
@@ -131,7 +132,7 @@ public class LoopScopeAnalysisTests
     [Fact]
     public async Task ForInLetBinding_AccumulatesKeys()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             let obj = { a: 1, b: 2, c: 3 };
             let keys = '';
@@ -143,4 +144,14 @@ public class LoopScopeAnalysisTests
 
         Assert.Equal("abc", result);
     }
+}
+
+public class FastPath_LoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_LoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

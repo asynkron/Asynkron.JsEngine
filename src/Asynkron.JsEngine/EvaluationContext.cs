@@ -252,7 +252,7 @@ public sealed class EvaluationContext(
     {
         var frame = new ScopeFrame(kind, mode);
         _scopeStack.Push(frame);
-        return new ScopeHandle(_scopeStack);
+        return ScopeHandle.Rent(_scopeStack);
     }
 
     public void MarkThisUninitialized()
@@ -601,9 +601,20 @@ public sealed class EvaluationContext(
         }
     }
 
-    private sealed class ScopeHandle(Stack<ScopeFrame> scopes) : IDisposable
+    private sealed class ScopeHandle : IDisposable, IRentable
     {
+        private static readonly ObjectPool<ScopeHandle> Pool = new(64, static () => new ScopeHandle());
+
+        private Stack<ScopeFrame>? _scopes;
         private bool _disposed;
+
+        public static ScopeHandle Rent(Stack<ScopeFrame> scopes)
+        {
+            var handle = Pool.Rent();
+            handle._scopes = scopes;
+            handle._disposed = false;
+            return handle;
+        }
 
         public void Dispose()
         {
@@ -612,12 +623,19 @@ public sealed class EvaluationContext(
                 return;
             }
 
-            if (scopes.Count > 0)
+            if (_scopes?.Count > 0)
             {
-                scopes.Pop();
+                _scopes.Pop();
             }
 
             _disposed = true;
+            Pool.Return(this);
+        }
+
+        void IRentable.Reset()
+        {
+            _scopes = null;
+            _disposed = false;
         }
     }
 }

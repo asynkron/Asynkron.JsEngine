@@ -1,15 +1,18 @@
-// Minimal debugging tests
-using System.Threading.Tasks;
-using Asynkron.JsEngine;
-using Xunit;
+// Minimal debugging tests for scope/closure behavior in for-of loops
 using Xunit.Abstractions;
 
-public class DebugTests(ITestOutputHelper output)
+namespace Asynkron.JsEngine.Tests;
+
+/// <summary>
+/// Tests for scope and closure behavior in for-of loops, especially with destructuring defaults and eval.
+/// These tests verify that closures correctly capture their lexical environment.
+/// </summary>
+public abstract class DebugScopeTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Step1_ProbeBeforeSimple()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var probeBefore = function() { return x; };
             var x = 1;
@@ -21,7 +24,7 @@ public class DebugTests(ITestOutputHelper output)
     [Fact]
     public async Task Step2_ProbeBeforeWithForOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var probeBefore = function() { return x; };
             var x = 1;
@@ -34,7 +37,7 @@ public class DebugTests(ITestOutputHelper output)
     [Fact]
     public async Task Step3_ProbeBeforeWithEvalInForOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var probeBefore = function() { return x; };
             var x = 1;
@@ -47,7 +50,7 @@ public class DebugTests(ITestOutputHelper output)
     [Fact]
     public async Task Step4_ProbeExprWithEvalInForOf()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var x = 1;
             var probeExpr;
@@ -60,7 +63,7 @@ public class DebugTests(ITestOutputHelper output)
     [Fact]
     public async Task Step5_BothProbesWithEval()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var x = 1;
             var probeExpr;
@@ -75,7 +78,7 @@ public class DebugTests(ITestOutputHelper output)
     {
         // The key difference: closure in destructuring DEFAULT, not just in the array
         // Use [[undefined]] so that the default expression is triggered
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var x = 1;
             var probeDecl;
@@ -89,7 +92,7 @@ public class DebugTests(ITestOutputHelper output)
     public async Task Step7_DestructuringDefaultWithEval()
     {
         // Closure in destructuring default WITH eval in iterable
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var x = 1;
             var probeDecl;
@@ -103,7 +106,7 @@ public class DebugTests(ITestOutputHelper output)
     public async Task Step8_FullTest()
     {
         // Full test - exactly like the failing test
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var probeBefore = function() { return x; };
             var x = 1;
@@ -120,4 +123,16 @@ public class DebugTests(ITestOutputHelper output)
         """);
         Assert.Equal("[2,2,2,2,2]", result);
     }
+}
+
+// Run all tests with fast paths enabled
+public class FastPath_DebugScopeTests(ITestOutputHelper output) : DebugScopeTestsBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+// Run all tests with fast paths disabled (reference implementation)
+public class Reference_DebugScopeTests(ITestOutputHelper output) : DebugScopeTestsBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

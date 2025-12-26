@@ -2,12 +2,15 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ArrayLengthTest(ITestOutputHelper output)
+/// <summary>
+/// Base test class with the actual test logic.
+/// </summary>
+public abstract class ArrayLengthTestBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 60000)]
     public async Task TestStr2BinlLength()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
             var chrsz = 8;
             function str2binl(str) {
@@ -28,8 +31,19 @@ public class ArrayLengthTest(ITestOutputHelper output)
             'plainText.length=' + plainText.length + ', result.length=' + result.length;
         ");
 
-        output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result: {result}");
         Assert.Contains("plainText.length=15824", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("result.length=3956", result?.ToString(), StringComparison.Ordinal);
     }
+}
+
+// These two classes show up separately in Test Explorer
+public class FastPath_ArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
+{
+    protected override bool EnableFastPaths => true;
+}
+
+public class Reference_ArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
+{
+    protected override bool EnableFastPaths => false;
 }

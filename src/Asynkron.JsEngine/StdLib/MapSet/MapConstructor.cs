@@ -92,12 +92,70 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         }
     }
 
-    /* FLAKY */
     [JsConstructorMethod("groupBy", Length = 2d)]
     public static JsValue GroupBy(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        // TODO: Implement Map.groupBy
-        // Groups array elements into a Map by the result of a callback function
-        throw new NotImplementedException("Map.groupBy is not yet implemented");
+        if (realm is null)
+        {
+            throw ThrowTypeError("Map.groupBy requires a realm", realm: null);
+        }
+        
+        var items = args.GetArgument(0);
+        var callbackFn = args.GetArgument(1);
+        
+        // Validate callback
+        if (!callbackFn.TryGetObject<IJsCallable>(out var callback) || callback is null)
+        {
+            throw ThrowTypeError("Map.groupBy callback must be a function", realm: realm);
+        }
+        
+        // Get iterable (usually an array)
+        if (!items.TryGetObject<JsArray>(out var array) || array is null)
+        {
+            throw ThrowTypeError("Map.groupBy requires an iterable as first argument", realm: realm);
+        }
+        
+        // Create result Map
+        var result = new JsMap();
+        result.SetPrototype(realm.MapPrototype);
+        
+        // Group elements
+        var k = 0;
+        while (k < array.Length)
+        {
+            var element = array.GetElement(k);
+            
+            // Call callback with (element, index)
+            var key = callback.Invoke([element, (double)k], JsValue.Undefined);
+            
+            // Get or create array for this key
+            JsArray group;
+            if (result.Has(key))
+            {
+                var existingGroup = result.Get(key);
+                if (existingGroup.TryGetObject<JsArray>(out var existingArray) && existingArray is not null)
+                {
+                    group = existingArray;
+                }
+                else
+                {
+                    // Should not happen, but create a new array if the value is not an array
+                    group = new JsArray(realm);
+                    result.Set(key, JsValue.FromJsArray(group));
+                }
+            }
+            else
+            {
+                group = new JsArray(realm);
+                result.Set(key, JsValue.FromJsArray(group));
+            }
+            
+            // Add element to group
+            group.SetElement((uint)group.Length, element);
+            
+            k++;
+        }
+        
+        return result.AsJsValue;
     }
 }

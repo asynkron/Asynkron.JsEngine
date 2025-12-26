@@ -148,13 +148,13 @@ async Task RunWithSharedEnginesAsync(
 
     for (var i = 0; i < warmup; i++)
     {
-        await EvaluateAsync(engine, parsed, isAsyncRun);
+        await EvaluateAsync(engine, parsed);
     }
 
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
-        await EvaluateAsync(engine, parsed, isAsyncRun);
+        await EvaluateAsync(engine, parsed);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -183,14 +183,14 @@ async Task RunWithFreshEnginesAsync(
     for (var i = 0; i < warmup; i++)
     {
         await using var warmEngine = CreateEngine(traceRealm);
-        await EvaluateAsync(warmEngine, parsed, isAsyncRun);
+        await EvaluateAsync(warmEngine, parsed);
     }
 
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
         await using var engine = CreateEngine(traceRealm);
-        await EvaluateAsync(engine, parsed, isAsyncRun);
+        await EvaluateAsync(engine, parsed);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -201,15 +201,15 @@ async Task RunWithFreshEnginesAsync(
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
 }
 
-async Task EvaluateAsync(JsEngine engine, ProgramNode parsed, bool isAsyncRun)
+async Task EvaluateAsync(JsEngine engine, ProgramNode parsed)
 {
-    if (isAsyncRun)
+    try
     {
-        await engine.EvaluateAndAwait(parsed);
+        await engine.Evaluate(parsed).WaitAsync(TimeSpan.FromSeconds(15));
     }
-    else
+    catch(Exception x)
     {
-        await engine.Evaluate(parsed);
+        Console.WriteLine("Error: " + x);
     }
 }
 

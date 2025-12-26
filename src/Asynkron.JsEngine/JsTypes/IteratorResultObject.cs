@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -5,13 +7,52 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Avoids the overhead of JsObject's dictionary-based property storage for the
 ///     common case of iterator results which are typically only read, not modified.
 /// </summary>
-internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObjectLike
+internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue
 {
     private static readonly string[] PropertyNames = ["value", "done"];
 
-    private JsValue _value = value;
-    private bool _done = done;
+    /// <summary>
+    /// Cached "done" result with value=undefined. Since this is immutable (done=true means
+    /// the iterator is exhausted), it's safe to share this singleton.
+    /// </summary>
+    public static readonly IteratorResultObject DoneUndefined = new(JsValue.Undefined, true);
 
+    private JsValue _value;
+    private bool _done;
+    private JsValue _cachedJsValue;
+
+    public IteratorResultObject(JsValue value, bool done)
+    {
+        _value = value;
+        _done = done;
+    }
+
+    /// <summary>
+    /// Creates an iterator result. For done=true with undefined value, returns a cached singleton.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Create(JsValue value, bool done)
+    {
+        if (done && value.IsUndefined)
+        {
+            return DoneUndefined.AsJsValue;
+        }
+        return new IteratorResultObject(value, done).AsJsValue;
+    }
+
+    public ref readonly JsValue AsJsValue
+    {
+        get
+        {
+            // Initialize the cached value's ObjectValue on first access
+            // The cached value persists across pool rentals since 'this' doesn't change
+            if (_cachedJsValue.ObjectValue is null)
+            {
+                _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+            }
+            return ref _cachedJsValue;
+        }
+    }
     public JsObject? Prototype => null;
     public bool IsSealed => false;
     public bool IsFrozen => false;

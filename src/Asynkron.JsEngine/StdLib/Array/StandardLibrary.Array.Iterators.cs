@@ -38,7 +38,7 @@ public static partial class StandardLibrary
             realm?.Logger?.LogInformation("ArrayIterator.next index={Index}", index);
             if (exhausted)
             {
-                return JsValue.FromObjectUnsafe(new IteratorResultObject(JsValue.Undefined, true));
+                return IteratorResultObject.DoneUndefined.AsJsValue;
             }
 
             if (typedAccessor?.IsDetachedOrOutOfBounds() == true)
@@ -58,11 +58,11 @@ public static partial class StandardLibrary
                 // Projector now returns JsValue directly - no boxing
                 var valueJs = projector(index);
                 index++;
-                return JsValue.FromObjectUnsafe(new IteratorResultObject(valueJs, false));
+                return new IteratorResultObject(valueJs, false).AsJsValue;
             }
 
             exhausted = true;
-            return JsValue.FromObjectUnsafe(new IteratorResultObject(JsValue.Undefined, true));
+            return IteratorResultObject.DoneUndefined.AsJsValue;
         }
 
         JsValue ReturnIterator(JsValue _, IReadOnlyList<JsValue> __, RealmState? ___)

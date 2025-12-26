@@ -8,8 +8,23 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution;
 
-internal sealed class IteratorDriverState : IRentable, IActiveIteratorState
+internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAsJsValue
 {
+    private JsValue _cachedJsValue;
+
+    public ref readonly JsValue AsJsValue
+    {
+        get
+        {
+            if (_cachedJsValue.ObjectValue is null)
+            {
+                _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+            }
+
+            return ref _cachedJsValue;
+        }
+    }
+
     public IJsObjectLike? IteratorObject { get; set; }
     public IEnumerator<JsValue>? Enumerator { get; set; }
     public bool IsAsyncIterator { get; set; }

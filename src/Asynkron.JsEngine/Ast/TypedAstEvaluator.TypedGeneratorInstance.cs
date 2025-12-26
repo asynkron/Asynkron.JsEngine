@@ -345,7 +345,12 @@ public static partial class TypedAstEvaluator
 
         private static JsValue CreateIteratorResult(JsValue value, bool done)
         {
-            return JsValue.FromObjectUnsafe(new IteratorResultObject(value, done));
+            // Use singleton for the common done case with undefined value
+            if (done && value.IsUndefined)
+            {
+                return IteratorResultObject.DoneUndefined.AsJsValue;
+            }
+            return new IteratorResultObject(value, done).AsJsValue;
         }
 
         private static IteratorDriverState CreateIteratorDriverState(
@@ -636,7 +641,7 @@ public static partial class TypedAstEvaluator
                                     _state = GeneratorState.Suspended;
                                     // If we have an original iterator result object, return it to preserve done property
                                     return iteratorResultObject is not null
-                                        ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                                        ? new JsValue(JsValueKind.Object, 0.0, iteratorResultObject)
                                         : CreateIteratorResult(yieldedSignalValue, false);
                                 }
 
@@ -758,7 +763,7 @@ public static partial class TypedAstEvaluator
                                     _state = GeneratorState.Suspended;
                                     // If we have an original iterator result object, return it to preserve done property
                                     return iteratorResultObject is not null
-                                        ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                                        ? new JsValue(JsValueKind.Object, 0.0, iteratorResultObject)
                                         : CreateIteratorResult(yieldedSignalValue, false);
                                 }
 
@@ -1690,7 +1695,7 @@ public static partial class TypedAstEvaluator
                                     driverState.AwaitingValue = false;
                                     var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
                                     // Use JsVariable for scope-correct access (iterator slot is in loop scope)
-                                    var iterStateValue = JsValue.FromObjectUnsafe(driverState);
+                                    var iterStateValue = driverState.AsJsValue;
                                     if (iterVar.IsValid)
                                     {
                                         iterVar.Write(iterStateValue);
@@ -1751,7 +1756,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 driverState.AwaitingNextResult = true;
                                                 // Use JsVariable for scope-correct access
-                                                var iterState = JsValue.FromObjectUnsafe(driverState);
+                                                var iterState = driverState.AsJsValue;
                                                 if (iterVar.IsValid)
                                                 {
                                                     iterVar.Write(iterState);
@@ -1829,7 +1834,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
-                                            var iterState = JsValue.FromObjectUnsafe(driverState);
+                                            var iterState = driverState.AsJsValue;
                                             if (iterVar.IsValid)
                                             {
                                                 iterVar.Write(iterState);
@@ -1895,7 +1900,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
-                                            var iterState = JsValue.FromObjectUnsafe(driverState);
+                                            var iterState = driverState.AsJsValue;
                                             if (iterVar.IsValid)
                                             {
                                                 iterVar.Write(iterState);
@@ -2463,12 +2468,15 @@ public static partial class TypedAstEvaluator
 
             _pendingResumeValue = resumeValue;
 
-            var resumeType = resumeValue.ObjectValue?.GetType().Name ?? resumeValue.Kind.ToString();
-            _realmState.Logger?.LogInformation(
-                "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
-                _lastYieldIndex,
-                _pendingResumeKind,
-                resumeType);
+            if (_realmState.Logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                var resumeType = resumeValue.ObjectValue?.GetType().Name ?? resumeValue.Kind.ToString();
+                _realmState.Logger.LogInformation(
+                    "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
+                    _lastYieldIndex,
+                    _pendingResumeKind,
+                    resumeType);
+            }
 
             if (_lastYieldIndex < 0)
             {

@@ -113,8 +113,6 @@ public sealed class RealmState
     public EvaluationContext RentContext(
         ScopeKind kind = ScopeKind.Function,
         ScopeMode mode = ScopeMode.Strict,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
         bool pushScope = true)
     {
         var context = _contextPool.Rent();

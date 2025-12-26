@@ -11,10 +11,10 @@ public class LexerTests
         Assert.Equal(6, tokens.Count); // let, x, =, 10, ;, EOF
         Assert.Equal(TokenType.Let, tokens[0].Type);
         Assert.Equal(TokenType.Identifier, tokens[1].Type);
-        Assert.Equal("x", tokens[1].Value);
+        Assert.Equal("x", tokens[1].Lexeme);
         Assert.Equal(TokenType.Equal, tokens[2].Type);
         Assert.Equal(TokenType.Number, tokens[3].Type);
-        Assert.Equal(10.0, tokens[3].Value);
+        Assert.Equal(10.0, tokens[3].Literal);
         Assert.Equal(TokenType.Semicolon, tokens[4].Type);
         Assert.Equal(TokenType.Eof, tokens[5].Type);
     }
@@ -27,7 +27,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count); // number, EOF
         Assert.Equal(TokenType.Number, tokens[0].Type);
-        Assert.Equal(255.0, tokens[0].Value);
+        Assert.Equal(255.0, tokens[0].Literal);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.Number, tokens[0].Type);
-        Assert.Equal(10.0, tokens[0].Value);
+        Assert.Equal(10.0, tokens[0].Literal);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.Number, tokens[0].Type);
-        Assert.Equal(63.0, tokens[0].Value);
+        Assert.Equal(63.0, tokens[0].Literal);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.Number, tokens[0].Type);
-        Assert.Equal(5.0, tokens[0].Value);
+        Assert.Equal(5.0, tokens[0].Literal);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.Number, tokens[0].Type);
-        Assert.Equal(100000.0, tokens[0].Value);
+        Assert.Equal(100000.0, tokens[0].Literal);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.Number, tokens[0].Type);
-        Assert.Equal(0.001, tokens[0].Value);
+        Assert.Equal(0.001, tokens[0].Literal);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.String, tokens[0].Type);
-        Assert.Equal("hello", tokens[0].Value);
+        Assert.Equal("hello", tokens[0].Literal);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.String, tokens[0].Type);
-        Assert.Equal("world", tokens[0].Value);
+        Assert.Equal("world", tokens[0].Literal);
     }
 
     [Fact]
@@ -178,17 +178,17 @@ public class LexerTests
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Slash);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Percent);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.StarStar);
-        Assert.Contains(operatorTokens, t => t.Type == TokenType.AmpersandAmpersand);
+        Assert.Contains(operatorTokens, t => t.Type == TokenType.AmpAmp);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.PipePipe);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Bang);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.EqualEqual);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.EqualEqualEqual);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.BangEqual);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.BangEqualEqual);
-        Assert.Contains(operatorTokens, t => t.Type == TokenType.LessThan);
-        Assert.Contains(operatorTokens, t => t.Type == TokenType.GreaterThan);
-        Assert.Contains(operatorTokens, t => t.Type == TokenType.LessThanEqual);
-        Assert.Contains(operatorTokens, t => t.Type == TokenType.GreaterThanEqual);
+        Assert.Contains(operatorTokens, t => t.Type == TokenType.Less);
+        Assert.Contains(operatorTokens, t => t.Type == TokenType.Greater);
+        Assert.Contains(operatorTokens, t => t.Type == TokenType.LessEqual);
+        Assert.Contains(operatorTokens, t => t.Type == TokenType.GreaterEqual);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.QuestionQuestion);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.QuestionDot);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.PlusPlus);
@@ -223,7 +223,7 @@ public class LexerTests
         var tokens = lexer.Tokenize();
 
         // Should have tokens for both let statements, no comment token
-        Assert.DoesNotContain(tokens, t => t.Value?.ToString()?.Contains("comment") == true);
+        Assert.DoesNotContain(tokens, t => t.Literal?.ToString()?.Contains("comment") == true);
     }
 
     [Fact]
@@ -233,7 +233,7 @@ public class LexerTests
         var tokens = lexer.Tokenize();
 
         // Should parse correctly without comment
-        Assert.DoesNotContain(tokens, t => t.Value?.ToString()?.Contains("comment") == true);
+        Assert.DoesNotContain(tokens, t => t.Literal?.ToString()?.Contains("comment") == true);
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class LexerTests
         var lexer = new Lexer("`hello ${name}`");
         var tokens = lexer.Tokenize();
 
-        Assert.Contains(tokens, t => t.Type == TokenType.TemplateHead);
+        Assert.Contains(tokens, t => t.Type == TokenType.TemplateLiteral);
     }
 
     [Fact]

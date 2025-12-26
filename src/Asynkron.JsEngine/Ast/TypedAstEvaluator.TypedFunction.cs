@@ -714,8 +714,12 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Initialize scope metadata and slots for slot-based access
-                functionEnvironment.Initialize(_function.ScopeId, _function.SlotMap);
+                // InvokeWithContext uses dictionary-based lookups (slow path).
+                // Set ScopeId for scope chain navigation but DON'T initialize slots.
+                // Function declarations are hoisted into the dictionary via DefineFunctionScoped,
+                // and initializing slots would shadow them with Undefined values.
+                functionEnvironment.ScopeId = _function.ScopeId;
+                functionEnvironment.SetSlotMap(_function.SlotMap);
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }

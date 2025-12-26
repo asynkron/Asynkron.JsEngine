@@ -595,6 +595,16 @@ public sealed partial class DatePrototype
             Realm, () => CreateDefaultTimeOptions(Realm));
     }
 
+    /* FLAKY */
+    [JsHostMethod("toTemporalInstant", Length = 0d)]
+    public JsValue ToTemporalInstant(JsValue thisValue)
+    {
+        // TODO: Implement Date.prototype.toTemporalInstant
+        // This method converts a Date to a Temporal.Instant
+        // Requires Temporal API implementation
+        throw new NotImplementedException("Date.prototype.toTemporalInstant is not yet implemented");
+    }
+
     protected override void ConfigurePrototype()
     {
         if (Prototype is JsObject { RealmState: null } jsObj)

@@ -7,60 +7,52 @@ This document tracks the implementation status of JavaScript builtins from `todo
 - **Total methods in todo-builtins.md**: 816
 - **Existing implementations marked with /* FLAKY */**: 318
 - **Stub methods created for existing types**: 33
-- **New prototype classes created**: 18 classes with 109 methods
-- **Total scaffolded/marked**: 460 methods (56% of all methods)
-- **Remaining methods**: 356 methods requiring implementation or new classes
+- **New prototype classes created**: 21 classes with 139 methods
+- **Total scaffolded/marked**: 490 methods (60% of all methods)
+- **Remaining methods**: 326 methods requiring implementation or new classes
 
 ## Completed Work
 
 ### ✅ FLAKY Comments Added (318 methods)
-All existing method implementations now have `/* FLAKY */` comments indicating potential bugs:
-- JsHostMethod, JsConstructorMethod, JsConstructorSymbolGetter, JsHostGetter attributes
-- Covers all major types: Array, Object, String, Number, Date, Promise, Map/Set, TypedArray, RegExp, Proxy, Reflect, Symbol, Math, BigInt, Error, Function, JSON, Console, DataView, ArrayBuffer, WeakMap/WeakSet, WeakRef, SharedArrayBuffer, Boolean, and all Intl variants
+All existing method implementations now have `/* FLAKY */` comments indicating potential bugs.
 
 ### ✅ Stub Methods Created for Existing Types (33 methods)
-- **DataView** (6): getBigInt64, getBigUint64, getFloat16, setBigInt64, setBigUint64, setFloat16
-- **Promise** (1): withResolvers (ES2024)
-- **Date** (1): toTemporalInstant
-- **Map** (1): groupBy (ES2024)
-- **Math** (1): f16round
-- **Object** (1): groupBy (ES2024)
-- **Set** (7): difference, intersection, isDisjointFrom, isSubsetOf, isSupersetOf, symmetricDifference, union
-- **String** (4): isWellFormed, toWellFormed, toLocaleLowerCase, toLocaleUpperCase
-- **Symbol** (2): asyncDispose, dispose
-- **TypedArray** (1): subarray
+DataView (6), Promise (1), Date (1), Map (1), Math (1), Object (1), Set (7), String (4), Symbol (2), TypedArray (1)
 
-### ✅ New Prototype Classes Created (18 classes, 109 methods)
+### ✅ New Prototype Classes Created (21 classes, 139 methods)
 
-#### Resource Management & Modern Features
-1. **FinalizationRegistry** (3 methods) - Finalization callbacks
-2. **DisposableStack** (6 methods) - Sync resource management
-3. **AsyncDisposableStack** (6 methods) - Async resource management
-4. **ShadowRealm** (2 methods) - Isolated execution contexts
+#### Resource Management & Modern Features (4 classes, 17 methods)
+1. **FinalizationRegistry** (3) - Finalization callbacks
+2. **DisposableStack** (6) - Sync resource management
+3. **AsyncDisposableStack** (6) - Async resource management
+4. **ShadowRealm** (2) - Isolated execution contexts
 
-#### Concurrency
-5. **Atomics** (13 methods) - Atomic operations on SharedArrayBuffer
+#### Concurrency (1 class, 13 methods)
+5. **Atomics** (13) - Atomic operations on SharedArrayBuffer
 
-#### Iteration
-6. **Iterator** (12 methods) - Iterator helpers (map, filter, reduce, etc.)
-7. **AsyncIteratorPrototype** - Base for async iterators
-8. **ArrayIteratorPrototype** (1 method) - Array iteration
-9. **GeneratorPrototype** (3 methods) - Generator control
-10. **AsyncGeneratorPrototype** (3 methods) - Async generator control
+#### Iteration (5 classes, 20 methods)
+6. **Iterator** (12) - Iterator helpers
+7. **AsyncIteratorPrototype** (0) - Base for async iterators
+8. **ArrayIteratorPrototype** (1) - Array iteration
+9. **GeneratorPrototype** (3) - Generator control
+10. **AsyncGeneratorPrototype** (3) - Async generator control
 
-#### Function Constructors
+#### Function Constructors (3 classes)
 11. **AsyncFunctionConstructor** - Dynamic async function creation
 12. **GeneratorFunctionConstructor** - Dynamic generator creation
 13. **AsyncGeneratorFunctionConstructor** - Dynamic async generator creation
 
-#### Temporal API (5 types, 60 methods)
-14. **Temporal.Instant** (11 methods) - Fixed point in time
-15. **Temporal.PlainDate** (10 methods) - Calendar date
-16. **Temporal.Duration** (13 methods) - Duration of time
-17. **Temporal.PlainTime** (12 methods) - Wall-clock time
-18. **Temporal.PlainDateTime** (14 methods) - Date and time
+#### Temporal API (8 types, 90 methods)
+14. **Temporal.Instant** (11) - Fixed point in time
+15. **Temporal.PlainDate** (10) - Calendar date
+16. **Temporal.Duration** (13) - Duration of time
+17. **Temporal.PlainTime** (12) - Wall-clock time
+18. **Temporal.PlainDateTime** (14) - Date and time
+19. **Temporal.ZonedDateTime** (16) - Date/time with timezone
+20. **Temporal.PlainYearMonth** (9) - Year and month
+21. **Temporal.PlainMonthDay** (5) - Month and day
 
-## Remaining Work - Methods Requiring Implementation (356 methods)
+## Remaining Work - Methods Requiring Implementation (326 methods)
 
 These require creating entirely new classes and significant architectural work:
 

@@ -60,10 +60,20 @@ public abstract class AnonymousFunctionDebugTestBase(ITestOutputHelper testOutpu
         // We expect 3 debug calls (for arg=3, arg=2, arg=1)
         Assert.Equal(3, messages.Count);
 
-        // Find the environment with arg in slots
+        // Find the environment with arg - it may be in slots (fast path mode) or dictionary (reference mode)
         var funcEnv = firstMsg.EnvironmentChain.FirstOrDefault(e => e.HasSlots && e.SlotCount > 0);
-        Assert.NotNull(funcEnv);
-        Output.WriteLine($"\nFunction env: ScopeId={funcEnv.ScopeId}, arg in slot 0 = {funcEnv.SlotVariables.GetValueOrDefault(0)}");
+        if (funcEnv is not null)
+        {
+            // Fast path mode - arg should be in slot 0
+            Output.WriteLine($"\nFunction env (slots): ScopeId={funcEnv.ScopeId}, arg in slot 0 = {funcEnv.SlotVariables.GetValueOrDefault(0)}");
+        }
+        else
+        {
+            // Reference mode - arg should be in dictionary
+            funcEnv = firstMsg.EnvironmentChain.FirstOrDefault(e => e.DictionaryVariables.ContainsKey("arg"));
+            Assert.NotNull(funcEnv);
+            Output.WriteLine($"\nFunction env (dict): ScopeId={funcEnv.ScopeId}, arg = {funcEnv.DictionaryVariables["arg"]}");
+        }
 
         // Find the script env with __func
         var scriptEnv = firstMsg.EnvironmentChain.FirstOrDefault(e => e.DictionaryVariables.ContainsKey("__func"));

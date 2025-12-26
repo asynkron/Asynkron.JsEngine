@@ -169,6 +169,12 @@ public static partial class TypedAstEvaluator
                         IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
                     }
 
+                    // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                    if (context.ShouldStopEvaluation)
+                    {
+                        break;
+                    }
+
                     var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                     if (!bodyResult.IsUnit)
                     {
@@ -291,6 +297,12 @@ public static partial class TypedAstEvaluator
                             IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
                         }
 
+                        // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                        if (context.ShouldStopEvaluation)
+                        {
+                            break;
+                        }
+
                         // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                         // Only update V (completion value) if result.[[Value]] is not empty
                         var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
@@ -380,6 +392,12 @@ public static partial class TypedAstEvaluator
                         }
 
                         IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                    }
+
+                    // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                    if (context.ShouldStopEvaluation)
+                    {
+                        break;
                     }
 
                     // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:

@@ -174,6 +174,12 @@ public static partial class TypedAstEvaluator
                 statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
                     statement.DeclarationKind);
 
+                // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                if (context.ShouldStopEvaluation)
+                {
+                    break;
+                }
+
                 IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
 
                 // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:

@@ -1784,6 +1784,30 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Tries to get a binding value from this environment only (no chain traversal).
+    /// Returns false for uninitialized bindings instead of throwing.
+    /// Used for scanning environments for active iterators.
+    /// </summary>
+    internal bool TryGetJsValueLocalSafe(Symbol name, out JsValue value)
+    {
+        if (_values is not null && _values.TryGetValue(name, out var binding))
+        {
+            // Return false for uninitialized bindings instead of throwing
+            if (binding.IsUninitialized)
+            {
+                value = default;
+                return false;
+            }
+
+            value = binding.JsValue;
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
     /// Tries to get a binding value as JsValue, avoiding boxing for primitives.
     /// </summary>
     public bool TryGetJsValue(Symbol name, out JsValue value)

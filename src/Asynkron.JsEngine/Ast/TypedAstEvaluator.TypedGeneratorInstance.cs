@@ -2650,10 +2650,10 @@ public static partial class TypedAstEvaluator
         {
             while (true)
             {
-                // Scan symbol bindings in this environment
+                // Scan symbol bindings in this environment (using safe method to skip uninitialized TDZ bindings)
                 foreach (var symbol in env.GetBindingSymbols())
                 {
-                    if (env.TryGetJsValue(symbol, out var jsValue) &&
+                    if (env.TryGetJsValueLocalSafe(symbol, out var jsValue) &&
                         !jsValue.IsNullOrUndefined &&
                         jsValue.TryGetObject<IActiveIteratorState>(out var state) &&
                         state.TryGetActiveIterator(out var iterator))

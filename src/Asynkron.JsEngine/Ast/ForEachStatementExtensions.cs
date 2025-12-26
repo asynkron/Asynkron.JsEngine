@@ -25,14 +25,23 @@ public static partial class TypedAstEvaluator
             var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
 
             var iterableEnvironment = environment;
+            var pooledTdzEnvironment = false;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
                 // Create TDZ environment for the for-of head bindings.
-                // NOTE: We do NOT pool this environment because it may be captured across yield/await
-                // boundaries or closures in the iterable expression.
-                iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
-                    "for-each-head-tdz");
+                // Pool this environment when there are no closures in target/iterable that could capture it.
+                if (canPoolLoopEnvironment)
+                {
+                    iterableEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
+                        "for-each-head-tdz");
+                    pooledTdzEnvironment = true;
+                }
+                else
+                {
+                    iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
+                        "for-each-head-tdz");
+                }
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
@@ -206,7 +215,11 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                // Only return loop environment to pool if we pooled it
+                // Return pooled environments
+                if (pooledTdzEnvironment)
+                {
+                    JsEnvironmentPool.Return(iterableEnvironment);
+                }
                 if (canPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment);
@@ -222,14 +235,23 @@ public static partial class TypedAstEvaluator
             var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
 
             var iterableEnvironment = environment;
+            var pooledTdzEnvironment = false;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
                 // Create TDZ environment for the for-await-of head bindings.
-                // NOTE: We do NOT pool this environment because it may be captured across yield/await
-                // boundaries or closures in the iterable expression.
-                iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
-                    "for-each-head-tdz");
+                // Pool this environment when there are no closures in target/iterable that could capture it.
+                if (canPoolLoopEnvironment)
+                {
+                    iterableEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
+                        "for-each-head-tdz");
+                    pooledTdzEnvironment = true;
+                }
+                else
+                {
+                    iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
+                        "for-each-head-tdz");
+                }
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
@@ -300,7 +322,11 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                // Only return loop environment to pool if we pooled it
+                // Return pooled environments
+                if (pooledTdzEnvironment)
+                {
+                    JsEnvironmentPool.Return(iterableEnvironment);
+                }
                 if (canPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment);

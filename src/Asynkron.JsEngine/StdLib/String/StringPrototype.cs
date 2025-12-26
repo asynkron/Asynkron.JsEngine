@@ -681,39 +681,117 @@ public sealed partial class StringPrototype
     private JsValue StartsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+
+        var context = Realm?.CreateContext();
+
+        var searchArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+
+        // Check if searchString is a RegExp and throw TypeError
+        if (IsRegExp(searchArg))
         {
-            return JsValue.True;
+            throw ThrowTypeError("First argument to String.prototype.startsWith must not be a regular expression", context, Realm);
         }
 
-        var searchStr = JsOps.ToJsString(args[0]);
-        var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : 0;
-        if (position < 0 || position >= value.Length)
+        var searchStr = JsOps.ToJsString(searchArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var len = value.Length;
+
+        // ToIntegerOrInfinity on position
+        var posArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var pos = ToIntegerOrInfinity(posArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Clamp position
+        int start;
+        if (double.IsNegativeInfinity(pos))
+        {
+            start = 0;
+        }
+        else if (double.IsPositiveInfinity(pos) || pos >= len)
+        {
+            start = len;
+        }
+        else
+        {
+            start = Math.Max(0, (int)pos);
+        }
+
+        if (start + searchStr.Length > len)
         {
             return JsValue.False;
         }
 
-        return new JsValue(value[position..].StartsWith(searchStr, StringComparison.Ordinal));
+        return new JsValue(value.AsSpan(start).StartsWith(searchStr, StringComparison.Ordinal));
     }
 
     [JsHostMethod("endsWith", Length = 1d)]
     private JsValue EndsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+
+        var context = Realm?.CreateContext();
+
+        var searchArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+
+        // Check if searchString is a RegExp and throw TypeError
+        if (IsRegExp(searchArg))
         {
-            return JsValue.True;
+            throw ThrowTypeError("First argument to String.prototype.endsWith must not be a regular expression", context, Realm);
         }
 
-        var searchStr = JsOps.ToJsString(args[0]);
-        var length = args.Count > 1 && args[1].TryGetDouble(out var d) ? (int)d : value.Length;
-        if (length < 0)
+        var searchStr = JsOps.ToJsString(searchArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var len = value.Length;
+
+        // ToIntegerOrInfinity on endPosition
+        int end;
+        var endPosArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        if (endPosArg.IsUndefined)
+        {
+            end = len;
+        }
+        else
+        {
+            var pos = ToIntegerOrInfinity(endPosArg, context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            if (double.IsNegativeInfinity(pos))
+            {
+                end = 0;
+            }
+            else if (double.IsPositiveInfinity(pos) || pos >= len)
+            {
+                end = len;
+            }
+            else
+            {
+                end = Math.Max(0, (int)pos);
+            }
+        }
+
+        var searchLength = searchStr.Length;
+        var start = end - searchLength;
+
+        if (start < 0)
         {
             return JsValue.False;
         }
 
-        length = Math.Min(length, value.Length);
-        return new JsValue(value[..length].EndsWith(searchStr, StringComparison.Ordinal));
+        return new JsValue(value.AsSpan(start, searchLength).SequenceEqual(searchStr.AsSpan()));
     }
 
     [JsHostMethod("includes", Length = 1d)]
@@ -739,20 +817,34 @@ public sealed partial class StringPrototype
     private JsValue Repeat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0 || !args[0].TryGetDouble(out var d))
+
+        var context = Realm?.CreateContext();
+
+        // ToIntegerOrInfinity on count
+        var countArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var n = ToIntegerOrInfinity(countArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Throw RangeError for negative count or positive infinity
+        if (n < 0 || double.IsPositiveInfinity(n))
+        {
+            throw ThrowRangeError("Invalid count value", context, Realm);
+        }
+
+        if (n == 0 || value.Length == 0)
         {
             return new JsValue("");
         }
 
-        var count = (int)d;
-        if (count is < 0 or int.MaxValue)
-        {
-            return new JsValue("");
-        }
+        var count = (int)n;
 
-        if (count == 0)
+        // Check if result would be too large
+        if ((long)value.Length * count > int.MaxValue / 2)
         {
-            return new JsValue("");
+            throw ThrowRangeError("Invalid count value", context, Realm);
         }
 
         return new JsValue(string.Concat(Enumerable.Repeat(value, count)));
@@ -762,26 +854,55 @@ public sealed partial class StringPrototype
     private JsValue PadStart(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+
+        var context = Realm?.CreateContext();
+
+        // ToIntegerOrInfinity on maxLength
+        var maxLengthArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var intMaxLength = ToIntegerOrInfinity(maxLengthArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var stringLength = value.Length;
+
+        // If maxLength is -Infinity, 0, or <= stringLength, return S
+        if (double.IsNegativeInfinity(intMaxLength) || intMaxLength <= stringLength)
         {
             return new JsValue(value);
         }
 
-        var targetLength = args[0].TryGetDouble(out var d) ? (int)d : 0;
-        if (targetLength <= value.Length)
+        // Get fill string
+        string filler;
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            filler = JsOps.ToJsString(args[1], context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+        else
+        {
+            filler = " ";
+        }
+
+        if (filler.Length == 0)
         {
             return new JsValue(value);
         }
 
-        var padString = args.Count > 1 && !args[1].IsUndefined ? JsOps.ToJsString(args[1]) : " ";
-        if (padString.Length == 0)
+        // Handle infinity - just return original string
+        if (double.IsPositiveInfinity(intMaxLength))
         {
             return new JsValue(value);
         }
 
-        var padLength = targetLength - value.Length;
-        var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
-        var padding = string.Concat(Enumerable.Repeat(padString, padCount));
+        var targetLength = (int)intMaxLength;
+        var padLength = targetLength - stringLength;
+        var padCount = (int)Math.Ceiling((double)padLength / filler.Length);
+        var padding = string.Concat(Enumerable.Repeat(filler, padCount));
         return new JsValue(string.Concat(padding.AsSpan(0, padLength), value));
     }
 
@@ -789,26 +910,55 @@ public sealed partial class StringPrototype
     private JsValue PadEnd(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+
+        var context = Realm?.CreateContext();
+
+        // ToIntegerOrInfinity on maxLength
+        var maxLengthArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var intMaxLength = ToIntegerOrInfinity(maxLengthArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var stringLength = value.Length;
+
+        // If maxLength is -Infinity, 0, or <= stringLength, return S
+        if (double.IsNegativeInfinity(intMaxLength) || intMaxLength <= stringLength)
         {
             return new JsValue(value);
         }
 
-        var targetLength = args[0].TryGetDouble(out var d) ? (int)d : 0;
-        if (targetLength <= value.Length)
+        // Get fill string
+        string filler;
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            filler = JsOps.ToJsString(args[1], context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+        else
+        {
+            filler = " ";
+        }
+
+        if (filler.Length == 0)
         {
             return new JsValue(value);
         }
 
-        var padString = args.Count > 1 && !args[1].IsUndefined ? JsOps.ToJsString(args[1]) : " ";
-        if (padString.Length == 0)
+        // Handle infinity - just return original string
+        if (double.IsPositiveInfinity(intMaxLength))
         {
             return new JsValue(value);
         }
 
-        var padLength = targetLength - value.Length;
-        var padCount = (int)Math.Ceiling((double)padLength / padString.Length);
-        var padding = string.Concat(Enumerable.Repeat(padString, padCount));
+        var targetLength = (int)intMaxLength;
+        var padLength = targetLength - stringLength;
+        var padCount = (int)Math.Ceiling((double)padLength / filler.Length);
+        var padding = string.Concat(Enumerable.Repeat(filler, padCount));
         return new JsValue(string.Concat(value, padding.AsSpan(0, padLength)));
     }
 
@@ -1256,6 +1406,24 @@ public sealed partial class StringPrototype
         return number;
     }
 
+    private static bool IsRegExp(JsValue argument)
+    {
+        // Per spec: 7.2.8 IsRegExp ( argument )
+        if (!argument.TryGetObject(out var obj))
+        {
+            return false;
+        }
+
+        // Check Symbol.match property
+        if (JsOps.TryGetPropertyValue(argument, SymbolKeys.Match, out var matchValue) && !matchValue.IsUndefined)
+        {
+            return matchValue.IsTruthy;
+        }
+
+        // Otherwise check if it's a RegExp object
+        return obj is JsRegExp;
+    }
+
     private static bool TryResolveRegExp(JsValue candidate, out JsRegExp regex)
     {
         if (candidate.TryGetObject<JsRegExp>(out var direct))
@@ -1348,12 +1516,12 @@ public sealed partial class StringPrototype
     public JsValue IsWellFormed(JsValue thisValue)
     {
         var str = ResolveString(thisValue);
-        
+
         // Check for lone surrogates
         for (int i = 0; i < str.Length; i++)
         {
             char c = str[i];
-            
+
             // Check if it's a high surrogate (0xD800-0xDBFF)
             if (char.IsHighSurrogate(c))
             {
@@ -1370,7 +1538,7 @@ public sealed partial class StringPrototype
                 return false; // Lone low surrogate
             }
         }
-        
+
         return true;
     }
 
@@ -1378,15 +1546,15 @@ public sealed partial class StringPrototype
     public JsValue ToWellFormed(JsValue thisValue)
     {
         var str = ResolveString(thisValue);
-        
+
         // Replacement character U+FFFD
         const char replacementChar = '\uFFFD';
         var sb = new StringBuilder(str.Length);
-        
+
         for (int i = 0; i < str.Length; i++)
         {
             char c = str[i];
-            
+
             // Check if it's a high surrogate
             if (char.IsHighSurrogate(c))
             {
@@ -1416,7 +1584,7 @@ public sealed partial class StringPrototype
                 sb.Append(c);
             }
         }
-        
+
         return sb.ToString();
     }
 
@@ -1424,7 +1592,7 @@ public sealed partial class StringPrototype
     public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var str = ResolveString(thisValue);
-        
+
         // Get locale from first argument if provided
         CultureInfo culture;
         if (args.Count > 0 && args[0].TryGetString(out var locale) && !string.IsNullOrEmpty(locale))
@@ -1444,7 +1612,7 @@ public sealed partial class StringPrototype
             // Use invariant culture as default (JavaScript behavior)
             culture = CultureInfo.InvariantCulture;
         }
-        
+
         return str.ToLower(culture);
     }
 
@@ -1452,7 +1620,7 @@ public sealed partial class StringPrototype
     public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var str = ResolveString(thisValue);
-        
+
         // Get locale from first argument if provided
         CultureInfo culture;
         if (args.Count > 0 && args[0].TryGetString(out var locale) && !string.IsNullOrEmpty(locale))
@@ -1472,7 +1640,7 @@ public sealed partial class StringPrototype
             // Use invariant culture as default (JavaScript behavior)
             culture = CultureInfo.InvariantCulture;
         }
-        
+
         return str.ToUpper(culture);
     }
 }

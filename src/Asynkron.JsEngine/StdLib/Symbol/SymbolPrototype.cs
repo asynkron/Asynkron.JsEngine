@@ -26,6 +26,7 @@ public sealed partial class SymbolPrototype
         return new JsValue(JsValueKind.Symbol, 0.0, symbol);
     }
 
+    /* FLAKY */
     [JsHostGetter("description", Configurable = true)]
     public JsValue Description(JsValue thisValue)
     {

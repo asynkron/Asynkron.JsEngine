@@ -303,6 +303,7 @@ public sealed partial class ObjectPrototype
         }
     }
 
+    /* FLAKY */
     [JsHostGetter("__proto__", DisplayName = "get __proto__")]
     private JsValue GetProto(JsValue thisValue)
     {

@@ -37,6 +37,7 @@ public sealed partial class IntlLocalePrototype
         ["sat"] = 6
     };
 
+    /* FLAKY */
     [JsHostGetter("baseName", DisplayName = "get baseName")]
     private JsValue GetBaseName(JsValue thisValue)
     {
@@ -44,6 +45,7 @@ public sealed partial class IntlLocalePrototype
         return BuildBaseName(locale);
     }
 
+    /* FLAKY */
     [JsHostGetter("language", DisplayName = "get language")]
     private JsValue GetLanguage(JsValue thisValue)
     {
@@ -55,6 +57,7 @@ public sealed partial class IntlLocalePrototype
         return language;
     }
 
+    /* FLAKY */
     [JsHostGetter("script", DisplayName = "get script")]
     private JsValue GetScript(JsValue thisValue)
     {
@@ -67,6 +70,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostGetter("region", DisplayName = "get region")]
     private JsValue GetRegion(JsValue thisValue)
     {
@@ -79,6 +83,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostGetter("variants", DisplayName = "get variants")]
     private JsValue GetVariants(JsValue thisValue)
     {
@@ -93,36 +98,42 @@ public sealed partial class IntlLocalePrototype
         return JsValue.FromJsArray(result);
     }
 
+    /* FLAKY */
     [JsHostGetter("calendar", DisplayName = "get calendar")]
     private JsValue GetCalendar(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "ca");
     }
 
+    /* FLAKY */
     [JsHostGetter("numberingSystem", DisplayName = "get numberingSystem")]
     private JsValue GetNumberingSystem(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "nu");
     }
 
+    /* FLAKY */
     [JsHostGetter("collation", DisplayName = "get collation")]
     private JsValue GetCollation(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "co");
     }
 
+    /* FLAKY */
     [JsHostGetter("hourCycle", DisplayName = "get hourCycle")]
     private JsValue GetHourCycle(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "hc");
     }
 
+    /* FLAKY */
     [JsHostGetter("caseFirst", DisplayName = "get caseFirst")]
     private JsValue GetCaseFirst(JsValue thisValue)
     {
         return GetKeywordValue(thisValue, "kf");
     }
 
+    /* FLAKY */
     [JsHostGetter("numeric", DisplayName = "get numeric")]
     private JsValue GetNumeric(JsValue thisValue)
     {
@@ -136,6 +147,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostGetter("firstDayOfWeek", DisplayName = "get firstDayOfWeek")]
     private JsValue GetFirstDayOfWeek(JsValue thisValue)
     {

@@ -14,6 +14,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("SharedArrayBuffer", ToStringTag = "SharedArrayBuffer")]
 public sealed partial class SharedArrayBufferPrototype : JsPrototype
 {
+    /* FLAKY */
     [JsHostGetter("byteLength")]
     public JsValue ByteLength(JsValue thisValue)
     {
@@ -22,6 +23,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         return (double)buffer.ByteLength;
     }
 
+    /* FLAKY */
     [JsHostGetter("maxByteLength")]
     public JsValue MaxByteLength(JsValue thisValue)
     {
@@ -30,6 +32,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         return (double)buffer.MaxByteLength;
     }
 
+    /* FLAKY */
     [JsHostGetter("resizable")]
     public JsValue Resizable(JsValue thisValue)
     {
@@ -38,6 +41,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         return buffer.Resizable;
     }
 
+    /* FLAKY */
     [JsHostGetter("growable")]
     public JsValue Growable(JsValue thisValue)
     {

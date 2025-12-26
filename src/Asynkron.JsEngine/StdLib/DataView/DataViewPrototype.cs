@@ -12,6 +12,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("DataView", ToStringTag = "DataView", InstanceType = typeof(JsDataView), TryGetMethod = "TryGetInternal")]
 public sealed partial class DataViewPrototype
 {
+    /* FLAKY */
     [JsHostGetter("buffer")]
     public JsValue Buffer(JsValue thisValue)
     {
@@ -19,6 +20,7 @@ public sealed partial class DataViewPrototype
         return JsValue.FromObjectUnsafe(dv.Buffer);
     }
 
+    /* FLAKY */
     [JsHostGetter("byteLength")]
     public JsValue ByteLength(JsValue thisValue)
     {
@@ -26,6 +28,7 @@ public sealed partial class DataViewPrototype
         return (double)dv.ByteLength;
     }
 
+    /* FLAKY */
     [JsHostGetter("byteOffset")]
     public JsValue ByteOffset(JsValue thisValue)
     {

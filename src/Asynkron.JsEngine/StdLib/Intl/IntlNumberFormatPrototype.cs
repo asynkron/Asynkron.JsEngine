@@ -21,6 +21,7 @@ public sealed partial class IntlNumberFormatPrototype
         instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
+    /* FLAKY */
     [JsHostGetter("format", DisplayName = "get format")]
     public JsValue GetFormat(JsValue thisValue)
     {

@@ -111,6 +111,7 @@ public sealed partial class ArrayBufferPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostGetter("byteLength")]
     public JsValue ByteLength(JsValue thisValue)
     {
@@ -119,6 +120,7 @@ public sealed partial class ArrayBufferPrototype
         return buffer.IsDetached ? 0d : buffer.ByteLength;
     }
 
+    /* FLAKY */
     [JsHostGetter("maxByteLength")]
     public JsValue MaxByteLength(JsValue thisValue)
     {
@@ -127,6 +129,7 @@ public sealed partial class ArrayBufferPrototype
         return buffer.IsDetached ? 0d : buffer.MaxByteLength;
     }
 
+    /* FLAKY */
     [JsHostGetter("resizable")]
     public JsValue Resizable(JsValue thisValue)
     {
@@ -135,6 +138,7 @@ public sealed partial class ArrayBufferPrototype
         return buffer.Resizable;
     }
 
+    /* FLAKY */
     [JsHostGetter("detached")]
     public JsValue Detached(JsValue thisValue)
     {

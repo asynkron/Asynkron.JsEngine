@@ -148,12 +148,14 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new JsValue(target);
     }
 
+    /* FLAKY */
     [JsHostGetter("flags")]
     public JsValue Flags(JsValue thisValue)
     {
         return new JsValue(GetSortedFlags(RequireRegExp(thisValue)));
     }
 
+    /* FLAKY */
     [JsHostGetter("source")]
     public JsValue Source(JsValue thisValue)
     {
@@ -162,36 +164,42 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new JsValue(result);
     }
 
+    /* FLAKY */
     [JsHostGetter("global")]
     public JsValue Global(JsValue thisValue)
     {
         return new JsValue(RequireRegExp(thisValue).Global);
     }
 
+    /* FLAKY */
     [JsHostGetter("ignoreCase")]
     public JsValue IgnoreCase(JsValue thisValue)
     {
         return new JsValue(RequireRegExp(thisValue).IgnoreCase);
     }
 
+    /* FLAKY */
     [JsHostGetter("multiline")]
     public JsValue Multiline(JsValue thisValue)
     {
         return new JsValue(RequireRegExp(thisValue).Multiline);
     }
 
+    /* FLAKY */
     [JsHostGetter("dotAll")]
     public JsValue DotAll(JsValue thisValue)
     {
         return new JsValue(RequireRegExp(thisValue).DotAll);
     }
 
+    /* FLAKY */
     [JsHostGetter("unicode")]
     public JsValue Unicode(JsValue thisValue)
     {
         return new JsValue(RequireRegExp(thisValue).Unicode);
     }
 
+    /* FLAKY */
     [JsHostGetter("sticky")]
     public JsValue Sticky(JsValue thisValue)
     {

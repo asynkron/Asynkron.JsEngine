@@ -79,6 +79,7 @@ public sealed partial class SetPrototype
         return new JsValue(CreateSetIterator(set, SetIterationKind.Values));
     }
 
+    /* FLAKY */
     [JsHostGetter("size")]
     public JsValue Size(JsValue thisValue)
     {

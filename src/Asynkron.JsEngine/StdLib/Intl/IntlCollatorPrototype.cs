@@ -22,6 +22,7 @@ public sealed partial class IntlCollatorPrototype
         instance.SetProperty(SlotsKey, JsValue.FromObjectUnsafe(slots));
     }
 
+    /* FLAKY */
     [JsHostGetter("compare", DisplayName = "get compare")]
     private JsValue GetCompare(JsValue thisValue)
     {

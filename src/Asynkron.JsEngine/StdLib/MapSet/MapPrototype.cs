@@ -93,6 +93,7 @@ public sealed partial class MapPrototype
         return new JsValue(CreateMapIterator(map, MapIterationKind.Values));
     }
 
+    /* FLAKY */
     [JsHostGetter("size")]
     public JsValue Size(JsValue thisValue)
     {

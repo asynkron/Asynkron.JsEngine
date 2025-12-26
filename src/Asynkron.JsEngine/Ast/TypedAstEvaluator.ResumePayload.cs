@@ -10,8 +10,6 @@ public static partial class TypedAstEvaluator
 {
     private readonly record struct ResumePayload(bool HasValue, bool IsThrow, bool IsReturn, JsValue Value)
     {
-        public static ResumePayload Empty { get; } = new(false, false, false, JsValue.Undefined);
-
         public static ResumePayload FromValue(JsValue value)
         {
             return new ResumePayload(true, false, false, value);

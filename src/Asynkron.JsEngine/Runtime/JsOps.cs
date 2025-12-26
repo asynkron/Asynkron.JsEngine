@@ -148,7 +148,14 @@ internal static class JsOps
 
         if (result.IsBigInt)
         {
-            return (double)result.AsBigInt().Value;
+            // Per ECMAScript spec, ToNumber on BigInt throws TypeError
+            var error = StandardLibrary.CreateTypeError("Cannot convert a BigInt value to a number", context, context?.RealmState);
+            if (context is null)
+            {
+                throw new ThrowSignal(error);
+            }
+            context.SetThrow(error);
+            return double.NaN;
         }
 
         return double.NaN;

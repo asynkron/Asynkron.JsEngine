@@ -798,19 +798,49 @@ public sealed partial class StringPrototype
     private JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+
+        var context = Realm?.CreateContext();
+
+        var searchArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+
+        // Check if searchString is a RegExp and throw TypeError
+        if (IsRegExp(searchArg))
         {
-            return JsValue.True;
+            throw ThrowTypeError("First argument to String.prototype.includes must not be a regular expression", context, Realm);
         }
 
-        var searchStr = JsOps.ToJsString(args[0]);
-        var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? Math.Max(0, (int)d) : 0;
-        if (position >= value.Length)
+        var searchStr = JsOps.ToJsString(searchArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        var len = value.Length;
+
+        // ToIntegerOrInfinity on position
+        var posArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var pos = ToIntegerOrInfinity(posArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Clamp position
+        int start;
+        if (double.IsNegativeInfinity(pos))
+        {
+            start = 0;
+        }
+        else if (double.IsPositiveInfinity(pos) || pos >= len)
         {
             return new JsValue(searchStr.Length == 0);
         }
+        else
+        {
+            start = Math.Max(0, (int)pos);
+        }
 
-        return new JsValue(value.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0);
+        return new JsValue(value.IndexOf(searchStr, start, StringComparison.Ordinal) >= 0);
     }
 
     [JsHostMethod("repeat", Length = 1d)]

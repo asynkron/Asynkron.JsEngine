@@ -26,11 +26,6 @@ public static partial class TypedAstEvaluator
             return env;
         }
 
-        /// <summary>
-        /// Returns true if this plan uses per-iteration slot-based environments.
-        /// </summary>
-        private bool UsesIterationSlots => plan.IterationSlotCount >= 0 && plan.IterationScopeId >= 0;
-
         private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike? iterator,
             IEnumerator<JsValue>? enumerator,
             JsEnvironment loopEnvironment,
@@ -103,106 +98,347 @@ public static partial class TypedAstEvaluator
 
             try
             {
-            while (!context.ShouldStopEvaluation)
-            {
-                context.ThrowIfCancellationRequested();
-
-                object? nextResult = null;
-                if (state.IteratorObject is not null)
+                while (!context.ShouldStopEvaluation)
                 {
-                    var throwBeforeNext = context.IsThrow;
-                    nextResult = state.IteratorObject.InvokeIteratorNext(
-                        state.NextMethod!,
-                        context: context,
-                        callingEnvironment: loopEnvironment);
-                    if (!throwBeforeNext && context.IsThrow)
-                    {
-                        // Per ES spec 13.6.4.13 step 5.d: if IteratorStep (calling next())
-                        // returns an abrupt completion, we return that completion directly
-                        // WITHOUT calling IteratorClose.
-                        var thrown = context.FlowValue;
-                        context.Clear();
-                        throw new ThrowSignal(thrown);
-                    }
-                }
-                else if (state.Enumerator is not null)
-                {
-                    if (!state.Enumerator.MoveNext())
-                    {
-                        break;
-                    }
+                    context.ThrowIfCancellationRequested();
 
-                    // FAST PATH: Enumerator yields JsValue directly - skip iterator result unwrapping
-                    // and go directly to body execution. This avoids creating {done, value} objects.
-                    var enumeratorValue = state.Enumerator.Current;
-
-                    // Select iteration environment: reuse cached one if available, otherwise create new
-                    var iterationEnvironment = reusableIterationEnvironment ??
-                        (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                            or VariableKind.Using or VariableKind.AwaitUsing
-                            ? (useIterationSlots
-                                ? plan.RentIterationEnvironment(loopEnvironment)
-                                : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration"))
-                            : loopEnvironment);
-
-                    // OPTIMIZATION: For simple identifier bindings, write directly to slot
-                    // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots
-                    if (cachedVarVariable.IsValid)
+                    object? nextResult = null;
+                    if (state.IteratorObject is not null)
                     {
-                        // Fastest path: pre-resolved JsVariable for 'var' bindings
-                        cachedVarVariable.Write(enumeratorValue);
+                        var throwBeforeNext = context.IsThrow;
+                        nextResult = state.IteratorObject.InvokeIteratorNext(
+                            state.NextMethod!,
+                            context: context,
+                            callingEnvironment: loopEnvironment);
+                        if (!throwBeforeNext && context.IsThrow)
+                        {
+                            // Per ES spec 13.6.4.13 step 5.d: if IteratorStep (calling next())
+                            // returns an abrupt completion, we return that completion directly
+                            // WITHOUT calling IteratorClose.
+                            var thrown = context.FlowValue;
+                            context.Clear();
+                            throw new ThrowSignal(thrown);
+                        }
                     }
-                    else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
+                    else if (state.Enumerator is not null)
                     {
-                        // Fast path: pre-resolved JsVariable for let/const when no closures
-                        // Only use after first iteration (which sets up the const binding properly)
-                        cachedLetConstVariable.Write(enumeratorValue);
-                    }
-                    else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
-                    {
-                        // First iteration for let/const with reusable environment:
-                        // Must call AssignLoopBinding to set up the const flag in the binding
-                        plan.Target.AssignLoopBinding(enumeratorValue, reusableIterationEnvironment!, outerEnvironment, context,
-                            plan.DeclarationKind);
+                        if (!state.Enumerator.MoveNext())
+                        {
+                            break;
+                        }
+
+                        // FAST PATH: Enumerator yields JsValue directly - skip iterator result unwrapping
+                        // and go directly to body execution. This avoids creating {done, value} objects.
+                        var enumeratorValue = state.Enumerator.Current;
+
+                        // Select iteration environment: reuse cached one if available, otherwise create new
+                        var iterationEnvironment = reusableIterationEnvironment ??
+                                                   (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                                       or VariableKind.Using or VariableKind.AwaitUsing
+                                                       ? useIterationSlots
+                                                           ? plan.RentIterationEnvironment(loopEnvironment)
+                                                           : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                                                       : loopEnvironment);
+
+                        // OPTIMIZATION: For simple identifier bindings, write directly to slot
+                        // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots
+                        if (cachedVarVariable.IsValid)
+                        {
+                            // Fastest path: pre-resolved JsVariable for 'var' bindings
+                            cachedVarVariable.Write(enumeratorValue);
+                        }
+                        else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
+                        {
+                            // Fast path: pre-resolved JsVariable for let/const when no closures
+                            // Only use after first iteration (which sets up the const binding properly)
+                            cachedLetConstVariable.Write(enumeratorValue);
+                        }
+                        else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
+                        {
+                            // First iteration for let/const with reusable environment:
+                            // Must call AssignLoopBinding to set up the const flag in the binding
+                            plan.Target.AssignLoopBinding(enumeratorValue, reusableIterationEnvironment!, outerEnvironment, context,
+                                plan.DeclarationKind);
+                            if (context.IsThrow)
+                            {
+                                throw new ThrowSignal(context.FlowValue);
+                            }
+                            IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
+                            letConstFirstIterationDone = true;
+                        }
+                        else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
+                        {
+                            // Fast path: direct slot write for let/const bindings
+                            iterationEnvironment.GetSlotRef(fastPathSlotIndex) = enumeratorValue;
+                        }
+                        else
+                        {
+                            plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
+                                plan.DeclarationKind);
+                            if (context.IsThrow)
+                            {
+                                throw new ThrowSignal(context.FlowValue);
+                            }
+
+                            IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                        }
+
+                        // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                        if (context.ShouldStopEvaluation)
+                        {
+                            break;
+                        }
+
+                        var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+                        if (!bodyResult.IsUnit)
+                        {
+                            lastValueJs = bodyResult;
+                        }
+
                         if (context.IsThrow)
                         {
                             throw new ThrowSignal(context.FlowValue);
                         }
-                        IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
-                        letConstFirstIterationDone = true;
-                    }
-                    else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
-                    {
-                        // Fast path: direct slot write for let/const bindings
-                        iterationEnvironment.GetSlotRef(fastPathSlotIndex) = enumeratorValue;
-                    }
-                    else
-                    {
-                        plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
-                            plan.DeclarationKind);
-                        if (context.IsThrow)
+
+                        if (context.IsReturn || context.IsThrow)
                         {
-                            throw new ThrowSignal(context.FlowValue);
+                            break;
                         }
 
-                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
-                    }
+                        if (context.TryClearContinue(loopLabel))
+                        {
+                            continue;
+                        }
 
-                    // Check if yield/await happened during binding (e.g., yield in destructuring default)
-                    if (context.ShouldStopEvaluation)
-                    {
-                        break;
-                    }
+                        if (context.TryClearBreak(loopLabel))
+                        {
+                            break;
+                        }
 
-                    var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
-                    if (!bodyResult.IsUnit)
-                    {
-                        lastValueJs = bodyResult;
+                        continue; // Skip the iterator protocol handling below
                     }
 
                     if (context.IsThrow)
                     {
-                        throw new ThrowSignal(context.FlowValue);
+                        var thrown = context.FlowValue;
+                        context.Clear();
+
+                        if (state.IteratorObject is not null && !iteratorDone)
+                        {
+                            state.IteratorObject.IteratorClose(context, true,
+                                thrown);
+
+                            if (context.IsThrow)
+                            {
+                                thrown = context.FlowValue;
+                                context.Clear();
+                            }
+                        }
+
+                        throw new ThrowSignal(thrown);
+                    }
+
+                    // Unwrap JsValue struct if present (only for iterator protocol path)
+                    if (nextResult is JsValue jsVal)
+                    {
+                        nextResult = jsVal.Kind == JsValueKind.Object ? jsVal.ObjectValue : null;
+                    }
+
+                    if (nextResult is IJsObjectLike resultObj)
+                    {
+                        var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                                   JsOps.ToBoolean(doneValue);
+                        if (done)
+                        {
+                            iteratorDone = true;
+                            break;
+                        }
+
+                        JsValue value;
+                        // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
+                        var gotValue = resultObj.TryGetProperty("value", out var yielded);
+                        value = gotValue ? yielded : JsValue.Undefined;
+
+                        // Select iteration environment: reuse cached one if available, otherwise create new
+                        var iterationEnvironment = reusableIterationEnvironment ??
+                                                   (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                                       or VariableKind.Using or VariableKind.AwaitUsing
+                                                       ? useIterationSlots
+                                                           ? plan.RentIterationEnvironment(loopEnvironment)
+                                                           : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                                                       : loopEnvironment);
+
+                        try
+                        {
+                            // OPTIMIZATION: For simple identifier bindings, write directly to slot
+                            if (cachedVarVariable.IsValid)
+                            {
+                                // Fastest path: pre-resolved JsVariable for 'var' bindings
+                                cachedVarVariable.Write(value);
+                            }
+                            else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
+                            {
+                                // Fast path: pre-resolved JsVariable for let/const when no closures
+                                // Only use after first iteration (which sets up the const binding properly)
+                                cachedLetConstVariable.Write(value);
+                            }
+                            else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
+                            {
+                                // First iteration for let/const with reusable environment:
+                                // Must call AssignLoopBinding to set up the const flag in the binding
+                                plan.Target.AssignLoopBinding(value, reusableIterationEnvironment!, outerEnvironment, context,
+                                    plan.DeclarationKind);
+                                if (context.IsThrow)
+                                {
+                                    throw new ThrowSignal(context.FlowValue);
+                                }
+                                IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
+                                letConstFirstIterationDone = true;
+                            }
+                            else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
+                            {
+                                // Fast path: direct slot write for let/const bindings
+                                iterationEnvironment.GetSlotRef(fastPathSlotIndex) = value;
+                            }
+                            else
+                            {
+                                plan.Target.AssignLoopBinding(value, iterationEnvironment, outerEnvironment, context,
+                                    plan.DeclarationKind);
+                                if (context.IsThrow)
+                                {
+                                    throw new ThrowSignal(context.FlowValue);
+                                }
+
+                                IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                            }
+
+                            // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                            if (context.ShouldStopEvaluation)
+                            {
+                                break;
+                            }
+
+                            // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                            // Only update V (completion value) if result.[[Value]] is not empty
+                            var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+                            if (!bodyResult.IsUnit)
+                            {
+                                lastValueJs = bodyResult;
+                            }
+
+                            if (context.IsThrow)
+                            {
+                                throw new ThrowSignal(context.FlowValue);
+                            }
+                        }
+                        catch (ThrowSignal)
+                        {
+                            if (state.IteratorObject is not null && !iteratorDone)
+                            {
+                                state.IteratorObject.IteratorClose(context, true);
+                            }
+
+                            throw;
+                        }
+                    }
+                    else
+                    {
+                        if (state.IteratorObject is not null)
+                        {
+                            var typeError = StandardLibrary.CreateTypeError(
+                                "Iterator.next() did not return an object", context, context.RealmState);
+                            context.RealmState.Logger?.LogInformation(
+                                "Iterator.next non-object result; throwing TypeError (label={Label})",
+                                loopLabel?.Name ?? "<none>");
+                            context.SetThrow(typeError);
+                            iteratorDone =
+                                false; // force IteratorClose on exit for abrupt completion paths that require it
+                            throw new ThrowSignal(typeError);
+                        }
+
+                        // Enumerator path (non-object next)
+                        // Select iteration environment: reuse cached one if available, otherwise create new
+                        var iterationEnvironment = reusableIterationEnvironment ??
+                                                   (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                                       or VariableKind.Using or VariableKind.AwaitUsing
+                                                       ? useIterationSlots
+                                                           ? plan.RentIterationEnvironment(loopEnvironment)
+                                                           : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                                                       : loopEnvironment);
+
+                        // OPTIMIZATION: For simple identifier bindings, write directly to slot
+                        var nextJsValue = JsValue.FromObjectUnsafe(nextResult);
+                        if (cachedVarVariable.IsValid)
+                        {
+                            // Fastest path: pre-resolved JsVariable for 'var' bindings
+                            cachedVarVariable.Write(nextJsValue);
+                        }
+                        else
+                        {
+                            switch (cachedLetConstVariable.IsValid)
+                            {
+                                case true when letConstFirstIterationDone:
+                                    // Fast path: pre-resolved JsVariable for let/const when no closures
+                                    // Only use after first iteration (which sets up the const binding properly)
+                                    cachedLetConstVariable.Write(nextJsValue);
+                                    break;
+                                case true when !letConstFirstIterationDone:
+                                {
+                                    // First iteration for let/const with reusable environment:
+                                    // Must call AssignLoopBinding to set up the const flag in the binding
+                                    plan.Target.AssignLoopBinding(nextJsValue, reusableIterationEnvironment!, outerEnvironment, context,
+                                        plan.DeclarationKind);
+                                    if (context.IsThrow)
+                                    {
+                                        throw new ThrowSignal(context.FlowValue);
+                                    }
+                                    IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
+                                    letConstFirstIterationDone = true;
+                                    break;
+                                }
+                                default:
+                                {
+                                    if (canUseSlotFastPath && iterationEnvironment.HasSlots)
+                                    {
+                                        // Fast path: direct slot write for let/const bindings
+                                        iterationEnvironment.GetSlotRef(fastPathSlotIndex) = nextJsValue;
+                                    }
+                                    else
+                                    {
+                                        plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
+                                            outerEnvironment, context,
+                                            plan.DeclarationKind);
+                                        if (context.IsThrow)
+                                        {
+                                            throw new ThrowSignal(context.FlowValue);
+                                        }
+
+                                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                                    }
+
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                        if (context.ShouldStopEvaluation)
+                        {
+                            break;
+                        }
+
+                        // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                        // Only update V (completion value) if result.[[Value]] is not empty
+                        var bodyResult2 = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+                        if (!bodyResult2.IsUnit)
+                        {
+                            lastValueJs = bodyResult2;
+                        }
+
+                        if (context.IsThrow)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
                     }
 
                     if (context.IsReturn || context.IsThrow)
@@ -219,248 +455,18 @@ public static partial class TypedAstEvaluator
                     {
                         break;
                     }
-
-                    continue; // Skip the iterator protocol handling below
                 }
 
-                if (context.IsThrow)
+                if (state.IteratorObject is not null && !iteratorDone)
                 {
-                    var thrown = context.FlowValue;
-                    context.Clear();
-
-                    if (state.IteratorObject is not null && !iteratorDone)
-                    {
-                        state.IteratorObject.IteratorClose(context, true,
-                            thrown);
-
-                        if (context.IsThrow)
-                        {
-                            thrown = context.FlowValue;
-                            context.Clear();
-                        }
-                    }
-
-                    throw new ThrowSignal(thrown);
-                }
-
-                // Unwrap JsValue struct if present (only for iterator protocol path)
-                if (nextResult is JsValue jsVal)
-                {
-                    nextResult = jsVal.Kind == JsValueKind.Object ? jsVal.ObjectValue : null;
-                }
-
-                if (nextResult is IJsObjectLike resultObj)
-                {
-                    var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                               JsOps.ToBoolean(doneValue);
-                    if (done)
-                    {
-                        iteratorDone = true;
-                        break;
-                    }
-
-                    JsValue value;
-                    // TryGetProperty returns JsValue, keep as JsValue to avoid boxing
-                    var gotValue = resultObj.TryGetProperty("value", out var yielded);
-                    value = gotValue ? yielded : JsValue.Undefined;
-
-                    // Select iteration environment: reuse cached one if available, otherwise create new
-                    var iterationEnvironment = reusableIterationEnvironment ??
-                        (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                            or VariableKind.Using or VariableKind.AwaitUsing
-                            ? (useIterationSlots
-                                ? plan.RentIterationEnvironment(loopEnvironment)
-                                : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration"))
-                            : loopEnvironment);
-
-                    try
-                    {
-                        // OPTIMIZATION: For simple identifier bindings, write directly to slot
-                        if (cachedVarVariable.IsValid)
-                        {
-                            // Fastest path: pre-resolved JsVariable for 'var' bindings
-                            cachedVarVariable.Write(value);
-                        }
-                        else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
-                        {
-                            // Fast path: pre-resolved JsVariable for let/const when no closures
-                            // Only use after first iteration (which sets up the const binding properly)
-                            cachedLetConstVariable.Write(value);
-                        }
-                        else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
-                        {
-                            // First iteration for let/const with reusable environment:
-                            // Must call AssignLoopBinding to set up the const flag in the binding
-                            plan.Target.AssignLoopBinding(value, reusableIterationEnvironment!, outerEnvironment, context,
-                                plan.DeclarationKind);
-                            if (context.IsThrow)
-                            {
-                                throw new ThrowSignal(context.FlowValue);
-                            }
-                            IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
-                            letConstFirstIterationDone = true;
-                        }
-                        else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
-                        {
-                            // Fast path: direct slot write for let/const bindings
-                            iterationEnvironment.GetSlotRef(fastPathSlotIndex) = value;
-                        }
-                        else
-                        {
-                            plan.Target.AssignLoopBinding(value, iterationEnvironment, outerEnvironment, context,
-                                plan.DeclarationKind);
-                            if (context.IsThrow)
-                            {
-                                throw new ThrowSignal(context.FlowValue);
-                            }
-
-                            IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
-                        }
-
-                        // Check if yield/await happened during binding (e.g., yield in destructuring default)
-                        if (context.ShouldStopEvaluation)
-                        {
-                            break;
-                        }
-
-                        // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
-                        // Only update V (completion value) if result.[[Value]] is not empty
-                        var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
-                        if (!bodyResult.IsUnit)
-                        {
-                            lastValueJs = bodyResult;
-                        }
-
-                        if (context.IsThrow)
-                        {
-                            throw new ThrowSignal(context.FlowValue);
-                        }
-                    }
-                    catch (ThrowSignal)
-                    {
-                        if (state.IteratorObject is not null && !iteratorDone)
-                        {
-                            state.IteratorObject.IteratorClose(context, true);
-                        }
-
-                        throw;
-                    }
-                }
-                else
-                {
-                    if (state.IteratorObject is not null)
-                    {
-                        var typeError = StandardLibrary.CreateTypeError(
-                            "Iterator.next() did not return an object", context, context.RealmState);
-                        context.RealmState.Logger?.LogInformation(
-                            "Iterator.next non-object result; throwing TypeError (label={Label})",
-                            loopLabel?.Name ?? "<none>");
-                        context.SetThrow(typeError);
-                        iteratorDone =
-                            false; // force IteratorClose on exit for abrupt completion paths that require it
-                        throw new ThrowSignal(typeError);
-                    }
-
-                    // Enumerator path (non-object next)
-                    // Select iteration environment: reuse cached one if available, otherwise create new
-                    var iterationEnvironment = reusableIterationEnvironment ??
-                        (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
-                            or VariableKind.Using or VariableKind.AwaitUsing
-                            ? (useIterationSlots
-                                ? plan.RentIterationEnvironment(loopEnvironment)
-                                : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration"))
-                            : loopEnvironment);
-
-                    // OPTIMIZATION: For simple identifier bindings, write directly to slot
-                    var nextJsValue = JsValue.FromObjectUnsafe(nextResult);
-                    if (cachedVarVariable.IsValid)
-                    {
-                        // Fastest path: pre-resolved JsVariable for 'var' bindings
-                        cachedVarVariable.Write(nextJsValue);
-                    }
-                    else if (cachedLetConstVariable.IsValid && letConstFirstIterationDone)
-                    {
-                        // Fast path: pre-resolved JsVariable for let/const when no closures
-                        // Only use after first iteration (which sets up the const binding properly)
-                        cachedLetConstVariable.Write(nextJsValue);
-                    }
-                    else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
-                    {
-                        // First iteration for let/const with reusable environment:
-                        // Must call AssignLoopBinding to set up the const flag in the binding
-                        plan.Target.AssignLoopBinding(nextJsValue, reusableIterationEnvironment!, outerEnvironment, context,
-                            plan.DeclarationKind);
-                        if (context.IsThrow)
-                        {
-                            throw new ThrowSignal(context.FlowValue);
-                        }
-                        IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
-                        letConstFirstIterationDone = true;
-                    }
-                    else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
-                    {
-                        // Fast path: direct slot write for let/const bindings
-                        iterationEnvironment.GetSlotRef(fastPathSlotIndex) = nextJsValue;
-                    }
-                    else
-                    {
-                        plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
-                            outerEnvironment, context,
-                            plan.DeclarationKind);
-                        if (context.IsThrow)
-                        {
-                            throw new ThrowSignal(context.FlowValue);
-                        }
-
-                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
-                    }
-
-                    // Check if yield/await happened during binding (e.g., yield in destructuring default)
-                    if (context.ShouldStopEvaluation)
-                    {
-                        break;
-                    }
-
-                    // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
-                    // Only update V (completion value) if result.[[Value]] is not empty
-                    var bodyResult2 = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
-                    if (!bodyResult2.IsUnit)
-                    {
-                        lastValueJs = bodyResult2;
-                    }
-
+                    state.IteratorObject.IteratorClose(context, context.IsThrow);
                     if (context.IsThrow)
                     {
-                        throw new ThrowSignal(context.FlowValue);
+                        return lastValueJs;
                     }
                 }
 
-                if (context.IsReturn || context.IsThrow)
-                {
-                    break;
-                }
-
-                if (context.TryClearContinue(loopLabel))
-                {
-                    continue;
-                }
-
-                if (context.TryClearBreak(loopLabel))
-                {
-                    break;
-                }
-            }
-
-            if (state.IteratorObject is not null && !iteratorDone)
-            {
-                state.IteratorObject.IteratorClose(context, context.IsThrow);
-                if (context.IsThrow)
-                {
-                    return lastValueJs;
-                }
-            }
-
-            return lastValueJs;
+                return lastValueJs;
             }
             finally
             {

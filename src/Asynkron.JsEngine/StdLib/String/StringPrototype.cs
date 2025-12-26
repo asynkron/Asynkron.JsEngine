@@ -50,7 +50,23 @@ public sealed partial class StringPrototype
     private JsValue CharAt(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        var index = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var posArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var context = Realm?.CreateContext();
+        var position = ToIntegerOrInfinity(posArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Handle infinity or out of bounds
+        if (double.IsPositiveInfinity(position) || double.IsNegativeInfinity(position))
+        {
+            return new JsValue("");
+        }
+
+        var index = (int)position;
         if (index < 0 || index >= value.Length)
         {
             return new JsValue("");
@@ -63,7 +79,23 @@ public sealed partial class StringPrototype
     private JsValue CharCodeAt(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        var index = args.Count > 0 && args[0].TryGetDouble(out var d) ? (int)d : 0;
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var posArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var context = Realm?.CreateContext();
+        var position = ToIntegerOrInfinity(posArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Handle infinity or out of bounds
+        if (double.IsPositiveInfinity(position) || double.IsNegativeInfinity(position))
+        {
+            return new JsValue(double.NaN);
+        }
+
+        var index = (int)position;
         if (index < 0 || index >= value.Length)
         {
             return new JsValue(double.NaN);
@@ -76,14 +108,47 @@ public sealed partial class StringPrototype
     private JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+        var len = value.Length;
+
+        var context = Realm?.CreateContext();
+
+        // Convert search string using ToString
+        var searchStrArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var searchStr = JsOps.ToJsString(searchStrArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // ToIntegerOrInfinity on position
+        var posArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        var pos = ToIntegerOrInfinity(posArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Clamp position
+        int start;
+        if (double.IsNegativeInfinity(pos))
+        {
+            start = 0;
+        }
+        else if (double.IsPositiveInfinity(pos) || pos >= len)
+        {
+            start = len;
+        }
+        else
+        {
+            start = Math.Max(0, (int)pos);
+        }
+
+        if (start >= len && searchStr.Length > 0)
         {
             return new JsValue(-1d);
         }
 
-        var searchStr = args[0].TryGetString(out var s) ? s : JsOps.ToJsString(args[0]);
-        var position = args.Count > 1 && args[1].TryGetDouble(out var d) ? Math.Max(0, (int)d) : 0;
-        var result = value.IndexOf(searchStr, position, StringComparison.Ordinal);
+        var result = value.IndexOf(searchStr, start, StringComparison.Ordinal);
         return new JsValue((double)result);
     }
 
@@ -91,16 +156,79 @@ public sealed partial class StringPrototype
     private JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+        var len = value.Length;
+
+        var context = Realm?.CreateContext();
+
+        // Convert search string using ToString
+        var searchStrArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var searchStr = JsOps.ToJsString(searchStrArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // ToNumber on position (lastIndexOf uses ToNumber, not ToIntegerOrInfinity)
+        var posArg = args.Count > 1 ? args[1] : JsValue.Undefined;
+        double numPos;
+        if (posArg.IsUndefined)
+        {
+            numPos = double.PositiveInfinity;
+        }
+        else
+        {
+            numPos = JsOps.ToNumber(posArg, context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+
+        // Handle NaN - per spec, NaN becomes +Infinity for lastIndexOf
+        if (double.IsNaN(numPos))
+        {
+            numPos = double.PositiveInfinity;
+        }
+
+        // Clamp position
+        int start;
+        if (double.IsPositiveInfinity(numPos) || numPos >= len)
+        {
+            start = len;
+        }
+        else if (numPos < 0)
+        {
+            start = 0;
+        }
+        else
+        {
+            start = (int)numPos;
+        }
+
+        // Empty search string at position >= len should return len
+        if (searchStr.Length == 0 && start >= len)
+        {
+            return new JsValue((double)len);
+        }
+
+        if (start <= 0 && searchStr.Length > 0)
+        {
+            // Search from beginning only
+            if (value.StartsWith(searchStr, StringComparison.Ordinal))
+            {
+                return new JsValue(0d);
+            }
+            return new JsValue(-1d);
+        }
+
+        // Adjust start to be a valid starting index for LastIndexOf
+        var searchStart = Math.Min(start + searchStr.Length - 1, len - 1);
+        if (searchStart < 0)
         {
             return new JsValue(-1d);
         }
 
-        var searchStr = args[0].TryGetString(out var s) ? s : JsOps.ToJsString(args[0]);
-        var position = args.Count > 1 && args[1].TryGetDouble(out var d)
-            ? Math.Min((int)d, value.Length - 1)
-            : value.Length - 1;
-        var result = position >= 0 ? value.LastIndexOf(searchStr, position, StringComparison.Ordinal) : -1;
+        var result = value.LastIndexOf(searchStr, searchStart, StringComparison.Ordinal);
         return new JsValue((double)result);
     }
 
@@ -108,60 +236,109 @@ public sealed partial class StringPrototype
     private JsValue Substring(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+        var len = value.Length;
+
+        var context = Realm?.CreateContext();
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var startArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var intStart = ToIntegerOrInfinity(startArg, context);
+        if (context?.IsThrow == true)
         {
-            return new JsValue(value);
+            throw new ThrowSignal(context.FlowValue);
         }
 
-        var start = args[0].TryGetDouble(out var d1) ? Math.Max(0, Math.Min((int)d1, value.Length)) : 0;
-        var end = args.Count > 1 && args[1].TryGetDouble(out var d2)
-            ? Math.Max(0, Math.Min((int)d2, value.Length))
-            : value.Length;
-
-        if (start > end)
+        double intEnd;
+        if (args.Count > 1 && !args[1].IsUndefined)
         {
-            (start, end) = (end, start);
+            intEnd = ToIntegerOrInfinity(args[1], context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+        else
+        {
+            intEnd = len;
         }
 
-        return new JsValue(value.Substring(start, end - start));
+        // Clamp to [0, len]
+        var finalStart = (int)Math.Max(0, Math.Min(double.IsPositiveInfinity(intStart) ? len : intStart, len));
+        var finalEnd = (int)Math.Max(0, Math.Min(double.IsPositiveInfinity(intEnd) ? len : intEnd, len));
+
+        // Swap if start > end
+        if (finalStart > finalEnd)
+        {
+            (finalStart, finalEnd) = (finalEnd, finalStart);
+        }
+
+        return new JsValue(value.Substring(finalStart, finalEnd - finalStart));
     }
 
     [JsHostMethod("slice", Length = 2d)]
     private JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0)
+        var len = value.Length;
+
+        var context = Realm?.CreateContext();
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var startArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var intStart = ToIntegerOrInfinity(startArg, context);
+        if (context?.IsThrow == true)
         {
-            return new JsValue(value);
+            throw new ThrowSignal(context.FlowValue);
         }
 
-        var start = args[0].TryGetDouble(out var d1) ? (int)d1 : 0;
-        var end = args.Count > 1 && args[1].TryGetDouble(out var d2) ? (int)d2 : value.Length;
-
-        if (start < 0)
+        double intEnd;
+        if (args.Count > 1 && !args[1].IsUndefined)
         {
-            start = Math.Max(0, value.Length + start);
+            intEnd = ToIntegerOrInfinity(args[1], context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
         }
         else
         {
-            start = Math.Min(start, value.Length);
+            intEnd = len;
         }
 
-        if (end < 0)
+        // Handle infinity cases
+        int from, to;
+        if (double.IsNegativeInfinity(intStart))
         {
-            end = Math.Max(0, value.Length + end);
+            from = 0;
+        }
+        else if (intStart < 0)
+        {
+            from = Math.Max(0, len + (int)intStart);
         }
         else
         {
-            end = Math.Min(end, value.Length);
+            from = Math.Min((int)intStart, len);
         }
 
-        if (start >= end)
+        if (double.IsNegativeInfinity(intEnd))
+        {
+            to = 0;
+        }
+        else if (intEnd < 0)
+        {
+            to = Math.Max(0, len + (int)intEnd);
+        }
+        else
+        {
+            to = Math.Min((int)intEnd, len);
+        }
+
+        if (from >= to)
         {
             return new JsValue("");
         }
 
-        return new JsValue(value.Substring(start, end - start));
+        return new JsValue(value.Substring(from, to - from));
     }
 
     [JsHostMethod("substr", Length = 2d)]
@@ -749,12 +926,23 @@ public sealed partial class StringPrototype
     private JsValue CodePointAt(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var value = ResolveString(thisValue);
-        if (args.Count == 0 || !args[0].TryGetDouble(out var d))
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var posArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var context = Realm?.CreateContext();
+        var position = ToIntegerOrInfinity(posArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        // Handle infinity or out of bounds
+        if (double.IsPositiveInfinity(position) || double.IsNegativeInfinity(position))
         {
             return JsValue.Undefined;
         }
 
-        var index = (int)d;
+        var index = (int)position;
         if (index < 0 || index >= value.Length)
         {
             return JsValue.Undefined;
@@ -1009,6 +1197,11 @@ public sealed partial class StringPrototype
         }
 
         var str = thisValue.ToJsString(context, Realm);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         return str;
     }
 
@@ -1016,12 +1209,24 @@ public sealed partial class StringPrototype
     {
         var context = Realm?.CreateContext();
         var result = value.ToJsString(context, Realm);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
         return result;
     }
 
     private string JsValueToString(JsValue value)
     {
-        return value.ToJsString(Realm?.CreateContext(), Realm);
+        var context = Realm?.CreateContext();
+        var result = value.ToJsString(context, Realm);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        return result;
     }
 
     private double ConvertToNumber(JsValue input)

@@ -93,7 +93,8 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.String, tokens[0].Type);
-        Assert.Equal("hello", tokens[0].Literal);
+        var decoded = Assert.IsType<DecodedString>(tokens[0].Literal);
+        Assert.Equal("hello", decoded.Value);
     }
 
     [Fact]
@@ -104,7 +105,8 @@ public class LexerTests
 
         Assert.Equal(2, tokens.Count);
         Assert.Equal(TokenType.String, tokens[0].Type);
-        Assert.Equal("world", tokens[0].Literal);
+        var decoded = Assert.IsType<DecodedString>(tokens[0].Literal);
+        Assert.Equal("world", decoded.Value);
     }
 
     [Fact]
@@ -166,7 +168,8 @@ public class LexerTests
     [Fact]
     public void Tokenize_Operators_Recognized()
     {
-        var lexer = new Lexer("+ - * / % ** && || ! == === != !== < > <= >= ?? ?. ++ --");
+        // Use context where / is clearly a division operator (after a number)
+        var lexer = new Lexer("1 + - * % ** && || ! == === != !== < > <= >= ?? ?. ++ --");
         var tokens = lexer.Tokenize();
 
         // Remove EOF token for easier testing
@@ -175,7 +178,6 @@ public class LexerTests
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Plus);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Minus);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Star);
-        Assert.Contains(operatorTokens, t => t.Type == TokenType.Slash);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.Percent);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.StarStar);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.AmpAmp);
@@ -193,6 +195,16 @@ public class LexerTests
         Assert.Contains(operatorTokens, t => t.Type == TokenType.QuestionDot);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.PlusPlus);
         Assert.Contains(operatorTokens, t => t.Type == TokenType.MinusMinus);
+    }
+
+    [Fact]
+    public void Tokenize_DivisionOperator()
+    {
+        // Division operator needs proper context (after a value that can be divided)
+        var lexer = new Lexer("10 / 2");
+        var tokens = lexer.Tokenize();
+
+        Assert.Contains(tokens, t => t.Type == TokenType.Slash);
     }
 
     [Fact]

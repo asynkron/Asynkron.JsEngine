@@ -1,6 +1,6 @@
 namespace Asynkron.JsParser;
 
-internal readonly record struct DecodedString(
+public readonly record struct DecodedString(
     string? Value,
     bool HasLegacyOctal,
     bool HasInvalidEscape = false,

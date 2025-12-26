@@ -56,7 +56,7 @@ public class ParserTests
         Assert.Single(program.Body);
         var funcDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
         Assert.Equal("add", funcDecl.Name.Name);
-        Assert.Equal(2, funcDecl.Function.Parameters.Count);
+        Assert.Equal(2, funcDecl.Function.Parameters.Length);
         Assert.Equal("a", funcDecl.Function.Parameters[0].Name!.Name);
         Assert.Equal("b", funcDecl.Function.Parameters[1].Name!.Name);
     }
@@ -185,7 +185,7 @@ public class ParserTests
         var program = Parse("switch (x) { case 1: break; default: break; }");
 
         var switchStmt = Assert.IsType<SwitchStatement>(program.Body[0]);
-        Assert.Equal(2, switchStmt.Cases.Count);
+        Assert.Equal(2, switchStmt.Cases.Length);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class ParserTests
 
         var varDecl = Assert.IsType<VariableDeclaration>(program.Body[0]);
         var objExpr = Assert.IsType<ObjectExpression>(varDecl.Declarators[0].Initializer);
-        Assert.Equal(2, objExpr.Members.Count);
+        Assert.Equal(2, objExpr.Members.Length);
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class ParserTests
 
         var varDecl = Assert.IsType<VariableDeclaration>(program.Body[0]);
         var arrExpr = Assert.IsType<ArrayExpression>(varDecl.Declarators[0].Initializer);
-        Assert.Equal(3, arrExpr.Elements.Count);
+        Assert.Equal(3, arrExpr.Elements.Length);
     }
 
     [Fact]
@@ -324,7 +324,7 @@ public class ParserTests
         // Multiple statements without semicolons
         var program = Parse("let x = 1\nlet y = 2\nx + y");
 
-        Assert.Equal(3, program.Body.Count);
+        Assert.Equal(3, program.Body.Length);
     }
 
     [Fact]
@@ -435,7 +435,7 @@ public class ParserTests
 
         var varDecl = Assert.IsType<VariableDeclaration>(program.Body[0]);
         var newExpr = Assert.IsType<NewExpression>(varDecl.Declarators[0].Initializer);
-        Assert.Equal(2, newExpr.Arguments.Count);
+        Assert.Equal(2, newExpr.Arguments.Length);
     }
 
     [Fact]
@@ -452,7 +452,7 @@ public class ParserTests
     {
         var program = Parse("const negative = -x; const not = !flag; const type = typeof obj;");
 
-        Assert.Equal(3, program.Body.Count);
+        Assert.Equal(3, program.Body.Length);
     }
 
     [Fact]
@@ -469,7 +469,7 @@ public class ParserTests
     {
         var program = Parse(";;;");
 
-        Assert.Equal(3, program.Body.Count);
+        Assert.Equal(3, program.Body.Length);
         Assert.All(program.Body, stmt => Assert.IsType<EmptyStatement>(stmt));
     }
 

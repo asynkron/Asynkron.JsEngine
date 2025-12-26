@@ -2926,6 +2926,20 @@ public sealed class JsEnvironment : IRentable
         Array.Fill(_slots, JsValue.Undefined);
     }
 
+    /// <summary>
+    /// Initializes slot storage, scope ID, and slot map for this environment.
+    /// Use this overload when the slot map is available (e.g., for per-iteration loop environments).
+    /// </summary>
+    /// <param name="slotCount">Number of slots needed for this scope.</param>
+    /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
+    /// <param name="slotMap">Mapping from symbol names to slot indices.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void InitializeSlots(int slotCount, int scopeId, ImmutableDictionary<Symbol, int> slotMap)
+    {
+        InitializeSlots(slotCount, scopeId);
+        _slotMap = slotMap;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
     {

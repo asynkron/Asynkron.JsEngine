@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -33,6 +34,46 @@ internal sealed record LoopPlan(
     // Cached analysis for fast-path loop body execution
     private StatementNode? _singleBodyStatement;
     private bool _singleBodyStatementComputed;
+
+    // Cached slot map for per-iteration bindings (built once, reused each iteration)
+    private ImmutableDictionary<Symbol, int>? _iterationSlotMap;
+    private bool _iterationSlotMapComputed;
+
+    /// <summary>
+    /// Returns the slot map for per-iteration bindings.
+    /// Built lazily once and cached for reuse across iterations.
+    /// </summary>
+    public ImmutableDictionary<Symbol, int> IterationSlotMap
+    {
+        get
+        {
+            if (!_iterationSlotMapComputed)
+            {
+                ComputeIterationSlotMap();
+            }
+            return _iterationSlotMap!;
+        }
+    }
+
+    private void ComputeIterationSlotMap()
+    {
+        _iterationSlotMapComputed = true;
+
+        if (PerIterationBindings.IsDefaultOrEmpty || PerIterationSlotIndices.IsDefaultOrEmpty)
+        {
+            _iterationSlotMap = ImmutableDictionary<Symbol, int>.Empty
+                .WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+            return;
+        }
+
+        var builder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        var count = Math.Min(PerIterationBindings.Length, PerIterationSlotIndices.Length);
+        for (var i = 0; i < count; i++)
+        {
+            builder[PerIterationBindings[i]] = PerIterationSlotIndices[i];
+        }
+        _iterationSlotMap = builder.ToImmutable();
+    }
 
     /// <summary>
     /// Returns the single statement inside the body block, or null if the body has

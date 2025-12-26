@@ -305,18 +305,7 @@ public static partial class TypedAstEvaluator
 
             if (iterationSlotCount >= 0)
             {
-                newIterationEnvironment.InitializeSlots(iterationSlotCount, iterationScopeId);
-
-                // Build and set the slot map so TrySetSlot works correctly in reference path
-                if (!iterationSlotIndices.IsDefaultOrEmpty)
-                {
-                    var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-                    for (var i = 0; i < plan.PerIterationBindings.Length && i < iterationSlotIndices.Length; i++)
-                    {
-                        slotMapBuilder[plan.PerIterationBindings[i]] = iterationSlotIndices[i];
-                    }
-                    newIterationEnvironment.SetSlotMap(slotMapBuilder.ToImmutable());
-                }
+                newIterationEnvironment.InitializeSlots(iterationSlotCount, iterationScopeId, plan.IterationSlotMap);
             }
 
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
@@ -482,18 +471,7 @@ public static partial class TypedAstEvaluator
 
                 if (plan.IterationSlotCount >= 0)
                 {
-                    currentIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
-
-                    // Restore the slot map so TrySetSlot works correctly in reference path
-                    if (!plan.PerIterationSlotIndices.IsDefaultOrEmpty)
-                    {
-                        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-                        for (var idx = 0; idx < bindings.Length && idx < plan.PerIterationSlotIndices.Length; idx++)
-                        {
-                            slotMapBuilder[bindings[idx]] = plan.PerIterationSlotIndices[idx];
-                        }
-                        currentIterationEnvironment.SetSlotMap(slotMapBuilder.ToImmutable());
-                    }
+                    currentIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId, plan.IterationSlotMap);
                 }
 
                 for (var i = 0; i < count; i++)

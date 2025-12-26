@@ -465,8 +465,29 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseWithResolvers(JsValue _, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Promise.withResolvers per ES2024 spec
-        // Should return an object with { promise, resolve, reject }
-        throw new NotImplementedException("Promise.withResolvers is not yet implemented");
+        // Create a new promise
+        var promise = CreatePromise(Realm, Realm.PromisePrototype);
+        
+        // Create resolve function
+        var resolve = new HostFunction((_, resolveArgs) =>
+        {
+            promise.Resolve(resolveArgs.GetArgument(0));
+            return JsValue.Undefined;
+        }, Realm, false);
+        
+        // Create reject function
+        var reject = new HostFunction((_, rejectArgs) =>
+        {
+            promise.Reject(rejectArgs.GetArgument(0));
+            return JsValue.Undefined;
+        }, Realm, false);
+        
+        // Return an object with { promise, resolve, reject }
+        var result = new JsObject { RealmState = Realm };
+        result.SetProperty("promise", JsValue.FromJsPromise(promise));
+        result.SetProperty("resolve", JsValue.FromObjectUnsafe(resolve));
+        result.SetProperty("reject", JsValue.FromObjectUnsafe(reject));
+        
+        return JsValue.FromJsObject(result);
     }
 }

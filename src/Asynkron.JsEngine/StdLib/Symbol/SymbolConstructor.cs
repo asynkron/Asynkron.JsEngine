@@ -83,23 +83,19 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         constructor.SetProperty("split", (JsValue)Symbols.Split);
         constructor.SetProperty("species", (JsValue)Symbols.Species);
         constructor.SetProperty("isConcatSpreadable", (JsValue)Symbols.IsConcatSpreadable);
+        constructor.SetProperty("dispose", (JsValue)Symbols.Dispose);
+        constructor.SetProperty("asyncDispose", (JsValue)Symbols.AsyncDispose);
     }
 
-    /* FLAKY */
     [JsConstructorSymbolGetter("dispose")]
     public static JsValue GetDispose(JsValue thisValue)
     {
-        // TODO: Implement Symbol.dispose
-        // This is the well-known symbol for explicit resource management (using statement)
-        throw new NotImplementedException("Symbol.dispose is not yet implemented");
+        return (JsValue)Symbols.Dispose;
     }
 
-    /* FLAKY */
     [JsConstructorSymbolGetter("asyncDispose")]
     public static JsValue GetAsyncDispose(JsValue thisValue)
     {
-        // TODO: Implement Symbol.asyncDispose
-        // This is the well-known symbol for async explicit resource management (await using statement)
-        throw new NotImplementedException("Symbol.asyncDispose is not yet implemented");
+        return (JsValue)Symbols.AsyncDispose;
     }
 }

@@ -2129,6 +2129,9 @@ public static partial class TypedAstEvaluator
                                     iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
                                     iterState.IteratorObject is JsObject iteratorObj)
                                 {
+                                    // Mark as closed before attempting close to prevent double-close
+                                    iterState.MarkIteratorClosed();
+
                                     try
                                     {
                                         // Call IteratorClose - we don't preserve existing throws because
@@ -2589,8 +2592,8 @@ public static partial class TypedAstEvaluator
 
         private JsValue CompleteReturn(JsValue value)
         {
-            // Close any active array pattern iterators before completing
-            CloseActiveArrayPatternIterators();
+            // Close any active iterators before completing (array patterns and for-of loops)
+            CloseActiveIterators();
 
             _programCounter = -1;
             _state = GeneratorState.Completed;
@@ -2599,7 +2602,12 @@ public static partial class TypedAstEvaluator
             return CreateIteratorResult(value, true);
         }
 
-        private void CloseActiveArrayPatternIterators()
+        /// <summary>
+        /// Closes all active iterators stored in the environment chain.
+        /// This handles both array pattern iterators (from destructuring) and
+        /// for-of loop iterators via the unified IActiveIteratorState interface.
+        /// </summary>
+        private void CloseActiveIterators()
         {
             if (_executionEnvironment is null)
             {
@@ -2609,15 +2617,14 @@ public static partial class TypedAstEvaluator
             // Create a fresh context to avoid state interference from the existing context
             var context = _realmState.CreateContext(ScopeKind.Function, DetermineGeneratorScopeMode());
 
-            // Scan the environment for array pattern states and close their iterators
-            // Array pattern state keys have the prefix "__array_pattern_state_"
-            var statesToClose = new List<(Symbol Key, IJsObjectLike Iterator)>();
-            ScanEnvironmentForArrayPatternStates(_executionEnvironment, statesToClose);
+            // Scan the environment for all IActiveIteratorState objects and close their iterators
+            var statesToClose = new List<(IActiveIteratorState State, IJsObjectLike Iterator)>();
+            ScanEnvironmentForActiveIterators(_executionEnvironment, statesToClose);
 
-            foreach (var (key, iterator) in statesToClose)
+            foreach (var (state, iterator) in statesToClose)
             {
-                // Clean up the state first (before potential exception)
-                _executionEnvironment.DeleteBinding(key);
+                // Mark as closed first (before potential exception)
+                state.MarkIteratorClosed();
 
                 // Close the iterator - if it throws, that error replaces the return completion
                 // Let the exception propagate directly without catching
@@ -2625,22 +2632,38 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private static void ScanEnvironmentForArrayPatternStates(JsEnvironment env,
-            List<(Symbol, IJsObjectLike)> results)
+        /// <summary>
+        /// Scans the environment chain for all IActiveIteratorState objects and collects
+        /// those with active iterators that need closing.
+        /// </summary>
+        private static void ScanEnvironmentForActiveIterators(JsEnvironment env,
+            List<(IActiveIteratorState, IJsObjectLike)> results)
         {
             while (true)
             {
-                const string prefix = "__array_pattern_state_";
-
-                // Scan bindings in this environment
+                // Scan symbol bindings in this environment
                 foreach (var symbol in env.GetBindingSymbols())
                 {
-                    if (symbol.Name?.StartsWith(prefix, StringComparison.Ordinal) == true &&
-                        env.TryGetJsValue(symbol, out var jsValue) &&
+                    if (env.TryGetJsValue(symbol, out var jsValue) &&
                         !jsValue.IsNullOrUndefined &&
-                        TryGetActiveIteratorFromStateJsValue(jsValue, out var iterator))
+                        jsValue.TryGetObject<IActiveIteratorState>(out var state) &&
+                        state.TryGetActiveIterator(out var iterator))
                     {
-                        results.Add((symbol, iterator));
+                        results.Add((state, iterator));
+                    }
+                }
+
+                // Also scan slots for IteratorDriverState (for-of loop state)
+                if (env.HasSlots && env._slots is { } slots)
+                {
+                    foreach (var slot in slots)
+                    {
+                        if (!slot.IsNullOrUndefined &&
+                            slot.TryGetObject<IActiveIteratorState>(out var state) &&
+                            state.TryGetActiveIterator(out var iterator))
+                        {
+                            results.Add((state, iterator));
+                        }
                     }
                 }
 
@@ -2653,45 +2676,6 @@ public static partial class TypedAstEvaluator
 
                 break;
             }
-        }
-
-        private static bool TryGetActiveIteratorFromState(object state, out IJsObjectLike iterator)
-        {
-            // Use reflection to check for Iterator and IteratorDone properties
-            // since ArrayPatternState is a private class in ArrayBindingExtensions
-            var type = state.GetType();
-
-            var iteratorProp = type.GetProperty("Iterator");
-            var iteratorDoneProp = type.GetProperty("IteratorDone");
-
-            if (iteratorProp is null || iteratorDoneProp is null)
-            {
-                iterator = null!;
-                return false;
-            }
-
-            var iteratorValue = iteratorProp.GetValue(state);
-            var iteratorDone = iteratorDoneProp.GetValue(state) as bool? ?? true;
-
-            if (iteratorValue is IJsObjectLike jsIterator && !iteratorDone)
-            {
-                iterator = jsIterator;
-                return true;
-            }
-
-            iterator = null!;
-            return false;
-        }
-
-        private static bool TryGetActiveIteratorFromStateJsValue(JsValue jsValue, out IJsObjectLike iterator)
-        {
-            if (jsValue.TryGetObject<object>(out var state) && state is not null)
-            {
-                return TryGetActiveIteratorFromState(state, out iterator);
-            }
-
-            iterator = null!;
-            return false;
         }
 
         private sealed class AwaitState

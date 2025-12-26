@@ -187,7 +187,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     When true, array pattern destructuring will NOT close iterators upon completion.
     ///     Used by generators to defer iterator close until the generator completes/returns.
-    ///     The generator's CloseActiveArrayPatternIterators will handle cleanup.
+    ///     The generator's CloseActiveIterators will handle cleanup.
     /// </summary>
     public bool InGeneratorContext { get; set; }
 

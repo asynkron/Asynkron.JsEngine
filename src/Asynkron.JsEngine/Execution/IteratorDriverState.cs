@@ -8,7 +8,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution;
 
-internal sealed class IteratorDriverState : IRentable
+internal sealed class IteratorDriverState : IRentable, IActiveIteratorState
 {
     public IJsObjectLike? IteratorObject { get; set; }
     public IEnumerator<JsValue>? Enumerator { get; set; }
@@ -16,6 +16,12 @@ internal sealed class IteratorDriverState : IRentable
     public bool AwaitingNextResult { get; set; }
     public bool AwaitingValue { get; set; }
     public IJsCallable? NextMethod { get; set; }
+
+    /// <summary>
+    /// When true, the iterator has been closed (via IteratorClose or loop completion).
+    /// Used to prevent double-closing when generator.return() is called.
+    /// </summary>
+    public bool IteratorClosed { get; set; }
 
     /// <summary>
     /// Pre-resolved JsVariable for fast iterator state access (avoids dictionary lookups per iteration).
@@ -58,6 +64,27 @@ internal sealed class IteratorDriverState : IRentable
         ValueVariable = default;
         CurrentIterationEnvironment = null;
         LoopScopeEnvironment = null;
+        IteratorClosed = false;
+    }
+
+    /// <inheritdoc />
+    public bool TryGetActiveIterator(out IJsObjectLike iterator)
+    {
+        if (IteratorObject is not null && !IteratorClosed)
+        {
+            iterator = IteratorObject;
+            return true;
+        }
+
+        iterator = null!;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public void MarkIteratorClosed()
+    {
+        IteratorClosed = true;
+        // Keep IteratorObject so it can still be queried, but mark as closed
     }
 }
 

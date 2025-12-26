@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -397,7 +398,7 @@ public static partial class TypedAstEvaluator
             if (iterator is not null && !iteratorDone)
             {
                 // When inside a generator context, don't close the iterator immediately.
-                // Instead, save the state so CloseActiveArrayPatternIterators can find it
+                // Instead, save the state so CloseActiveIterators can find it
                 // when the generator completes/returns.
                 if (context.InGeneratorContext && stateKey is not null)
                 {
@@ -437,7 +438,7 @@ public static partial class TypedAstEvaluator
                 }
                 finally
                 {
-                    // Mark the iterator as closed so CloseActiveArrayPatternIterators doesn't try again
+                    // Mark the iterator as closed so CloseActiveIterators doesn't try again
                     if (stateKey is not null && environment.TryGetObject<ArrayPatternState>(stateKey, out var state))
                     {
                         state.IteratorDone = true;
@@ -448,7 +449,7 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    private sealed class ArrayPatternState
+    private sealed class ArrayPatternState : IActiveIteratorState
     {
         public bool ConsumingRest { get; set; }
 
@@ -467,5 +468,23 @@ public static partial class TypedAstEvaluator
         public object? PendingValue { get; set; }
 
         public JsArray? RestArray { get; set; }
+
+        public bool TryGetActiveIterator(out IJsObjectLike iterator)
+        {
+            if (Iterator is not null && !IteratorDone)
+            {
+                iterator = Iterator;
+                return true;
+            }
+
+            iterator = null!;
+            return false;
+        }
+
+        public void MarkIteratorClosed()
+        {
+            IteratorDone = true;
+            Iterator = null;
+        }
     }
 }

@@ -1,5 +1,6 @@
 #region
 
+using System;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -187,6 +188,54 @@ public sealed partial class DataViewPrototype
         var littleEndian = args.Count > 2 && args[2].IsTruthy;
         dv.SetFloat64(offset, value, littleEndian);
         return JsValue.Undefined;
+    }
+
+    /* FLAKY */
+    [JsHostMethod("getBigInt64", Length = 1d)]
+    public JsValue GetBigInt64(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement DataView.prototype.getBigInt64
+        throw new NotImplementedException("DataView.prototype.getBigInt64 is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("getBigUint64", Length = 1d)]
+    public JsValue GetBigUint64(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement DataView.prototype.getBigUint64
+        throw new NotImplementedException("DataView.prototype.getBigUint64 is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("getFloat16", Length = 1d)]
+    public JsValue GetFloat16(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement DataView.prototype.getFloat16
+        throw new NotImplementedException("DataView.prototype.getFloat16 is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("setBigInt64", Length = 2d)]
+    public JsValue SetBigInt64(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement DataView.prototype.setBigInt64
+        throw new NotImplementedException("DataView.prototype.setBigInt64 is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("setBigUint64", Length = 2d)]
+    public JsValue SetBigUint64(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement DataView.prototype.setBigUint64
+        throw new NotImplementedException("DataView.prototype.setBigUint64 is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("setFloat16", Length = 2d)]
+    public JsValue SetFloat16(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement DataView.prototype.setFloat16
+        throw new NotImplementedException("DataView.prototype.setFloat16 is not yet implemented");
     }
 
     protected override void ConfigurePrototype()

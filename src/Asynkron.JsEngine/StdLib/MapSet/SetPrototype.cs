@@ -138,4 +138,67 @@ public sealed partial class SetPrototype
         Entries,
         Values
     }
+
+    /* FLAKY */
+    [JsHostMethod("difference", Length = 1d)]
+    public JsValue Difference(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.difference
+        // Returns a new set with elements in this set but not in the other set
+        throw new NotImplementedException("Set.prototype.difference is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("intersection", Length = 1d)]
+    public JsValue Intersection(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.intersection
+        // Returns a new set with elements in both this set and the other set
+        throw new NotImplementedException("Set.prototype.intersection is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("isDisjointFrom", Length = 1d)]
+    public JsValue IsDisjointFrom(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.isDisjointFrom
+        // Returns true if this set has no elements in common with the other set
+        throw new NotImplementedException("Set.prototype.isDisjointFrom is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("isSubsetOf", Length = 1d)]
+    public JsValue IsSubsetOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.isSubsetOf
+        // Returns true if all elements of this set are in the other set
+        throw new NotImplementedException("Set.prototype.isSubsetOf is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("isSupersetOf", Length = 1d)]
+    public JsValue IsSupersetOf(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.isSupersetOf
+        // Returns true if all elements of the other set are in this set
+        throw new NotImplementedException("Set.prototype.isSupersetOf is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("symmetricDifference", Length = 1d)]
+    public JsValue SymmetricDifference(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.symmetricDifference
+        // Returns a new set with elements in either set but not in both
+        throw new NotImplementedException("Set.prototype.symmetricDifference is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("union", Length = 1d)]
+    public JsValue Union(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Set.prototype.union
+        // Returns a new set with all elements from both sets
+        throw new NotImplementedException("Set.prototype.union is not yet implemented");
+    }
 }

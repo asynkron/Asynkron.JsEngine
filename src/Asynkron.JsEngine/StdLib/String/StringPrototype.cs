@@ -1117,4 +1117,40 @@ public sealed partial class StringPrototype
     {
         return new JsArray(strings.Select(static s => new JsValue(s)), realm);
     }
+
+    /* FLAKY */
+    [JsHostMethod("isWellFormed", Length = 0d)]
+    public JsValue IsWellFormed(JsValue thisValue)
+    {
+        // TODO: Implement String.prototype.isWellFormed
+        // Returns true if the string contains no lone surrogates
+        throw new NotImplementedException("String.prototype.isWellFormed is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("toWellFormed", Length = 0d)]
+    public JsValue ToWellFormed(JsValue thisValue)
+    {
+        // TODO: Implement String.prototype.toWellFormed
+        // Returns a string with lone surrogates replaced with U+FFFD
+        throw new NotImplementedException("String.prototype.toWellFormed is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("toLocaleLowerCase", Length = 0d)]
+    public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement String.prototype.toLocaleLowerCase with proper locale support
+        // Currently falls back to simple toLowerCase
+        throw new NotImplementedException("String.prototype.toLocaleLowerCase is not yet implemented");
+    }
+
+    /* FLAKY */
+    [JsHostMethod("toLocaleUpperCase", Length = 0d)]
+    public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement String.prototype.toLocaleUpperCase with proper locale support
+        // Currently falls back to simple toUpperCase
+        throw new NotImplementedException("String.prototype.toLocaleUpperCase is not yet implemented");
+    }
 }

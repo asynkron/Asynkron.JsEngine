@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class FunctionPrototype
 {
     [JsHostMethod("toString", Length = 0d)]
-    private static JsValue ToSßtring(JsValue thisValue)
+    private static JsValue ToString(JsValue thisValue)
     {
         if (thisValue.TryGetObject<IJsCallable>(out _))
         {

@@ -1,5 +1,6 @@
 #region
 
+using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -720,5 +721,14 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             constructor.SetProperty("hasOwnProperty", hasOwn);
         }
+    }
+
+    /* FLAKY */
+    [JsConstructorMethod("groupBy", Length = 2d)]
+    public static JsValue GroupBy(IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        // TODO: Implement Object.groupBy
+        // Groups array elements by the result of a callback function
+        throw new NotImplementedException("Object.groupBy is not yet implemented");
     }
 }

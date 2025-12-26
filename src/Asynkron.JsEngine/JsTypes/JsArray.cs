@@ -89,6 +89,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     ///     Gets the length of the array
     /// </summary>
+    /* FLAKY */
     public double Length => _length;
 
     /// <summary>

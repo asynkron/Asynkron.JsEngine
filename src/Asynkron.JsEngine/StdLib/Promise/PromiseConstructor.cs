@@ -1,5 +1,6 @@
 #region
 
+using System;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -100,6 +101,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         constructor.SetHostedProperty("race", (thisValue, args, _) => PromiseRace(thisValue, args), Realm);
         constructor.SetHostedProperty("allSettled", (thisValue, args, _) => PromiseAllSettled(thisValue, args), Realm);
         constructor.SetHostedProperty("any", (thisValue, args, _) => PromiseAny(thisValue, args), Realm);
+        constructor.SetHostedProperty("withResolvers", (thisValue, args, _) => PromiseWithResolvers(thisValue, args), Realm);
     }
 
     private JsValue PromiseResolve(JsValue _, IReadOnlyList<JsValue> args)
@@ -459,5 +461,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         }
 
         return rejectionErrors;
+    }
+
+    private JsValue PromiseWithResolvers(JsValue _, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement Promise.withResolvers per ES2024 spec
+        // Should return an object with { promise, resolve, reject }
+        throw new NotImplementedException("Promise.withResolvers is not yet implemented");
     }
 }

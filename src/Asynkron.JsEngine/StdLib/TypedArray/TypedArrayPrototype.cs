@@ -926,5 +926,14 @@ public sealed partial class TypedArrayPrototype
         return relative < 0 ? 0 : relative;
     }
 
+    /* FLAKY */
+    [JsHostMethod("subarray", Length = 2d)]
+    public JsValue Subarray(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement TypedArray.prototype.subarray
+        // Returns a new TypedArray view on the same ArrayBuffer
+        throw new NotImplementedException("TypedArray.prototype.subarray is not yet implemented");
+    }
+
     #endregion
 }

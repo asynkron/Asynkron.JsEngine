@@ -1,5 +1,6 @@
 #region
 
+using System;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -89,5 +90,14 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
 
             map.Set(key, value);
         }
+    }
+
+    /* FLAKY */
+    [JsConstructorMethod("groupBy", Length = 2d)]
+    public static JsValue GroupBy(IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        // TODO: Implement Map.groupBy
+        // Groups array elements into a Map by the result of a callback function
+        throw new NotImplementedException("Map.groupBy is not yet implemented");
     }
 }

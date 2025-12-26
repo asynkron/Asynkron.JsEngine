@@ -495,12 +495,12 @@ public abstract class BigIntTestsBase(ITestOutputHelper output) : FastPathTestBa
     }
 }
 
-public class FastPath_BigIntTests(ITestOutputHelper output) : BigIntTestsBase(output)
+public class FastPathBigIntTests(ITestOutputHelper output) : BigIntTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_BigIntTests(ITestOutputHelper output) : BigIntTestsBase(output)
+public class ReferenceBigIntTests(ITestOutputHelper output) : BigIntTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

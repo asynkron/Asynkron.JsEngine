@@ -344,12 +344,12 @@ public abstract class ErrorTypesTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_ErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
+public class FastPathErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
+public class ReferenceErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

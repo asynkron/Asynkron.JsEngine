@@ -917,12 +917,12 @@ public abstract class TypedArrayTestsBase(ITestOutputHelper output) : FastPathTe
 
 }
 
-public class FastPath_TypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
+public class FastPathTypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
+public class ReferenceTypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

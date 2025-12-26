@@ -261,12 +261,12 @@ public abstract class LabeledBreakContinueTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_LabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
+public class FastPathLabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_LabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
+public class ReferenceLabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

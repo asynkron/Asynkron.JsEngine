@@ -469,12 +469,12 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_ForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
+public class FastPathForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
+public class ReferenceForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

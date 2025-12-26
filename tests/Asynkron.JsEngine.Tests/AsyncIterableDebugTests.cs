@@ -524,12 +524,12 @@ public abstract class AsyncIterableDebugTestsBase(ITestOutputHelper output) : Fa
     }
 }
 
-public class FastPath_AsyncIterableDebugTests(ITestOutputHelper output) : AsyncIterableDebugTestsBase(output)
+public class FastPathAsyncIterableDebugTests(ITestOutputHelper output) : AsyncIterableDebugTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AsyncIterableDebugTests(ITestOutputHelper output) : AsyncIterableDebugTestsBase(output)
+public class ReferenceAsyncIterableDebugTests(ITestOutputHelper output) : AsyncIterableDebugTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

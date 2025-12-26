@@ -211,12 +211,12 @@ public abstract class IteratorCloseDestructuringTestsBase(ITestOutputHelper outp
     }
 }
 
-public class FastPath_IteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
+public class FastPathIteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_IteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
+public class ReferenceIteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

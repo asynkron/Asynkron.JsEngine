@@ -348,12 +348,12 @@ public abstract class WeakMapTestsBase(ITestOutputHelper output) : FastPathTestB
     }
 }
 
-public class FastPath_WeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(output)
+public class FastPathWeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_WeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(output)
+public class ReferenceWeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

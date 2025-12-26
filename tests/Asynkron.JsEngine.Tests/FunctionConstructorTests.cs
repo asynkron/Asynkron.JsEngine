@@ -39,12 +39,12 @@ public abstract class FunctionConstructorTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_FunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
+public class FastPathFunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_FunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
+public class ReferenceFunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

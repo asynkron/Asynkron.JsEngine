@@ -64,12 +64,12 @@ public abstract class NBodyExactReproductionTestBase(ITestOutputHelper output) :
     }
 }
 
-public class FastPath_NBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
+public class FastPathNBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
+public class ReferenceNBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

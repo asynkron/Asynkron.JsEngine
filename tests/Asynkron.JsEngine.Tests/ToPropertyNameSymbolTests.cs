@@ -58,12 +58,12 @@ public abstract class ToPropertyNameSymbolTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_ToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
+public class FastPathToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
+public class ReferenceToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

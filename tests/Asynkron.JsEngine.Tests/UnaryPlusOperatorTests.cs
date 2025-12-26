@@ -221,12 +221,12 @@ public abstract class UnaryPlusOperatorTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_UnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlusOperatorTestsBase(output)
+public class FastPathUnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlusOperatorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_UnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlusOperatorTestsBase(output)
+public class ReferenceUnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlusOperatorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

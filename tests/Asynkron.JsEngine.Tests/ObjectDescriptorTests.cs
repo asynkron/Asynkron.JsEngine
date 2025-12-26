@@ -667,12 +667,12 @@ public abstract class ObjectDescriptorTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_ObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
+public class FastPathObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
+public class ReferenceObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

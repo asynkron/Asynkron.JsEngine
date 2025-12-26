@@ -65,12 +65,12 @@ public abstract class AsyncLoopTestsBase(ITestOutputHelper output) : FastPathTes
     }
 }
 
-public class FastPath_AsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBase(output)
+public class FastPathAsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBase(output)
+public class ReferenceAsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

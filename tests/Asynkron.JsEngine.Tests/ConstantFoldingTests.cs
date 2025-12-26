@@ -96,12 +96,12 @@ public abstract class ConstantFoldingTestsBase(ITestOutputHelper output) : FastP
     }
 }
 
-public class FastPath_ConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
+public class FastPathConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
+public class ReferenceConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

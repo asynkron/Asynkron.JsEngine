@@ -70,7 +70,7 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 
     [Fact(Timeout = 2000)]
-    public async Task MultiLineExpressionNoASI()
+    public async Task MultiLineExpressionNoAsi()
     {
         // a = b + c should parse as one expression
         await using var engine = CreateEngine();
@@ -130,7 +130,7 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ClosingBraceTriggersASI()
+    public async Task ClosingBraceTriggersAsi()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
@@ -145,7 +145,7 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 
     [Fact(Timeout = 2000)]
-    public async Task EOFTriggersASI()
+    public async Task EofTriggersAsi()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
@@ -194,7 +194,7 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ContinueStatementASI()
+    public async Task ContinueStatementAsi()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
@@ -213,7 +213,7 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 
     [Fact(Timeout = 2000)]
-    public async Task BreakStatementASI()
+    public async Task BreakStatementAsi()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
@@ -246,7 +246,7 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 
     [Fact(Timeout = 2000)]
-    public async Task ComplexCodeWithASI()
+    public async Task ComplexCodeWithAsi()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(@"
@@ -314,12 +314,12 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
     }
 }
 
-public class FastPath_AutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
+public class FastPathAutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
+public class ReferenceAutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -169,12 +169,12 @@ public abstract class SymbolTestsBase(ITestOutputHelper output) : FastPathTestBa
     }
 }
 
-public class FastPath_SymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
+public class FastPathSymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_SymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
+public class ReferenceSymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

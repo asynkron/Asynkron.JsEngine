@@ -98,12 +98,12 @@ public abstract class ArrayBuiltinsSpecTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_ArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
+public class FastPathArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
+public class ReferenceArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

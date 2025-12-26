@@ -200,12 +200,12 @@ public abstract class GetPropertyNameTestsBase(ITestOutputHelper output) : FastP
     }
 }
 
-public class FastPath_GetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
+public class FastPathGetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_GetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
+public class ReferenceGetPropertyNameTests(ITestOutputHelper output) : GetPropertyNameTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

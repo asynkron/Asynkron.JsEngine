@@ -189,12 +189,12 @@ public abstract class AdditionalObjectMethodsTestsBase(ITestOutputHelper output)
     }
 }
 
-public class FastPath_AdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
+public class FastPathAdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
+public class ReferenceAdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

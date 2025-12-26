@@ -78,12 +78,12 @@ public abstract class NBodyPrototypeTestBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_NBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
+public class FastPathNBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
+public class ReferenceNBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

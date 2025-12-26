@@ -146,12 +146,12 @@ public abstract class LoopScopeAnalysisTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_LoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
+public class FastPathLoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_LoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
+public class ReferenceLoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

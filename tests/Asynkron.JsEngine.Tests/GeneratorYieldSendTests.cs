@@ -153,13 +153,13 @@ public abstract class GeneratorYieldSendTestsBase(ITestOutputHelper output) : Fa
 }
 
 [Collection("GeneratorIrCollection")]
-public class FastPath_GeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
+public class FastPathGeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
 [Collection("GeneratorIrCollection")]
-public class Reference_GeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
+public class ReferenceGeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

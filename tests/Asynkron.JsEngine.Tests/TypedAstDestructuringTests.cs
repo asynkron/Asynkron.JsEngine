@@ -87,12 +87,12 @@ public abstract class TypedAstDestructuringTestsBase(ITestOutputHelper output) :
     }
 }
 
-public class FastPath_TypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
+public class FastPathTypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
+public class ReferenceTypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

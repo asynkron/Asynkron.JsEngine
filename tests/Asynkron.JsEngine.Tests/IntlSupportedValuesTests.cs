@@ -74,12 +74,12 @@ public abstract class IntlSupportedValuesTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_IntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
+public class FastPathIntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_IntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
+public class ReferenceIntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -71,12 +71,12 @@ public abstract class ArrayConstructorTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_ArrayConstructorTests(ITestOutputHelper output) : ArrayConstructorTestsBase(output)
+public class FastPathArrayConstructorTests(ITestOutputHelper output) : ArrayConstructorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ArrayConstructorTests(ITestOutputHelper output) : ArrayConstructorTestsBase(output)
+public class ReferenceArrayConstructorTests(ITestOutputHelper output) : ArrayConstructorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

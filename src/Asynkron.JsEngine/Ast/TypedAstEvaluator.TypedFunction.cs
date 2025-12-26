@@ -695,8 +695,10 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
-                // Initialize scope metadata and slots for slot-based access
-                functionEnvironment.Initialize(_function.ScopeId, _function.SlotMap);
+                // Don't initialize slots for complex parameter expressions (destructuring, defaults)
+                // Values are bound via dictionary, not slots - only set scope metadata
+                functionEnvironment.ScopeId = _function.ScopeId;
+                functionEnvironment.SetSlotMap(_function.SlotMap);
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);

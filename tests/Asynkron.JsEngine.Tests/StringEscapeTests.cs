@@ -121,12 +121,12 @@ public abstract class StringEscapeTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPath_StringEscapeTests(ITestOutputHelper output) : StringEscapeTestsBase(output)
+public class FastPathStringEscapeTests(ITestOutputHelper output) : StringEscapeTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_StringEscapeTests(ITestOutputHelper output) : StringEscapeTestsBase(output)
+public class ReferenceStringEscapeTests(ITestOutputHelper output) : StringEscapeTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

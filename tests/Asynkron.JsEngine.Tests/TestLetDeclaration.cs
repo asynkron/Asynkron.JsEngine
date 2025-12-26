@@ -51,12 +51,12 @@ public abstract class TestLetDeclarationBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_TestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
+public class FastPathTestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
+public class ReferenceTestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

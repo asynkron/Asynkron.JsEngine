@@ -271,12 +271,12 @@ public abstract class ResizableLastIndexOfTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_ResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
+public class FastPathResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
+public class ReferenceResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

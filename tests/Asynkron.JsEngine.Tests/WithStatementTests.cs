@@ -321,12 +321,12 @@ public abstract class WithStatementTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_WithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
+public class FastPathWithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_WithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
+public class ReferenceWithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

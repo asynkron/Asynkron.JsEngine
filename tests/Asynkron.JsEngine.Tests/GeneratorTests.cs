@@ -294,16 +294,16 @@ public abstract class GeneratorTestsBase(ITestOutputHelper testOutputHelper) : F
 
                                          """);
 
-        var g1_r1 = await engine.Evaluate("g1.next().value;");
-        var g2_r1 = await engine.Evaluate("g2.next().value;");
-        var g1_r2 = await engine.Evaluate("g1.next().value;");
-        var g2_r2 = await engine.Evaluate("g2.next().value;");
+        var g1R1 = await engine.Evaluate("g1.next().value;");
+        var g2R1 = await engine.Evaluate("g2.next().value;");
+        var g1R2 = await engine.Evaluate("g1.next().value;");
+        var g2R2 = await engine.Evaluate("g2.next().value;");
 
         // Assert - Each generator maintains independent state
-        Assert.Equal(1.0, g1_r1);
-        Assert.Equal(1.0, g2_r1);
-        Assert.Equal(2.0, g1_r2);
-        Assert.Equal(2.0, g2_r2);
+        Assert.Equal(1.0, g1R1);
+        Assert.Equal(1.0, g2R1);
+        Assert.Equal(2.0, g1R2);
+        Assert.Equal(2.0, g2R2);
     }
 
     [Fact(Timeout = 2000)]
@@ -6379,13 +6379,13 @@ public abstract class GeneratorTestsBase(ITestOutputHelper testOutputHelper) : F
 }
 
 [Collection("GeneratorIrCollection")]
-public class FastPath_GeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
+public class FastPathGeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
 [Collection("GeneratorIrCollection")]
-public class Reference_GeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
+public class ReferenceGeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

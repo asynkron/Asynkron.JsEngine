@@ -87,12 +87,12 @@ public abstract class AnonymousFunctionDebugTestBase(ITestOutputHelper testOutpu
     }
 }
 
-public class FastPath_AnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
+public class FastPathAnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
+public class ReferenceAnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

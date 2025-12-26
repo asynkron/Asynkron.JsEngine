@@ -458,13 +458,13 @@ public abstract class AsyncGeneratorTestsBase(ITestOutputHelper output) : FastPa
 }
 
 [Collection("GeneratorIrCollection")]
-public class FastPath_AsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
+public class FastPathAsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
 [Collection("GeneratorIrCollection")]
-public class Reference_AsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
+public class ReferenceAsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

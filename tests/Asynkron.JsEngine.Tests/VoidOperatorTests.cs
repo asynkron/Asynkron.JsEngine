@@ -132,12 +132,12 @@ public abstract class VoidOperatorTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPath_VoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
+public class FastPathVoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_VoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
+public class ReferenceVoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -949,12 +949,12 @@ public abstract class AdditionalArrayMethodsTestsBase(ITestOutputHelper output) 
     }
 }
 
-public class FastPath_AdditionalArrayMethodsTests(ITestOutputHelper output) : AdditionalArrayMethodsTestsBase(output)
+public class FastPathAdditionalArrayMethodsTests(ITestOutputHelper output) : AdditionalArrayMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AdditionalArrayMethodsTests(ITestOutputHelper output) : AdditionalArrayMethodsTestsBase(output)
+public class ReferenceAdditionalArrayMethodsTests(ITestOutputHelper output) : AdditionalArrayMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

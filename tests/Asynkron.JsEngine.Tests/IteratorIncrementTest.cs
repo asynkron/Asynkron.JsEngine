@@ -40,12 +40,12 @@ public abstract class IteratorIncrementTestBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_IteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
+public class FastPathIteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_IteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
+public class ReferenceIteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

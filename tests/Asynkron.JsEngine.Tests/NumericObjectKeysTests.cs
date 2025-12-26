@@ -111,12 +111,12 @@ public abstract class NumericObjectKeysTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_NumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
+public class FastPathNumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
+public class ReferenceNumericObjectKeysTests(ITestOutputHelper output) : NumericObjectKeysTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

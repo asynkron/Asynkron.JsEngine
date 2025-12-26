@@ -43,12 +43,12 @@ public abstract class NBodyArraySizeTestBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_NBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
+public class FastPathNBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
+public class ReferenceNBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

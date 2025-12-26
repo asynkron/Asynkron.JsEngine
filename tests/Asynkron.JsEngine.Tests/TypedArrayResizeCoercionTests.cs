@@ -44,12 +44,12 @@ public abstract class TypedArrayResizeCoercionTestsBase(ITestOutputHelper output
     }
 }
 
-public class FastPath_TypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
+public class FastPathTypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
+public class ReferenceTypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

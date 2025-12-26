@@ -49,12 +49,12 @@ public abstract class IntlScratchBase(ITestOutputHelper output) : FastPathTestBa
     }
 }
 
-public class FastPath_IntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
+public class FastPathIntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_IntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
+public class ReferenceIntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

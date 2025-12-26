@@ -201,12 +201,12 @@ public abstract class NumberStaticMethodsTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_NumberStaticMethodsTests(ITestOutputHelper output) : NumberStaticMethodsTestsBase(output)
+public class FastPathNumberStaticMethodsTests(ITestOutputHelper output) : NumberStaticMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NumberStaticMethodsTests(ITestOutputHelper output) : NumberStaticMethodsTestsBase(output)
+public class ReferenceNumberStaticMethodsTests(ITestOutputHelper output) : NumberStaticMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -68,12 +68,12 @@ public abstract class ClassComputedAccessorTestsBase(ITestOutputHelper output) :
 
 }
 
-public class FastPath_ClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
+public class FastPathClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
+public class ReferenceClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

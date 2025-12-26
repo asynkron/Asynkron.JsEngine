@@ -138,12 +138,12 @@ public abstract class ParameterNamingTestsBase(ITestOutputHelper output) : FastP
     }
 }
 
-public class FastPath_ParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
+public class FastPathParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
+public class ReferenceParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

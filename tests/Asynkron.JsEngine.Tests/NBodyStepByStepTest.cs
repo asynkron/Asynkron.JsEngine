@@ -62,12 +62,12 @@ public abstract class NBodyStepByStepTestBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_NBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
+public class FastPathNBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
+public class ReferenceNBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

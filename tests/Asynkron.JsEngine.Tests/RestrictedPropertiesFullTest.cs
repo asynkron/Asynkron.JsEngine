@@ -141,12 +141,12 @@ public abstract class RestrictedPropertiesFullTestBase(ITestOutputHelper output)
     }
 }
 
-public class FastPath_RestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
+public class FastPathRestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_RestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
+public class ReferenceRestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

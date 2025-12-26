@@ -420,12 +420,12 @@ public abstract class TypeCoercionTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPath_TypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
+public class FastPathTypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
+public class ReferenceTypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

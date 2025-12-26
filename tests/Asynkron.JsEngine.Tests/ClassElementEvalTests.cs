@@ -100,12 +100,12 @@ public abstract class ClassElementEvalTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_ClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
+public class FastPathClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
+public class ReferenceClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

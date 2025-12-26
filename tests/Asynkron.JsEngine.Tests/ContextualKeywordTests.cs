@@ -187,12 +187,12 @@ public abstract class ContextualKeywordTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_ContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
+public class FastPathContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
+public class ReferenceContextualKeywordTests(ITestOutputHelper output) : ContextualKeywordTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

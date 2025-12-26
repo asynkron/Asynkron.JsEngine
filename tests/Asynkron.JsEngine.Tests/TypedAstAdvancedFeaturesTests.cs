@@ -53,12 +53,12 @@ public abstract class TypedAstAdvancedFeaturesTestsBase(ITestOutputHelper output
     }
 }
 
-public class FastPath_TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
+public class FastPathTypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
+public class ReferenceTypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

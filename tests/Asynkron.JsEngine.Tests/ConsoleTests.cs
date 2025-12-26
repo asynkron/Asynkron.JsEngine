@@ -122,12 +122,12 @@ public abstract class ConsoleTestsBase(ITestOutputHelper output) : FastPathTestB
     }
 }
 
-public class FastPath_ConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
+public class FastPathConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
+public class ReferenceConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

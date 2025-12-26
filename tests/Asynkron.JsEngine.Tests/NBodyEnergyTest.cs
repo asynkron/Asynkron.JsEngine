@@ -106,12 +106,12 @@ public abstract class NBodyEnergyTestBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_NBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
+public class FastPathNBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
+public class ReferenceNBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

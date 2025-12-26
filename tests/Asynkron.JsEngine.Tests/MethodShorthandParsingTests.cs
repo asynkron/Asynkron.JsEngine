@@ -190,12 +190,12 @@ public abstract class MethodShorthandParsingTestsBase(ITestOutputHelper output) 
     }
 }
 
-public class FastPath_MethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
+public class FastPathMethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_MethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
+public class ReferenceMethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

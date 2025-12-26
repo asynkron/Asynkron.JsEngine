@@ -652,12 +652,12 @@ public abstract class AsyncIterationTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_AsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
+public class FastPathAsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
+public class ReferenceAsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

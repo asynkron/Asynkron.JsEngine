@@ -754,12 +754,12 @@ public abstract class JavaScriptComplianceTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_JavaScriptComplianceTests(ITestOutputHelper output) : JavaScriptComplianceTestsBase(output)
+public class FastPathJavaScriptComplianceTests(ITestOutputHelper output) : JavaScriptComplianceTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_JavaScriptComplianceTests(ITestOutputHelper output) : JavaScriptComplianceTestsBase(output)
+public class ReferenceJavaScriptComplianceTests(ITestOutputHelper output) : JavaScriptComplianceTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

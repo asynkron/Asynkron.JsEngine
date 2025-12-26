@@ -928,12 +928,12 @@ export default function() { return 23; };
     }
 }
 
-public class FastPath_ModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
+public class FastPathModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
+public class ReferenceModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

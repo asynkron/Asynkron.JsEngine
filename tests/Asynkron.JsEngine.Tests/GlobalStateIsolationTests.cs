@@ -19,12 +19,12 @@ public abstract class GlobalStateIsolationTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_GlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
+public class FastPathGlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_GlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
+public class ReferenceGlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

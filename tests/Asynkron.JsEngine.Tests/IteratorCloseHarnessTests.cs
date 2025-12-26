@@ -96,12 +96,12 @@ public abstract class IteratorCloseHarnessTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_IteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
+public class FastPathIteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_IteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
+public class ReferenceIteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

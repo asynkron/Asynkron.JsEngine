@@ -127,12 +127,12 @@ var result = browser$5.ok === true;
     }
 }
 
-public class FastPath_IdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
+public class FastPathIdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_IdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
+public class ReferenceIdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

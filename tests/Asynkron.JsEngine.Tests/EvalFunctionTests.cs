@@ -204,12 +204,12 @@ public abstract class EvalFunctionTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPath_EvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
+public class FastPathEvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_EvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
+public class ReferenceEvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

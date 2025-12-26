@@ -1950,12 +1950,12 @@ public abstract class FoundationTestsBase(ITestOutputHelper output) : FastPathTe
     #endregion
 }
 
-public class FastPath_FoundationTests(ITestOutputHelper output) : FoundationTestsBase(output)
+public class FastPathFoundationTests(ITestOutputHelper output) : FoundationTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_FoundationTests(ITestOutputHelper output) : FoundationTestsBase(output)
+public class ReferenceFoundationTests(ITestOutputHelper output) : FoundationTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

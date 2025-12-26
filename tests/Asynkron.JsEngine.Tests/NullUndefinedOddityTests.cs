@@ -427,12 +427,12 @@ public abstract class NullUndefinedOddityTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_NullUndefinedOddityTests(ITestOutputHelper output) : NullUndefinedOddityTestsBase(output)
+public class FastPathNullUndefinedOddityTests(ITestOutputHelper output) : NullUndefinedOddityTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NullUndefinedOddityTests(ITestOutputHelper output) : NullUndefinedOddityTestsBase(output)
+public class ReferenceNullUndefinedOddityTests(ITestOutputHelper output) : NullUndefinedOddityTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

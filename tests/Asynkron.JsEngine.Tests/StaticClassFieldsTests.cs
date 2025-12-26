@@ -212,12 +212,12 @@ public abstract class StaticClassFieldsTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_StaticClassFieldsTests(ITestOutputHelper output) : StaticClassFieldsTestsBase(output)
+public class FastPathStaticClassFieldsTests(ITestOutputHelper output) : StaticClassFieldsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_StaticClassFieldsTests(ITestOutputHelper output) : StaticClassFieldsTestsBase(output)
+public class ReferenceStaticClassFieldsTests(ITestOutputHelper output) : StaticClassFieldsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

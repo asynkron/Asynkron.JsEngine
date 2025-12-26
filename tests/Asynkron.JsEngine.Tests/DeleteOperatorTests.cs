@@ -169,12 +169,12 @@ public abstract class DeleteOperatorTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_DeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
+public class FastPathDeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_DeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
+public class ReferenceDeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

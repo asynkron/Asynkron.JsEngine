@@ -196,12 +196,12 @@ public abstract class TaggedTemplateTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_TaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
+public class FastPathTaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
+public class ReferenceTaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

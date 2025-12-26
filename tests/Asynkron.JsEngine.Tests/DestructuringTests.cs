@@ -579,12 +579,12 @@ public abstract class DestructuringTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_DestructuringTests(ITestOutputHelper output) : DestructuringTestsBase(output)
+public class FastPathDestructuringTests(ITestOutputHelper output) : DestructuringTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_DestructuringTests(ITestOutputHelper output) : DestructuringTestsBase(output)
+public class ReferenceDestructuringTests(ITestOutputHelper output) : DestructuringTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

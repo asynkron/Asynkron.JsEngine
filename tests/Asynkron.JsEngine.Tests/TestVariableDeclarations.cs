@@ -76,12 +76,12 @@ public abstract class TestVariableDeclarationsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_TestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
+public class FastPathTestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
+public class ReferenceTestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

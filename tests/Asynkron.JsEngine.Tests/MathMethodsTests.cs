@@ -186,12 +186,12 @@ public abstract class MathMethodsTestsBase(ITestOutputHelper output) : FastPathT
     }
 }
 
-public class FastPath_MathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)
+public class FastPathMathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_MathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)
+public class ReferenceMathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

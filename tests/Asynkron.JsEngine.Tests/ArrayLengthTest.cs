@@ -38,12 +38,12 @@ public abstract class ArrayLengthTestBase(ITestOutputHelper output) : FastPathTe
 }
 
 // These two classes show up separately in Test Explorer
-public class FastPath_ArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
+public class FastPathArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
+public class ReferenceArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

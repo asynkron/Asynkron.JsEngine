@@ -269,12 +269,12 @@ public abstract class ObjectEnhancementsTestsBase(ITestOutputHelper output) : Fa
     }
 }
 
-public class FastPath_ObjectEnhancementsTests(ITestOutputHelper output) : ObjectEnhancementsTestsBase(output)
+public class FastPathObjectEnhancementsTests(ITestOutputHelper output) : ObjectEnhancementsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ObjectEnhancementsTests(ITestOutputHelper output) : ObjectEnhancementsTestsBase(output)
+public class ReferenceObjectEnhancementsTests(ITestOutputHelper output) : ObjectEnhancementsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

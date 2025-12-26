@@ -34,12 +34,12 @@ public abstract class NBodyFiveBodiesPrototypeTestBase(ITestOutputHelper output)
     }
 }
 
-public class FastPath_NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
+public class FastPathNBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
+public class ReferenceNBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

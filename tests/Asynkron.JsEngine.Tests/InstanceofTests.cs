@@ -86,12 +86,12 @@ public abstract class InstanceofTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_InstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
+public class FastPathInstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_InstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
+public class ReferenceInstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

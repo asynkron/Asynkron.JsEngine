@@ -82,12 +82,12 @@ public abstract class ConstructorThisTestBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_ConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
+public class FastPathConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
+public class ReferenceConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

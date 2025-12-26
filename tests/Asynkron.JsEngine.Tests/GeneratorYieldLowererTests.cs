@@ -556,12 +556,12 @@ public abstract class GeneratorYieldLowererTestsBase(ITestOutputHelper output) :
     }
 }
 
-public class FastPath_GeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
+public class FastPathGeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_GeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
+public class ReferenceGeneratorYieldLowererTests(ITestOutputHelper output) : GeneratorYieldLowererTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

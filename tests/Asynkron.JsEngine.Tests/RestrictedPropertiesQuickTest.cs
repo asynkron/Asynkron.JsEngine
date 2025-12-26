@@ -44,12 +44,12 @@ public abstract class RestrictedPropertiesQuickTestBase(ITestOutputHelper output
     }
 }
 
-public class FastPath_RestrictedPropertiesQuickTest(ITestOutputHelper output) : RestrictedPropertiesQuickTestBase(output)
+public class FastPathRestrictedPropertiesQuickTest(ITestOutputHelper output) : RestrictedPropertiesQuickTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_RestrictedPropertiesQuickTest(ITestOutputHelper output) : RestrictedPropertiesQuickTestBase(output)
+public class ReferenceRestrictedPropertiesQuickTest(ITestOutputHelper output) : RestrictedPropertiesQuickTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

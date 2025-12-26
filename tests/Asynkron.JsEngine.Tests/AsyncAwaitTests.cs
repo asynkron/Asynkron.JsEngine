@@ -1005,12 +1005,12 @@ public abstract class AsyncAwaitTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_AsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
+public class FastPathAsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
+public class ReferenceAsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

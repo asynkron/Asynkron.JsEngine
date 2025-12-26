@@ -78,12 +78,12 @@ public abstract class ObjectLiteralScopeTestsBase(ITestOutputHelper output) : Fa
     }
 }
 
-public class FastPath_ObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
+public class FastPathObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
+public class ReferenceObjectLiteralScopeTests(ITestOutputHelper output) : ObjectLiteralScopeTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -34,12 +34,12 @@ public abstract class TestMultipleVarDeclarationsBase(ITestOutputHelper output) 
     }
 }
 
-public class FastPath_TestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
+public class FastPathTestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
+public class ReferenceTestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

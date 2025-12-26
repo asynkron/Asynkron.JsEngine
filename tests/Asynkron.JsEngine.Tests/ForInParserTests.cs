@@ -22,12 +22,12 @@ public abstract class ForInParserTestsBase(ITestOutputHelper output) : FastPathT
     }
 }
 
-public class FastPath_ForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
+public class FastPathForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
+public class ReferenceForInParserTests(ITestOutputHelper output) : ForInParserTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

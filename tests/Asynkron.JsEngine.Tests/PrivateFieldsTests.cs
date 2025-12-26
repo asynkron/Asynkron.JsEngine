@@ -262,12 +262,12 @@ public abstract class PrivateFieldsTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_PrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
+public class FastPathPrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_PrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
+public class ReferencePrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

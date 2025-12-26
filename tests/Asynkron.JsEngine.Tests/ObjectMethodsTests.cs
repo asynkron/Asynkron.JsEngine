@@ -237,12 +237,12 @@ public abstract class ObjectMethodsTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_ObjectMethodsTests(ITestOutputHelper output) : ObjectMethodsTestsBase(output)
+public class FastPathObjectMethodsTests(ITestOutputHelper output) : ObjectMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ObjectMethodsTests(ITestOutputHelper output) : ObjectMethodsTestsBase(output)
+public class ReferenceObjectMethodsTests(ITestOutputHelper output) : ObjectMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

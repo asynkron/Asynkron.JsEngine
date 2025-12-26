@@ -46,12 +46,12 @@ public abstract class PrototypeChainBugTestBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_PrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
+public class FastPathPrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_PrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
+public class ReferencePrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

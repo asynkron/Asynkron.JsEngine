@@ -618,12 +618,12 @@ public abstract class StringMethodsTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_StringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
+public class FastPathStringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_StringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
+public class ReferenceStringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

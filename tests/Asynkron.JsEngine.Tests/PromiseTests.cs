@@ -447,12 +447,12 @@ public abstract class PromiseTestsBase(ITestOutputHelper output) : FastPathTestB
     }
 }
 
-public class FastPath_PromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
+public class FastPathPromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_PromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
+public class ReferencePromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

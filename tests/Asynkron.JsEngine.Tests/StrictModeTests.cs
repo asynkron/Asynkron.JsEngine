@@ -379,12 +379,12 @@ public abstract class StrictModeTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_StrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
+public class FastPathStrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_StrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
+public class ReferenceStrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

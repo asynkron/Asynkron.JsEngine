@@ -363,12 +363,12 @@ public abstract class SetTestsBase(ITestOutputHelper output) : FastPathTestBase(
     }
 }
 
-public class FastPath_SetTests(ITestOutputHelper output) : SetTestsBase(output)
+public class FastPathSetTests(ITestOutputHelper output) : SetTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_SetTests(ITestOutputHelper output) : SetTestsBase(output)
+public class ReferenceSetTests(ITestOutputHelper output) : SetTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -336,12 +336,12 @@ public abstract class MapTestsBase(ITestOutputHelper output) : FastPathTestBase(
     }
 }
 
-public class FastPath_MapTests(ITestOutputHelper output) : MapTestsBase(output)
+public class FastPathMapTests(ITestOutputHelper output) : MapTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_MapTests(ITestOutputHelper output) : MapTestsBase(output)
+public class ReferenceMapTests(ITestOutputHelper output) : MapTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

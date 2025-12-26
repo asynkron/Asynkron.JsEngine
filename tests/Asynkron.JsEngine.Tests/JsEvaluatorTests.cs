@@ -2007,12 +2007,12 @@ testFunction();
     }
 }
 
-public class FastPath_JsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTestsBase(output)
+public class FastPathJsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_JsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTestsBase(output)
+public class ReferenceJsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -269,12 +269,12 @@ public abstract class ScopeAnalyzerTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_ScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
+public class FastPathScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
+public class ReferenceScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

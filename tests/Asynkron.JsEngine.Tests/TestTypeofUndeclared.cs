@@ -25,12 +25,12 @@ public abstract class TestTypeofUndeclaredBase(ITestOutputHelper output) : FastP
     }
 }
 
-public class FastPath_TestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
+public class FastPathTestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
+public class ReferenceTestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

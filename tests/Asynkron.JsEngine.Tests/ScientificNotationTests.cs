@@ -119,12 +119,12 @@ public abstract class ScientificNotationTestsBase(ITestOutputHelper output) : Fa
     }
 }
 
-public class FastPath_ScientificNotationTests(ITestOutputHelper output) : ScientificNotationTestsBase(output)
+public class FastPathScientificNotationTests(ITestOutputHelper output) : ScientificNotationTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ScientificNotationTests(ITestOutputHelper output) : ScientificNotationTestsBase(output)
+public class ReferenceScientificNotationTests(ITestOutputHelper output) : ScientificNotationTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -65,12 +65,12 @@ public abstract class WeakCollectionsTestsBase(ITestOutputHelper output) : FastP
     }
 }
 
-public class FastPath_WeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
+public class FastPathWeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_WeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
+public class ReferenceWeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

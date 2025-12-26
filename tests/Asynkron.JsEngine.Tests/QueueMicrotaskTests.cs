@@ -200,12 +200,12 @@ public abstract class QueueMicrotaskTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_QueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
+public class FastPathQueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_QueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
+public class ReferenceQueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -651,12 +651,12 @@ public abstract class RegExpTestsBase(ITestOutputHelper output) : FastPathTestBa
     }
 }
 
-public class FastPath_RegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
+public class FastPathRegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_RegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
+public class ReferenceRegExpTests(ITestOutputHelper output) : RegExpTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

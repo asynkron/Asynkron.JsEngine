@@ -84,12 +84,12 @@ public abstract class NBodyDiagnosticTestBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_NBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
+public class FastPathNBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
+public class ReferenceNBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

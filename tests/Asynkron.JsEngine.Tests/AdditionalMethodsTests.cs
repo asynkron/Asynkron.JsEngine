@@ -209,12 +209,12 @@ public abstract class AdditionalMethodsTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_AdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
+public class FastPathAdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
+public class ReferenceAdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

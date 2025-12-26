@@ -327,12 +327,12 @@ public abstract class WeakSetTestsBase(ITestOutputHelper output) : FastPathTestB
     }
 }
 
-public class FastPath_WeakSetTests(ITestOutputHelper output) : WeakSetTestsBase(output)
+public class FastPathWeakSetTests(ITestOutputHelper output) : WeakSetTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_WeakSetTests(ITestOutputHelper output) : WeakSetTestsBase(output)
+public class ReferenceWeakSetTests(ITestOutputHelper output) : WeakSetTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

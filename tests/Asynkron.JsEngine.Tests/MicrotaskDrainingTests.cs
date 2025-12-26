@@ -232,12 +232,12 @@ public abstract class MicrotaskDrainingTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_MicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
+public class FastPathMicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_MicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
+public class ReferenceMicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }
@@ -838,12 +838,12 @@ public abstract class ForAwaitOfBugTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_ForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
+public class FastPathForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
+public class ReferenceForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

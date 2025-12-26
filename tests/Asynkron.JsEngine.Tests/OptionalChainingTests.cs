@@ -149,12 +149,12 @@ public abstract class OptionalChainingTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_OptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
+public class FastPathOptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_OptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
+public class ReferenceOptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

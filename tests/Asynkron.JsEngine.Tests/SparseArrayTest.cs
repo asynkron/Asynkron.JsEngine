@@ -55,12 +55,12 @@ public abstract class SparseArrayTestBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_SparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
+public class FastPathSparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_SparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
+public class ReferenceSparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

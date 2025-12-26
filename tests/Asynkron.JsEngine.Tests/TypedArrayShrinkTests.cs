@@ -129,12 +129,12 @@ public abstract class TypedArrayShrinkTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPath_TypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
+public class FastPathTypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
+public class ReferenceTypedArrayShrinkTests(ITestOutputHelper output) : TypedArrayShrinkTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

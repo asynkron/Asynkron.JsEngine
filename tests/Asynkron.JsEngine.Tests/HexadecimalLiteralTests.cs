@@ -193,12 +193,12 @@ public abstract class HexadecimalLiteralTestsBase(ITestOutputHelper output) : Fa
     }
 }
 
-public class FastPath_HexadecimalLiteralTests(ITestOutputHelper output) : HexadecimalLiteralTestsBase(output)
+public class FastPathHexadecimalLiteralTests(ITestOutputHelper output) : HexadecimalLiteralTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_HexadecimalLiteralTests(ITestOutputHelper output) : HexadecimalLiteralTestsBase(output)
+public class ReferenceHexadecimalLiteralTests(ITestOutputHelper output) : HexadecimalLiteralTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

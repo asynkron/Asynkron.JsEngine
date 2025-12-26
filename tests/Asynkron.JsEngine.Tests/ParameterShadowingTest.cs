@@ -35,12 +35,12 @@ public abstract class ParameterShadowingTestBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPath_ParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
+public class FastPathParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
+public class ReferenceParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

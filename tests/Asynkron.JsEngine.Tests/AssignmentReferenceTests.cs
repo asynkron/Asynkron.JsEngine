@@ -42,12 +42,12 @@ o.bar = 2;
     }
 }
 
-public class FastPath_AssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
+public class FastPathAssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_AssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
+public class ReferenceAssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

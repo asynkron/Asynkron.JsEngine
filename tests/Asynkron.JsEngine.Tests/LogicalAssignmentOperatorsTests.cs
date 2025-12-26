@@ -118,12 +118,12 @@ public abstract class LogicalAssignmentOperatorsTestsBase(ITestOutputHelper outp
     }
 }
 
-public class FastPath_LogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
+public class FastPathLogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_LogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
+public class ReferenceLogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -227,12 +227,12 @@ public abstract class StaticMethodsTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPath_StaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
+public class FastPathStaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_StaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
+public class ReferenceStaticMethodsTests(ITestOutputHelper output) : StaticMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

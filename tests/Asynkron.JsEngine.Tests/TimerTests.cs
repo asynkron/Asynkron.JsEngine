@@ -179,12 +179,12 @@ public abstract class TimerTestsBase(ITestOutputHelper output) : FastPathTestBas
     }
 }
 
-public class FastPath_TimerTests(ITestOutputHelper output) : TimerTestsBase(output)
+public class FastPathTimerTests(ITestOutputHelper output) : TimerTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TimerTests(ITestOutputHelper output) : TimerTestsBase(output)
+public class ReferenceTimerTests(ITestOutputHelper output) : TimerTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

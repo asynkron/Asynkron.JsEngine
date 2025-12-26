@@ -103,12 +103,12 @@ public abstract class DestructuringIteratorTestsBase(ITestOutputHelper output) :
     }
 }
 
-public class FastPath_DestructuringIteratorTests(ITestOutputHelper output) : DestructuringIteratorTestsBase(output)
+public class FastPathDestructuringIteratorTests(ITestOutputHelper output) : DestructuringIteratorTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_DestructuringIteratorTests(ITestOutputHelper output) : DestructuringIteratorTestsBase(output)
+public class ReferenceDestructuringIteratorTests(ITestOutputHelper output) : DestructuringIteratorTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

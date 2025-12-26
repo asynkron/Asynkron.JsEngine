@@ -111,12 +111,12 @@ public abstract class TestOptionalCatchBindingBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_TestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
+public class FastPathTestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
+public class ReferenceTestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

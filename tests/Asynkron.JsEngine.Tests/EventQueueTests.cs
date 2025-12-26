@@ -110,12 +110,12 @@ public abstract class EventQueueTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPath_EventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
+public class FastPathEventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_EventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
+public class ReferenceEventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

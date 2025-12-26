@@ -65,12 +65,12 @@ var result = factory();
     }
 }
 
-public class FastPath_CommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
+public class FastPathCommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_CommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
+public class ReferenceCommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

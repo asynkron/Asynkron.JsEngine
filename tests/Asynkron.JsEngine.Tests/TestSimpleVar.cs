@@ -28,12 +28,12 @@ public abstract class TestSimpleVarBase(ITestOutputHelper output) : FastPathTest
     }
 }
 
-public class FastPath_TestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
+public class FastPathTestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
+public class ReferenceTestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

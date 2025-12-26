@@ -360,12 +360,12 @@ test(false);
     }
 }
 
-public class FastPath_NewFeaturesTests(ITestOutputHelper output) : NewFeaturesTestsBase(output)
+public class FastPathNewFeaturesTests(ITestOutputHelper output) : NewFeaturesTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_NewFeaturesTests(ITestOutputHelper output) : NewFeaturesTestsBase(output)
+public class ReferenceNewFeaturesTests(ITestOutputHelper output) : NewFeaturesTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

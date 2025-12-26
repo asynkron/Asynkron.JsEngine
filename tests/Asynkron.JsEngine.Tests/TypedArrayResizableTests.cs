@@ -41,12 +41,12 @@ public abstract class TypedArrayResizableTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_TypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
+public class FastPathTypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_TypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
+public class ReferenceTypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

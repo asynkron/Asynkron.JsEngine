@@ -103,12 +103,12 @@ public abstract class ForLoopPerIterationTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_ForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
+public class FastPathForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
+public class ReferenceForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

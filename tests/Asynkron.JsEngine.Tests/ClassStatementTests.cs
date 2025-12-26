@@ -303,12 +303,12 @@ public abstract class ClassStatementTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPath_ClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
+public class FastPathClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
+public class ReferenceClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

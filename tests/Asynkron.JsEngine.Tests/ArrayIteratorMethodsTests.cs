@@ -173,12 +173,12 @@ public abstract class ArrayIteratorMethodsTestsBase(ITestOutputHelper output) : 
     }
 }
 
-public class FastPath_ArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
+public class FastPathArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_ArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
+public class ReferenceArrayIteratorMethodsTests(ITestOutputHelper output) : ArrayIteratorMethodsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

@@ -75,12 +75,12 @@ public abstract class BabelIteratorHelperTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPath_BabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
+public class FastPathBabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_BabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
+public class ReferenceBabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

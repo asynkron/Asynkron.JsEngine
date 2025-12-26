@@ -88,12 +88,12 @@ public abstract class DateBuiltinsTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPath_DateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
+public class FastPathDateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
 }
 
-public class Reference_DateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
+public class ReferenceDateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
 {
     protected override bool EnableFastPaths => false;
 }

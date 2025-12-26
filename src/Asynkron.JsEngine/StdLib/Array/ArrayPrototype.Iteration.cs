@@ -10,6 +10,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public sealed partial class ArrayPrototype
 {
+    /* FLAKY */
     [JsHostMethod("map", Length = 1d)]
     public JsValue Map(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -34,6 +35,7 @@ public sealed partial class ArrayPrototype
         return JsValue.FromObjectUnsafe(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("filter", Length = 1d)]
     public JsValue Filter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -64,18 +66,21 @@ public sealed partial class ArrayPrototype
         return JsValue.FromObjectUnsafe(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("reduce", Length = 1d)]
     public JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return JsValue.FromObjectUnsafe(ReduceLike(thisValue, args, Realm, "Array.prototype.reduce", false));
     }
 
+    /* FLAKY */
     [JsHostMethod("reduceRight", Length = 1d)]
     public JsValue ReduceRight(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return JsValue.FromObjectUnsafe(ReduceLike(thisValue, args, Realm, "Array.prototype.reduceRight", true));
     }
 
+    /* FLAKY */
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -97,6 +102,7 @@ public sealed partial class ArrayPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("find", Length = 1d)]
     public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -121,6 +127,7 @@ public sealed partial class ArrayPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("findIndex", Length = 1d)]
     public JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -146,12 +153,14 @@ public sealed partial class ArrayPrototype
         return new JsValue(-1d);
     }
 
+    /* FLAKY */
     [JsHostMethod("some", Length = 1d)]
     public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         return JsValue.FromObjectUnsafe(SomeLike(thisValue, args, Realm, "Array.prototype.some"));
     }
 
+    /* FLAKY */
     [JsHostMethod("every", Length = 1d)]
     public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -177,6 +186,7 @@ public sealed partial class ArrayPrototype
         return JsValue.True;
     }
 
+    /* FLAKY */
     [JsHostMethod("findLast", Length = 1d)]
     public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -201,6 +211,7 @@ public sealed partial class ArrayPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("findLastIndex", Length = 1d)]
     public JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

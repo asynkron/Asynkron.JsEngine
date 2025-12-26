@@ -18,6 +18,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
 {
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("isArray", Length = 1d)]
     public static JsValue IsArray(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -25,12 +26,14 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             realm ?? throw new InvalidOperationException("Realm required")));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("of", Length = 0d)]
     public static JsValue Of(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         return JsValue.FromObjectUnsafe(ArrayOf(thisValue, args, realm));
     }
 
+    /* FLAKY */
     [JsConstructorSymbolGetter("species")]
     public static JsValue GetSpecies(JsValue thisValue)
     {
@@ -158,6 +161,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         return value.IsNumber;
     }
 
+    /* FLAKY */
     private void AttachFrom(HostFunction constructor)
     {
         HostFunction arrayFrom = null!;
@@ -172,6 +176,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             new PropertyDescriptor { Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true });
     }
 
+    /* FLAKY */
     private void AttachFromAsync(HostFunction constructor)
     {
         HostFunction arrayFromAsync = null!;

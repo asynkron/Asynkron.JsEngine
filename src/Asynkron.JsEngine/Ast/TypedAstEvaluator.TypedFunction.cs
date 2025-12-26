@@ -695,13 +695,12 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                // InvokeWithContext uses dictionary-based lookups (slow path).
+                // Set ScopeId for scope chain navigation but DON'T initialize slots.
+                // The loop code must NOT call EnsureSlotCapacity on environments without slots
+                // to avoid overwriting dictionary-based parameter values with Undefined.
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
-                // Initialize slots for slot-based identifier resolution (e.g., reading parameters in for loops)
-                if (_function.SlotCount > 0)
-                {
-                    functionEnvironment.InitializeSlots(_function.SlotCount);
-                }
 
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
@@ -717,13 +716,12 @@ public static partial class TypedAstEvaluator
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
                 functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+                // InvokeWithContext uses dictionary-based lookups (slow path).
+                // Set ScopeId for scope chain navigation but DON'T initialize slots.
+                // The loop code must NOT call EnsureSlotCapacity on environments without slots
+                // to avoid overwriting dictionary-based parameter values with Undefined.
                 functionEnvironment.ScopeId = _function.ScopeId;
                 functionEnvironment.SetSlotMap(_function.SlotMap);
-                // Initialize slots for slot-based identifier resolution (e.g., reading parameters in for loops)
-                if (_function.SlotCount > 0)
-                {
-                    functionEnvironment.InitializeSlots(_function.SlotCount);
-                }
                 parameterEnvironment = functionEnvironment;
                 varEnvironment = functionEnvironment;
             }
@@ -1032,22 +1030,9 @@ public static partial class TypedAstEvaluator
                     // Bind parameters
                     _function.BindFunctionParameters(arguments, parameterEnvironment, context);
 
-                    // Copy parameter values from dictionary to slots for slot-based identifier resolution.
-                    // Parameters are bound in parameterEnvironment via dictionary, but slot-based
-                    // lookups use functionEnvironment._slots.
-                    // We iterate through the slot map and copy each binding's value to its slot.
-                    if (functionEnvironment._slots is { } slots && _function.SlotMap is { } slotMap)
-                    {
-                        foreach (var (name, slotIndex) in slotMap)
-                        {
-                            // Find the binding in parameterEnvironment and copy to slot
-                            if (parameterEnvironment.TryFindBindingJsValue(name, allowUninitialized: true,
-                                    out _, out var value))
-                            {
-                                slots[slotIndex] = value;
-                            }
-                        }
-                    }
+                    // Note: We don't use slots in InvokeWithContext - all lookups fall through to dictionary.
+                    // This is because the slot map may contain hoisted function declarations which
+                    // aren't bound yet at this point.
 
                     if (context.ShouldStopEvaluation)
                     {
@@ -2420,5 +2405,6 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
+
     }
 }

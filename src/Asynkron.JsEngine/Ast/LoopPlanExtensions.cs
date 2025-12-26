@@ -283,17 +283,21 @@ public static partial class TypedAstEvaluator
             JsEnvironment newIterationEnvironment;
 
             // SLOT-BASED CACHING: Try to get/create iteration environment from function scope slot
-            // We find the function scope by ScopeId and lazily initialize slots if needed.
+            // We find the function scope by ScopeId and use its slots if ALREADY allocated.
+            // IMPORTANT: Do NOT call EnsureSlotCapacity on environments without slots!
+            // If the function environment was set up via InvokeWithContext (slow path),
+            // it has ScopeId set but no slots. Calling EnsureSlotCapacity would create slots
+            // filled with Undefined, which would shadow dictionary-based parameter values.
             JsEnvironment? functionEnv = null;
             if (plan.LoopEnvSlotIndex >= 0 &&
                 plan.LoopEnvScopeId >= 0 &&
                 plan.AllowIterationEnvironmentPooling)
             {
                 functionEnv = outerEnvironment.FindByScopeId(plan.LoopEnvScopeId);
-                // Lazily initialize or expand slots if needed
-                // (may need to expand if outer loop initialized fewer slots than inner loop needs)
-                // Use EnsureSlotCapacity to preserve existing slot values when expanding
-                if (functionEnv is not null && (!functionEnv.HasSlots || functionEnv.SlotCount <= plan.LoopEnvSlotIndex))
+                // Only expand slots if the environment ALREADY has slots.
+                // If it doesn't have slots, it was set up via the slow path (InvokeWithContext)
+                // and we must not create slots that would shadow dictionary-based bindings.
+                if (functionEnv is not null && functionEnv.HasSlots && functionEnv.SlotCount <= plan.LoopEnvSlotIndex)
                 {
                     var slotCount = plan.LoopEnvSlotIndex + 1; // At minimum we need this many slots
                     functionEnv.EnsureSlotCapacity(slotCount);

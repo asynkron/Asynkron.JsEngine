@@ -41,6 +41,33 @@ test(3);
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Test_Diagnostic_SimpleForCondition()
+    {
+        var fakeLogger = new FakeLogger();
+        await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = fakeLogger });
+        // Simplest possible case: just test if the loop condition works with a parameter
+        var result = await engine.Evaluate(@"
+function test(n) {
+    for (let i = 0; i < n; i++) {
+        return i;  // Just return the first i value to see if loop entered
+    }
+    return -1;  // Return -1 if loop didn't run
+}
+test(5);
+");
+        var records = fakeLogger.Collector.Snapshot();
+        output.WriteLine($"Result: {result?.ToString()}");
+        output.WriteLine($"--- All logs ({records.Count()}): ---");
+        foreach (var record in records)
+        {
+            output.WriteLine($"[{record.Level}] {record.Message}");
+        }
+
+        // Should return 0 (first iteration), not -1 (never entered loop)
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Test_1_SimpleFunction()
     {
         await using var engine = new JsEngine();

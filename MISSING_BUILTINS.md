@@ -7,64 +7,81 @@ This document tracks the implementation status of JavaScript builtins from `todo
 - **Total methods in todo-builtins.md**: 816
 - **Existing implementations marked with /* FLAKY */**: 318
 - **Stub methods created for existing types**: 33
-- **New prototype classes created**: 6 classes with 42 methods
-- **Total scaffolded/marked**: 393 methods (48% of all methods)
-- **Remaining methods**: 423 methods requiring implementation or new classes
+- **New prototype classes created**: 13 classes with 49 methods
+- **Total scaffolded/marked**: 400 methods (49% of all methods)
+- **Remaining methods**: 416 methods requiring implementation or new classes
 
 ## Completed Work
 
 ### ✅ FLAKY Comments Added (318 methods)
 All existing method implementations now have `/* FLAKY */` comments indicating potential bugs:
-- JsHostMethod attributes
-- JsConstructorMethod attributes
-- JsConstructorSymbolGetter attributes
-- JsHostGetter attributes
+- JsHostMethod, JsConstructorMethod, JsConstructorSymbolGetter, JsHostGetter attributes
 - Covers all major types: Array, Object, String, Number, Date, Promise, Map/Set, TypedArray, RegExp, Proxy, Reflect, Symbol, Math, BigInt, Error, Function, JSON, Console, DataView, ArrayBuffer, WeakMap/WeakSet, WeakRef, SharedArrayBuffer, Boolean, and all Intl variants
 
 ### ✅ Stub Methods Created for Existing Types (33 methods)
-- **DataView** (6/6): getBigInt64, getBigUint64, getFloat16, setBigInt64, setBigUint64, setFloat16
-- **Promise** (1/1): withResolvers
-- **Date** (1/1): toTemporalInstant
-- **Map** (1/1): groupBy
-- **Math** (1/1): f16round
-- **Object** (1/1): groupBy
-- **Set** (7/7): difference, intersection, isDisjointFrom, isSubsetOf, isSupersetOf, symmetricDifference, union
-- **String** (4/4): isWellFormed, toWellFormed, toLocaleLowerCase, toLocaleUpperCase
-- **Symbol** (2/2): asyncDispose, dispose
-- **TypedArray** (1/1): subarray
-- **RegExp** (8): Documented as feature detection tests (not actual methods)
+- **DataView** (6): getBigInt64, getBigUint64, getFloat16, setBigInt64, setBigUint64, setFloat16
+- **Promise** (1): withResolvers (ES2024)
+- **Date** (1): toTemporalInstant
+- **Map** (1): groupBy (ES2024)
+- **Math** (1): f16round
+- **Object** (1): groupBy (ES2024)
+- **Set** (7): difference, intersection, isDisjointFrom, isSubsetOf, isSupersetOf, symmetricDifference, union
+- **String** (4): isWellFormed, toWellFormed, toLocaleLowerCase, toLocaleUpperCase
+- **Symbol** (2): asyncDispose, dispose
+- **TypedArray** (1): subarray
 
-### ✅ New Prototype Classes Created (6 classes, 42 methods)
+### ✅ New Prototype Classes Created (13 classes, 49 methods)
 
 #### 1. FinalizationRegistry (3 methods)
-- register, unregister methods
+- register, unregister methods + constructor
 - Enables WeakRef-based finalization callbacks
 
 #### 2. Atomics (13 methods)
-- add, and, or, xor, sub
-- compareExchange, exchange, load, store
-- isLockFree, wait, waitAsync, notify
-- Provides atomic operations on SharedArrayBuffer
+- add, and, or, xor, sub, compareExchange, exchange, load, store, isLockFree, wait, waitAsync, notify
+- Atomic operations on SharedArrayBuffer
 
 #### 3. DisposableStack (6 methods)
-- use, adopt, defer, move, dispose methods + disposed getter
-- For synchronous explicit resource management (using statement)
+- use, adopt, defer, move, dispose + disposed getter
+- Synchronous explicit resource management
 
 #### 4. AsyncDisposableStack (6 methods)
-- use, adopt, defer, move, disposeAsync methods + disposed getter
-- For asynchronous explicit resource management (await using statement)
+- use, adopt, defer, move, disposeAsync + disposed getter
+- Asynchronous explicit resource management
 
 #### 5. Iterator (12 methods)
-- map, filter, take, drop, flatMap
-- reduce, toArray, forEach, some, every, find
-- Plus static from() method
-- Iterator helpers proposal for working with iterators
+- map, filter, take, drop, flatMap, reduce, toArray, forEach, some, every, find + from()
+- Iterator helpers proposal
 
 #### 6. ShadowRealm (2 methods)
-- evaluate, importValue methods
-- Provides isolated execution contexts
+- evaluate, importValue
+- Isolated execution contexts
 
-## Remaining Work - Methods Requiring New Prototype Classes (423 methods)
+#### 7. AsyncIteratorPrototype
+- Base prototype for async iterators
+- Uses Symbol.asyncIterator
+
+#### 8. ArrayIteratorPrototype (1 method)
+- next() method
+- For array iterator objects
+
+#### 9. GeneratorPrototype (3 methods)
+- next, return, throw
+- For generator instances
+
+#### 10. AsyncGeneratorPrototype (3 methods)
+- next, return, throw
+- For async generator instances
+
+#### 11. AsyncFunctionConstructor
+- Constructor for creating async functions dynamically
+
+#### 12. GeneratorFunctionConstructor
+- Constructor for creating generator functions dynamically
+
+#### 13. AsyncGeneratorFunctionConstructor
+- Constructor for creating async generator functions dynamically
+
+## Remaining Work - Methods Requiring Implementation (416 methods)
 
 These require creating entirely new classes and significant architectural work:
 

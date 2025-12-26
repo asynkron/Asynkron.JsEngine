@@ -13,6 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("BigInt", ToStringTag = "BigInt")]
 public sealed partial class BigIntPrototype : JsPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -46,12 +47,14 @@ public sealed partial class BigIntPrototype : JsPrototype
         return new JsValue(BigIntToString(value.Value, intRadix));
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(RequireBigIntValue(thisValue));
     }
 
+    /* FLAKY */
     [JsHostMethod("toLocaleString", Length = 0d)]
     public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

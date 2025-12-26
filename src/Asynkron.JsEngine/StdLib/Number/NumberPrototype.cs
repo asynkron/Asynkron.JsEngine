@@ -14,6 +14,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Number", ToStringTag = "Number")]
 public sealed partial class NumberPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 1d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -34,12 +35,14 @@ public sealed partial class NumberPrototype
         return NumberToString(num, radix);
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return RequireNumberReceiver(thisValue, "Number.prototype.valueOf");
     }
 
+    /* FLAKY */
     [JsHostMethod("toFixed", Length = 1d)]
     public JsValue ToFixed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -63,6 +66,7 @@ public sealed partial class NumberPrototype
         return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
     }
 
+    /* FLAKY */
     [JsHostMethod("toExponential", Length = 1d)]
     public JsValue ToExponential(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -96,6 +100,7 @@ public sealed partial class NumberPrototype
         return FormatExponentialForJs(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("toPrecision", Length = 1d)]
     public JsValue ToPrecision(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -129,6 +134,7 @@ public sealed partial class NumberPrototype
         return num.ToString("G" + precision, CultureInfo.InvariantCulture);
     }
 
+    /* FLAKY */
     [JsHostMethod("toLocaleString", Length = 0d)]
     public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

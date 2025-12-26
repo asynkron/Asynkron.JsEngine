@@ -15,12 +15,14 @@ namespace Asynkron.JsEngine.StdLib;
 [JsMethodAlias("toGMTString", "toUTCString")]
 public sealed partial class DatePrototype
 {
+    /* FLAKY */
     [JsHostMethod("getTime", Length = 0d)]
     public JsValue GetTime(JsValue thisValue)
     {
         return RequireDateValue(thisValue, Realm, out _);
     }
 
+    /* FLAKY */
     [JsHostMethod("setTime", Length = 1d)]
     public JsValue SetTime(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -31,6 +33,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("getFullYear", Length = 0d)]
     public JsValue GetFullYear(JsValue thisValue)
     {
@@ -44,6 +47,7 @@ public sealed partial class DatePrototype
         return YearFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getMonth", Length = 0d)]
     public JsValue GetMonth(JsValue thisValue)
     {
@@ -57,6 +61,7 @@ public sealed partial class DatePrototype
         return (double)MonthFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getDate", Length = 0d)]
     public JsValue GetDate(JsValue thisValue)
     {
@@ -70,6 +75,7 @@ public sealed partial class DatePrototype
         return (double)DateFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getDay", Length = 0d)]
     public JsValue GetDay(JsValue thisValue)
     {
@@ -83,6 +89,7 @@ public sealed partial class DatePrototype
         return WeekDayFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getHours", Length = 0d)]
     public JsValue GetHours(JsValue thisValue)
     {
@@ -96,6 +103,7 @@ public sealed partial class DatePrototype
         return HourFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getMinutes", Length = 0d)]
     public JsValue GetMinutes(JsValue thisValue)
     {
@@ -109,6 +117,7 @@ public sealed partial class DatePrototype
         return MinFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getSeconds", Length = 0d)]
     public JsValue GetSeconds(JsValue thisValue)
     {
@@ -122,6 +131,7 @@ public sealed partial class DatePrototype
         return SecFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getMilliseconds", Length = 0d)]
     public JsValue GetMilliseconds(JsValue thisValue)
     {
@@ -135,6 +145,7 @@ public sealed partial class DatePrototype
         return MsFromTime(local);
     }
 
+    /* FLAKY */
     [JsHostMethod("getTimezoneOffset", Length = 0d)]
     public JsValue GetTimezoneOffset(JsValue thisValue)
     {
@@ -148,6 +159,7 @@ public sealed partial class DatePrototype
         return -(offset / MsPerMinute);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCFullYear", Length = 0d)]
     public JsValue GetUtcFullYear(JsValue thisValue)
     {
@@ -155,6 +167,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : YearFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCMonth", Length = 0d)]
     public JsValue GetUtcMonth(JsValue thisValue)
     {
@@ -162,6 +175,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : MonthFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCDate", Length = 0d)]
     public JsValue GetUtcDate(JsValue thisValue)
     {
@@ -169,6 +183,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : DateFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCDay", Length = 0d)]
     public JsValue GetUtcDay(JsValue thisValue)
     {
@@ -176,6 +191,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : WeekDayFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCHours", Length = 0d)]
     public JsValue GetUtcHours(JsValue thisValue)
     {
@@ -183,6 +199,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : HourFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCMinutes", Length = 0d)]
     public JsValue GetUtcMinutes(JsValue thisValue)
     {
@@ -190,6 +207,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : MinFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCSeconds", Length = 0d)]
     public JsValue GetUtcSeconds(JsValue thisValue)
     {
@@ -197,6 +215,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : SecFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("getUTCMilliseconds", Length = 0d)]
     public JsValue GetUtcMilliseconds(JsValue thisValue)
     {
@@ -204,6 +223,7 @@ public sealed partial class DatePrototype
         return double.IsNaN(timeValue) ? JsValue.NaN : MsFromTime(timeValue);
     }
 
+    /* FLAKY */
     [JsHostMethod("setMilliseconds", Length = 1d)]
     public JsValue SetMilliseconds(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -215,6 +235,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCMilliseconds", Length = 1d)]
     public JsValue SetUtcMilliseconds(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -225,6 +246,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setSeconds", Length = 2d)]
     public JsValue SetSeconds(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -237,6 +259,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCSeconds", Length = 2d)]
     public JsValue SetUtcSeconds(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -248,6 +271,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setMinutes", Length = 3d)]
     public JsValue SetMinutes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -261,6 +285,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCMinutes", Length = 3d)]
     public JsValue SetUtcMinutes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -274,6 +299,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setHours", Length = 4d)]
     public JsValue SetHours(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -288,6 +314,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCHours", Length = 4d)]
     public JsValue SetUtcHours(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -302,6 +329,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setDate", Length = 1d)]
     public JsValue SetDate(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -314,6 +342,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCDate", Length = 1d)]
     public JsValue SetUtcDate(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -325,6 +354,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setMonth", Length = 2d)]
     public JsValue SetMonth(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -338,6 +368,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCMonth", Length = 2d)]
     public JsValue SetUtcMonth(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -350,6 +381,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setFullYear", Length = 3d)]
     public JsValue SetFullYear(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -363,6 +395,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("setUTCFullYear", Length = 3d)]
     public JsValue SetUtcFullYear(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -375,6 +408,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("toISOString", Length = 0d)]
     public JsValue ToIsoString(JsValue thisValue)
     {
@@ -388,6 +422,7 @@ public sealed partial class DatePrototype
         return utc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
     }
 
+    /* FLAKY */
     [JsHostMethod("toJSON", Length = 1d)]
     public JsValue ToJson(JsValue thisValue)
     {
@@ -411,6 +446,7 @@ public sealed partial class DatePrototype
         return fn.Invoke([], new JsValue(obj));
     }
 
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue)
     {
@@ -424,6 +460,7 @@ public sealed partial class DatePrototype
         return FormatDateToJsString(local, Realm);
     }
 
+    /* FLAKY */
     [JsHostMethod("toDateString", Length = 0d)]
     public JsValue ToDateString(JsValue thisValue)
     {
@@ -437,6 +474,7 @@ public sealed partial class DatePrototype
         return local.ToString("ddd MMM dd yyyy", CultureInfo.InvariantCulture);
     }
 
+    /* FLAKY */
     [JsHostMethod("toTimeString", Length = 0d)]
     public JsValue ToTimeString(JsValue thisValue)
     {
@@ -450,12 +488,14 @@ public sealed partial class DatePrototype
         return local.ToString("HH:mm:ss 'GMT'zzz", CultureInfo.InvariantCulture);
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue)
     {
         return RequireDateValue(thisValue, Realm, out _);
     }
 
+    /* FLAKY */
     [JsHostMethod("getYear", Length = 0d)]
     public JsValue GetYear(JsValue thisValue)
     {
@@ -469,6 +509,7 @@ public sealed partial class DatePrototype
         return YearFromTime(local) - 1900;
     }
 
+    /* FLAKY */
     [JsHostMethod("setYear", Length = 1d)]
     public JsValue SetYear(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -498,6 +539,7 @@ public sealed partial class DatePrototype
         return clipped;
     }
 
+    /* FLAKY */
     [JsHostMethod("toUTCString", Length = 0d)]
     public JsValue ToUtcString(JsValue thisValue)
     {
@@ -511,6 +553,7 @@ public sealed partial class DatePrototype
         return FormatUtcToJsUtcString(utc);
     }
 
+    /* FLAKY */
     [JsHostMethod("toLocaleString", Length = 0d)]
     public JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -524,6 +567,7 @@ public sealed partial class DatePrototype
             Realm, () => CreateDefaultDateTimeOptions(Realm));
     }
 
+    /* FLAKY */
     [JsHostMethod("toLocaleDateString", Length = 0d)]
     public JsValue ToLocaleDateString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -537,6 +581,7 @@ public sealed partial class DatePrototype
             Realm, () => CreateDefaultDateOptions(Realm));
     }
 
+    /* FLAKY */
     [JsHostMethod("toLocaleTimeString", Length = 0d)]
     public JsValue ToLocaleTimeString(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

@@ -19,18 +19,21 @@ namespace Asynkron.JsEngine.StdLib;
 [JsMethodAlias("trimRight", "trimEnd")]
 public sealed partial class StringPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     private JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(RequireStringReceiver(thisValue, Realm));
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     private JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(RequireStringReceiver(thisValue, Realm));
     }
 
+    /* FLAKY */
     [JsHostMethod("parseJSON", Length = 1d)]
     private JsValue ParseJson(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -45,6 +48,7 @@ public sealed partial class StringPrototype
         return ParseJsonWithReviverJsValue(source, Realm, context, reviver);
     }
 
+    /* FLAKY */
     [JsHostMethod("charAt", Length = 1d)]
     private JsValue CharAt(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -58,6 +62,7 @@ public sealed partial class StringPrototype
         return new JsValue(value[index].ToString());
     }
 
+    /* FLAKY */
     [JsHostMethod("charCodeAt", Length = 1d)]
     private JsValue CharCodeAt(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -71,6 +76,7 @@ public sealed partial class StringPrototype
         return new JsValue((double)value[index]);
     }
 
+    /* FLAKY */
     [JsHostMethod("indexOf", Length = 1d)]
     private JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -86,6 +92,7 @@ public sealed partial class StringPrototype
         return new JsValue((double)result);
     }
 
+    /* FLAKY */
     [JsHostMethod("lastIndexOf", Length = 1d)]
     private JsValue LastIndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -103,6 +110,7 @@ public sealed partial class StringPrototype
         return new JsValue((double)result);
     }
 
+    /* FLAKY */
     [JsHostMethod("substring", Length = 2d)]
     private JsValue Substring(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -125,6 +133,7 @@ public sealed partial class StringPrototype
         return new JsValue(value.Substring(start, end - start));
     }
 
+    /* FLAKY */
     [JsHostMethod("slice", Length = 2d)]
     private JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -163,6 +172,7 @@ public sealed partial class StringPrototype
         return new JsValue(value.Substring(start, end - start));
     }
 
+    /* FLAKY */
     [JsHostMethod("substr", Length = 2d)]
     private JsValue Substr(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -236,6 +246,7 @@ public sealed partial class StringPrototype
         return new JsValue(value.Substring(start, substrLength));
     }
 
+    /* FLAKY */
     [JsHostMethod("concat", Length = 1d)]
     private JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -254,36 +265,42 @@ public sealed partial class StringPrototype
         return new JsValue(builder.ToString());
     }
 
+    /* FLAKY */
     [JsHostMethod("toLowerCase", Length = 0d)]
     private JsValue ToLowerCase(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(ResolveString(thisValue).ToLowerInvariant());
     }
 
+    /* FLAKY */
     [JsHostMethod("toUpperCase", Length = 0d)]
     private JsValue ToUpperCase(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(ResolveString(thisValue).ToUpperInvariant());
     }
 
+    /* FLAKY */
     [JsHostMethod("trim", Length = 0d)]
     private JsValue Trim(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(ResolveString(thisValue).Trim());
     }
 
+    /* FLAKY */
     [JsHostMethod("trimStart", Length = 0d)]
     private JsValue TrimStart(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(ResolveString(thisValue).TrimStart());
     }
 
+    /* FLAKY */
     [JsHostMethod("trimEnd", Length = 0d)]
     private JsValue TrimEnd(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(ResolveString(thisValue).TrimEnd());
     }
 
+    /* FLAKY */
     [JsHostMethod("split", Length = 2d)]
     private JsValue Split(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -327,6 +344,7 @@ public sealed partial class StringPrototype
         return JsValue.FromJsArray(CreateArrayFromStrings(parts, Realm));
     }
 
+    /* FLAKY */
     [JsHostMethod("replace", Length = 2d)]
     private JsValue Replace(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -452,6 +470,7 @@ public sealed partial class StringPrototype
         return new JsValue(string.Concat(value.AsSpan(0, index), replaceStr, value.AsSpan(index + searchValue.Length)));
     }
 
+    /* FLAKY */
     [JsHostMethod("match", Length = 1d)]
     private JsValue Match(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -472,6 +491,7 @@ public sealed partial class StringPrototype
         return JsValue.FromObjectUnsafe(regex.Global ? regex.MatchAll(value) : regex.Exec(value));
     }
 
+    /* FLAKY */
     [JsHostMethod("search", Length = 1d)]
     private JsValue Search(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -499,6 +519,7 @@ public sealed partial class StringPrototype
         return new JsValue(-1d);
     }
 
+    /* FLAKY */
     [JsHostMethod("startsWith", Length = 1d)]
     private JsValue StartsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -518,6 +539,7 @@ public sealed partial class StringPrototype
         return new JsValue(value[position..].StartsWith(searchStr, StringComparison.Ordinal));
     }
 
+    /* FLAKY */
     [JsHostMethod("endsWith", Length = 1d)]
     private JsValue EndsWith(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -538,6 +560,7 @@ public sealed partial class StringPrototype
         return new JsValue(value[..length].EndsWith(searchStr, StringComparison.Ordinal));
     }
 
+    /* FLAKY */
     [JsHostMethod("includes", Length = 1d)]
     private JsValue Includes(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -557,6 +580,7 @@ public sealed partial class StringPrototype
         return new JsValue(value.IndexOf(searchStr, position, StringComparison.Ordinal) >= 0);
     }
 
+    /* FLAKY */
     [JsHostMethod("repeat", Length = 1d)]
     private JsValue Repeat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -580,6 +604,7 @@ public sealed partial class StringPrototype
         return new JsValue(string.Concat(Enumerable.Repeat(value, count)));
     }
 
+    /* FLAKY */
     [JsHostMethod("padStart", Length = 1d)]
     private JsValue PadStart(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -607,6 +632,7 @@ public sealed partial class StringPrototype
         return new JsValue(string.Concat(padding.AsSpan(0, padLength), value));
     }
 
+    /* FLAKY */
     [JsHostMethod("padEnd", Length = 1d)]
     private JsValue PadEnd(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -634,6 +660,7 @@ public sealed partial class StringPrototype
         return new JsValue(string.Concat(value, padding.AsSpan(0, padLength)));
     }
 
+    /* FLAKY */
     [JsHostMethod("replaceAll", Length = 2d)]
     private JsValue ReplaceAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -701,6 +728,7 @@ public sealed partial class StringPrototype
         return new JsValue(value.Replace(searchStr, replaceStrPlain, StringComparison.Ordinal));
     }
 
+    /* FLAKY */
     [JsHostMethod("at", Length = 1d)]
     private JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -724,6 +752,7 @@ public sealed partial class StringPrototype
         return new JsValue(value[index].ToString());
     }
 
+    /* FLAKY */
     [JsHostMethod("codePointAt", Length = 1d)]
     private JsValue CodePointAt(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -757,6 +786,7 @@ public sealed partial class StringPrototype
         return new JsValue((double)codePoint);
     }
 
+    /* FLAKY */
     [JsHostMethod("localeCompare", Length = 1d)]
     private JsValue LocaleCompare(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -771,6 +801,7 @@ public sealed partial class StringPrototype
         return new JsValue((double)result);
     }
 
+    /* FLAKY */
     [JsHostMethod("normalize", Length = 0d)]
     private JsValue Normalize(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -794,6 +825,7 @@ public sealed partial class StringPrototype
         }
     }
 
+    /* FLAKY */
     [JsHostMethod("matchAll", Length = 1d)]
     private JsValue MatchAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -816,6 +848,7 @@ public sealed partial class StringPrototype
 
     // HTML wrapper methods (Annex B)
 
+    /* FLAKY */
     [JsHostMethod("small", Length = 0d)]
     private JsValue Small(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -823,6 +856,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<small>{value}</small>");
     }
 
+    /* FLAKY */
     [JsHostMethod("strike", Length = 0d)]
     private JsValue Strike(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -830,6 +864,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<strike>{value}</strike>");
     }
 
+    /* FLAKY */
     [JsHostMethod("sub", Length = 0d)]
     private JsValue Sub(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -837,6 +872,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<sub>{value}</sub>");
     }
 
+    /* FLAKY */
     [JsHostMethod("sup", Length = 0d)]
     private JsValue Sup(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -844,6 +880,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<sup>{value}</sup>");
     }
 
+    /* FLAKY */
     [JsHostMethod("anchor", Length = 1d)]
     private JsValue Anchor(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -852,6 +889,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<a name=\"{EscapeAttr(name)}\">{value}</a>");
     }
 
+    /* FLAKY */
     [JsHostMethod("big", Length = 0d)]
     private JsValue Big(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -859,6 +897,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<big>{value}</big>");
     }
 
+    /* FLAKY */
     [JsHostMethod("blink", Length = 0d)]
     private JsValue Blink(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -866,6 +905,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<blink>{value}</blink>");
     }
 
+    /* FLAKY */
     [JsHostMethod("bold", Length = 0d)]
     private JsValue Bold(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -873,6 +913,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<b>{value}</b>");
     }
 
+    /* FLAKY */
     [JsHostMethod("fixed", Length = 0d)]
     private JsValue Fixed(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -880,6 +921,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<tt>{value}</tt>");
     }
 
+    /* FLAKY */
     [JsHostMethod("fontcolor", Length = 1d)]
     private JsValue FontColor(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -888,6 +930,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<font color=\"{EscapeAttr(color)}\">{value}</font>");
     }
 
+    /* FLAKY */
     [JsHostMethod("fontsize", Length = 1d)]
     private JsValue FontSize(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -896,6 +939,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<font size=\"{EscapeAttr(size)}\">{value}</font>");
     }
 
+    /* FLAKY */
     [JsHostMethod("italics", Length = 0d)]
     private JsValue Italics(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -903,6 +947,7 @@ public sealed partial class StringPrototype
         return new JsValue($"<i>{value}</i>");
     }
 
+    /* FLAKY */
     [JsHostMethod("link", Length = 1d)]
     private JsValue Link(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

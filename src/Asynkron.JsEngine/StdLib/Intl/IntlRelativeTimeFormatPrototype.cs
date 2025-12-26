@@ -24,6 +24,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         instance.SetProperty("__style__", style);
     }
 
+    /* FLAKY */
     [JsHostMethod("format", Length = 2d)]
     private JsValue Format(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -41,6 +42,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         return new JsValue($"{value} {unit}");
     }
 
+    /* FLAKY */
     [JsHostMethod("formatToParts", Length = 2d)]
     private JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -53,6 +55,7 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         return JsValue.FromJsArray(parts);
     }
 
+    /* FLAKY */
     [JsHostMethod("resolvedOptions", Length = 0d)]
     private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

@@ -10,6 +10,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("WeakRef", ToStringTag = "WeakRef")]
 public sealed partial class WeakRefPrototype : JsPrototype
 {
+    /* FLAKY */
     [JsHostMethod("deref", Length = 0d)]
     public JsValue Deref(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

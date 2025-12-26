@@ -143,6 +143,7 @@ public sealed partial class IntlLocalePrototype
         return ResolveFirstDayOfWeek(locale);
     }
 
+    /* FLAKY */
     [JsHostMethod("getCalendars", Length = 0d)]
     private JsValue GetCalendars(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -171,6 +172,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.FromJsArray(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("getCollations", Length = 0d)]
     private JsValue GetCollations(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -186,6 +188,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.FromJsArray(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("getHourCycles", Length = 0d)]
     private JsValue GetHourCycles(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -208,6 +211,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.FromJsArray(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("getNumberingSystems", Length = 0d)]
     private JsValue GetNumberingSystems(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -230,6 +234,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.FromJsArray(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("getTextInfo", Length = 0d)]
     private JsValue GetTextInfo(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -243,6 +248,7 @@ public sealed partial class IntlLocalePrototype
         return (JsValue)info;
     }
 
+    /* FLAKY */
     [JsHostMethod("getTimeZones", Length = 0d)]
     private JsValue GetTimeZones(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -270,6 +276,7 @@ public sealed partial class IntlLocalePrototype
         return JsValue.FromJsArray(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("getWeekInfo", Length = 0d)]
     private JsValue GetWeekInfo(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -284,6 +291,7 @@ public sealed partial class IntlLocalePrototype
         return (JsValue)info;
     }
 
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     private JsValue ToStringLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -291,6 +299,7 @@ public sealed partial class IntlLocalePrototype
         return GetCanonicalTag(locale);
     }
 
+    /* FLAKY */
     [JsHostMethod("maximize", Length = 0d)]
     private JsValue MaximizeLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -300,6 +309,7 @@ public sealed partial class IntlLocalePrototype
         return (JsValue)IntlLocaleConstructor.CreateLocaleFromCanonical(maximized, Realm, locale.Prototype);
     }
 
+    /* FLAKY */
     [JsHostMethod("minimize", Length = 0d)]
     private JsValue MinimizeLocale(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

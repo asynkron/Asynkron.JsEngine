@@ -23,6 +23,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         _constructor ?? throw new InvalidOperationException("String constructor not initialized");
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("fromCodePoint", Length = 1d)]
     public static JsValue FromCodePoint(IReadOnlyList<JsValue> args)
     {
@@ -61,6 +62,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(result.ToString());
     }
 
+    /* FLAKY */
     [JsConstructorMethod("fromCharCode", Length = 1d)]
     public static JsValue FromCharCode(IReadOnlyList<JsValue> args)
     {
@@ -85,6 +87,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(result.ToString());
     }
 
+    /* FLAKY */
     [JsConstructorMethod("raw", Length = 1d)]
     public static JsValue Raw(IReadOnlyList<JsValue> args)
     {
@@ -142,6 +145,7 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(result.ToString());
     }
 
+    /* FLAKY */
     [JsConstructorMethod("escape", Length = 1d)]
     public static JsValue Escape(IReadOnlyList<JsValue> args)
     {

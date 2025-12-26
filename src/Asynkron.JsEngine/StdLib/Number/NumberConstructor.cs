@@ -22,6 +22,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         _constructor ?? throw new InvalidOperationException("Number constructor not initialized");
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("isInteger", Length = 1d)]
     private static JsValue IsInteger(IReadOnlyList<JsValue> args)
     {
@@ -38,6 +39,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(Math.Abs(d % 1) < double.Epsilon);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isFinite", Length = 1d)]
     public static JsValue IsFinite(IReadOnlyList<JsValue> args)
     {
@@ -49,6 +51,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(!double.IsNaN(d) && !double.IsInfinity(d));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isNaN", Length = 1d)]
     private static JsValue IsNaN(IReadOnlyList<JsValue> args)
     {
@@ -65,6 +68,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(double.IsNaN(d));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isSafeInteger", Length = 1d)]
     private static JsValue IsSafeInteger(IReadOnlyList<JsValue> args)
     {
@@ -86,6 +90,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(Math.Abs(d) <= 9007199254740991);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("parseFloat", Length = 1d)]
     private static JsValue ParseFloat(IReadOnlyList<JsValue> args)
     {
@@ -129,6 +134,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.NaN;
     }
 
+    /* FLAKY */
     [JsConstructorMethod("parseInt", Length = 2d)]
     private static JsValue ParseInt(IReadOnlyList<JsValue> args)
     {

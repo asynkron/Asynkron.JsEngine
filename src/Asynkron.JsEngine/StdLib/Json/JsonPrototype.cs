@@ -13,6 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("JSON", ToStringTag = "JSON", ObjectKind = PrototypeObjectKind.Object)]
 public sealed partial class JsonPrototype
 {
+    /* FLAKY */
     [JsHostMethod("parse", Length = 2d)]
     public JsValue Parse(IReadOnlyList<JsValue> args)
     {
@@ -27,6 +28,7 @@ public sealed partial class JsonPrototype
         return ParseJsonWithReviverJsValue(jsonStr, Realm, context, reviver);
     }
 
+    /* FLAKY */
     [JsHostMethod("stringify", Length = 3d)]
     public JsValue Stringify(IReadOnlyList<JsValue> args)
     {

@@ -12,6 +12,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Error", ToStringTag = "Error")]
 public sealed partial class ErrorPrototype : JsPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

@@ -24,6 +24,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         _constructor ?? throw new InvalidOperationException("Object constructor not initialized");
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("keys", Length = 1d)]
     public static JsValue Keys(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -64,6 +65,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsArray(keys);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("values", Length = 1d)]
     public static JsValue Values(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -103,6 +105,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsArray(values);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("entries", Length = 1d)]
     public static JsValue Entries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -145,6 +148,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsArray(entries);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("assign", Length = 2d)]
     public static JsValue Assign(IReadOnlyList<JsValue> args)
     {
@@ -172,6 +176,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return args[0];
     }
 
+    /* FLAKY */
     [JsConstructorMethod("fromEntries", Length = 1d)]
     public static JsValue FromEntries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -198,6 +203,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsObject(result);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("hasOwn", Length = 2d)]
     public static JsValue HasOwn(IReadOnlyList<JsValue> args)
     {
@@ -222,6 +228,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(hasOwn);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("freeze", Length = 1d)]
     public static JsValue Freeze(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -251,6 +258,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsObject(obj);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("seal", Length = 1d)]
     public static JsValue Seal(IReadOnlyList<JsValue> args)
     {
@@ -268,6 +276,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsObject(obj);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isFrozen", Length = 1d)]
     public static JsValue IsFrozen(IReadOnlyList<JsValue> args)
     {
@@ -290,6 +299,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(obj.IsFrozen);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isSealed", Length = 1d)]
     public static JsValue IsSealed(IReadOnlyList<JsValue> args)
     {
@@ -306,12 +316,14 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(obj.IsSealed);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("is", Length = 2d)]
     public static JsValue Is(IReadOnlyList<JsValue> args)
     {
         return new JsValue(JsOps.SameValue(args.GetArgument(0), args.GetArgument(1)));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("create", Length = 2d)]
     public static JsValue Create(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -341,6 +353,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsObject(obj);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("getOwnPropertyNames", Length = 1d)]
     public static JsValue GetOwnPropertyNames(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -372,6 +385,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsArray(names);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("getOwnPropertyDescriptor", Length = 2d)]
     public static JsValue GetOwnPropertyDescriptor(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -400,6 +414,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return result is not null ? new JsValue(result) : JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsConstructorMethod("getOwnPropertyDescriptors", Length = 1d)]
     public static JsValue GetOwnPropertyDescriptors(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -425,6 +440,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromJsObject(descriptors);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("getPrototypeOf", Length = 1d)]
     public static JsValue GetPrototypeOf(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -463,6 +479,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return proto is null ? JsValue.Null : JsValue.FromObjectUnsafe(proto);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("defineProperty", Length = 3d)]
     public static JsValue DefineProperty(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -484,6 +501,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromObjectUnsafe(obj);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("defineProperties", Length = 2d)]
     public static JsValue DefineProperties(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -517,6 +535,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromObjectUnsafe(target);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("setPrototypeOf", Length = 2d)]
     public static JsValue SetPrototypeOf(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -550,6 +569,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return target is null ? JsValue.Undefined : JsValue.FromObjectUnsafe(target);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("preventExtensions", Length = 1d)]
     public static JsValue PreventExtensions(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -563,6 +583,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return JsValue.FromObjectUnsafe(target);
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isExtensible", Length = 1d)]
     public static JsValue IsExtensible(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -575,6 +596,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(IsTargetExtensible(target));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("getOwnPropertySymbols", Length = 1d)]
     public static JsValue GetOwnPropertySymbols(IReadOnlyList<JsValue> args, RealmState? realm)
     {

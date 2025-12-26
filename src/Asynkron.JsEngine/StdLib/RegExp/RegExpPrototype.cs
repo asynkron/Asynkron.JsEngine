@@ -15,6 +15,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("RegExp", ToStringTag = "RegExp")]
 public sealed partial class RegExpPrototype : JsPrototype
 {
+    /* FLAKY */
     [JsHostMethod("test", Length = 1d)]
     public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -33,6 +34,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new JsValue(resolved.Test(input));
     }
 
+    /* FLAKY */
     [JsHostMethod("exec", Length = 1d)]
     public JsValue Exec(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -52,6 +54,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         return result is null ? JsValue.Null : JsValue.FromObjectUnsafe(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -60,6 +63,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new JsValue(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("compile", Length = 2d)]
     public JsValue Compile(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

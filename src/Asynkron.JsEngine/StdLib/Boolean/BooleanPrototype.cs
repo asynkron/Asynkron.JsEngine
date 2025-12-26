@@ -11,12 +11,14 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Boolean", ToStringTag = "Boolean")]
 public sealed partial class BooleanPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(RequireBooleanReceiver(thisValue) ? "true" : "false");
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

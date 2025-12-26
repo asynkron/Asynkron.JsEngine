@@ -28,6 +28,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return (JsValue)CreateBoundFormatFunction(value => FormatInternal(value, slotData));
     }
 
+    /* FLAKY */
     [JsHostMethod("formatToParts", Length = 1d)]
     private JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -41,6 +42,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return JsValue.FromJsArray(parts);
     }
 
+    /* FLAKY */
     [JsHostMethod("formatRange", Length = 2d)]
     private JsValue FormatRange(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -50,6 +52,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return new JsValue($"{start.ObjectValue} – {end.ObjectValue}");
     }
 
+    /* FLAKY */
     [JsHostMethod("formatRangeToParts", Length = 2d)]
     private JsValue FormatRangeToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -63,6 +66,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         return JsValue.FromJsArray(parts);
     }
 
+    /* FLAKY */
     [JsHostMethod("resolvedOptions", Length = 0d)]
     private JsValue ResolvedOptions(JsValue thisValue)
     {

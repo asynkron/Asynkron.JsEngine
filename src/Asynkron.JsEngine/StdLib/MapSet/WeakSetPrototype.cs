@@ -10,6 +10,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("WeakSet", ToStringTag = "WeakSet", InstanceType = typeof(JsWeakSet))]
 public sealed partial class WeakSetPrototype
 {
+    /* FLAKY */
     [JsHostMethod("add", Length = 1d)]
     public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -25,6 +26,7 @@ public sealed partial class WeakSetPrototype
         }
     }
 
+    /* FLAKY */
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -32,6 +34,7 @@ public sealed partial class WeakSetPrototype
         return new JsValue(set.Has(args.GetArgument(0)));
     }
 
+    /* FLAKY */
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

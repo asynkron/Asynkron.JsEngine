@@ -19,6 +19,7 @@ public sealed partial class IntlDurationFormatPrototype
         instance.SetProperty(LocaleSlot, locale);
     }
 
+    /* FLAKY */
     [JsHostMethod("format", Length = 0d)]
     private JsValue Format(JsValue thisValue)
     {
@@ -26,6 +27,7 @@ public sealed partial class IntlDurationFormatPrototype
         return new JsValue("PT0S");
     }
 
+    /* FLAKY */
     [JsHostMethod("formatToParts", Length = 0d)]
     private JsValue FormatToParts(JsValue thisValue)
     {
@@ -33,6 +35,7 @@ public sealed partial class IntlDurationFormatPrototype
         return JsValue.FromJsArray(new JsArray(Realm));
     }
 
+    /* FLAKY */
     [JsHostMethod("resolvedOptions", Length = 0d)]
     private JsValue ResolvedOptions(JsValue thisValue)
     {

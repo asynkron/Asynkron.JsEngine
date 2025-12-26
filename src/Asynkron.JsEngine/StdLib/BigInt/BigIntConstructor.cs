@@ -17,6 +17,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
 {
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("asIntN", Length = 2d)]
     public static JsValue AsIntN(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -52,6 +53,7 @@ public sealed partial class BigIntConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(new JsBigInt(result));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("asUintN", Length = 2d)]
     public static JsValue AsUintN(IReadOnlyList<JsValue> args, RealmState? realm)
     {

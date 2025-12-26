@@ -11,6 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("WeakMap", ToStringTag = "WeakMap", InstanceType = typeof(JsWeakMap))]
 public sealed partial class WeakMapPrototype
 {
+    /* FLAKY */
     [JsHostMethod("set", Length = 2d)]
     public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -27,6 +28,7 @@ public sealed partial class WeakMapPrototype
         }
     }
 
+    /* FLAKY */
     [JsHostMethod("get", Length = 1d)]
     public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -34,6 +36,7 @@ public sealed partial class WeakMapPrototype
         return map.Get(args.GetArgument(0));
     }
 
+    /* FLAKY */
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -41,6 +44,7 @@ public sealed partial class WeakMapPrototype
         return new JsValue(map.Has(args.GetArgument(0)));
     }
 
+    /* FLAKY */
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

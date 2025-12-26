@@ -13,6 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsMethodAlias("keys", "values")]
 public sealed partial class SetPrototype
 {
+    /* FLAKY */
     [JsHostMethod("add", Length = 1d)]
     public JsValue Add(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -21,6 +22,7 @@ public sealed partial class SetPrototype
         return thisValue;
     }
 
+    /* FLAKY */
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -28,6 +30,7 @@ public sealed partial class SetPrototype
         return new JsValue(set.Has(args.GetArgument(0)));
     }
 
+    /* FLAKY */
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -35,6 +38,7 @@ public sealed partial class SetPrototype
         return new JsValue(set.Delete(args.GetArgument(0)));
     }
 
+    /* FLAKY */
     [JsHostMethod("clear", Length = 0d)]
     public JsValue Clear(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -43,6 +47,7 @@ public sealed partial class SetPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -56,6 +61,7 @@ public sealed partial class SetPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("entries", Length = 0d)]
     public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -65,6 +71,7 @@ public sealed partial class SetPrototype
 
     // keys is registered via code generation from [JsMethodAlias] attribute (ES spec: Set.prototype.keys === Set.prototype.values)
 
+    /* FLAKY */
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

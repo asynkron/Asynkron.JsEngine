@@ -20,12 +20,14 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
         _constructor ?? throw new InvalidOperationException("Date constructor not initialized");
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("now", Length = 0d)]
     public static JsValue Now()
     {
         return new JsValue((double)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
     }
 
+    /* FLAKY */
     [JsConstructorMethod("UTC", Length = 7d)]
     public static JsValue UTC(IReadOnlyList<JsValue> args)
     {
@@ -78,6 +80,7 @@ public sealed partial class DateConstructor(IJsObjectLike prototype, RealmState 
         }
     }
 
+    /* FLAKY */
     [JsConstructorMethod("parse", Length = 1d)]
     public static JsValue Parse(IReadOnlyList<JsValue> args)
     {

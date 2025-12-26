@@ -11,6 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Promise", ToStringTag = "Promise", InstanceType = typeof(JsPromise), TryGetMethod = "TryGetInternalPromise")]
 public sealed partial class PromisePrototype
 {
+    /* FLAKY */
     [JsHostMethod("then", Length = 2d)]
     public JsValue Then(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -23,6 +24,7 @@ public sealed partial class PromisePrototype
         return new JsValue(result.JsObject);
     }
 
+    /* FLAKY */
     [JsHostMethod("catch", Length = 1d)]
     public JsValue Catch(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -34,6 +36,7 @@ public sealed partial class PromisePrototype
         return new JsValue(result.JsObject);
     }
 
+    /* FLAKY */
     [JsHostMethod("finally", Length = 1d)]
     public JsValue Finally(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

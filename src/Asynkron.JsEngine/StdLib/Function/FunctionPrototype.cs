@@ -12,6 +12,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Function", ObjectKind = PrototypeObjectKind.Function)]
 public sealed partial class FunctionPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     private static JsValue ToSßtring(JsValue thisValue)
     {
@@ -23,12 +24,14 @@ public sealed partial class FunctionPrototype
         return new JsValue("function undefined() { [native code] }");
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     private static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
 
+    /* FLAKY */
     [JsHostMethod("call", Length = 1d)]
     private static JsValue Call(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

@@ -46,6 +46,7 @@ public sealed partial class IntlDisplayNamesPrototype
         instance.SetProperty(LanguageDisplaySlot, new JsValue(languageDisplay));
     }
 
+    /* FLAKY */
     [JsHostMethod("of", Length = 1d)]
     private JsValue Of(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -73,6 +74,7 @@ public sealed partial class IntlDisplayNamesPrototype
         return fallback == "none" ? JsValue.Undefined : new JsValue(codeInput);
     }
 
+    /* FLAKY */
     [JsHostMethod("resolvedOptions", Length = 0d)]
     private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

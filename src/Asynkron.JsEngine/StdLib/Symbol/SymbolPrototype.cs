@@ -11,12 +11,14 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Symbol", ToStringTag = "Symbol")]
 public sealed partial class SymbolPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return new JsValue(RequireSymbolReceiver(thisValue, Realm).ToString());
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

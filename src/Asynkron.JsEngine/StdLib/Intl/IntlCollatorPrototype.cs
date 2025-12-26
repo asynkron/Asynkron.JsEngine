@@ -35,6 +35,7 @@ public sealed partial class IntlCollatorPrototype
         }, Realm, false);
     }
 
+    /* FLAKY */
     [JsHostMethod("resolvedOptions", Length = 0d)]
     private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

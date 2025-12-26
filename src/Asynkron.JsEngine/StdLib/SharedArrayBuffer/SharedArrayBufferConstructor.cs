@@ -46,6 +46,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
         // [Symbol.species] is registered via code generation from attribute
     }
 
+    /* FLAKY */
     [JsConstructorSymbolGetter("species")]
     public static JsValue GetSpecies(JsValue thisValue)
     {

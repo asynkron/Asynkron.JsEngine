@@ -13,6 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsSymbolAlias("iterator", "entries")]
 public sealed partial class MapPrototype
 {
+    /* FLAKY */
     [JsHostMethod("set", Length = 2d)]
     public JsValue Set(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -21,6 +22,7 @@ public sealed partial class MapPrototype
         return thisValue;
     }
 
+    /* FLAKY */
     [JsHostMethod("get", Length = 1d)]
     public JsValue Get(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -28,6 +30,7 @@ public sealed partial class MapPrototype
         return map.Get(args.GetArgument(0));
     }
 
+    /* FLAKY */
     [JsHostMethod("has", Length = 1d)]
     public JsValue Has(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -35,6 +38,7 @@ public sealed partial class MapPrototype
         return new JsValue(map.Has(args.GetArgument(0)));
     }
 
+    /* FLAKY */
     [JsHostMethod("delete", Length = 1d)]
     public JsValue Delete(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -42,6 +46,7 @@ public sealed partial class MapPrototype
         return new JsValue(map.Delete(args.GetArgument(0)));
     }
 
+    /* FLAKY */
     [JsHostMethod("clear", Length = 0d)]
     public JsValue Clear(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -50,6 +55,7 @@ public sealed partial class MapPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("forEach", Length = 1d)]
     public JsValue ForEach(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -63,6 +69,7 @@ public sealed partial class MapPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("entries", Length = 0d)]
     public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -70,6 +77,7 @@ public sealed partial class MapPrototype
         return new JsValue(CreateMapIterator(map, MapIterationKind.Entries));
     }
 
+    /* FLAKY */
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -77,6 +85,7 @@ public sealed partial class MapPrototype
         return new JsValue(CreateMapIterator(map, MapIterationKind.Keys));
     }
 
+    /* FLAKY */
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

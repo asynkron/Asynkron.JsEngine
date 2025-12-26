@@ -46,6 +46,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         return buffer.Resizable;
     }
 
+    /* FLAKY */
     [JsHostMethod("grow", Length = 1d)]
     public JsValue Grow(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -77,6 +78,7 @@ public sealed partial class SharedArrayBufferPrototype : JsPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("slice", Length = 2d)]
     public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

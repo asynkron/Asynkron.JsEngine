@@ -16,6 +16,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
 {
     // Static methods registered via code generation
 
+    /* FLAKY */
     [JsConstructorMethod("for", Length = 1d)]
     public static JsValue For(IReadOnlyList<JsValue> args)
     {
@@ -28,6 +29,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.For(key));
     }
 
+    /* FLAKY */
     [JsConstructorMethod("keyFor", Length = 1d)]
     public static JsValue KeyFor(IReadOnlyList<JsValue> args)
     {

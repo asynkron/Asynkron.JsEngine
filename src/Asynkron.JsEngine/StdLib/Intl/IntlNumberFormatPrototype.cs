@@ -28,6 +28,7 @@ public sealed partial class IntlNumberFormatPrototype
         return (JsValue)CreateBoundFormatFunction(value => new JsValue(FormatNumberValue(nf, value)));
     }
 
+    /* FLAKY */
     [JsHostMethod("formatToParts", Length = 0d)]
     public JsValue FormatToParts(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -47,6 +48,7 @@ public sealed partial class IntlNumberFormatPrototype
         return JsValue.FromJsArray(partsArray);
     }
 
+    /* FLAKY */
     [JsHostMethod("resolvedOptions", Length = 0d)]
     public JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {

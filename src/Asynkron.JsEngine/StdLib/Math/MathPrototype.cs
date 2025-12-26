@@ -14,6 +14,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Math", ToStringTag = "Math", ObjectKind = PrototypeObjectKind.Object)]
 public sealed partial class MathPrototype
 {
+    /* FLAKY */
     [JsHostMethod("abs", Length = 1d)]
     public static JsValue Abs(IReadOnlyList<JsValue> args)
     {
@@ -21,6 +22,7 @@ public sealed partial class MathPrototype
         return double.IsNaN(x) ? double.NaN : Math.Abs(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("ceil", Length = 1d)]
     public static JsValue Ceil(IReadOnlyList<JsValue> args)
     {
@@ -28,6 +30,7 @@ public sealed partial class MathPrototype
         return Math.Ceiling(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("floor", Length = 1d)]
     public static JsValue Floor(IReadOnlyList<JsValue> args)
     {
@@ -35,6 +38,7 @@ public sealed partial class MathPrototype
         return Math.Floor(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("round", Length = 1d)]
     public static JsValue Round(IReadOnlyList<JsValue> args)
     {
@@ -52,6 +56,7 @@ public sealed partial class MathPrototype
         return Math.Ceiling(x - 0.5);
     }
 
+    /* FLAKY */
     [JsHostMethod("sqrt", Length = 1d)]
     public static JsValue Sqrt(IReadOnlyList<JsValue> args)
     {
@@ -59,6 +64,7 @@ public sealed partial class MathPrototype
         return Math.Sqrt(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("pow", Length = 2d)]
     public static JsValue Pow(IReadOnlyList<JsValue> args)
     {
@@ -67,6 +73,7 @@ public sealed partial class MathPrototype
         return JsOps.MathPow(baseValue, exponent);
     }
 
+    /* FLAKY */
     [JsHostMethod("max", Length = 2d)]
     public static JsValue Max(IReadOnlyList<JsValue> args)
     {
@@ -93,6 +100,7 @@ public sealed partial class MathPrototype
         return max;
     }
 
+    /* FLAKY */
     [JsHostMethod("min", Length = 2d)]
     public static JsValue Min(IReadOnlyList<JsValue> args)
     {
@@ -119,12 +127,14 @@ public sealed partial class MathPrototype
         return min;
     }
 
+    /* FLAKY */
     [JsHostMethod("random", Length = 0d)]
     public static JsValue Random()
     {
         return System.Random.Shared.NextDouble();
     }
 
+    /* FLAKY */
     [JsHostMethod("sin", Length = 1d)]
     public static JsValue Sin(IReadOnlyList<JsValue> args)
     {
@@ -132,6 +142,7 @@ public sealed partial class MathPrototype
         return Math.Sin(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("cos", Length = 1d)]
     public static JsValue Cos(IReadOnlyList<JsValue> args)
     {
@@ -139,6 +150,7 @@ public sealed partial class MathPrototype
         return Math.Cos(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("tan", Length = 1d)]
     public JsValue Tan(IReadOnlyList<JsValue> args)
     {
@@ -146,6 +158,7 @@ public sealed partial class MathPrototype
         return Math.Tan(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("asin", Length = 1d)]
     public JsValue Asin(IReadOnlyList<JsValue> args)
     {
@@ -153,6 +166,7 @@ public sealed partial class MathPrototype
         return Math.Asin(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("acos", Length = 1d)]
     public JsValue Acos(IReadOnlyList<JsValue> args)
     {
@@ -160,6 +174,7 @@ public sealed partial class MathPrototype
         return Math.Acos(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("atan", Length = 1d)]
     public JsValue Atan(IReadOnlyList<JsValue> args)
     {
@@ -167,6 +182,7 @@ public sealed partial class MathPrototype
         return Math.Atan(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("atan2", Length = 2d)]
     public JsValue Atan2(IReadOnlyList<JsValue> args)
     {
@@ -175,6 +191,7 @@ public sealed partial class MathPrototype
         return Math.Atan2(y, x);
     }
 
+    /* FLAKY */
     [JsHostMethod("exp", Length = 1d)]
     public JsValue Exp(IReadOnlyList<JsValue> args)
     {
@@ -182,6 +199,7 @@ public sealed partial class MathPrototype
         return Math.Exp(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("log", Length = 1d)]
     public JsValue Log(IReadOnlyList<JsValue> args)
     {
@@ -189,6 +207,7 @@ public sealed partial class MathPrototype
         return Math.Log(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("log10", Length = 1d)]
     public JsValue Log10(IReadOnlyList<JsValue> args)
     {
@@ -196,6 +215,7 @@ public sealed partial class MathPrototype
         return Math.Log10(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("log2", Length = 1d)]
     public JsValue Log2(IReadOnlyList<JsValue> args)
     {
@@ -203,6 +223,7 @@ public sealed partial class MathPrototype
         return Math.Log2(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("trunc", Length = 1d)]
     public JsValue Trunc(IReadOnlyList<JsValue> args)
     {
@@ -210,6 +231,7 @@ public sealed partial class MathPrototype
         return double.IsNaN(x) || double.IsInfinity(x) ? x : Math.Truncate(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("sign", Length = 1d)]
     public JsValue Sign(IReadOnlyList<JsValue> args)
     {
@@ -222,6 +244,7 @@ public sealed partial class MathPrototype
         return Math.Sign(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("cbrt", Length = 1d)]
     public JsValue Cbrt(IReadOnlyList<JsValue> args)
     {
@@ -229,6 +252,7 @@ public sealed partial class MathPrototype
         return Math.Cbrt(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("clz32", Length = 1d)]
     public JsValue Clz32(IReadOnlyList<JsValue> args)
     {
@@ -237,6 +261,7 @@ public sealed partial class MathPrototype
         return value == 0 ? 32d : BitOperations.LeadingZeroCount(value);
     }
 
+    /* FLAKY */
     [JsHostMethod("imul", Length = 2d)]
     public JsValue Imul(IReadOnlyList<JsValue> args)
     {
@@ -247,6 +272,7 @@ public sealed partial class MathPrototype
         return (double)(a * b);
     }
 
+    /* FLAKY */
     [JsHostMethod("fround", Length = 1d)]
     public JsValue Fround(IReadOnlyList<JsValue> args)
     {
@@ -254,6 +280,7 @@ public sealed partial class MathPrototype
         return (double)(float)x;
     }
 
+    /* FLAKY */
     [JsHostMethod("hypot", Length = 2d)]
     public JsValue Hypot(IReadOnlyList<JsValue> args)
     {
@@ -291,6 +318,7 @@ public sealed partial class MathPrototype
         return hasNaN ? double.NaN : Math.Sqrt(sumOfSquares);
     }
 
+    /* FLAKY */
     [JsHostMethod("acosh", Length = 1d)]
     public JsValue Acosh(IReadOnlyList<JsValue> args)
     {
@@ -298,6 +326,7 @@ public sealed partial class MathPrototype
         return Math.Acosh(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("asinh", Length = 1d)]
     public JsValue Asinh(IReadOnlyList<JsValue> args)
     {
@@ -305,6 +334,7 @@ public sealed partial class MathPrototype
         return Math.Asinh(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("atanh", Length = 1d)]
     public JsValue Atanh(IReadOnlyList<JsValue> args)
     {
@@ -312,6 +342,7 @@ public sealed partial class MathPrototype
         return Math.Atanh(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("cosh", Length = 1d)]
     public JsValue Cosh(IReadOnlyList<JsValue> args)
     {
@@ -319,6 +350,7 @@ public sealed partial class MathPrototype
         return Math.Cosh(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("sinh", Length = 1d)]
     public JsValue Sinh(IReadOnlyList<JsValue> args)
     {
@@ -326,6 +358,7 @@ public sealed partial class MathPrototype
         return Math.Sinh(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("tanh", Length = 1d)]
     public JsValue Tanh(IReadOnlyList<JsValue> args)
     {
@@ -333,6 +366,7 @@ public sealed partial class MathPrototype
         return Math.Tanh(x);
     }
 
+    /* FLAKY */
     [JsHostMethod("expm1", Length = 1d)]
     public JsValue Expm1(IReadOnlyList<JsValue> args)
     {
@@ -340,6 +374,7 @@ public sealed partial class MathPrototype
         return Math.Exp(x) - 1;
     }
 
+    /* FLAKY */
     [JsHostMethod("log1p", Length = 1d)]
     public JsValue Log1p(IReadOnlyList<JsValue> args)
     {

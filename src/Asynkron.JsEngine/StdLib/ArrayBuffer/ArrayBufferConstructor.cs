@@ -48,6 +48,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         // [Symbol.species] is registered via code generation from attribute
     }
 
+    /* FLAKY */
     [JsConstructorMethod("isView", Length = 1d)]
     public static JsValue IsView(IReadOnlyList<JsValue> args)
     {
@@ -72,6 +73,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         return JsValue.False;
     }
 
+    /* FLAKY */
     [JsConstructorSymbolGetter("species")]
     public static JsValue GetSpecies(JsValue thisValue)
     {

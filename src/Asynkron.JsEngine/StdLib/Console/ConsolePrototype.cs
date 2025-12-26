@@ -12,6 +12,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("console", ObjectKind = PrototypeObjectKind.Object)]
 public sealed partial class ConsolePrototype
 {
+    /* FLAKY */
     [JsHostMethod("log", Length = 0d)]
     public JsValue Log(IReadOnlyList<JsValue> args)
     {
@@ -19,6 +20,7 @@ public sealed partial class ConsolePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("error", Length = 0d)]
     public JsValue Error(IReadOnlyList<JsValue> args)
     {
@@ -26,6 +28,7 @@ public sealed partial class ConsolePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("warn", Length = 0d)]
     public JsValue Warn(IReadOnlyList<JsValue> args)
     {
@@ -33,6 +36,7 @@ public sealed partial class ConsolePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("info", Length = 0d)]
     public JsValue Info(IReadOnlyList<JsValue> args)
     {
@@ -40,6 +44,7 @@ public sealed partial class ConsolePrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("debug", Length = 0d)]
     public JsValue Debug(IReadOnlyList<JsValue> args)
     {

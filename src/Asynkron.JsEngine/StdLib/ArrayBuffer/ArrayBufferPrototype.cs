@@ -14,6 +14,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("ArrayBuffer", ToStringTag = "ArrayBuffer")]
 public sealed partial class ArrayBufferPrototype
 {
+    /* FLAKY */
     [JsHostMethod("slice", Length = 2d)]
     public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -91,6 +92,7 @@ public sealed partial class ArrayBufferPrototype
         return JsValue.FromObjectUnsafe(newBuffer);
     }
 
+    /* FLAKY */
     [JsHostMethod("resize", Length = 1d)]
     public JsValue Resize(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -141,6 +143,7 @@ public sealed partial class ArrayBufferPrototype
         return buffer.IsDetached;
     }
 
+    /* FLAKY */
     [JsHostMethod("transfer", Length = 0d)]
     public JsValue Transfer(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -168,6 +171,7 @@ public sealed partial class ArrayBufferPrototype
         return JsValue.FromObjectUnsafe(target);
     }
 
+    /* FLAKY */
     [JsHostMethod("transferToFixedLength", Length = 0d)]
     public JsValue TransferToFixedLength(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

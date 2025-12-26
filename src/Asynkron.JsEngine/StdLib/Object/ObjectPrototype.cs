@@ -14,6 +14,7 @@ namespace Asynkron.JsEngine.StdLib;
 [JsPrototype("Object")]
 public sealed partial class ObjectPrototype
 {
+    /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
     private static JsValue ToString(JsValue thisValue)
     {
@@ -72,12 +73,14 @@ public sealed partial class ObjectPrototype
         return $"[object {tag}]";
     }
 
+    /* FLAKY */
     [JsHostMethod("valueOf", Length = 0d)]
     public static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         return thisValue;
     }
 
+    /* FLAKY */
     [JsHostMethod("hasOwnProperty", Length = 1d)]
     public static JsValue HasOwnProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -109,6 +112,7 @@ public sealed partial class ObjectPrototype
         return new JsValue(result);
     }
 
+    /* FLAKY */
     [JsHostMethod("propertyIsEnumerable", Length = 1d)]
     private static JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -132,6 +136,7 @@ public sealed partial class ObjectPrototype
         return new JsValue(desc?.Enumerable == true);
     }
 
+    /* FLAKY */
     [JsHostMethod("__lookupGetter__", Length = 1d)]
     private JsValue LookupGetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -166,6 +171,7 @@ public sealed partial class ObjectPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("__lookupSetter__", Length = 1d)]
     private JsValue LookupSetter(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -200,6 +206,7 @@ public sealed partial class ObjectPrototype
         return JsValue.Undefined;
     }
 
+    /* FLAKY */
     [JsHostMethod("isPrototypeOf", Length = 1d)]
     private JsValue IsPrototypeOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

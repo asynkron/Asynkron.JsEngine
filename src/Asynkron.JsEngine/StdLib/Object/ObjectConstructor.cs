@@ -723,12 +723,60 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
     }
 
-    /* FLAKY */
     [JsConstructorMethod("groupBy", Length = 2d)]
     public static JsValue GroupBy(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        // TODO: Implement Object.groupBy
-        // Groups array elements by the result of a callback function
-        throw new NotImplementedException("Object.groupBy is not yet implemented");
+        var realmState = RequireRealm(realm);
+        var items = args.GetArgument(0);
+        var callbackFn = args.GetArgument(1);
+        
+        // Validate callback
+        if (!callbackFn.TryGetObject<IJsCallable>(out var callback) || callback is null)
+        {
+            throw ThrowTypeError("Object.groupBy callback must be a function", realm: realmState);
+        }
+        
+        // Get iterable (usually an array)
+        if (!items.TryGetObject<JsArray>(out var array) || array is null)
+        {
+            throw ThrowTypeError("Object.groupBy requires an iterable as first argument", realm: realmState);
+        }
+        
+        // Create result object
+        var result = new JsObject { RealmState = realmState };
+        
+        // Group elements
+        var k = 0;
+        while (k < array.Length)
+        {
+            var element = array.GetElement(k);
+            
+            // Call callback with (element, index)
+            var key = callback.Invoke([element, (double)k], JsValue.Undefined);
+            
+            // Convert key to property key
+            var propertyKey = JsOps.ToJsString(key);
+            
+            // Get or create array for this key
+            JsArray group;
+            if (result.TryGetProperty(propertyKey, out var existingGroup) && 
+                existingGroup.TryGetObject<JsArray>(out var existingArray) &&
+                existingArray is not null)
+            {
+                group = existingArray;
+            }
+            else
+            {
+                group = new JsArray(realmState);
+                result.SetProperty(propertyKey, JsValue.FromJsArray(group));
+            }
+            
+            // Add element to group
+            group.SetElement((uint)group.Length, element);
+            
+            k++;
+        }
+        
+        return JsValue.FromJsObject(result);
     }
 }

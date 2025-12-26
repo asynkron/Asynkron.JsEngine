@@ -19,4 +19,6 @@ public static class Symbols
     public static readonly TypedAstSymbol Split = TypedAstSymbol.For("Symbol.split");
     public static readonly TypedAstSymbol IsConcatSpreadable = TypedAstSymbol.For("Symbol.isConcatSpreadable");
     public static readonly TypedAstSymbol Unscopables = TypedAstSymbol.For("Symbol.unscopables");
+    public static readonly TypedAstSymbol Dispose = TypedAstSymbol.For("Symbol.dispose");
+    public static readonly TypedAstSymbol AsyncDispose = TypedAstSymbol.For("Symbol.asyncDispose");
 }

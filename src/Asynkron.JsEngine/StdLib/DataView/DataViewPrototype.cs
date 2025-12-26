@@ -190,52 +190,84 @@ public sealed partial class DataViewPrototype
         return JsValue.Undefined;
     }
 
-    /* FLAKY */
     [JsHostMethod("getBigInt64", Length = 1d)]
     public JsValue GetBigInt64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DataView.prototype.getBigInt64
-        throw new NotImplementedException("DataView.prototype.getBigInt64 is not yet implemented");
+        var dv = RequireInstance(thisValue);
+        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var littleEndian = args.Count > 1 && args[1].IsTruthy;
+        var value = dv.GetBigInt64(offset, littleEndian);
+        // Convert to BigInt JsValue
+        return JsValue.FromObjectUnsafe(new JsBigInt(value));
     }
 
-    /* FLAKY */
     [JsHostMethod("getBigUint64", Length = 1d)]
     public JsValue GetBigUint64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DataView.prototype.getBigUint64
-        throw new NotImplementedException("DataView.prototype.getBigUint64 is not yet implemented");
+        var dv = RequireInstance(thisValue);
+        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var littleEndian = args.Count > 1 && args[1].IsTruthy;
+        var value = dv.GetBigUint64(offset, littleEndian);
+        // Convert to BigInt JsValue - cast ulong to long for BigInt constructor
+        return JsValue.FromObjectUnsafe(new JsBigInt((long)value));
     }
 
-    /* FLAKY */
     [JsHostMethod("getFloat16", Length = 1d)]
     public JsValue GetFloat16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DataView.prototype.getFloat16
-        throw new NotImplementedException("DataView.prototype.getFloat16 is not yet implemented");
+        var dv = RequireInstance(thisValue);
+        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var littleEndian = args.Count > 1 && args[1].IsTruthy;
+        var value = dv.GetFloat16(offset, littleEndian);
+        // Convert Half to double for JavaScript
+        return (double)value;
     }
 
-    /* FLAKY */
     [JsHostMethod("setBigInt64", Length = 2d)]
     public JsValue SetBigInt64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DataView.prototype.setBigInt64
-        throw new NotImplementedException("DataView.prototype.setBigInt64 is not yet implemented");
+        var dv = RequireInstance(thisValue);
+        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        
+        // Extract BigInt value
+        long value = 0;
+        if (args.Count > 1 && args[1].TryGetObject<JsBigInt>(out var bigInt) && bigInt is not null)
+        {
+            value = (long)bigInt.Value;
+        }
+        
+        var littleEndian = args.Count > 2 && args[2].IsTruthy;
+        dv.SetBigInt64(offset, value, littleEndian);
+        return JsValue.Undefined;
     }
 
-    /* FLAKY */
     [JsHostMethod("setBigUint64", Length = 2d)]
     public JsValue SetBigUint64(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DataView.prototype.setBigUint64
-        throw new NotImplementedException("DataView.prototype.setBigUint64 is not yet implemented");
+        var dv = RequireInstance(thisValue);
+        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        
+        // Extract BigInt value
+        ulong value = 0;
+        if (args.Count > 1 && args[1].TryGetObject<JsBigInt>(out var bigInt) && bigInt is not null)
+        {
+            value = (ulong)bigInt.Value;
+        }
+        
+        var littleEndian = args.Count > 2 && args[2].IsTruthy;
+        dv.SetBigUint64(offset, value, littleEndian);
+        return JsValue.Undefined;
     }
 
-    /* FLAKY */
     [JsHostMethod("setFloat16", Length = 2d)]
     public JsValue SetFloat16(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DataView.prototype.setFloat16
-        throw new NotImplementedException("DataView.prototype.setFloat16 is not yet implemented");
+        var dv = RequireInstance(thisValue);
+        var offset = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+        var value = args.Count > 1 ? (Half)JsOps.ToNumber(args[1]) : (Half)0;
+        var littleEndian = args.Count > 2 && args[2].IsTruthy;
+        dv.SetFloat16(offset, value, littleEndian);
+        return JsValue.Undefined;
     }
 
     protected override void ConfigurePrototype()

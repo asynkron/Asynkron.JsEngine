@@ -347,13 +347,26 @@ public sealed partial class MathPrototype
         return Math.Log(1 + x);
     }
 
-    /* FLAKY */
     [JsHostMethod("f16round", Length = 1d)]
     public JsValue F16round(IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement Math.f16round
-        // This method rounds to the nearest float16 (half precision) value
-        throw new NotImplementedException("Math.f16round is not yet implemented");
+        var x = JsOps.ToNumber(args.GetArgument(0));
+        
+        // Handle special values
+        if (double.IsNaN(x))
+        {
+            return double.NaN;
+        }
+        
+        if (double.IsInfinity(x))
+        {
+            return x;
+        }
+        
+        // Convert to Half (float16) and back to double
+        // This performs the rounding to float16 precision
+        var half = (Half)x;
+        return (double)half;
     }
 
     protected override void ConfigurePrototype()

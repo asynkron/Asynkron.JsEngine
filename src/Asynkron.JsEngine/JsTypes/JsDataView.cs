@@ -510,6 +510,78 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
         }
     }
 
+    // BigInt64
+    public long GetBigInt64(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 8);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        return littleEndian
+            ? BinaryPrimitives.ReadInt64LittleEndian(span)
+            : BinaryPrimitives.ReadInt64BigEndian(span);
+    }
+
+    public void SetBigInt64(int byteOffset, long value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 8);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteInt64LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteInt64BigEndian(span, value);
+        }
+    }
+
+    // BigUint64
+    public ulong GetBigUint64(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 8);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        return littleEndian
+            ? BinaryPrimitives.ReadUInt64LittleEndian(span)
+            : BinaryPrimitives.ReadUInt64BigEndian(span);
+    }
+
+    public void SetBigUint64(int byteOffset, ulong value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 8);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 8);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt64BigEndian(span, value);
+        }
+    }
+
+    // Float16 (Half)
+    public Half GetFloat16(int byteOffset, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        var span = new ReadOnlySpan<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        return littleEndian
+            ? BinaryPrimitives.ReadHalfLittleEndian(span)
+            : BinaryPrimitives.ReadHalfBigEndian(span);
+    }
+
+    public void SetFloat16(int byteOffset, Half value, bool littleEndian = false)
+    {
+        CheckBounds(byteOffset, 2);
+        var span = new Span<byte>(Buffer.Buffer, ByteOffset + byteOffset, 2);
+        if (littleEndian)
+        {
+            BinaryPrimitives.WriteHalfLittleEndian(span, value);
+        }
+        else
+        {
+            BinaryPrimitives.WriteHalfBigEndian(span, value);
+        }
+    }
+
     private HostFunction CreateMethod(Func<JsDataView, IReadOnlyList<JsValue>, JsValue> implementation)
     {
         return new HostFunction((thisValue, args) =>

@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
@@ -1118,39 +1119,135 @@ public sealed partial class StringPrototype
         return new JsArray(strings.Select(static s => new JsValue(s)), realm);
     }
 
-    /* FLAKY */
     [JsHostMethod("isWellFormed", Length = 0d)]
     public JsValue IsWellFormed(JsValue thisValue)
     {
-        // TODO: Implement String.prototype.isWellFormed
-        // Returns true if the string contains no lone surrogates
-        throw new NotImplementedException("String.prototype.isWellFormed is not yet implemented");
+        var str = ResolveString(thisValue);
+        
+        // Check for lone surrogates
+        for (int i = 0; i < str.Length; i++)
+        {
+            char c = str[i];
+            
+            // Check if it's a high surrogate (0xD800-0xDBFF)
+            if (char.IsHighSurrogate(c))
+            {
+                // Must be followed by a low surrogate
+                if (i + 1 >= str.Length || !char.IsLowSurrogate(str[i + 1]))
+                {
+                    return false; // Lone high surrogate
+                }
+                i++; // Skip the low surrogate
+            }
+            // Check if it's a low surrogate (0xDC00-0xDFFF)
+            else if (char.IsLowSurrogate(c))
+            {
+                return false; // Lone low surrogate
+            }
+        }
+        
+        return true;
     }
 
-    /* FLAKY */
     [JsHostMethod("toWellFormed", Length = 0d)]
     public JsValue ToWellFormed(JsValue thisValue)
     {
-        // TODO: Implement String.prototype.toWellFormed
-        // Returns a string with lone surrogates replaced with U+FFFD
-        throw new NotImplementedException("String.prototype.toWellFormed is not yet implemented");
+        var str = ResolveString(thisValue);
+        
+        // Replacement character U+FFFD
+        const char replacementChar = '\uFFFD';
+        var sb = new StringBuilder(str.Length);
+        
+        for (int i = 0; i < str.Length; i++)
+        {
+            char c = str[i];
+            
+            // Check if it's a high surrogate
+            if (char.IsHighSurrogate(c))
+            {
+                // Check if followed by a low surrogate
+                if (i + 1 < str.Length && char.IsLowSurrogate(str[i + 1]))
+                {
+                    // Valid surrogate pair
+                    sb.Append(c);
+                    sb.Append(str[i + 1]);
+                    i++; // Skip the low surrogate
+                }
+                else
+                {
+                    // Lone high surrogate - replace with U+FFFD
+                    sb.Append(replacementChar);
+                }
+            }
+            // Check if it's a low surrogate
+            else if (char.IsLowSurrogate(c))
+            {
+                // Lone low surrogate - replace with U+FFFD
+                sb.Append(replacementChar);
+            }
+            else
+            {
+                // Normal character
+                sb.Append(c);
+            }
+        }
+        
+        return sb.ToString();
     }
 
-    /* FLAKY */
     [JsHostMethod("toLocaleLowerCase", Length = 0d)]
     public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement String.prototype.toLocaleLowerCase with proper locale support
-        // Currently falls back to simple toLowerCase
-        throw new NotImplementedException("String.prototype.toLocaleLowerCase is not yet implemented");
+        var str = ResolveString(thisValue);
+        
+        // Get locale from first argument if provided
+        CultureInfo culture;
+        if (args.Count > 0 && args[0].TryGetString(out var locale) && !string.IsNullOrEmpty(locale))
+        {
+            try
+            {
+                culture = CultureInfo.GetCultureInfo(locale);
+            }
+            catch
+            {
+                // If locale is invalid, fall back to invariant culture
+                culture = CultureInfo.InvariantCulture;
+            }
+        }
+        else
+        {
+            // Use invariant culture as default (JavaScript behavior)
+            culture = CultureInfo.InvariantCulture;
+        }
+        
+        return str.ToLower(culture);
     }
 
-    /* FLAKY */
     [JsHostMethod("toLocaleUpperCase", Length = 0d)]
     public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement String.prototype.toLocaleUpperCase with proper locale support
-        // Currently falls back to simple toUpperCase
-        throw new NotImplementedException("String.prototype.toLocaleUpperCase is not yet implemented");
+        var str = ResolveString(thisValue);
+        
+        // Get locale from first argument if provided
+        CultureInfo culture;
+        if (args.Count > 0 && args[0].TryGetString(out var locale) && !string.IsNullOrEmpty(locale))
+        {
+            try
+            {
+                culture = CultureInfo.GetCultureInfo(locale);
+            }
+            catch
+            {
+                // If locale is invalid, fall back to invariant culture
+                culture = CultureInfo.InvariantCulture;
+            }
+        }
+        else
+        {
+            // Use invariant culture as default (JavaScript behavior)
+            culture = CultureInfo.InvariantCulture;
+        }
+        
+        return str.ToUpper(culture);
     }
 }

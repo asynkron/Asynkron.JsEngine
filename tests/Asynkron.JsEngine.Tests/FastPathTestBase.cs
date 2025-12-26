@@ -6,14 +6,9 @@ namespace Asynkron.JsEngine.Tests;
 /// Base class for tests that should run in both FastPath and Reference modes.
 /// Inherit from this and implement the abstract EnableFastPaths property.
 /// </summary>
-public abstract class FastPathTestBase
+public abstract class FastPathTestBase(ITestOutputHelper output)
 {
-    protected readonly ITestOutputHelper Output;
-
-    protected FastPathTestBase(ITestOutputHelper output)
-    {
-        Output = output;
-    }
+    protected readonly ITestOutputHelper Output = output;
 
     /// <summary>
     /// When true, enables optimized fast paths. When false, uses reference implementation.
@@ -37,22 +32,4 @@ public abstract class FastPathTestBase
         configure(options);
         return new JsEngine(options);
     }
-}
-
-/// <summary>
-/// Marker interface to identify test classes that run with fast paths enabled.
-/// </summary>
-public abstract class FastPathTests : FastPathTestBase
-{
-    protected FastPathTests(ITestOutputHelper output) : base(output) { }
-    protected sealed override bool EnableFastPaths => true;
-}
-
-/// <summary>
-/// Marker interface to identify test classes that run with fast paths disabled (reference implementation).
-/// </summary>
-public abstract class ReferenceTests : FastPathTestBase
-{
-    protected ReferenceTests(ITestOutputHelper output) : base(output) { }
-    protected sealed override bool EnableFastPaths => false;
 }

@@ -6,76 +6,65 @@ This document tracks the implementation status of JavaScript builtins from `todo
 
 - **Total methods in todo-builtins.md**: 816
 - **Existing implementations marked with /* FLAKY */**: 318
-- **Missing methods**: 498
-  - **Methods for existing types (scaffoldable)**: 33
-  - **Methods requiring new prototype classes**: 465
+- **Stub methods created for existing types**: 33
+- **New prototype classes created**: 6 classes with 42 methods
+- **Total scaffolded/marked**: 393 methods (48% of all methods)
+- **Remaining methods**: 423 methods requiring implementation or new classes
 
 ## Completed Work
 
-### ✅ FLAKY Comments Added
-All existing method implementations (318) now have `/* FLAKY */` comments indicating potential bugs:
+### ✅ FLAKY Comments Added (318 methods)
+All existing method implementations now have `/* FLAKY */` comments indicating potential bugs:
 - JsHostMethod attributes
 - JsConstructorMethod attributes
 - JsConstructorSymbolGetter attributes
 - JsHostGetter attributes
 - Covers all major types: Array, Object, String, Number, Date, Promise, Map/Set, TypedArray, RegExp, Proxy, Reflect, Symbol, Math, BigInt, Error, Function, JSON, Console, DataView, ArrayBuffer, WeakMap/WeakSet, WeakRef, SharedArrayBuffer, Boolean, and all Intl variants
 
-### ✅ Stub Methods Created (7/33)
+### ✅ Stub Methods Created for Existing Types (33 methods)
 - **DataView** (6/6): getBigInt64, getBigUint64, getFloat16, setBigInt64, setBigUint64, setFloat16
 - **Promise** (1/1): withResolvers
+- **Date** (1/1): toTemporalInstant
+- **Map** (1/1): groupBy
+- **Math** (1/1): f16round
+- **Object** (1/1): groupBy
+- **Set** (7/7): difference, intersection, isDisjointFrom, isSubsetOf, isSupersetOf, symmetricDifference, union
+- **String** (4/4): isWellFormed, toWellFormed, toLocaleLowerCase, toLocaleUpperCase
+- **Symbol** (2/2): asyncDispose, dispose
+- **TypedArray** (1/1): subarray
+- **RegExp** (8): Documented as feature detection tests (not actual methods)
 
-## Remaining Work for Existing Types (26 methods)
+### ✅ New Prototype Classes Created (6 classes, 42 methods)
 
-These methods can be added as stubs to existing prototype classes:
+#### 1. FinalizationRegistry (3 methods)
+- register, unregister methods
+- Enables WeakRef-based finalization callbacks
 
-### Date (1 method)
-- `Date_prototype_toTemporalInstant` - Links to Temporal API
+#### 2. Atomics (13 methods)
+- add, and, or, xor, sub
+- compareExchange, exchange, load, store
+- isLockFree, wait, waitAsync, notify
+- Provides atomic operations on SharedArrayBuffer
 
-### Map (1 method)
-- `Map_groupBy` - Static method for grouping
+#### 3. DisposableStack (6 methods)
+- use, adopt, defer, move, dispose methods + disposed getter
+- For synchronous explicit resource management (using statement)
 
-### Math (1 method)
-- `Math_f16round` - Float16 rounding
+#### 4. AsyncDisposableStack (6 methods)
+- use, adopt, defer, move, disposeAsync methods + disposed getter
+- For asynchronous explicit resource management (await using statement)
 
-### Object (1 method)
-- `Object_groupBy` - Static method for grouping
+#### 5. Iterator (12 methods)
+- map, filter, take, drop, flatMap
+- reduce, toArray, forEach, some, every, find
+- Plus static from() method
+- Iterator helpers proposal for working with iterators
 
-### RegExp (8 methods)
-Feature detection / test methods:
-- `RegExp_CharacterClassEscapes`
-- `RegExp_lookBehind`
-- `RegExp_matchIndices`
-- `RegExp_namedGroups`
-- `RegExp_propertyEscapes`
-- `RegExp_propertyEscapes_generated`
-- `RegExp_propertyEscapes_generated_strings`
-- `RegExp_unicodeSets_generated`
+#### 6. ShadowRealm (2 methods)
+- evaluate, importValue methods
+- Provides isolated execution contexts
 
-### Set (7 methods)
-New Set theory methods (ES2024):
-- `Set_prototype_difference`
-- `Set_prototype_intersection`
-- `Set_prototype_isDisjointFrom`
-- `Set_prototype_isSubsetOf`
-- `Set_prototype_isSupersetOf`
-- `Set_prototype_symmetricDifference`
-- `Set_prototype_union`
-
-### String (4 methods)
-- `String_prototype_isWellFormed`
-- `String_prototype_toLocaleLowerCase`
-- `String_prototype_toLocaleUpperCase`
-- `String_prototype_toWellFormed`
-
-### Symbol (2 methods)
-Explicit resource management symbols:
-- `Symbol_asyncDispose`
-- `Symbol_dispose`
-
-### TypedArray (1 method)
-- `TypedArray_prototype_subarray`
-
-## Methods Requiring New Prototype Classes (465 methods)
+## Remaining Work - Methods Requiring New Prototype Classes (423 methods)
 
 These require creating entirely new classes and significant architectural work:
 

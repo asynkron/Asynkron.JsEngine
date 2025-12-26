@@ -1,0 +1,30 @@
+#region
+
+using System;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Runtime.Prototypes;
+using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
+
+#endregion
+
+namespace Asynkron.JsEngine.StdLib;
+
+[JsConstructor("FinalizationRegistry", PrototypeType = typeof(FinalizationRegistryPrototype), Length = 1d, DisplayName = "FinalizationRegistry")]
+public sealed partial class FinalizationRegistryConstructor(IJsObjectLike prototype, RealmState realm)
+    : JsConstructor(prototype, realm)
+{
+    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // TODO: Implement FinalizationRegistry constructor
+        // Creates a new FinalizationRegistry instance with a cleanup callback
+        var obj = PrepareThisObject(JsValue.Undefined, false);
+        if (Prototype is not null && obj.Prototype is null)
+        {
+            obj.SetPrototype(Prototype);
+        }
+        obj.RealmState ??= Realm;
+        return new JsValue(obj);
+    }
+}

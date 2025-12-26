@@ -20,13 +20,17 @@ public static partial class TypedAstEvaluator
                 return statement.EvaluateForAwaitOfJsValue(environment, context, loopLabel);
             }
 
+            // Use cached analysis to check if loop environment can be pooled
+            // (no closures in target or iterable that would capture it)
+            var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
+
             var iterableEnvironment = environment;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
                 // Create TDZ environment for the for-of head bindings.
-                // NOTE: We do NOT pool this environment because closures in the iterable expression
-                // may capture it, and returning it to the pool would break their scope chain.
+                // NOTE: We do NOT pool this environment because it may be captured across yield/await
+                // boundaries or closures in the iterable expression.
                 iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                     "for-each-head-tdz");
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
@@ -68,11 +72,6 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal("Cannot iterate properties of non-object value.");
                 }
             }
-
-            // Check if there are closures in the target that would capture environments
-            var hasClosuresInTarget = ContainsInnerFunctionExpression(statement.Target);
-            var hasClosuresInIterable = ContainsInnerFunctionExpression(statement.Iterable);
-            var canPoolLoopEnvironment = !hasClosuresInTarget && !hasClosuresInIterable;
 
             // Use pooled environment for loop scope only if no closures will capture the chain
             var loopEnvironment = canPoolLoopEnvironment
@@ -205,7 +204,7 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                // Only return to pool if we pooled it in the first place
+                // Only return loop environment to pool if we pooled it
                 if (canPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment);
@@ -216,13 +215,17 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateForAwaitOfJsValue(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {
+            // Use cached analysis to check if loop environment can be pooled
+            // (no closures in target or iterable that would capture it)
+            var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
+
             var iterableEnvironment = environment;
             if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
                 or VariableKind.AwaitUsing)
             {
                 // Create TDZ environment for the for-await-of head bindings.
-                // NOTE: We do NOT pool this environment because closures in the iterable expression
-                // may capture it, and returning it to the pool would break their scope chain.
+                // NOTE: We do NOT pool this environment because it may be captured across yield/await
+                // boundaries or closures in the iterable expression.
                 iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                     "for-each-head-tdz");
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
@@ -243,11 +246,6 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowTypeError("Cannot iterate over null or undefined", context,
                     context.RealmState);
             }
-
-            // Check if there are closures in the target that would capture environments
-            var hasClosuresInTarget = ContainsInnerFunctionExpression(statement.Target);
-            var hasClosuresInIterable = ContainsInnerFunctionExpression(statement.Iterable);
-            var canPoolLoopEnvironment = !hasClosuresInTarget && !hasClosuresInIterable;
 
             // Use pooled environment for loop scope only if no closures will capture the chain
             var loopEnvironment = canPoolLoopEnvironment
@@ -309,7 +307,7 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                // Only return to pool if we pooled it in the first place
+                // Only return loop environment to pool if we pooled it
                 if (canPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment);

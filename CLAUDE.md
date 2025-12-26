@@ -155,3 +155,86 @@ All refactoring or bugfixing work MUST be performed using git worktrees for isol
     git worktree remove ../Asynkron.JsEngine-<short-name>
     git branch -D <branch-name>
     ```
+
+## Using Codex CLI as a Sub-Agent
+
+For complex reasoning tasks, you can delegate to OpenAI Codex CLI. This is useful for tasks requiring deep analysis, alternative perspectives, or when you want to leverage GPT models for specific subtasks.
+
+### Basic Usage
+
+```bash
+# Run a task with full automation (no approval prompts, no sandbox)
+codex exec --dangerously-bypass-approvals-and-sandbox "your prompt here"
+
+# With web search enabled
+codex exec --dangerously-bypass-approvals-and-sandbox --search "research topic"
+
+# Set working directory
+codex exec --dangerously-bypass-approvals-and-sandbox -C /path/to/dir "task"
+
+# Output as JSONL for parsing
+codex exec --dangerously-bypass-approvals-and-sandbox --json "task"
+
+# Save response to file
+codex exec --dangerously-bypass-approvals-and-sandbox -o result.txt "task"
+```
+
+### Model and Reasoning Configuration
+
+Set via command-line config overrides:
+
+```bash
+# Use a specific model
+codex exec -c model="o3" --dangerously-bypass-approvals-and-sandbox "task"
+
+# Set reasoning effort (low, medium, high)
+codex exec -c model_reasoning_effort="high" --dangerously-bypass-approvals-and-sandbox "task"
+
+# Combined
+codex exec -c model="gpt-5.1-codex-max" -c model_reasoning_effort="high" \
+  --dangerously-bypass-approvals-and-sandbox "analyze this complex algorithm"
+```
+
+Or set defaults in `~/.codex/config.toml`:
+
+```toml
+model = "gpt-5.1-codex-max"
+model_reasoning_effort = "high"
+```
+
+### Key Options Reference
+
+| Flag | Purpose |
+|------|---------|
+| `--dangerously-bypass-approvals-and-sandbox` | Skip confirmations, run without sandbox |
+| `--search` | Enable web search capability |
+| `-m, --model <MODEL>` | Model to use (e.g., `o3`, `gpt-5.1-codex-max`) |
+| `-c model_reasoning_effort="high"` | Reasoning level: `low`, `medium`, `high` |
+| `-p, --profile <PROFILE>` | Use config profile from `~/.codex/config.toml` |
+| `-C, --cd <DIR>` | Set working directory |
+| `--json` | Output as JSONL (for parsing) |
+| `-o, --output-last-message <FILE>` | Write final response to file |
+| `--full-auto` | Alias for `-a on-request --sandbox workspace-write` |
+
+### Running Codex in a Split Pane (Recommended)
+
+When running inside tmux, use a vertical split to show Codex output alongside the main session:
+
+```bash
+# Run Codex in a vertical split pane (side-by-side view)
+tmux split-window -h 'codex exec --dangerously-bypass-approvals-and-sandbox "your prompt here"; read -p "Press enter to close..."'
+```
+
+This allows the user to see both Claude Code and Codex output simultaneously. The `read` command keeps the pane open until dismissed.
+
+Pane navigation:
+- `Ctrl-b ←/→` - switch between panes
+- `Ctrl-b x` - kill current pane
+- `Ctrl-b z` - toggle zoom (fullscreen current pane)
+
+### When to Use Codex
+
+- Complex algorithmic analysis requiring deep reasoning
+- Getting alternative implementation approaches
+- Research tasks with web search (`--search`)
+- Tasks benefiting from GPT's specific strengths

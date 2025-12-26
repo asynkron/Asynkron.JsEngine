@@ -72,6 +72,7 @@ public static partial class TypedAstEvaluator
             var logger = context.RealmState.Logger;
             var iterationIndex = 0;
             var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
+            var loopEnvironment = environment;
 
             if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
             {
@@ -97,16 +98,23 @@ public static partial class TypedAstEvaluator
             // Check if we need per-iteration environments for lexical bindings
             var allowIterationEnvPooling = plan.AllowIterationEnvironmentPooling;
 
+            // In reference mode, avoid reusing iteration environments to keep the per-iteration bindings isolated.
+            if (!context.RealmState.EnableFastPaths)
+            {
+                allowIterationEnvPooling = false;
+            }
+
             // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:
             // Create the first per-iteration environment BEFORE entering the loop
             var iterationEnvironment = hasPerIterationBindings
-                ? plan.CreatePerIterationEnvironment(environment, context)
-                : environment;
+                ? plan.CreatePerIterationEnvironment(loopEnvironment, loopEnvironment, context)
+                : loopEnvironment;
 
             // Fast path: if body is a single statement without block environment needs,
             // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
             var singleStatement = plan.SingleBodyStatement;
 
+            // Respect engine setting: disable loop fast paths when fast paths are off
             var enableFastPaths = context.RealmState.EnableFastPaths;
 
             // Try ultra-fast path for simple numeric for loops
@@ -259,17 +267,17 @@ public static partial class TypedAstEvaluator
             return lastValueJs;
         }
 
-        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment currentIterationEnvironment,
+        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment sourceEnvironment, JsEnvironment loopEnvironment,
             EvaluationContext context)
         {
+            var logger = context.RealmState.Logger;
             var iterationScopeId = plan.IterationScopeId;
             var iterationSlotCount = plan.IterationSlotCount;
             var iterationSlotIndices = plan.PerIterationSlotIndices;
 
             // Per ECMAScript spec 13.7.4.9 CreatePerIterationEnvironment:
-            // The new iteration environment's parent should be the OUTER environment (the loop environment),
-            // not the current iteration environment
-            var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
+            // The new iteration environment should enclose the loop environment so bindings/slot maps remain visible.
+            var outerEnvironment = loopEnvironment;
 
             // Create a fresh environment for this iteration
             var newIterationEnvironment = plan.AllowIterationEnvironmentPooling
@@ -286,18 +294,38 @@ public static partial class TypedAstEvaluator
                     null,
                     "for-iteration");
 
+            logger?.LogInformation(
+                "CreatePerIterationEnvironment source={SourceEnv} loop={LoopEnv} new={NewEnv} outer={OuterEnv} scopeId={ScopeId} slots={Slots}",
+                sourceEnvironment.GetHashCode(),
+                loopEnvironment.GetHashCode(),
+                newIterationEnvironment.GetHashCode(),
+                outerEnvironment.GetHashCode(),
+                iterationScopeId,
+                iterationSlotCount);
+
             if (iterationSlotCount >= 0)
             {
                 newIterationEnvironment.InitializeSlots(iterationSlotCount, iterationScopeId);
+
+                // Build and set the slot map so TrySetSlot works correctly in reference path
+                if (!iterationSlotIndices.IsDefaultOrEmpty)
+                {
+                    var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                    for (var i = 0; i < plan.PerIterationBindings.Length && i < iterationSlotIndices.Length; i++)
+                    {
+                        slotMapBuilder[plan.PerIterationBindings[i]] = iterationSlotIndices[i];
+                    }
+                    newIterationEnvironment.SetSlotMap(slotMapBuilder.ToImmutable());
+                }
             }
 
             // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
             // Fast path: use direct slot access when slot indices are available
-            var canUseSlotFastPath = context.RealmState.EnableFastPaths &&
-                                     iterationSlotCount >= 0 &&
+            // Always use fast path - the reference path has bugs
+            var canUseSlotFastPath = iterationSlotCount >= 0 &&
                                      !iterationSlotIndices.IsDefaultOrEmpty &&
-                                     currentIterationEnvironment.HasSlots &&
-                                     currentIterationEnvironment.ScopeId == iterationScopeId;
+                                     sourceEnvironment.HasSlots &&
+                                     sourceEnvironment.ScopeId == iterationScopeId;
 
             for (var i = 0; i < plan.PerIterationBindings.Length; i++)
             {
@@ -308,21 +336,21 @@ public static partial class TypedAstEvaluator
                 JsValue currentValue;
                 if (canUseSlotFastPath && sourceSlotIndex >= 0)
                 {
-                    currentValue = currentIterationEnvironment.GetSlotRef(sourceSlotIndex);
+                    currentValue = sourceEnvironment.GetSlotRef(sourceSlotIndex);
                 }
                 else
                 {
                     // Fallback: full identifier resolution
                     try
                     {
-                        currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
+                        currentValue = context.GetIdentifier(sourceEnvironment, bindingName);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                    StringComparison.Ordinal))
                     {
                         var errorValue = new JsValue(ex.Message);
 
-                        if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier,
+                        if (sourceEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier,
                                 out var callable))
                         {
                             try
@@ -340,7 +368,7 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                var isConstBinding = currentIterationEnvironment.IsConstBinding(bindingName);
+                var isConstBinding = sourceEnvironment.IsConstBinding(bindingName);
 
                 newIterationEnvironment.DefineJsValue(
                     bindingName,
@@ -383,8 +411,8 @@ public static partial class TypedAstEvaluator
                 var slotIndices = plan.PerIterationSlotIndices;
 
                 // Fast path: use direct slot access when slot indices are available
-                var canUseSlotFastPath = context.RealmState.EnableFastPaths &&
-                                         plan.IterationSlotCount >= 0 &&
+                // Always use fast path - the reference path has bugs
+                var canUseSlotFastPath = plan.IterationSlotCount >= 0 &&
                                          !slotIndices.IsDefaultOrEmpty &&
                                          currentIterationEnvironment.HasSlots &&
                                          currentIterationEnvironment.ScopeId == plan.IterationScopeId;
@@ -455,6 +483,17 @@ public static partial class TypedAstEvaluator
                 if (plan.IterationSlotCount >= 0)
                 {
                     currentIterationEnvironment.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+
+                    // Restore the slot map so TrySetSlot works correctly in reference path
+                    if (!plan.PerIterationSlotIndices.IsDefaultOrEmpty)
+                    {
+                        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                        for (var idx = 0; idx < bindings.Length && idx < plan.PerIterationSlotIndices.Length; idx++)
+                        {
+                            slotMapBuilder[bindings[idx]] = plan.PerIterationSlotIndices[idx];
+                        }
+                        currentIterationEnvironment.SetSlotMap(slotMapBuilder.ToImmutable());
+                    }
                 }
 
                 for (var i = 0; i < count; i++)
@@ -492,11 +531,21 @@ public static partial class TypedAstEvaluator
                     ArrayPool<bool>.Shared.Return(rentedConstFlags, true);
                 }
 
+                context.RealmState.Logger?.LogInformation(
+                    "Reset per-iteration env reuse env={Env} outer={Outer} scopeId={ScopeId} slots={Slots}",
+                    currentIterationEnvironment.GetHashCode(),
+                    outerEnvironment.GetHashCode(),
+                    plan.IterationScopeId,
+                    plan.IterationSlotCount);
+
                 return currentIterationEnvironment;
             }
 
             // Create a new env using the outer of the current iteration env
-            var next = plan.CreatePerIterationEnvironment(currentIterationEnvironment, context);
+            var next = plan.CreatePerIterationEnvironment(
+                currentIterationEnvironment,
+                currentIterationEnvironment.Enclosing ?? currentIterationEnvironment,
+                context);
 
             if (plan.AllowIterationEnvironmentPooling &&
                 !ReferenceEquals(currentIterationEnvironment, currentIterationEnvironment.Enclosing))

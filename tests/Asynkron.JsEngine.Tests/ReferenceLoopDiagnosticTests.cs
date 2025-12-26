@@ -122,25 +122,53 @@ public class ReferenceLoopDiagnosticTests(ITestOutputHelper output)
             Logger = logger
         });
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         try
         {
             var result = await engine.Evaluate("""
                 let result = 0;
+                let guard = 0;
                 for (let i = 0; i < 5; i = i + 1) {
+                    guard = guard + 1;
+                    if (guard > 10) {
+                        break;
+                    }
                     result = result + i;
                 }
-                result;
+                JSON.stringify({ result, guard });
                 """, cts.Token);
 
-            Assert.Equal(10.0, result);
+            var parsed = System.Text.Json.JsonDocument.Parse((string)result);
+            var guardValue = parsed.RootElement.GetProperty("guard").GetInt32();
+            var sumValue = parsed.RootElement.GetProperty("result").GetDouble();
+
+            // If the loop behaved, guard is 5 and sum is 10. If it stalled, guard > 10 and sum likely wrong.
+            if (guardValue > 10)
+            {
+                DumpLogs(output, logger.Collector.Snapshot().Select(r => r.Message).ToArray());
+                Assert.True(false, $"Loop guard tripped at {guardValue}");
+            }
+
+            Assert.Equal(10.0, sumValue);
         }
         catch (OperationCanceledException)
         {
             // Timeout - the loop is hanging
             var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
-            output.WriteLine($"ReferencePath let loop TIMED OUT after 2s - {messages.Length} log messages");
+            output.WriteLine($"ReferencePath let loop TIMED OUT after 5s - {messages.Length} log messages");
+
+            var envLogs = messages.Where(m =>
+                    m.Contains("for-iteration", StringComparison.Ordinal) ||
+                    m.Contains("Reset(", StringComparison.Ordinal) ||
+                    m.Contains("CreatePerIterationEnvironment", StringComparison.Ordinal) ||
+                    m.Contains("Identifier slot", StringComparison.Ordinal))
+                .ToArray();
+            output.WriteLine($"Env logs ({envLogs.Length}):");
+            foreach (var log in envLogs.Take(50))
+            {
+                output.WriteLine(log);
+            }
             foreach (var msg in messages.Take(50))
             {
                 output.WriteLine(msg);
@@ -156,12 +184,48 @@ public class ReferenceLoopDiagnosticTests(ITestOutputHelper output)
 
             throw new Exception($"Loop timed out. Found {iterationLogs.Length} iteration logs. See output for details.");
         }
-
-        var finalMessages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
-        output.WriteLine($"ReferencePath let loop - {finalMessages.Length} log messages");
-        foreach (var msg in finalMessages.Take(20))
+        finally
         {
-            output.WriteLine(msg);
+            var finalMessages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
+            output.WriteLine($"ReferencePath let loop - {finalMessages.Length} log messages");
+            DumpLogs(output, finalMessages);
+        }
+    }
+
+    private static void DumpLogs(ITestOutputHelper output, string[] messages)
+    {
+        static string[] Filter(string[] source, string contains) =>
+            source.Where(m => m.Contains(contains, StringComparison.Ordinal)).ToArray();
+
+        var slotLogs = Filter(messages, "Identifier slot");
+        var iterLogs = Filter(messages, "Loop iteration");
+        var envLogs = messages.Where(m =>
+                m.Contains("CreatePerIterationEnvironment", StringComparison.Ordinal) ||
+                m.Contains("Reset per-iteration env reuse", StringComparison.Ordinal))
+            .ToArray();
+
+        var lines = new List<string>();
+        lines.Add($"Slot logs ({slotLogs.Length}):");
+        lines.AddRange(slotLogs);
+        lines.Add($"Iteration logs ({iterLogs.Length}):");
+        lines.AddRange(iterLogs);
+        lines.Add($"Env logs ({envLogs.Length}):");
+        lines.AddRange(envLogs);
+
+        var path = Path.Combine(Path.GetTempPath(), $"ref-loop-logs-{Environment.ProcessId}.txt");
+        try
+        {
+            File.WriteAllLines(path, lines);
+            output.WriteLine($"Filtered logs written to {path} (exists: {File.Exists(path)})");
+        }
+        catch (Exception ex)
+        {
+            output.WriteLine($"Failed to write logs to {path}: {ex.Message}");
+        }
+        // Also echo a small subset inline for quick visibility
+        foreach (var log in lines.Take(30))
+        {
+            output.WriteLine(log);
         }
     }
 

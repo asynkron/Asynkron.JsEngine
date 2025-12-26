@@ -1090,28 +1090,29 @@ public sealed class JsEnvironment : IRentable
     /// Slot-aware identifier read. Attempts to use the provided scope/slot hint, then falls back to regular resolution.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryReadIdentifierWithSlot(Symbol name, int scopeId, int slotIndex, EvaluationContext context,
-        out JsValue value)
-    {
-        value = default;
-        if (scopeId >= 0 && slotIndex >= 0)
+        internal bool TryReadIdentifierWithSlot(Symbol name, int scopeId, int slotIndex, EvaluationContext context,
+            out JsValue value)
         {
-            var targetEnv = FindByScopeId(scopeId);
-            var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            value = default;
+            if (scopeId >= 0 && slotIndex >= 0)
             {
-                var slotValue = slots[slotIndex];
-                targetEnv.RealmState?.Logger?.LogInformation(
-                    "Identifier slot read hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                var targetEnv = FindByScopeId(scopeId);
+                var slots = targetEnv?._slots;
+                if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+                {
+                    var slotValue = slots[slotIndex];
+                    targetEnv.RealmState?.Logger?.LogInformation(
+                    "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    targetEnv.GetHashCode(),
                     name.Name,
                     scopeId,
                     slotIndex,
                     slotValue.Kind);
-                if (slotValue.IsUninitialized)
-                {
-                    var errorObject = StandardLibrary.CreateReferenceError(
-                        $"Cannot access '{name.Name}' before initialization",
-                        context,
+                    if (slotValue.IsUninitialized)
+                    {
+                        var errorObject = StandardLibrary.CreateReferenceError(
+                            $"Cannot access '{name.Name}' before initialization",
+                            context,
                         context.RealmState);
                     value = errorObject;
                     context.SetThrow(value);
@@ -1125,10 +1126,11 @@ public sealed class JsEnvironment : IRentable
 
         // Slot path missed or invalid; fall back to regular resolution
         context.RealmState.Logger?.LogInformation(
-            "Identifier slot read miss name={Name} scopeId={ScopeId} slot={Slot}",
+            "Identifier slot read miss name={Name} scopeId={ScopeId} slot={Slot} env={Env}",
             name.Name,
             scopeId,
-            slotIndex);
+            slotIndex,
+            this.GetHashCode());
 
         if (TryGetIdentifierJsValue(name, context, out var resolved))
         {
@@ -1153,52 +1155,55 @@ public sealed class JsEnvironment : IRentable
     /// Slot-aware identifier write. Uses slot hint when possible; otherwise falls back to normal write resolution.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool TryWriteIdentifierWithSlot(Symbol name, int scopeId, int slotIndex, JsValue value,
-        EvaluationContext context)
-    {
-        if (scopeId >= 0 && slotIndex >= 0)
+        private bool TryWriteIdentifierWithSlot(Symbol name, int scopeId, int slotIndex, JsValue value,
+            EvaluationContext context)
         {
-            var targetEnv = FindByScopeId(scopeId);
-            var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            if (scopeId >= 0 && slotIndex >= 0)
             {
-                if (targetEnv._values is not null)
+                var targetEnv = FindByScopeId(scopeId);
+                var slots = targetEnv?._slots;
+                if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
                 {
-                    ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
-                    if (!Unsafe.IsNullRef(ref binding))
+                    if (targetEnv._values is not null)
                     {
-                        targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
-                            context.CurrentScope.IsStrict);
-                        slots[slotIndex] = value;
-                        targetEnv.RealmState?.Logger?.LogInformation(
-                            "Identifier slot write hit name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                        ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
+                        if (!Unsafe.IsNullRef(ref binding))
+                        {
+                            targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
+                                context.CurrentScope.IsStrict);
+                            slots[slotIndex] = value;
+                            targetEnv.RealmState?.Logger?.LogInformation(
+                            "Identifier slot write hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                            targetEnv.GetHashCode(),
                             name.Name,
                             scopeId,
                             slotIndex,
                             value.Kind);
-                        return true;
+                            return true;
+                        }
                     }
-                }
 
-                slots[slotIndex] = value;
-                targetEnv.RealmState?.Logger?.LogInformation(
-                    "Identifier slot write hit (slot-only) name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    slots[slotIndex] = value;
+                    targetEnv.RealmState?.Logger?.LogInformation(
+                    "Identifier slot write hit (slot-only) env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    targetEnv.GetHashCode(),
                     name.Name,
                     scopeId,
                     slotIndex,
                     value.Kind);
-                return true;
+                    return true;
+                }
             }
-        }
 
-        context.RealmState.Logger?.LogInformation(
-            "Identifier slot write miss name={Name} scopeId={ScopeId} slot={Slot}",
+            context.RealmState.Logger?.LogInformation(
+            "Identifier slot write miss env={Env} name={Name} scopeId={ScopeId} slot={Slot}",
+            this.GetHashCode(),
             name.Name,
             scopeId,
             slotIndex);
-        SetIdentifierJsValue(name, value, context);
-        return true;
-    }
+            SetIdentifierJsValue(name, value, context);
+            return true;
+        }
 
     /// <summary>
     /// Overload for convenience when call sites already have the identifier node.

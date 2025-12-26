@@ -207,6 +207,29 @@ public abstract class ScopeAnalyzerTestsBase(ITestOutputHelper output) : FastPat
     }
 
     [Fact]
+    public void ForLetLoop_AssignsPerIterationScopeAndSlots()
+    {
+        var program = ParseAndAnalyze(@"
+            let sum = 0;
+            for (let i = 0; i < 3; i = i + 1) {
+                sum = sum + i;
+            }
+        ");
+
+        var forStmt = Assert.IsType<ForStatement>(program.Body[1]);
+
+        Assert.True(forStmt.PerIterationScopeId >= 0);
+        Assert.Equal(1, forStmt.PerIterationSlotCount);
+        Assert.Single(forStmt.PerIterationSlotIndices);
+        Assert.Equal(0, forStmt.PerIterationSlotIndices[0]);
+
+        var increment = Assert.IsType<AssignmentExpression>(forStmt.Increment);
+        Assert.Equal("i", increment.Target.Name);
+        Assert.Equal(forStmt.PerIterationScopeId, increment.ScopeId);
+        Assert.Equal(0, increment.SlotIndex);
+    }
+
+    [Fact]
     public void NestedNamedFunctionExpressions_CorrectScopeIds()
     {
         // var outer = function outerFn(a) {

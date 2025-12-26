@@ -435,6 +435,7 @@ public static partial class TypedAstEvaluator
                 return rhsValue;
             }
 
+            // Respect engine setting for assignment fast paths
             var enableFastPaths = context.RealmState.EnableFastPaths;
 
             // Fast path: slot-based assignment using ScopeId to find the declaring environment.

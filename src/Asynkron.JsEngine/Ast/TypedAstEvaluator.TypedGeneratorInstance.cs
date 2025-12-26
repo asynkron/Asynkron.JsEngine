@@ -56,6 +56,11 @@ public static partial class TypedAstEvaluator
         // The driverState.IteratorVariable holds the loop scope environment reference.
         private IteratorDriverState? _currentDriverState;
 
+        // Tracks whether we just resumed from a suspend (await/yield).
+        // When true, we should NOT return iteration environments to the pool because
+        // the previous iteration might still be in progress (we suspended mid-iteration).
+        private bool _justResumedFromSuspend;
+
         public TypedGeneratorInstance(
             FunctionExpression function,
             JsEnvironment closure,
@@ -488,6 +493,7 @@ public static partial class TypedAstEvaluator
             }
 
             _state = GeneratorState.Executing;
+            _justResumedFromSuspend = !wasStart;
             PreparePendingResumeValue(mode, resumeValue, wasStart);
 
             var environment = EnsureExecutionEnvironment();
@@ -1049,11 +1055,20 @@ public static partial class TypedAstEvaluator
                                     }
                                 }
 
-                                // Now safe to return previous iteration environment to pool
-                                if (allowPooling && previousIterEnv != null)
+                                // Only return previous iteration environment to pool if:
+                                // 1. Pooling is allowed (no closures or awaits in loop body)
+                                // 2. We have a previous iteration environment
+                                // 3. We're NOT resuming from a suspend (await/yield)
+                                //    If we just resumed, the previous iteration might still be in progress
+                                //    (we suspended mid-iteration), so don't return it yet.
+                                if (allowPooling && previousIterEnv != null && !_justResumedFromSuspend)
                                 {
                                     JsEnvironmentPool.Return(previousIterEnv);
                                 }
+
+                                // Clear the flag - subsequent CreateIterationEnvironments in this
+                                // execution are for fresh iterations, not resume continuations
+                                _justResumedFromSuspend = false;
 
                                 // Update the saved iteration environment on the driver state
                                 // This ensures after async resume we can find the correct loop scope

@@ -2,7 +2,6 @@
 
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 
 #endregion
 
@@ -157,16 +156,15 @@ internal static class LoopNormalizer
         int iterationSlotCount = -1,
         ImmutableArray<int> perIterationSlotIndices = default)
     {
-        // Disable pooling for:
-        // 1. Loops with inner function expressions (closures capture environment reference)
-        // 2. Loops with await expressions (async suspend/resume complicates environment lifecycle)
+        // Disable pooling for loops with inner function expressions (closures capture environment reference).
+        // Async loops with await are now handled correctly - the generator tracks resume state and
+        // skips pool return when resuming mid-iteration (see _justResumedFromSuspend flag).
         var allowIterationEnvironmentPooling =
             !TypedAstEvaluator.ContainsInnerFunctionExpression(body) &&
             !TypedAstEvaluator.ContainsInnerFunctionExpression(condition) &&
             !StatementsContainInnerFunctionExpression(leading) &&
             !StatementsContainInnerFunctionExpression(conditionPrologue) &&
-            !StatementsContainInnerFunctionExpression(postIteration) &&
-            !AstShapeAnalyzer.StatementContainsAwait(body);
+            !StatementsContainInnerFunctionExpression(postIteration);
 
         return new LoopPlan(
             kind,

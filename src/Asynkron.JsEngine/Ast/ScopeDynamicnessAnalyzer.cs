@@ -994,6 +994,13 @@ public static partial class TypedAstEvaluator
                         return true;
                     }
 
+                    // Also check the destructuring target for function expressions in defaults
+                    if (ContainsInnerFunctionExpression(forEachStatement.Target))
+                    {
+                        block.CacheContainsInnerFunction(true);
+                        return true;
+                    }
+
                     work.Push(forEachStatement.Body);
                     break;
                 case LabeledStatement labeledStatement:
@@ -1187,6 +1194,83 @@ public static partial class TypedAstEvaluator
                 case ImportMetaExpression:
                 case ThisExpression:
                 case SuperExpression:
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Determines whether a binding target (destructuring pattern) contains inner function expressions.
+    /// Used to detect if closures in destructuring defaults would capture the iteration environment.
+    /// </summary>
+    internal static bool ContainsInnerFunctionExpression(BindingTarget target)
+    {
+        var work = new Stack<BindingTarget>();
+        work.Push(target);
+
+        while (work.Count > 0)
+        {
+            var node = work.Pop();
+            switch (node)
+            {
+                case IdentifierBinding:
+                    break;
+                case AssignmentTargetBinding assignmentTarget:
+                    if (ContainsInnerFunctionExpression(assignmentTarget.Expression))
+                    {
+                        return true;
+                    }
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        // Check default values for function expressions
+                        if (element.DefaultValue is not null &&
+                            ContainsInnerFunctionExpression(element.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        if (element.Target is not null)
+                        {
+                            work.Push(element.Target);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        work.Push(arrayBinding.RestElement);
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        // Check computed property names for function expressions
+                        if (property.NameExpression is not null &&
+                            ContainsInnerFunctionExpression(property.NameExpression))
+                        {
+                            return true;
+                        }
+
+                        // Check default values for function expressions
+                        if (property.DefaultValue is not null &&
+                            ContainsInnerFunctionExpression(property.DefaultValue))
+                        {
+                            return true;
+                        }
+
+                        work.Push(property.Target);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        work.Push(objectBinding.RestElement);
+                    }
+
                     break;
             }
         }

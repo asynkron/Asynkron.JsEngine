@@ -15,9 +15,12 @@ internal static class IteratorDriverFactory
             ? IteratorDriverKind.Await
             : IteratorDriverKind.Sync;
 
-        // Check if iteration environment can be reused (no closures in loop body).
+        // Check if iteration environment can be reused (no closures in loop body or target).
         // This enables JsVariable caching for let/const bindings.
-        var canReuseIterationEnvironment = !ContainsInnerFunctionExpression(rewrittenBody);
+        // Must check both body AND target - closures in destructuring defaults also capture
+        // the iteration environment.
+        var canReuseIterationEnvironment = !ContainsInnerFunctionExpression(rewrittenBody) &&
+                                           !ContainsInnerFunctionExpression(statement.Target);
 
         return new IteratorDriverPlan(
             kind,

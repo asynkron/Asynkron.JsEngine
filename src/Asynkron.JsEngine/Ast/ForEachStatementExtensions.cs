@@ -69,8 +69,15 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Use pooled environment for loop scope
-            var loopEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop");
+            // Check if there are closures in the target that would capture environments
+            var hasClosuresInTarget = ContainsInnerFunctionExpression(statement.Target);
+            var hasClosuresInIterable = ContainsInnerFunctionExpression(statement.Iterable);
+            var canPoolLoopEnvironment = !hasClosuresInTarget && !hasClosuresInIterable;
+
+            // Use pooled environment for loop scope only if no closures will capture the chain
+            var loopEnvironment = canPoolLoopEnvironment
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop")
+                : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
             var lastValueJs = JsValue.Undefined;
 
             try
@@ -198,7 +205,11 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                JsEnvironmentPool.Return(loopEnvironment);
+                // Only return to pool if we pooled it in the first place
+                if (canPoolLoopEnvironment)
+                {
+                    JsEnvironmentPool.Return(loopEnvironment);
+                }
             }
         }
 
@@ -233,8 +244,15 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
             }
 
-            // Use pooled environment for loop scope
-            var loopEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop");
+            // Check if there are closures in the target that would capture environments
+            var hasClosuresInTarget = ContainsInnerFunctionExpression(statement.Target);
+            var hasClosuresInIterable = ContainsInnerFunctionExpression(statement.Iterable);
+            var canPoolLoopEnvironment = !hasClosuresInTarget && !hasClosuresInIterable;
+
+            // Use pooled environment for loop scope only if no closures will capture the chain
+            var loopEnvironment = canPoolLoopEnvironment
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop")
+                : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
 
             try
             {
@@ -291,7 +309,11 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                JsEnvironmentPool.Return(loopEnvironment);
+                // Only return to pool if we pooled it in the first place
+                if (canPoolLoopEnvironment)
+                {
+                    JsEnvironmentPool.Return(loopEnvironment);
+                }
             }
         }
     }

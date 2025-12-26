@@ -69,17 +69,23 @@ public static partial class TypedAstEvaluator
     {
         // JsArray - fast path only if no custom indexed properties (getters/setters)
         // Arrays with Object.defineProperty on numeric indices need full iterator protocol
+        // Uses pooled enumerator to avoid allocating state machine per iteration
         if (value is { Kind: JsValueKind.Object, ObjectValue: JsArray { HasCustomIndexedProperties: false } array })
         {
-            return array.GetEnumerator();
+            return JsArrayPooledEnumerator.Rent(array);
         }
 
         // Strings - Unicode code point enumeration (handles surrogate pairs)
         // Strings are immutable so no modification concerns
-        return value is { Kind: JsValueKind.String, ObjectValue: string s } ? EnumerateStringCharacters(s) :
-            // Fall back to null - caller should use full iterator protocol
-            // TypedArray: resizable buffer shrink needs proper error propagation
-            null;
+        // Uses pooled enumerator to avoid allocating state machine per iteration
+        if (value is { Kind: JsValueKind.String, ObjectValue: string s })
+        {
+            return StringPooledEnumerator.Rent(s);
+        }
+
+        // Fall back to null - caller should use full iterator protocol
+        // TypedArray: resizable buffer shrink needs proper error propagation
+        return null;
     }
 
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
@@ -892,10 +898,10 @@ public static partial class TypedAstEvaluator
         iterator = null;
         enumerator = null;
 
-        // Fast path for strings
+        // Fast path for strings - uses pooled enumerator
         if (jsValue is { Kind: JsValueKind.String, ObjectValue: string s })
         {
-            enumerator = EnumerateStringCharacters(s);
+            enumerator = StringPooledEnumerator.Rent(s);
             return true;
         }
 
@@ -904,7 +910,7 @@ public static partial class TypedAstEvaluator
         {
             var objValue = jsValue.ObjectValue;
 
-            // Fast path for TypedArray
+            // Fast path for TypedArray - uses pooled enumerator
             if (objValue is TypedArrayBase typedArray)
             {
                 if (typedArray.IsDetachedOrOutOfBounds())
@@ -912,7 +918,7 @@ public static partial class TypedAstEvaluator
                     throw typedArray.CreateOutOfBoundsTypeError();
                 }
 
-                enumerator = EnumerateTypedArrayValues(typedArray);
+                enumerator = TypedArrayPooledEnumerator.Rent(typedArray);
                 return true;
             }
 
@@ -957,58 +963,6 @@ public static partial class TypedAstEvaluator
 
         // For primitives (numbers, booleans), they cannot be directly iterated
         return false;
-    }
-
-    [MustDisposeResource]
-    private static IEnumerator<JsValue> EnumerateStringCharacters(string value)
-    {
-        return Enumerate().GetEnumerator();
-
-        IEnumerable<JsValue> Enumerate()
-        {
-            // Iterate by Unicode code points, not UTF-16 code units.
-            // Astral plane characters (U+10000 and above) are stored as surrogate pairs
-            // and should be yielded as a single string (Test262: string-astral.js)
-            var i = 0;
-            while (i < value.Length)
-            {
-                var ch = value[i];
-                if (char.IsHighSurrogate(ch) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
-                {
-                    // Surrogate pair - yield both chars as one string
-                    yield return value.Substring(i, 2);
-                    i += 2;
-                }
-                else
-                {
-                    // Single char (BMP character or unpaired surrogate)
-                    yield return ch.ToString();
-                    i++;
-                }
-            }
-        }
-    }
-
-    [MustDisposeResource]
-    private static IEnumerator<JsValue> EnumerateTypedArrayValues(TypedArrayBase typedArray)
-    {
-        return Enumerate().GetEnumerator();
-
-        IEnumerable<JsValue> Enumerate()
-        {
-            // Check length and bounds on each iteration - buffer may be resized during iteration
-            // (Test262: typedarray-backed-by-resizable-buffer-*.js tests)
-            for (var i = 0; i < typedArray.Length; i++)
-            {
-                // Check if buffer is still valid on each iteration
-                if (typedArray.IsDetachedOrOutOfBounds())
-                {
-                    yield break;
-                }
-
-                yield return typedArray.GetValueForIndex(i);
-            }
-        }
     }
 
     /// <summary>

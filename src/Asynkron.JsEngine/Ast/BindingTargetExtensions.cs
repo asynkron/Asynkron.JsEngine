@@ -48,8 +48,56 @@ public static partial class TypedAstEvaluator
             }
 
             // Slow path for destructuring: `for (let {a, b} of arr)` or `for (let [x, y] of arr)`
-            target.WalkBindingTargets(binding => environment.DefineJsValue(binding.Name, JsValue.Uninitialized, isConst,
-                isLexical: true, blocksFunctionScopeOverride: true));
+            // Uses specialized walk that passes parameters directly to avoid lambda/display class allocation
+            target.WalkAndDefineUninitializedBindings(environment, isConst);
+        }
+
+        /// <summary>
+        /// Walks binding targets and defines uninitialized lexical bindings directly.
+        /// Avoids Action delegate allocation by passing parameters explicitly.
+        /// </summary>
+        private void WalkAndDefineUninitializedBindings(JsEnvironment environment, bool isConst)
+        {
+            while (true)
+            {
+                switch (target)
+                {
+                    case IdentifierBinding id:
+                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
+                            isLexical: true, blocksFunctionScopeOverride: true);
+                        return;
+                    case ArrayBinding array:
+                        foreach (var element in array.Elements)
+                        {
+                            element.Target?.WalkAndDefineUninitializedBindings(environment, isConst);
+                        }
+
+                        if (array.RestElement is null)
+                        {
+                            return;
+                        }
+
+                        target = array.RestElement;
+                        continue;
+
+                    case ObjectBinding obj:
+                        foreach (var property in obj.Properties)
+                        {
+                            property.Target.WalkAndDefineUninitializedBindings(environment, isConst);
+                        }
+
+                        if (obj.RestElement is null)
+                        {
+                            return;
+                        }
+
+                        target = obj.RestElement;
+                        continue;
+
+                    default:
+                        return;
+                }
+            }
         }
 
         private void CollectSymbolsFromBinding(HashSet<Symbol> names)

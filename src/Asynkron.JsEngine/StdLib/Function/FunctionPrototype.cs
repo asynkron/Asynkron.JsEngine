@@ -14,7 +14,7 @@ public sealed partial class FunctionPrototype
 {
     /* FLAKY */
     [JsHostMethod("toString", Length = 0d)]
-    private static JsValue ToSßtring(JsValue thisValue)
+    private static JsValue ToString(JsValue thisValue)
     {
         if (thisValue.TryGetObject<IJsCallable>(out _))
         {

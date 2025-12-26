@@ -13,7 +13,6 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     /* FLAKY */
-    /* FLAKY */
     [JsHostMethod("push", Length = 1d)]
     public JsValue Push(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -54,7 +53,6 @@ public sealed partial class ArrayPrototype
         }
     }
 
-    /* FLAKY */
     /* FLAKY */
     [JsHostMethod("pop", Length = 0d)]
     public JsValue Pop(JsValue thisValue)
@@ -100,7 +98,6 @@ public sealed partial class ArrayPrototype
         }
     }
 
-    /* FLAKY */
     /* FLAKY */
     [JsHostMethod("shift", Length = 0d)]
     public JsValue Shift(JsValue thisValue)
@@ -169,7 +166,6 @@ public sealed partial class ArrayPrototype
     }
 
     /* FLAKY */
-    /* FLAKY */
     [JsHostMethod("unshift", Length = 1d)]
     public JsValue Unshift(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -228,7 +224,6 @@ public sealed partial class ArrayPrototype
         }
     }
 
-    /* FLAKY */
     /* FLAKY */
     [JsHostMethod("splice", Length = 2d)]
     public JsValue Splice(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -359,7 +354,6 @@ public sealed partial class ArrayPrototype
     }
 
     /* FLAKY */
-    /* FLAKY */
     [JsHostMethod("reverse", Length = 0d)]
     public JsValue Reverse(JsValue thisValue)
     {
@@ -434,7 +428,6 @@ public sealed partial class ArrayPrototype
     }
 
     /* FLAKY */
-    /* FLAKY */
     [JsHostMethod("concat", Length = 1d)]
     public JsValue Concat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -489,7 +482,6 @@ public sealed partial class ArrayPrototype
         return JsValue.FromObjectUnsafe(result);
     }
 
-    /* FLAKY */
     /* FLAKY */
     [JsHostMethod("sort", Length = 1d)]
     public JsValue Sort(JsValue thisValue, IReadOnlyList<JsValue> args)

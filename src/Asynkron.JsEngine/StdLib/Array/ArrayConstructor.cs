@@ -19,7 +19,6 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     // Static methods registered via code generation
 
     /* FLAKY */
-    /* FLAKY */
     [JsConstructorMethod("isArray", Length = 1d)]
     public static JsValue IsArray(IReadOnlyList<JsValue> args, RealmState? realm)
     {
@@ -28,14 +27,12 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     }
 
     /* FLAKY */
-    /* FLAKY */
     [JsConstructorMethod("of", Length = 0d)]
     public static JsValue Of(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         return JsValue.FromObjectUnsafe(ArrayOf(thisValue, args, realm));
     }
 
-    /* FLAKY */
     /* FLAKY */
     [JsConstructorSymbolGetter("species")]
     public static JsValue GetSpecies(JsValue thisValue)

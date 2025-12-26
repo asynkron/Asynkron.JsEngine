@@ -11,7 +11,6 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ArrayPrototype
 {
     /* FLAKY */
-    /* FLAKY */
     [JsHostMethod("entries", Length = 0d)]
     public JsValue Entries(JsValue thisValue)
     {
@@ -26,7 +25,6 @@ public sealed partial class ArrayPrototype
     }
 
     /* FLAKY */
-    /* FLAKY */
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue)
     {
@@ -34,7 +32,6 @@ public sealed partial class ArrayPrototype
             (_, _) => idx => new JsValue((double)idx)));
     }
 
-    /* FLAKY */
     /* FLAKY */
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue)

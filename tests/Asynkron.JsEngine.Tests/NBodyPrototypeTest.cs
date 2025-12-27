@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class NBodyPrototypeTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyPrototypeTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task PrototypeMethod_CallOnArrayElement_Works()

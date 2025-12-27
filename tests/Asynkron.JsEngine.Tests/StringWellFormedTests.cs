@@ -115,8 +115,3 @@ public class StringWellFormedTests(ITestOutputHelper output) : FastPathTestBase(
         Assert.Equal("hello", result);
     }
 }
-
-public class StringWellFormedTests(ITestOutputHelper output) : StringWellFormedTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

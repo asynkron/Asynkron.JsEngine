@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TestLetDeclarationBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TestLetDeclaration(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task LetWithoutInitializer_ShouldBeUndefined()

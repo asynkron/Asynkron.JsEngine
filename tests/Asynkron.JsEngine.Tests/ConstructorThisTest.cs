@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ConstructorThisTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ConstructorThisTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Constructor_SetsProperty_WithSimpleValue()

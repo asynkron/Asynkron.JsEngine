@@ -82,8 +82,3 @@ public class MathF16RoundTests(ITestOutputHelper output) : FastPathTestBase(outp
         Assert.Equal(1000d, result);
     }
 }
-
-public class MathF16RoundTests(ITestOutputHelper output) : MathF16RoundTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Base test class with the actual test logic.
 /// </summary>
-public abstract class ArrayLengthTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ArrayLengthTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 60000)]
     public async Task TestStr2BinlLength()
@@ -35,10 +35,4 @@ public abstract class ArrayLengthTestBase(ITestOutputHelper output) : FastPathTe
         Assert.Contains("plainText.length=15824", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("result.length=3956", result?.ToString(), StringComparison.Ordinal);
     }
-}
-
-// These two classes show up separately in Test Explorer
-public class FastPathArrayLengthTest(ITestOutputHelper output) : ArrayLengthTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

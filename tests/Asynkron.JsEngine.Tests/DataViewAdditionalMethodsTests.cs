@@ -118,8 +118,3 @@ public class DataViewAdditionalMethodsTests(ITestOutputHelper output) : FastPath
         Assert.True((bool)result!);
     }
 }
-
-public class DataViewAdditionalMethodsTests(ITestOutputHelper output) : DataViewAdditionalMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

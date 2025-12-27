@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class NBodyFiveBodiesPrototypeTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task FiveBodies_PrototypeMethod_Works()

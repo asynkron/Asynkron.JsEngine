@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class RestrictedPropertiesQuickTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class RestrictedPropertiesQuickTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Generator_HasNoOwnCallerProperty()

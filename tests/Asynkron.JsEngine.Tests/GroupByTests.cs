@@ -66,8 +66,3 @@ public class GroupByTests(ITestOutputHelper output) : FastPathTestBase(output)
         Assert.True((bool)result!);
     }
 }
-
-public class GroupByTests(ITestOutputHelper output) : GroupByTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

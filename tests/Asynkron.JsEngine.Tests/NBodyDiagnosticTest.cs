@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class NBodyDiagnosticTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyDiagnosticTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Array_ConstructorWithMultipleArguments_Works()

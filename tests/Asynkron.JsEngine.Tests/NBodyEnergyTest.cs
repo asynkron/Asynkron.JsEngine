@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class NBodyEnergyTestBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyEnergyTest(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Energy_MethodCall_Works()

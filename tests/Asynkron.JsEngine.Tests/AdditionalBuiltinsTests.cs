@@ -56,11 +56,6 @@ public class AdditionalBuiltinsTests(ITestOutputHelper output) : FastPathTestBas
         ");
         Assert.True((bool)result!);
     }
-}
-
-public partial class AdditionalBuiltinsTests(ITestOutputHelper output) : AdditionalBuiltinsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 
     [Fact(Timeout = 2000)]
     public async Task TypeError_InstanceOf_Works()

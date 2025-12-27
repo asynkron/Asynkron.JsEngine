@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TestSimpleVarBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TestSimpleVar(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task SimpleVarWithInitializer_ShouldWork()

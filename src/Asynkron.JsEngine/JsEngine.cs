@@ -26,8 +26,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     //DEBUG code
     private readonly Channel<DebugMessage>? _debugChannel;
-    private readonly bool _debugMode;
-    private readonly object _drainLock = new(); // Protects _drainCompletionSource
+    private readonly Lock _drainLock = new(); // Protects _drainCompletionSource
     private readonly Channel<ExceptionInfo>? _exceptionChannel;
 
     // Synchronous microtask queue for top-level await support.
@@ -73,15 +72,15 @@ public sealed class JsEngine : IAsyncDisposable
     internal JsEngine(IJsEngineOptions? options, bool skipStdLibInitialization)
     {
         Options = options ?? JsEngineOptions.Default;
-        _debugMode = Options.DebugMode;
-        if (_debugMode)
+        var debugMode = Options.DebugMode;
+        if (debugMode)
         {
             _asyncIteratorTraceChannel = Channel.CreateUnbounded<string>();
             _debugChannel = Channel.CreateUnbounded<DebugMessage>();
             _exceptionChannel = Channel.CreateUnbounded<ExceptionInfo>();
         }
 
-        _asyncIteratorTracingEnabled = _debugMode;
+        _asyncIteratorTracingEnabled = debugMode;
         RealmState = new RealmState { Options = Options, Engine = this, Logger = Options.Logger, EnableFastPaths = Options.EnableFastPaths };
         GlobalEnvironment.SetRealmState(RealmState);
         GlobalExecutionScope = GlobalEnvironment;
@@ -211,6 +210,9 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("WeakSet", WeakSetConstructor.CreateConstructor(RealmState));
 
         SetGlobal("WeakRef", WeakRefHelper.CreateWeakRefConstructor(RealmState));
+
+        // Register Iterator constructor
+        SetGlobal("Iterator", IteratorConstructor.CreateConstructor(RealmState));
 
         // Minimal browser-like storage object used by debug/babel-standalone.
         SetGlobal("localStorage", BrowserHelper.CreateLocalStorageObject());

@@ -83,6 +83,7 @@ public sealed class RealmState
     public JsObject? AsyncGeneratorFunctionPrototype { get; set; }
     public JsObject? AsyncGeneratorPrototype { get; set; }
     public JsObject? AsyncIteratorPrototype { get; set; }
+    public JsObject? IteratorPrototype { get; set; }
     public HostFunction? AsyncGeneratorFunctionConstructor { get; set; }
     public IJsCallable? PromiseConstructor { get; set; }
     public JsObject? PromisePrototype { get; set; }

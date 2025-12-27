@@ -915,6 +915,96 @@ public abstract class TypedArrayTestsBase(ITestOutputHelper output) : FastPathTe
         Assert.Equal(3d, obj["len"]);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Sort_SortsInPlace()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Int32Array([3, 1, 4, 1, 5, 9, 2, 6]);
+                                           arr.sort();
+                                           return arr.join(',');
+                                           """);
+        Assert.Equal("1,1,2,3,4,5,6,9", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Sort_WithCompareFunction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Int32Array([3, 1, 4]);
+                                           arr.sort((a, b) => b - a);
+                                           return arr.join(',');
+                                           """);
+        Assert.Equal("4,3,1", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Sort_ReturnsSameArray()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Int32Array([3, 1, 2]);
+                                           return arr.sort() === arr;
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Join_DefaultSeparator()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Int32Array([1, 2, 3]);
+                                           return arr.join();
+                                           """);
+        Assert.Equal("1,2,3", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Join_CustomSeparator()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Float64Array([1.5, 2.5, 3.5]);
+                                           return arr.join(' - ');
+                                           """);
+        Assert.Equal("1.5 - 2.5 - 3.5", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_Join_EmptyArray()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Int32Array(0);
+                                           return arr.join();
+                                           """);
+        Assert.Equal("", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ToString_ReturnsCommaSeparated()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Uint8Array([10, 20, 30]);
+                                           return arr.toString();
+                                           """);
+        Assert.Equal("10,20,30", result?.ToString());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ToLocaleString_ReturnsString()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const arr = new Float32Array([1, 2, 3]);
+                                           return typeof arr.toLocaleString() === 'string';
+                                           """);
+        Assert.Equal(true, result);
+    }
+
 }
 
 public class FastPathTypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)

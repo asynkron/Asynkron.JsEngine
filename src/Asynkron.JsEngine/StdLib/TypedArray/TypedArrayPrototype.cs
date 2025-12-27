@@ -995,5 +995,194 @@ public sealed partial class TypedArrayPrototype
         return (JsValue)typedArray.Subarray(begin, end);
     }
 
+    private JsValue SortImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.sort");
+
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && !args[0].IsUndefined)
+        {
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
+            {
+                throw ThrowTypeError("TypedArray.prototype.sort comparator must be callable", realm: Realm);
+            }
+
+            compareFn = callable;
+        }
+
+        var length = typedArray.Length;
+        if (length <= 1)
+        {
+            return (JsValue)typedArray;
+        }
+
+        // Read all values into a list
+        var values = new List<JsValue>(length);
+        for (var i = 0; i < length; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            values.Add(typedArray.GetValueForIndex(i));
+        }
+
+        // Sort the values
+        values.Sort(Comparer);
+
+        // Write sorted values back
+        for (var i = 0; i < values.Count; i++)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            typedArray.SetValue(i, values[i]);
+        }
+
+        return (JsValue)typedArray;
+
+        int Comparer(JsValue left, JsValue right)
+        {
+            if (compareFn is not null)
+            {
+                var res = compareFn.Invoke([left, right], JsValue.Undefined);
+                var numeric = JsOps.ToNumber(res);
+                return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
+            }
+
+            if (typedArray.IsBigIntArray)
+            {
+                var leftBig = left.TryGetObject<JsBigInt>(out var lb) ? lb : ToBigInt(left, realmState: Realm);
+                var rightBig = right.TryGetObject<JsBigInt>(out var rb) ? rb : ToBigInt(right, realmState: Realm);
+                return leftBig.Value.CompareTo(rightBig.Value);
+            }
+
+            var leftNum = JsOps.ToNumber(left);
+            var rightNum = JsOps.ToNumber(right);
+            if (double.IsNaN(leftNum))
+            {
+                return double.IsNaN(rightNum) ? 0 : 1;
+            }
+
+            if (double.IsNaN(rightNum))
+            {
+                return -1;
+            }
+
+            return leftNum.CompareTo(rightNum);
+        }
+    }
+
+    private JsValue JoinImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.join");
+
+        var length = typedArray.Length;
+        var separator = args.Count > 0 && !args[0].IsUndefined
+            ? JsOps.ToJsString(args[0], Realm?.CreateContext(pushScope: false))
+            : ",";
+
+        if (length == 0)
+        {
+            return JsValue.FromString(string.Empty);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < length; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(separator);
+            }
+
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var element = typedArray.GetValueForIndex(i);
+            if (!element.IsNullOrUndefined)
+            {
+                sb.Append(JsOps.ToJsString(element, Realm?.CreateContext(pushScope: false)));
+            }
+        }
+
+        return JsValue.FromString(sb.ToString());
+    }
+
+    private JsValue ToStringImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        // %TypedArray%.prototype.toString is the same as Array.prototype.toString
+        // which calls the 'join' method on the object
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.toString");
+
+        // Look up the join method and call it
+        if (typedArray.TryGetProperty("join", (JsValue)typedArray, out var joinMethod) &&
+            joinMethod.TryGetObject<IJsCallable>(out var joinCallable))
+        {
+            return joinCallable.Invoke([], (JsValue)typedArray);
+        }
+
+        // Fallback to direct join if no join method found
+        return JoinImpl(thisValue, []);
+    }
+
+    private JsValue ToLocaleStringImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.toLocaleString");
+
+        var length = typedArray.Length;
+        if (length == 0)
+        {
+            return JsValue.FromString(string.Empty);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < length; i++)
+        {
+            if (i > 0)
+            {
+                sb.Append(',');
+            }
+
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            var element = typedArray.GetValueForIndex(i);
+            if (!element.IsNullOrUndefined)
+            {
+                // Call toLocaleString on the element if it's an object with that method
+                if (element.IsObject &&
+                    element.TryGetObject<IJsPropertyAccessor>(out var obj) &&
+                    obj.TryGetProperty("toLocaleString", out var toLocaleMethod) &&
+                    toLocaleMethod.TryGetObject<IJsCallable>(out var callable))
+                {
+                    var result = callable.Invoke(args.ToList(), element);
+                    sb.Append(JsOps.ToJsString(result, Realm?.CreateContext(pushScope: false)));
+                }
+                else
+                {
+                    // For primitive numbers, use InvariantCulture formatting
+                    // to match JavaScript behavior
+                    if (element.IsNumber)
+                    {
+                        sb.Append(element.AsDouble().ToString(CultureInfo.InvariantCulture));
+                    }
+                    else
+                    {
+                        sb.Append(JsOps.ToJsString(element, Realm?.CreateContext(pushScope: false)));
+                    }
+                }
+            }
+        }
+
+        return JsValue.FromString(sb.ToString());
+    }
+
     #endregion
 }

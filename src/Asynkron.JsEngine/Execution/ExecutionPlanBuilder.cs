@@ -9,22 +9,19 @@ using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-///     Builds generator IR for a subset of JavaScript constructs. The builder currently supports linear statement lists,
-///     blocks, expression statements, variable declarations, simple returns, and top-level <c>yield</c> expressions.
-///     More complex control flow (if/loops/try/yield inside expressions) is detected and reported as unsupported so the
-///     engine can fall back to the legacy replay runner.
+///     Builds execution plans (IR) for pauseable functions: generators, async functions, and async generators.
+///     The builder supports linear statement lists, blocks, expression statements, variable declarations,
+///     returns, yield/yield* expressions, and control flow (if/loops/try-catch).
+///     More complex constructs are detected and reported as unsupported so the engine can fall back to
+///     the legacy replay runner.
 /// </summary>
-/// <summary>
-///     Builds generator IR plans for synchronous generator functions. Async generators are not
-///     implemented yet; async <c>function*</c> bodies always fall back to the replay engine.
-/// </summary>
-internal sealed class SyncGeneratorIrBuilder
+internal sealed class ExecutionPlanBuilder
 {
     private const string ResumeSlotPrefix = "\u0001_resume";
     private const string CatchSlotPrefix = "\u0001_catch";
     private const string YieldStarStatePrefix = "\u0001_yieldstar";
     private const string WithScopeSlotPrefix = "\u0001_with";
-    private readonly List<GeneratorInstruction> _instructions = [];
+    private readonly List<ExecutionInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
     private readonly List<Symbol> _slotSymbols = [];
     private int _catchSlotCounter;
@@ -43,7 +40,7 @@ internal sealed class SyncGeneratorIrBuilder
         return index;
     }
 
-    private SyncGeneratorIrBuilder()
+    private ExecutionPlanBuilder()
     {
     }
 
@@ -75,26 +72,37 @@ internal sealed class SyncGeneratorIrBuilder
         return true;
     }
 
-    public static bool TryBuild(FunctionExpression function, out GeneratorPlan plan, out string? failureReason)
+    public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
+        bool reportDiagnostics = true)
     {
-        // First run the generator yield-lowering pre-pass so that SyncGeneratorIrBuilder
-        // can assume a simplified, generator-friendly AST. The lowerer currently acts
+        // First run the yield-lowering pre-pass so that ExecutionPlanBuilder
+        // can assume a simplified, pauseable-function-friendly AST. The lowerer currently acts
         // as a no-op scaffold; yield normalization logic will be migrated here
         // incrementally.
         if (!GeneratorYieldLowerer.TryLowerToGeneratorFriendlyAst(function, out var lowered, out var lowerFailure))
         {
             plan = null!;
             failureReason = lowerFailure;
+
+            if (reportDiagnostics)
+            {
+                ExecutionPlanDiagnostics.ReportResult(function, false, failureReason);
+            }
             return false;
         }
 
-        var builder = new SyncGeneratorIrBuilder();
+        var builder = new ExecutionPlanBuilder();
         var succeeded = builder.TryBuildInternal(lowered, out plan);
         failureReason = builder._failureReason ?? lowerFailure;
+
+        if (reportDiagnostics)
+        {
+            ExecutionPlanDiagnostics.ReportResult(function, succeeded, failureReason);
+        }
         return succeeded;
     }
 
-    private bool TryBuildInternal(FunctionExpression function, out GeneratorPlan plan)
+    private bool TryBuildInternal(FunctionExpression function, out ExecutionPlan plan)
     {
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
         var implicitReturnIndex = Append(new ReturnInstruction(null));
@@ -105,7 +113,7 @@ internal sealed class SyncGeneratorIrBuilder
             return false;
         }
 
-        plan = new GeneratorPlan(
+        plan = new ExecutionPlan(
             [.._instructions],
             entryIndex,
             _slotSymbols.Count,
@@ -1562,7 +1570,7 @@ internal sealed class SyncGeneratorIrBuilder
         return false;
     }
 
-    private int Append(GeneratorInstruction instruction)
+    private int Append(ExecutionInstruction instruction)
     {
         var index = _instructions.Count;
         _instructions.Add(instruction);

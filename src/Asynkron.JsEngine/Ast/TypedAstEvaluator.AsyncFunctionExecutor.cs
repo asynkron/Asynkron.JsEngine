@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState;
         private readonly JsValue _thisValue;
 
-        private TypedGeneratorInstance? _inner;
+        private ExecutionPlanRunner? _inner;
 
         public AsyncFunctionExecutor(
             FunctionExpression function,
@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
                 try
                 {
                     // Initialize generator inside Promise to capture any early errors
-                    _inner = new TypedGeneratorInstance(
+                    _inner = new ExecutionPlanRunner(
                         _function,
                         _closure,
                         _arguments,
@@ -107,7 +107,7 @@ public static partial class TypedAstEvaluator
                     _inner.Initialize();
 
                     // Start execution - async functions don't receive an argument on first call
-                    DriveToCompletion(TypedGeneratorInstance.ResumeMode.Next, JsValue.Undefined, resolve, reject);
+                    DriveToCompletion(ExecutionPlanRunner.ResumeMode.Next, JsValue.Undefined, resolve, reject);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -132,7 +132,7 @@ public static partial class TypedAstEvaluator
         }
 
         private void DriveToCompletion(
-            TypedGeneratorInstance.ResumeMode mode,
+            ExecutionPlanRunner.ResumeMode mode,
             JsValue argument,
             IJsCallable resolve,
             IJsCallable reject)
@@ -143,23 +143,23 @@ public static partial class TypedAstEvaluator
 
                 switch (step.Kind)
                 {
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Completed:
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                         // Async function completed - resolve with the return value
                         InvokeWithOneArg(resolve, step.Value);
                         break;
 
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Yield:
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
                         // Async functions don't yield externally - treat as await
                         // and continue driving to completion
-                        DriveToCompletion(TypedGeneratorInstance.ResumeMode.Next, step.Value, resolve, reject);
+                        DriveToCompletion(ExecutionPlanRunner.ResumeMode.Next, step.Value, resolve, reject);
                         break;
 
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Throw:
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
                         // Async function threw - reject the promise
                         InvokeWithOneArg(reject, step.Value);
                         break;
 
-                    case TypedGeneratorInstance.AsyncGeneratorStepKind.Pending:
+                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
                         // Await hit a pending promise - attach handlers to resume
                         HandlePendingStep(step, resolve, reject);
                         break;
@@ -178,7 +178,7 @@ public static partial class TypedAstEvaluator
         }
 
         private void HandlePendingStep(
-            TypedGeneratorInstance.AsyncGeneratorStepResult step,
+            ExecutionPlanRunner.AsyncGeneratorStepResult step,
             IJsCallable resolve,
             IJsCallable reject)
         {
@@ -300,8 +300,8 @@ public static partial class TypedAstEvaluator
 
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
-                    ? TypedGeneratorInstance.ResumeMode.Throw
-                    : TypedGeneratorInstance.ResumeMode.Next;
+                    ? ExecutionPlanRunner.ResumeMode.Throw
+                    : ExecutionPlanRunner.ResumeMode.Next;
 
                 try
                 {

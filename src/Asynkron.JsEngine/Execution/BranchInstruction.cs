@@ -10,4 +10,4 @@ namespace Asynkron.JsEngine.Execution;
 ///     Represents a conditional branch.
 /// </summary>
 internal sealed record BranchInstruction(ExpressionNode Condition, int ConsequentIndex, int AlternateIndex)
-    : GeneratorInstruction(-1);
+    : ExecutionInstruction(-1);

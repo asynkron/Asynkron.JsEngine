@@ -13,4 +13,4 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal sealed record ClassDeclarationInstruction(
     int Next,
-    ClassDeclaration Declaration) : GeneratorInstruction(Next);
+    ClassDeclaration Declaration) : ExecutionInstruction(Next);

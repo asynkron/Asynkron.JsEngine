@@ -10,4 +10,4 @@ namespace Asynkron.JsEngine.Execution;
 ///     Represents an expression statement in the generator.
 ///     Evaluates the expression and discards the result.
 /// </summary>
-internal sealed record EvaluateAndDiscardInstruction(int Next, ExpressionNode Expression) : GeneratorInstruction(Next);
+internal sealed record EvaluateAndDiscardInstruction(int Next, ExpressionNode Expression) : ExecutionInstruction(Next);

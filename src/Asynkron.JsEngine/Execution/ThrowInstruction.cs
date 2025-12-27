@@ -10,4 +10,4 @@ namespace Asynkron.JsEngine.Execution;
 ///     Represents a throw statement in the generator.
 ///     Evaluates the expression and throws it as an exception.
 /// </summary>
-internal sealed record ThrowInstruction(ExpressionNode Expression) : GeneratorInstruction(-1);
+internal sealed record ThrowInstruction(ExpressionNode Expression) : ExecutionInstruction(-1);

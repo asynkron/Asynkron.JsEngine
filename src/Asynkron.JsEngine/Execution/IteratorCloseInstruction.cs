@@ -12,4 +12,4 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed record IteratorCloseInstruction(
     Symbol IteratorSlot,
     int Next)
-    : GeneratorInstruction(Next);
+    : ExecutionInstruction(Next);

@@ -442,7 +442,7 @@ internal static class AstCacheWarmup
 
             if (function.IsAsync || function.WasAsync || function.IsGenerator)
             {
-                function.WarmGeneratorPlanCache();
+                function.WarmExecutionPlanCache();
             }
         }
 

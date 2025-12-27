@@ -24,4 +24,4 @@ internal sealed record IteratorMoveNextInstruction(
     int ValueSlotIndex,
     int BreakIndex,
     int Next)
-    : GeneratorInstruction(Next);
+    : ExecutionInstruction(Next);

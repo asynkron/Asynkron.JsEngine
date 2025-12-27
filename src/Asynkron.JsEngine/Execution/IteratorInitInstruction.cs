@@ -20,4 +20,4 @@ internal sealed record IteratorInitInstruction(
     Symbol IteratorSlot,
     int IteratorSlotIndex,
     int Next)
-    : GeneratorInstruction(Next);
+    : ExecutionInstruction(Next);

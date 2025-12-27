@@ -12,4 +12,4 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed record LeaveWithInstruction(
     Symbol WithScopeSlot,
     int Next)
-    : GeneratorInstruction(Next);
+    : ExecutionInstruction(Next);

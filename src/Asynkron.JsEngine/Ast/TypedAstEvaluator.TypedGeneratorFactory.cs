@@ -109,7 +109,7 @@ public static partial class TypedAstEvaluator
 
         public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
-            var instance = new TypedGeneratorInstance(
+            var instance = new ExecutionPlanRunner(
                 _function,
                 _closure,
                 arguments,

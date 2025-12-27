@@ -13,4 +13,4 @@ internal sealed record YieldStarInstruction(
     int Next,
     ExpressionNode IterableExpression,
     Symbol StateSlotSymbol,
-    Symbol? ResultSlotSymbol) : GeneratorInstruction(Next);
+    Symbol? ResultSlotSymbol) : ExecutionInstruction(Next);

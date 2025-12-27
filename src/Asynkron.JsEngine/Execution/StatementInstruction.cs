@@ -7,6 +7,6 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-///     Evaluates a statement node and then jumps to <see cref="GeneratorInstruction.Next" />.
+///     Evaluates a statement node and then jumps to <see cref="ExecutionInstruction.Next" />.
 /// </summary>
-internal sealed record StatementInstruction(int Next, StatementNode Statement) : GeneratorInstruction(Next);
+internal sealed record StatementInstruction(int Next, StatementNode Statement) : ExecutionInstruction(Next);

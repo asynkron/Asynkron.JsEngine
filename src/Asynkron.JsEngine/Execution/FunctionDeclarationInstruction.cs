@@ -11,4 +11,4 @@ namespace Asynkron.JsEngine.Execution;
 ///     Function declarations are hoisted, so this instruction is a no-op at runtime
 ///     that simply advances to the next instruction.
 /// </summary>
-internal sealed record FunctionDeclarationInstruction(int Next) : GeneratorInstruction(Next);
+internal sealed record FunctionDeclarationInstruction(int Next) : ExecutionInstruction(Next);

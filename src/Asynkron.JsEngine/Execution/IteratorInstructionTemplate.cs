@@ -19,7 +19,7 @@ internal static class IteratorInstructionTemplate
     /// <param name="iteratorSlotIndex">Pre-allocated slot index for the iterator state.</param>
     /// <param name="valueSlotIndex">Pre-allocated slot index for the iteration value.</param>
     /// <returns>The instruction plan with slot indices.</returns>
-    public static IteratorInstructionPlan AppendInstructions(List<GeneratorInstruction> instructions,
+    public static IteratorInstructionPlan AppendInstructions(List<ExecutionInstruction> instructions,
         IteratorDriverPlan plan,
         int breakIndex,
         Symbol iteratorSymbol,
@@ -36,7 +36,7 @@ internal static class IteratorInstructionTemplate
         return new IteratorInstructionPlan(iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, initIndex, moveNextIndex);
     }
 
-    public static void Wire(IteratorInstructionPlan plan, int bodyEntryIndex, List<GeneratorInstruction> instructions)
+    public static void Wire(IteratorInstructionPlan plan, int bodyEntryIndex, List<ExecutionInstruction> instructions)
     {
         instructions[plan.MoveNextIndex] =
             (IteratorMoveNextInstruction)instructions[plan.MoveNextIndex] with { Next = bodyEntryIndex };

@@ -15,7 +15,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private sealed class TypedGeneratorInstance
+    private sealed class ExecutionPlanRunner
     {
         // Track active with-scope slots for restoration after yield/resume
         private readonly Stack<Symbol> _activeWithScopes = new();
@@ -29,7 +29,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasFunctionNameEnvironment;
         private readonly IJsObjectLike? _homeObject;
         private readonly bool _isStrict;
-        private readonly GeneratorPlan? _plan;
+        private readonly ExecutionPlan? _plan;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
@@ -62,7 +62,7 @@ public static partial class TypedAstEvaluator
         // Other environments (from completed iterations) can still be returned.
         private JsEnvironment? _resumedWithEnvironment;
 
-        public TypedGeneratorInstance(
+        public ExecutionPlanRunner(
             FunctionExpression function,
             JsEnvironment closure,
             IReadOnlyList<JsValue> arguments,
@@ -88,7 +88,7 @@ public static partial class TypedAstEvaluator
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _allowIdentifierCache = AllowsIdentifierCaching(function);
 
-            var planCache = ((IAstCacheable<GeneratorPlanCache>)function).GetOrCreateCache();
+            var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
             if (!planCache.Succeeded || planCache.Plan is null)
             {
                 var reason = planCache.FailureReason ?? "Generator contains unsupported construct for IR.";

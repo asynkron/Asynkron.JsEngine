@@ -10,4 +10,4 @@ namespace Asynkron.JsEngine.Execution;
 ///     Stores the most recent <c>.next(value)</c> payload into a synthetic slot (or discards it) before execution
 ///     continues.
 /// </summary>
-internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbol) : GeneratorInstruction(Next);
+internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbol) : ExecutionInstruction(Next);

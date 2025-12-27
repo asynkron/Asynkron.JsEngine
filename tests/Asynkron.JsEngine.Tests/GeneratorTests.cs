@@ -953,7 +953,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarNestedTryFinallyThrowMidFinalIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -981,7 +981,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = outer();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected yield* nested try/finally generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -1022,7 +1022,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarNestedTryFinallyReturnMidFinalIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -1050,7 +1050,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = outer();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected yield* nested try/finally generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -1509,7 +1509,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_AssignmentReceivesSentValuesIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -1521,7 +1521,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = assignGen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected assignment-with-yield generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -1556,7 +1556,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_TryCatchHandlesThrowIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -1571,7 +1571,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected try/catch generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -1643,7 +1643,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyRunsOnThrowIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -1659,7 +1659,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected try/finally generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -1700,7 +1700,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedThrowIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -1718,7 +1718,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected nested try/finally generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -1750,7 +1750,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_TryFinallyNestedReturnIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -1768,7 +1768,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected nested try/finally generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2202,7 +2202,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfYieldsValuesIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2214,7 +2214,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected at least one IR plan to be built.");
         Assert.Equal(0, failed);
@@ -2223,7 +2223,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForLoopsExecuteWithIrPlan_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2235,7 +2235,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = forLoop(3);
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected forLoop generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2244,7 +2244,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReceivesSentValuesIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2261,7 +2261,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = outer();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected yield* outer generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2327,7 +2327,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfLetCreatesNewBindingIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2342,13 +2342,13 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1,
             "Expected for-increment generator with yield in the increment expression to lower to IR.");
         Assert.Equal(0, failed);
-        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]
@@ -2377,7 +2377,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForOfDestructuringIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2389,13 +2389,13 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1,
             "Expected for-increment generator with yield in the increment expression to lower to IR.");
         Assert.Equal(0, failed);
-        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]
@@ -2403,7 +2403,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     {
         await using var engine = CreateEngine();
 
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await engine.Evaluate("""
             function* gen() {
                 let log = [];
@@ -2414,13 +2414,13 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
         Assert.Equal(0, failed);
-        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
 
         await engine.Evaluate("const first = g.next();");
         var firstValue = await engine.Evaluate("first.value;");
@@ -2445,7 +2445,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_IfConditionComplexYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2457,7 +2457,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected if (1 + (yield ...)) generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2466,7 +2466,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForConditionYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2478,7 +2478,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected for (let i = 0; (yield cond); ...) generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2487,7 +2487,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_WhileConditionComplexYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2503,7 +2503,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected while(1 + (yield ...)) generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2512,7 +2512,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_DoWhileConditionComplexYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2528,7 +2528,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected do { ... } while(1 + (yield ...)) generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2539,7 +2539,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     {
         await using var engine = CreateEngine();
 
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await engine.Evaluate("""
             function* gen() {
                 for (let i = 0; i < 3; i = i + (yield "step")) {
@@ -2549,19 +2549,19 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1,
             "Expected for-increment generator with yield in the increment expression to lower to IR.");
         Assert.Equal(0, failed);
-        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]
     public async Task Generator_ForIncrementMultipleYieldsIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2573,13 +2573,13 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
         Assert.Equal(0, failed);
-        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
 
         await engine.Evaluate("const first = g.next();");
         var firstValue = await engine.Evaluate("first.value;");
@@ -2615,7 +2615,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     {
         await using var engine = CreateEngine();
 
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await engine.Evaluate("""
             function* gen() {
                 const x = yield 1;
@@ -2631,13 +2631,13 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(attempts >= 1);
         Assert.True(succeeded >= 1);
         Assert.Equal(0, failed);
-        Assert.Null(GeneratorIrDiagnostics.LastFailureReason);
-        Assert.Null(GeneratorIrDiagnostics.LastFunctionDescription);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
     }
 
     [Fact(Timeout = 2000)]
@@ -2689,7 +2689,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_SwitchStatementDefaultNotLastIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2708,7 +2708,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g2 = gen();
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.Equal(2, attempts);
         Assert.Equal(2, succeeded);
@@ -2733,7 +2733,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_SwitchStatementMultipleBreaksIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2758,7 +2758,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g3 = gen(3);
         """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.Equal(3, attempts);
         Assert.Equal(3, succeeded);
@@ -2871,7 +2871,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_IfConditionYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2887,7 +2887,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected if(yield ...) generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2896,7 +2896,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_WhileConditionYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2912,7 +2912,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected while(yield ...) generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2921,7 +2921,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ReturnYieldIr_UsesIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -2931,7 +2931,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             let g = gen();
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected return yield generator to lower to IR.");
         Assert.Equal(0, failed);
@@ -2973,7 +2973,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_AllCoreIrShapes_UseIrPlan()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -3024,7 +3024,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
             tryFinallyGen(coreLog);
         """);
 
-        var (_, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected at least one core IR shape to lower to IR.");
         Assert.Equal(0, failed);
@@ -3033,7 +3033,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForAwaitFallsBackIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -3050,7 +3050,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
 
                          """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         // Async functions now use generator IR for execution.
         // The async function with for await...of will use the IR executor.
@@ -3065,7 +3065,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForAwaitAsyncIteratorAwaitsValuesIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -3098,7 +3098,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
 
                          """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         // Async functions now use generator IR for execution.
         Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");
@@ -3112,7 +3112,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForAwaitPromiseValuesAreAwaitedIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
 
         await engine.Evaluate("""
@@ -3136,7 +3136,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
 
                          """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         // Async functions now use generator IR for execution.
         Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");
@@ -3150,7 +3150,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
     [Fact(Timeout = 2000)]
     public async Task Generator_ForAwaitAsyncIteratorRejectsPropagatesIr()
     {
-        GeneratorIrDiagnostics.Reset();
+        ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine();
         var errorCaught = false;
 
@@ -3211,7 +3211,7 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBa
 
                          """);
 
-        var (attempts, succeeded, failed) = GeneratorIrDiagnostics.Snapshot();
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         // Async functions now use generator IR for execution.
         Assert.True(attempts >= 1, "Expected at least one IR plan to be attempted");

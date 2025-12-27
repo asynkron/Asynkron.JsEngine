@@ -14,4 +14,4 @@ internal sealed record EnterWithInstruction(
     ExpressionNode ObjectExpression,
     Symbol WithScopeSlot,
     int Next)
-    : GeneratorInstruction(Next);
+    : ExecutionInstruction(Next);

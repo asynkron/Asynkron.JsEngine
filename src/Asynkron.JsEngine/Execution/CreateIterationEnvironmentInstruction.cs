@@ -18,4 +18,4 @@ internal sealed record CreateIterationEnvironmentInstruction(
     int ScopeId,
     int SlotCount,
     ImmutableDictionary<Symbol, int> SlotMap,
-    bool AllowPooling = false) : GeneratorInstruction(Next);
+    bool AllowPooling = false) : ExecutionInstruction(Next);

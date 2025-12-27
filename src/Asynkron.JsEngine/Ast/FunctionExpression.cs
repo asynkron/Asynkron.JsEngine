@@ -36,11 +36,11 @@ public sealed partial record FunctionExpression(
     int FunctionNameScopeId = -1)
     : ExpressionNode(Source),
         IAstCacheable<FunctionParameterNamesPlan>,
-        IAstCacheable<GeneratorPlanCache>;
+        IAstCacheable<ExecutionPlanCache>;
 
 public sealed partial record FunctionExpression
 {
-    private GeneratorPlanCache? _cachedGeneratorPlan;
+    private ExecutionPlanCache? _cachedExecutionPlan;
     private FunctionParameterNamesPlan? _cachedParameterNames;
 
     internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
@@ -52,21 +52,21 @@ public sealed partial record FunctionExpression
             static function => FunctionParameterNamesPlan.Build(function));
     }
 
-    GeneratorPlanCache IAstCacheable<GeneratorPlanCache>.GetOrCreateCache()
+    ExecutionPlanCache IAstCacheable<ExecutionPlanCache>.GetOrCreateCache()
     {
-        var cache = AstCache.GetOrCreate(ref _cachedGeneratorPlan, this,
-            static function => GeneratorPlanCache.Build(function), out var created);
+        var cache = AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
+            static function => ExecutionPlanCache.Build(function), out var created);
         if (!created)
         {
-            GeneratorIrDiagnostics.ReportResult(this, cache.Succeeded, cache.FailureReason);
+            ExecutionPlanDiagnostics.ReportResult(this, cache.Succeeded, cache.FailureReason);
         }
 
         return cache;
     }
 
-    internal void WarmGeneratorPlanCache()
+    internal void WarmExecutionPlanCache()
     {
-        _ = AstCache.GetOrCreate(ref _cachedGeneratorPlan, this,
-            static function => GeneratorPlanCache.Build(function, false));
+        _ = AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
+            static function => ExecutionPlanCache.Build(function, false));
     }
 }

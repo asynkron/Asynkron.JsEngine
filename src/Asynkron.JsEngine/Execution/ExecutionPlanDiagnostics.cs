@@ -7,11 +7,11 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-///     Lightweight diagnostics for generator IR lowering. Exposed primarily for tests so we can
-///     assert that specific generator bodies successfully produce IR plans instead of falling back
+///     Lightweight diagnostics for execution plan building. Exposed primarily for tests so we can
+///     assert that specific function bodies successfully produce execution plans instead of falling back
 ///     to the replay engine.
 /// </summary>
-public static class GeneratorIrDiagnostics
+public static class ExecutionPlanDiagnostics
 {
     private static readonly object Sync = new();
 

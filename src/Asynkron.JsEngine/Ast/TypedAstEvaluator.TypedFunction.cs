@@ -642,7 +642,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Async functions use the generator IR executor for non-blocking await
-            // This routes async functions through TypedGeneratorInstance with _asyncStepMode=true
+            // This routes async functions through ExecutionPlanRunner with _asyncStepMode=true
             if (IsAsyncFunction && !IsClassConstructor)
             {
                 RealmState.ReturnContext(context);

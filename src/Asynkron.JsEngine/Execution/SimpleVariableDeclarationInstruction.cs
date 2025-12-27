@@ -14,4 +14,4 @@ internal sealed record SimpleVariableDeclarationInstruction(
     int Next,
     VariableKind Kind,
     Symbol TargetSymbol,
-    ExpressionNode? Initializer) : GeneratorInstruction(Next);
+    ExpressionNode? Initializer) : ExecutionInstruction(Next);

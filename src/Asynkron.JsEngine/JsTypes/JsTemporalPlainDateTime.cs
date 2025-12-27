@@ -184,7 +184,7 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
         }
 
         var newTime = JsTemporalPlainTime.From(
-            new TimeSpan(totalNanos / 100).ToString(@"hh\:mm\:ss\.fffffff"));
+            new TimeSpan(totalNanos / 100).ToString(@"hh\:mm\:ss\.fffffff", CultureInfo.InvariantCulture));
 
         return new JsTemporalPlainDateTime(newDate, newTime);
     }

@@ -123,11 +123,11 @@ if (engineKind == EngineKind.Jint)
 }
 else if (profile.FreshEnginePerIteration)
 {
-    await RunWithFreshEnginesAsync(script, isAsync, profile, traceRealm, warmup, iterations, runsForAverage);
+    await RunWithFreshEnginesAsync(script, profile, traceRealm, warmup, iterations, runsForAverage);
 }
 else
 {
-    await RunWithSharedEnginesAsync(script, isAsync, profile, traceRealm, warmup, iterations, runsForAverage);
+    await RunWithSharedEnginesAsync(script, profile, traceRealm, warmup, iterations, runsForAverage);
 }
 
 // Give profiler time to flush data before exiting
@@ -136,7 +136,6 @@ return;
 
 async Task RunWithSharedEnginesAsync(
     string source,
-    bool isAsyncRun,
     ProfileDefinition profile,
     bool traceRealm,
     int warmup,
@@ -167,7 +166,6 @@ async Task RunWithSharedEnginesAsync(
 
 async Task RunWithFreshEnginesAsync(
     string source,
-    bool isAsyncRun,
     ProfileDefinition profile,
     bool traceRealm,
     int warmup,

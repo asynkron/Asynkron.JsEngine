@@ -233,7 +233,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         }
 
         // 5. Let newObj be ? TypedArrayCreate(C, « 𝔽(len) »).
-        var taObj = ctor.Invoke([JsValue.FromDouble(length)], (JsValue)ctor);
+        var taObj = ctor.Invoke([JsValue.FromDouble(length)], JsValue.FromObjectUnsafe(ctor));
         if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
         {
             throw ThrowTypeError("%TypedArray%.of: constructor did not return a typed array", realm: Realm);

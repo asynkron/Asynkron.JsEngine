@@ -351,12 +351,13 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         if (args.Count > 0)
         {
             var protoValue = args[0];
-            if (!protoValue.IsNull && !protoValue.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+            IJsPropertyAccessor? protoAccessor = null;
+            if (!protoValue.IsNull && !protoValue.TryGetObject(out protoAccessor))
             {
                 throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
             }
 
-            if (!protoValue.IsNull)
+            if (!protoValue.IsNull || protoAccessor is not null)
             {
                 obj.SetPrototype(protoAccessor);
             }

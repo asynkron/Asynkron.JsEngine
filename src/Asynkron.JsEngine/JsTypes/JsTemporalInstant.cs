@@ -17,10 +17,11 @@ public sealed class JsTemporalInstant : IEquatable<JsTemporalInstant>, IComparab
     private const long NanosecondsPerSecond = 1_000_000_000L;
     private const long NanosecondsPerMinute = 60L * NanosecondsPerSecond;
     private const long NanosecondsPerHour = 60L * NanosecondsPerMinute;
+    // ReSharper disable once UnusedMember.Local
     private const long NanosecondsPerDay = 24L * NanosecondsPerHour;
 
     // Unix epoch: 1970-01-01T00:00:00Z
-    private static readonly DateTimeOffset UnixEpoch = new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset UnixEpoch = DateTimeOffset.UnixEpoch;
 
     public JsTemporalInstant(BigInteger epochNanoseconds)
     {

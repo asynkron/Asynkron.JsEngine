@@ -73,7 +73,7 @@ public sealed partial class ObjectPrototype
     }
 
     [JsHostMethod("valueOf", Length = 0d)]
-    public static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
+    public JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         if (!TryGetObject(thisValue, Realm, out var obj))
         {
@@ -84,7 +84,7 @@ public sealed partial class ObjectPrototype
     }
 
     [JsHostMethod("hasOwnProperty", Length = 1d)]
-    public static JsValue HasOwnProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue HasOwnProperty(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {
@@ -120,7 +120,7 @@ public sealed partial class ObjectPrototype
     }
 
     [JsHostMethod("propertyIsEnumerable", Length = 1d)]
-    private static JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
+    private JsValue PropertyIsEnumerable(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0)
         {

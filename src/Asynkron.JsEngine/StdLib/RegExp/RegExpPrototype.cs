@@ -16,7 +16,7 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("RegExp", ToStringTag = "RegExp")]
-public sealed partial class RegExpPrototype : JsPrototype
+public sealed partial class RegExpPrototype
 {
     [JsHostMethod("test", Length = 1d)]
     public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -446,7 +446,7 @@ public sealed partial class RegExpPrototype : JsPrototype
         return groups;
     }
 
-    private void AppendFlag(StringBuilder builder, JsValue receiver, string propertyName, char flag,
+    private static void AppendFlag(StringBuilder builder, JsValue receiver, string propertyName, char flag,
         EvaluationContext? context)
     {
         if (TryGetFlag(receiver, propertyName, context))

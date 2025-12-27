@@ -88,13 +88,13 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorSymbolGetter("dispose")]
-    public static JsValue GetDispose(JsValue thisValue)
+    public static JsValue GetDispose()
     {
         return (JsValue)Symbols.Dispose;
     }
 
     [JsConstructorSymbolGetter("asyncDispose")]
-    public static JsValue GetAsyncDispose(JsValue thisValue)
+    public static JsValue GetAsyncDispose()
     {
         return (JsValue)Symbols.AsyncDispose;
     }

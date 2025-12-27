@@ -16,6 +16,70 @@ namespace Asynkron.JsEngine.StdLib;
 [JsSymbolAlias("iterator", "values", Writable = false)]
 public sealed partial class TypedArrayPrototype
 {
+    #region Accessor Properties (buffer, byteLength, byteOffset, length)
+
+    [JsHostGetter("buffer")]
+    private JsValue GetBuffer(JsValue thisValue)
+    {
+        var typedArray = ValidateReceiverForGetter(thisValue, "%TypedArray%.prototype.buffer");
+        return JsValue.FromObjectUnsafe(typedArray.Buffer);
+    }
+
+    [JsHostGetter("byteLength")]
+    private JsValue GetByteLength(JsValue thisValue)
+    {
+        var typedArray = ValidateReceiverForGetter(thisValue, "%TypedArray%.prototype.byteLength");
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            return JsValue.FromDouble(0);
+        }
+
+        return JsValue.FromDouble(typedArray.ByteLength);
+    }
+
+    [JsHostGetter("byteOffset")]
+    private JsValue GetByteOffset(JsValue thisValue)
+    {
+        var typedArray = ValidateReceiverForGetter(thisValue, "%TypedArray%.prototype.byteOffset");
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            return JsValue.FromDouble(0);
+        }
+
+        return JsValue.FromDouble(typedArray.ByteOffset);
+    }
+
+    [JsHostGetter("length")]
+    private JsValue GetLength(JsValue thisValue)
+    {
+        var typedArray = ValidateReceiverForGetter(thisValue, "%TypedArray%.prototype.length");
+        if (typedArray.IsDetachedOrOutOfBounds())
+        {
+            return JsValue.FromDouble(0);
+        }
+
+        return JsValue.FromDouble(typedArray.Length);
+    }
+
+    private TypedArrayBase ValidateReceiverForGetter(JsValue thisValue, string methodName)
+    {
+        // Per spec, if this is not an object, throw TypeError
+        if (thisValue.Kind != JsValueKind.Object)
+        {
+            throw ThrowTypeError($"{methodName} requires that 'this' be an Object", realm: Realm);
+        }
+
+        // Per spec, if this doesn't have [[TypedArrayName]] internal slot, throw TypeError
+        if (thisValue.ObjectValue is not TypedArrayBase typedArray)
+        {
+            throw ThrowTypeError($"{methodName} requires that 'this' have a [[TypedArrayName]] internal slot", realm: Realm);
+        }
+
+        return typedArray;
+    }
+
+    #endregion
+
     [JsHostMethod("reduce", Length = 1d)]
     private JsValue Reduce(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
@@ -212,11 +276,9 @@ public sealed partial class TypedArrayPrototype
         return JoinImpl(thisValue, args);
     }
 
-    [JsHostMethod("toString", Length = 0d)]
-    private JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        return ToStringImpl(thisValue, args);
-    }
+    // NOTE: toString is NOT a [JsHostMethod] here because per ECMAScript spec,
+    // TypedArray.prototype.toString === Array.prototype.toString (same function object).
+    // We copy Array.prototype.toString to TypedArray.prototype in ConfigurePrototype().
 
     [JsHostMethod("toLocaleString", Length = 0d)]
     private JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -229,6 +291,22 @@ public sealed partial class TypedArrayPrototype
         Realm.TypedArrayPrototype ??= Prototype as JsObject;
 
         // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
+
+        // Per ECMAScript spec, TypedArray.prototype.toString === Array.prototype.toString
+        // They must be the exact same function object
+        if (Realm.ArrayPrototype is IJsPropertyAccessor arrayProto &&
+            arrayProto.TryGetProperty("toString", out var arrayToString))
+        {
+            (Prototype as JsObject)?.TryDefineProperty(
+                "toString",
+                new PropertyDescriptor
+                {
+                    Value = arrayToString,
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
+                });
+        }
     }
 
     #region Private Implementation Methods
@@ -1111,23 +1189,6 @@ public sealed partial class TypedArrayPrototype
         }
 
         return JsValue.FromString(sb.ToString());
-    }
-
-    private JsValue ToStringImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        // %TypedArray%.prototype.toString is the same as Array.prototype.toString
-        // which calls the 'join' method on the object
-        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.toString");
-
-        // Look up the join method and call it
-        if (typedArray.TryGetProperty("join", (JsValue)typedArray, out var joinMethod) &&
-            joinMethod.TryGetObject<IJsCallable>(out var joinCallable))
-        {
-            return joinCallable.Invoke([], (JsValue)typedArray);
-        }
-
-        // Fallback to direct join if no join method found
-        return JoinImpl(thisValue, []);
     }
 
     private JsValue ToLocaleStringImpl(JsValue thisValue, IReadOnlyList<JsValue> args)

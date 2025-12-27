@@ -1005,6 +1005,18 @@ public abstract class TypedArrayTestsBase(ITestOutputHelper output) : FastPathTe
         Assert.Equal(true, result);
     }
 
+    [Fact(Timeout = 2000)]
+    public async Task TypedArray_ToString_SameFunctionAsArrayToString()
+    {
+        // Per ECMAScript spec, TypedArray.prototype.toString must be === Array.prototype.toString
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const ta = Object.getPrototypeOf(Int8Array.prototype);
+                                           return ta.toString === Array.prototype.toString;
+                                           """);
+        Assert.Equal(true, result);
+    }
+
 }
 
 public class FastPathTypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)

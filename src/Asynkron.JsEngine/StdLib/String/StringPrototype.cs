@@ -1166,21 +1166,15 @@ public sealed partial class StringPrototype
         var value = ResolveString(thisValue);
         var form = args.Count > 0 && !args[0].IsUndefined ? JsOps.ToJsString(args[0]) : "NFC";
 
-        try
+        return new JsValue(form switch
         {
-            return new JsValue(form switch
-            {
-                "NFC" => value.Normalize(NormalizationForm.FormC),
-                "NFD" => value.Normalize(NormalizationForm.FormD),
-                "NFKC" => value.Normalize(NormalizationForm.FormKC),
-                "NFKD" => value.Normalize(NormalizationForm.FormKD),
-                _ => throw new Exception("RangeError: The normalization form should be one of NFC, NFD, NFKC, NFKD.")
-            });
-        }
-        catch
-        {
-            return new JsValue(value);
-        }
+            // Normalize uses explicit forms; invalid names should raise RangeError.
+            "NFC" => value.Normalize(NormalizationForm.FormC),
+            "NFD" => value.Normalize(NormalizationForm.FormD),
+            "NFKC" => value.Normalize(NormalizationForm.FormKC),
+            "NFKD" => value.Normalize(NormalizationForm.FormKD),
+            _ => throw ThrowRangeError("The normalization form should be one of NFC, NFD, NFKC, NFKD.", realm: Realm)
+        });
     }
 
     [JsHostMethod("matchAll", Length = 1d)]

@@ -19,6 +19,9 @@ public static class TemporalHelper
     private const string TemporalPlainDateSlot = "[[TemporalPlainDate]]";
     private const string TemporalPlainTimeSlot = "[[TemporalPlainTime]]";
     private const string TemporalPlainDateTimeSlot = "[[TemporalPlainDateTime]]";
+    private const string TemporalZonedDateTimeSlot = "[[TemporalZonedDateTime]]";
+    private const string TemporalPlainYearMonthSlot = "[[TemporalPlainYearMonth]]";
+    private const string TemporalPlainMonthDaySlot = "[[TemporalPlainMonthDay]]";
 
     public static JsObject CreateTemporalObject(RealmState realm)
     {
@@ -57,6 +60,21 @@ public static class TemporalHelper
         var plainDateTimeCtor = CreatePlainDateTimeConstructor(realm);
         temporal.DefineProperty("PlainDateTime",
             new PropertyDescriptor { Value = plainDateTimeCtor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Temporal.ZonedDateTime constructor
+        var zonedDateTimeCtor = CreateZonedDateTimeConstructor(realm);
+        temporal.DefineProperty("ZonedDateTime",
+            new PropertyDescriptor { Value = zonedDateTimeCtor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Temporal.PlainYearMonth constructor
+        var plainYearMonthCtor = CreatePlainYearMonthConstructor(realm);
+        temporal.DefineProperty("PlainYearMonth",
+            new PropertyDescriptor { Value = plainYearMonthCtor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Temporal.PlainMonthDay constructor
+        var plainMonthDayCtor = CreatePlainMonthDayConstructor(realm);
+        temporal.DefineProperty("PlainMonthDay",
+            new PropertyDescriptor { Value = plainMonthDayCtor, Writable = true, Enumerable = false, Configurable = true });
 
         return temporal;
     }
@@ -609,6 +627,283 @@ public static class TemporalHelper
         return ctor;
     }
 
+    private static HostFunction CreateZonedDateTimeConstructor(RealmState realm)
+    {
+        var prototype = new JsObject(realm.ObjectPrototype);
+        prototype.DefineProperty(SymbolKeys.ToStringTag,
+            new PropertyDescriptor { Value = "Temporal.ZonedDateTime", Writable = false, Enumerable = false, Configurable = true });
+
+        // Prototype getters
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetZonedDateTime(tv).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetZonedDateTime(tv).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetZonedDateTime(tv).Day));
+        AddPrototypeGetter(prototype, realm, "hour", tv => new JsValue(GetZonedDateTime(tv).Hour));
+        AddPrototypeGetter(prototype, realm, "minute", tv => new JsValue(GetZonedDateTime(tv).Minute));
+        AddPrototypeGetter(prototype, realm, "second", tv => new JsValue(GetZonedDateTime(tv).Second));
+        AddPrototypeGetter(prototype, realm, "millisecond", tv => new JsValue(GetZonedDateTime(tv).Millisecond));
+        AddPrototypeGetter(prototype, realm, "microsecond", tv => new JsValue(GetZonedDateTime(tv).Microsecond));
+        AddPrototypeGetter(prototype, realm, "nanosecond", tv => new JsValue(GetZonedDateTime(tv).Nanosecond));
+        AddPrototypeGetter(prototype, realm, "epochMilliseconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochMilliseconds));
+        AddPrototypeGetter(prototype, realm, "epochSeconds", tv => new JsValue((double)GetZonedDateTime(tv).EpochSeconds));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetZonedDateTime(tv).MonthCode));
+        AddPrototypeGetter(prototype, realm, "dayOfWeek", tv => new JsValue(GetZonedDateTime(tv).DayOfWeek));
+        AddPrototypeGetter(prototype, realm, "dayOfYear", tv => new JsValue(GetZonedDateTime(tv).DayOfYear));
+        AddPrototypeGetter(prototype, realm, "weekOfYear", tv => new JsValue(GetZonedDateTime(tv).WeekOfYear));
+        AddPrototypeGetter(prototype, realm, "daysInMonth", tv => new JsValue(GetZonedDateTime(tv).DaysInMonth));
+        AddPrototypeGetter(prototype, realm, "daysInYear", tv => new JsValue(GetZonedDateTime(tv).DaysInYear));
+        AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetZonedDateTime(tv).InLeapYear));
+        AddPrototypeGetter(prototype, realm, "timeZoneId", tv => new JsValue(GetZonedDateTime(tv).TimeZoneId));
+        AddPrototypeGetter(prototype, realm, "offset", tv => new JsValue(GetZonedDateTime(tv).Offset));
+        AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetZonedDateTime(tv).Calendar));
+
+        // Prototype methods
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
+            new JsValue(GetZonedDateTime(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetZonedDateTime(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
+            throw StandardLibrary.ThrowTypeError("Temporal.ZonedDateTime.prototype.valueOf does not support implicit conversion", realm: realm));
+
+        AddPrototypeMethod(prototype, realm, "toInstant", 0, (thisValue, _) =>
+            WrapInstant(GetZonedDateTime(thisValue).ToInstant(), realm));
+
+        AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, _) =>
+            WrapPlainDateTime(GetZonedDateTime(thisValue).ToPlainDateTime(), realm));
+
+        AddPrototypeMethod(prototype, realm, "toPlainDate", 0, (thisValue, _) =>
+            WrapPlainDate(GetZonedDateTime(thisValue).ToPlainDate(), realm));
+
+        AddPrototypeMethod(prototype, realm, "toPlainTime", 0, (thisValue, _) =>
+            WrapPlainTime(GetZonedDateTime(thisValue).ToPlainTime(), realm));
+
+        // Constructor
+        var ctor = new HostFunction((thisValue, args) =>
+        {
+            var epochNanoseconds = args.GetArgument(0);
+            var timeZoneArg = args.GetArgument(1);
+            var calendarArg = args.Count > 2 ? args[2] : JsValue.Undefined;
+
+            var timeZoneId = JsOps.ToJsString(timeZoneArg);
+            var calendar = calendarArg.IsUndefined ? "iso8601" : JsOps.ToJsString(calendarArg);
+
+            JsTemporalInstant instant;
+            if (epochNanoseconds.TryGetObject<JsBigInt>(out var bigInt))
+            {
+                instant = new JsTemporalInstant(bigInt.Value);
+            }
+            else
+            {
+                var ns = JsOps.ToNumber(epochNanoseconds);
+                instant = JsTemporalInstant.FromEpochNanoseconds(new System.Numerics.BigInteger(ns));
+            }
+
+            var zdt = new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
+            return WrapZonedDateTime(zdt, realm, prototype);
+        }, realm) { IsConstructor = true };
+
+        ctor.DefineProperty("prototype",
+            new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = ctor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Static methods
+        var from = CreateFunction(realm, "from", 1, (_, args) =>
+        {
+            var zdt = ToTemporalZonedDateTime(args.GetArgument(0), realm);
+            return WrapZonedDateTime(zdt, realm, prototype);
+        });
+        ctor.DefineProperty("from",
+            new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
+
+        var compare = CreateFunction(realm, "compare", 2, (_, args) =>
+        {
+            var z1 = ToTemporalZonedDateTime(args.GetArgument(0), realm);
+            var z2 = ToTemporalZonedDateTime(args.GetArgument(1), realm);
+            return new JsValue(z1.CompareTo(z2));
+        });
+        ctor.DefineProperty("compare",
+            new PropertyDescriptor { Value = compare, Writable = true, Enumerable = false, Configurable = true });
+
+        return ctor;
+    }
+
+    private static HostFunction CreatePlainYearMonthConstructor(RealmState realm)
+    {
+        var prototype = new JsObject(realm.ObjectPrototype);
+        prototype.DefineProperty(SymbolKeys.ToStringTag,
+            new PropertyDescriptor { Value = "Temporal.PlainYearMonth", Writable = false, Enumerable = false, Configurable = true });
+
+        // Prototype getters
+        AddPrototypeGetter(prototype, realm, "year", tv => new JsValue(GetPlainYearMonth(tv).Year));
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainYearMonth(tv).Month));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainYearMonth(tv).MonthCode));
+        AddPrototypeGetter(prototype, realm, "daysInMonth", tv => new JsValue(GetPlainYearMonth(tv).DaysInMonth));
+        AddPrototypeGetter(prototype, realm, "daysInYear", tv => new JsValue(GetPlainYearMonth(tv).DaysInYear));
+        AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainYearMonth(tv).MonthsInYear));
+        AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainYearMonth(tv).InLeapYear));
+        AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainYearMonth(tv).Calendar));
+
+        // Prototype methods
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
+            new JsValue(GetPlainYearMonth(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetPlainYearMonth(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
+            throw StandardLibrary.ThrowTypeError("Temporal.PlainYearMonth.prototype.valueOf does not support implicit conversion", realm: realm));
+
+        AddPrototypeMethod(prototype, realm, "equals", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var other = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
+            return new JsValue(ym.Equals(other));
+        });
+
+        AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            return WrapPlainYearMonth(ym.Add(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            return WrapPlainYearMonth(ym.Subtract(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainDate", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var dayArg = args.GetArgument(0);
+            int day;
+            if (dayArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                accessor.TryGetProperty("day", out var dayValue))
+            {
+                day = (int)JsOps.ToNumber(dayValue);
+            }
+            else
+            {
+                day = (int)JsOps.ToNumber(dayArg);
+            }
+            return WrapPlainDate(ym.ToPlainDate(day), realm);
+        });
+
+        // Constructor
+        var ctor = new HostFunction((thisValue, args) =>
+        {
+            var year = (int)JsOps.ToNumber(args.GetArgument(0));
+            var month = (int)JsOps.ToNumber(args.GetArgument(1));
+            var calendar = args.Count > 2 && !args[2].IsUndefined ? JsOps.ToJsString(args[2]) : "iso8601";
+
+            var ym = new JsTemporalPlainYearMonth(year, month, calendar);
+            return WrapPlainYearMonth(ym, realm, prototype);
+        }, realm) { IsConstructor = true };
+
+        ctor.DefineProperty("prototype",
+            new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = ctor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Static methods
+        var from = CreateFunction(realm, "from", 1, (_, args) =>
+        {
+            var ym = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
+            return WrapPlainYearMonth(ym, realm, prototype);
+        });
+        ctor.DefineProperty("from",
+            new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
+
+        var compare = CreateFunction(realm, "compare", 2, (_, args) =>
+        {
+            var ym1 = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
+            var ym2 = ToTemporalPlainYearMonth(args.GetArgument(1), realm);
+            return new JsValue(ym1.CompareTo(ym2));
+        });
+        ctor.DefineProperty("compare",
+            new PropertyDescriptor { Value = compare, Writable = true, Enumerable = false, Configurable = true });
+
+        return ctor;
+    }
+
+    private static HostFunction CreatePlainMonthDayConstructor(RealmState realm)
+    {
+        var prototype = new JsObject(realm.ObjectPrototype);
+        prototype.DefineProperty(SymbolKeys.ToStringTag,
+            new PropertyDescriptor { Value = "Temporal.PlainMonthDay", Writable = false, Enumerable = false, Configurable = true });
+
+        // Prototype getters
+        AddPrototypeGetter(prototype, realm, "month", tv => new JsValue(GetPlainMonthDay(tv).Month));
+        AddPrototypeGetter(prototype, realm, "day", tv => new JsValue(GetPlainMonthDay(tv).Day));
+        AddPrototypeGetter(prototype, realm, "monthCode", tv => new JsValue(GetPlainMonthDay(tv).MonthCode));
+        AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainMonthDay(tv).Calendar));
+
+        // Prototype methods
+        AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
+            new JsValue(GetPlainMonthDay(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetPlainMonthDay(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
+            throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay.prototype.valueOf does not support implicit conversion", realm: realm));
+
+        AddPrototypeMethod(prototype, realm, "equals", 1, (thisValue, args) =>
+        {
+            var md = GetPlainMonthDay(thisValue);
+            var other = ToTemporalPlainMonthDay(args.GetArgument(0), realm);
+            return new JsValue(md.Equals(other));
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainDate", 1, (thisValue, args) =>
+        {
+            var md = GetPlainMonthDay(thisValue);
+            var yearArg = args.GetArgument(0);
+            int year;
+            if (yearArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                accessor.TryGetProperty("year", out var yearValue))
+            {
+                year = (int)JsOps.ToNumber(yearValue);
+            }
+            else
+            {
+                year = (int)JsOps.ToNumber(yearArg);
+            }
+            return WrapPlainDate(md.ToPlainDate(year), realm);
+        });
+
+        // Constructor
+        var ctor = new HostFunction((thisValue, args) =>
+        {
+            var month = (int)JsOps.ToNumber(args.GetArgument(0));
+            var day = (int)JsOps.ToNumber(args.GetArgument(1));
+            var calendar = args.Count > 2 && !args[2].IsUndefined ? JsOps.ToJsString(args[2]) : "iso8601";
+
+            var md = new JsTemporalPlainMonthDay(month, day, calendar);
+            return WrapPlainMonthDay(md, realm, prototype);
+        }, realm) { IsConstructor = true };
+
+        ctor.DefineProperty("prototype",
+            new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
+        prototype.DefineProperty("constructor",
+            new PropertyDescriptor { Value = ctor, Writable = true, Enumerable = false, Configurable = true });
+
+        // Static methods
+        var from = CreateFunction(realm, "from", 1, (_, args) =>
+        {
+            var md = ToTemporalPlainMonthDay(args.GetArgument(0), realm);
+            return WrapPlainMonthDay(md, realm, prototype);
+        });
+        ctor.DefineProperty("from",
+            new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
+
+        return ctor;
+    }
+
     #region Helper methods
 
     private static HostFunction CreateFunction(RealmState realm, string name, int length,
@@ -688,6 +983,27 @@ public static class TemporalHelper
     {
         var obj = new JsObject(prototype ?? realm.ObjectPrototype);
         obj.SetProperty(TemporalPlainDateTimeSlot, JsValue.FromObjectUnsafe(dateTime));
+        return JsValue.FromObjectUnsafe(obj);
+    }
+
+    private static JsValue WrapZonedDateTime(JsTemporalZonedDateTime zonedDateTime, RealmState realm, JsObject? prototype = null)
+    {
+        var obj = new JsObject(prototype ?? realm.ObjectPrototype);
+        obj.SetProperty(TemporalZonedDateTimeSlot, JsValue.FromObjectUnsafe(zonedDateTime));
+        return JsValue.FromObjectUnsafe(obj);
+    }
+
+    private static JsValue WrapPlainYearMonth(JsTemporalPlainYearMonth yearMonth, RealmState realm, JsObject? prototype = null)
+    {
+        var obj = new JsObject(prototype ?? realm.ObjectPrototype);
+        obj.SetProperty(TemporalPlainYearMonthSlot, JsValue.FromObjectUnsafe(yearMonth));
+        return JsValue.FromObjectUnsafe(obj);
+    }
+
+    private static JsValue WrapPlainMonthDay(JsTemporalPlainMonthDay monthDay, RealmState realm, JsObject? prototype = null)
+    {
+        var obj = new JsObject(prototype ?? realm.ObjectPrototype);
+        obj.SetProperty(TemporalPlainMonthDaySlot, JsValue.FromObjectUnsafe(monthDay));
         return JsValue.FromObjectUnsafe(obj);
     }
 

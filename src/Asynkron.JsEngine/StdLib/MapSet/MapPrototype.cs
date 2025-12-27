@@ -105,7 +105,7 @@ public sealed partial class MapPrototype
     private JsValue CreateMapIterator(JsMap map, MapIterationKind kind)
     {
         // Use the shared MapIteratorPrototype so @@iterator wiring stays consistent.
-        var iteratorPrototype = Realm.MapIteratorPrototype ??= MapIteratorPrototype.CreatePrototype(Realm);
+        var iteratorPrototype = Realm.MapIteratorPrototype ?? (Realm.MapIteratorPrototype = (JsObject)MapIteratorPrototype.CreatePrototype(Realm));
         var iterator = new JsMapIterator(map, kind, Realm, iteratorPrototype);
         return iterator.AsJsValue;
     }

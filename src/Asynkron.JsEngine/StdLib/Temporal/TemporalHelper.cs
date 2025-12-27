@@ -1537,6 +1537,14 @@ public static class TemporalHelper
 
     #region Wrapper methods
 
+    internal static JsValue CreateInstantFromEpochMilliseconds(RealmState realm, double epochMilliseconds)
+    {
+        // Date-based conversions are millisecond-precision, so truncate before wrapping.
+        var instant = JsTemporalInstant.FromEpochMilliseconds((long)Math.Truncate(epochMilliseconds));
+        var prototypes = GetPrototypes(realm);
+        return WrapInstant(instant, realm, prototypes.InstantPrototype);
+    }
+
     private static JsValue WrapInstant(JsTemporalInstant instant, RealmState realm, JsObject? prototype = null)
     {
         var obj = new JsObject(prototype ?? realm.ObjectPrototype);

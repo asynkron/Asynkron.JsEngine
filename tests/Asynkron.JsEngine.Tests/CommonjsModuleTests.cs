@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class CommonjsModuleTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class CommonjsModuleTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task CreateCommonjsModule_FunctionIsCallable()
@@ -63,9 +63,4 @@ var result = factory();
         var result = await engine.Evaluate("result;") as bool?;
         Assert.True(result);
     }
-}
-
-public class FastPathCommonjsModuleTests(ITestOutputHelper output) : CommonjsModuleTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

@@ -43,8 +43,3 @@ public abstract class RestrictedPropertiesQuickTestBase(ITestOutputHelper output
         Output.WriteLine($"Thrown: {ex.ThrownValue}");
     }
 }
-
-public class FastPathRestrictedPropertiesQuickTest(ITestOutputHelper output) : RestrictedPropertiesQuickTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

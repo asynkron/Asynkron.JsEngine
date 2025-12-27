@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ClassComputedAccessorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ClassComputedAccessorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ComputedAccessorAllowsInExpressions()
@@ -66,9 +66,4 @@ public abstract class ClassComputedAccessorTestsBase(ITestOutputHelper output) :
         Assert.Equal("set yield", array.GetElement(1).AsString());
     }
 
-}
-
-public class FastPathClassComputedAccessorTests(ITestOutputHelper output) : ClassComputedAccessorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

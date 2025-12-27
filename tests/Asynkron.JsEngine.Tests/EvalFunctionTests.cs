@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class EvalFunctionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class EvalFunctionTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Eval_EvaluatesSimpleExpression()
@@ -202,9 +202,4 @@ public abstract class EvalFunctionTestsBase(ITestOutputHelper output) : FastPath
         """);
         Assert.Equal("inside", result);
     }
-}
-
-public class FastPathEvalFunctionTests(ITestOutputHelper output) : EvalFunctionTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

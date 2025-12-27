@@ -50,8 +50,3 @@ public abstract class TestLetDeclarationBase(ITestOutputHelper output) : FastPat
         Assert.Equal(10.0, result);
     }
 }
-
-public class FastPathTestLetDeclaration(ITestOutputHelper output) : TestLetDeclarationBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

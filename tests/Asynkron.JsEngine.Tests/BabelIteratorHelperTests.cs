@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class BabelIteratorHelperTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class BabelIteratorHelperTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task CreateForOfIteratorHelperLoose_WorksForArrays()
@@ -73,9 +73,4 @@ public abstract class BabelIteratorHelperTestsBase(ITestOutputHelper output) : F
         var result = await engine.Evaluate("result;");
         Assert.Equal(true, result);
     }
-}
-
-public class FastPathBabelIteratorHelperTests(ITestOutputHelper output) : BabelIteratorHelperTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

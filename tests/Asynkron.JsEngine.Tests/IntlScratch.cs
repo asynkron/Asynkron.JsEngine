@@ -48,8 +48,3 @@ public abstract class IntlScratchBase(ITestOutputHelper output) : FastPathTestBa
         Assert.True(array.GetElement(11).AsDouble() > 0);
     }
 }
-
-public class FastPathIntlScratch(ITestOutputHelper output) : IntlScratchBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TypedArrayTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedArrayTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ArrayBuffer_CreatesWithLength()
@@ -1017,9 +1017,4 @@ public abstract class TypedArrayTestsBase(ITestOutputHelper output) : FastPathTe
         Assert.Equal(true, result);
     }
 
-}
-
-public class FastPathTypedArrayTests(ITestOutputHelper output) : TypedArrayTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

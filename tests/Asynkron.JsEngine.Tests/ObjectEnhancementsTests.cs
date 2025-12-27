@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ObjectEnhancementsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ObjectEnhancementsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // Object property shorthand tests
     [Fact(Timeout = 2000)]
@@ -267,9 +267,4 @@ public abstract class ObjectEnhancementsTestsBase(ITestOutputHelper output) : Fa
                                        """);
         Assert.Equal(10d, result);
     }
-}
-
-public class FastPathObjectEnhancementsTests(ITestOutputHelper output) : ObjectEnhancementsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

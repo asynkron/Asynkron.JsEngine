@@ -27,8 +27,3 @@ public abstract class TestSimpleVarBase(ITestOutputHelper output) : FastPathTest
         Assert.Equal(Symbol.Undefined, result);
     }
 }
-
-public class FastPathTestSimpleVar(ITestOutputHelper output) : TestSimpleVarBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

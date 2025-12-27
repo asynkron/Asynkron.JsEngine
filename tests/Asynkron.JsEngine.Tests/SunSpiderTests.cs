@@ -7,7 +7,7 @@
 // /// SunSpider benchmark tests. See SUNSPIDER_TEST_FINDINGS.md for detailed analysis of known failures.
 // /// Current expectations are tracked per script via the <c>shouldSucceed</c> flag.
 // /// </summary>
-// public abstract class SunSpiderTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+// public class SunSpiderTests(ITestOutputHelper output) : FastPathTestBase(output)
 // {
 //     private const string ScriptResourcePrefix = "Asynkron.JsEngine.Tests.Scripts.";
 //

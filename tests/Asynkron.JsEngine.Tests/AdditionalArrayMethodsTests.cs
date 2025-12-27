@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AdditionalArrayMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AdditionalArrayMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_Fill_FillsWithValue()
@@ -947,9 +947,4 @@ public abstract class AdditionalArrayMethodsTestsBase(ITestOutputHelper output) 
                                            """);
         Assert.Equal(1d, result);
     }
-}
-
-public class FastPathAdditionalArrayMethodsTests(ITestOutputHelper output) : AdditionalArrayMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

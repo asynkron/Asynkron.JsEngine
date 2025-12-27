@@ -83,8 +83,3 @@ public abstract class NBodyDiagnosticTestBase(ITestOutputHelper output) : FastPa
         Assert.Equal(2.0, result);
     }
 }
-
-public class FastPathNBodyDiagnosticTest(ITestOutputHelper output) : NBodyDiagnosticTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

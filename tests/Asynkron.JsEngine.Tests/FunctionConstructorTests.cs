@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class FunctionConstructorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class FunctionConstructorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task NewFunctionCreatesCallableBody()
@@ -37,9 +37,4 @@ public abstract class FunctionConstructorTestsBase(ITestOutputHelper output) : F
         Assert.Equal(4d, obj["length"]);
         Assert.True(obj["isView"] as bool?);
     }
-}
-
-public class FastPathFunctionConstructorTests(ITestOutputHelper output) : FunctionConstructorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

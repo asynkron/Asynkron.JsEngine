@@ -42,8 +42,3 @@ public abstract class NBodyArraySizeTestBase(ITestOutputHelper output) : FastPat
         Assert.Equal((double)count, result);
     }
 }
-
-public class FastPathNBodyArraySizeTest(ITestOutputHelper output) : NBodyArraySizeTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

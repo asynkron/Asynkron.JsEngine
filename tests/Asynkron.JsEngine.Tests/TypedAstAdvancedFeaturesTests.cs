@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TypedAstAdvancedFeaturesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task TaggedTemplateLiteral_runs_through_typed_ast()
@@ -51,9 +51,4 @@ public abstract class TypedAstAdvancedFeaturesTestsBase(ITestOutputHelper output
 
         Assert.Equal(18d, result);
     }
-}
-
-public class FastPathTypedAstAdvancedFeaturesTests(ITestOutputHelper output) : TypedAstAdvancedFeaturesTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

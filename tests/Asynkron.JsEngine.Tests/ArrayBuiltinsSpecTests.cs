@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ArrayBuiltinsSpecTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ArrayBuiltinsSpecTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_toLocaleString_InvokesElementMethodWithArgs()
@@ -96,9 +96,4 @@ public abstract class ArrayBuiltinsSpecTestsBase(ITestOutputHelper output) : Fas
         Assert.Equal("TypeError", name);
         Assert.NotNull(message);
     }
-}
-
-public class FastPathArrayBuiltinsSpecTests(ITestOutputHelper output) : ArrayBuiltinsSpecTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class PromiseTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class PromiseTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Promise_CanBeResolved()
@@ -445,9 +445,4 @@ public abstract class PromiseTestsBase(ITestOutputHelper output) : FastPathTestB
 
         Assert.Equal("recovered", finalValue);
     }
-}
-
-public class FastPathPromiseTests(ITestOutputHelper output) : PromiseTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

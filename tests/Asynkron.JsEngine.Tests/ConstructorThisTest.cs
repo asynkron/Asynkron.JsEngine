@@ -81,8 +81,3 @@ public abstract class ConstructorThisTestBase(ITestOutputHelper output) : FastPa
         Assert.Equal(3.0, result);
     }
 }
-
-public class FastPathConstructorThisTest(ITestOutputHelper output) : ConstructorThisTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

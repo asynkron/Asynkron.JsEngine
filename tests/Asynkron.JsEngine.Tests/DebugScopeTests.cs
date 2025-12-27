@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests for scope and closure behavior in for-of loops, especially with destructuring defaults and eval.
 /// These tests verify that closures correctly capture their lexical environment.
 /// </summary>
-public abstract class DebugScopeTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class DebugScopeTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Step1_ProbeBeforeSimple()
@@ -125,8 +125,3 @@ public abstract class DebugScopeTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-// Run all tests with fast paths enabled
-public class FastPathDebugScopeTests(ITestOutputHelper output) : DebugScopeTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

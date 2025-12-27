@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for async/await functionality.
 /// </summary>
-public abstract class AsyncAwaitTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AsyncAwaitTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeParsed()
@@ -1003,9 +1003,4 @@ public abstract class AsyncAwaitTestsBase(ITestOutputHelper output) : FastPathTe
     {
         return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTestsBase), enableFastPaths: EnableFastPaths);
     }
-}
-
-public class FastPathAsyncAwaitTests(ITestOutputHelper output) : AsyncAwaitTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class WithStatementTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class WithStatementTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task With_UnscopablesGetterCalledOnceForIncrement()
@@ -319,9 +319,4 @@ public abstract class WithStatementTestsBase(ITestOutputHelper output) : FastPat
         var result = await engine.Evaluate("eval('2; while (true) { 3; break; }')");
         Assert.Equal(3.0, result);
     }
-}
-
-public class FastPathWithStatementTests(ITestOutputHelper output) : WithStatementTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

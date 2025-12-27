@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class DeleteOperatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class DeleteOperatorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Delete_RemovesPropertyUsingDotNotation()
@@ -167,9 +167,4 @@ public abstract class DeleteOperatorTestsBase(ITestOutputHelper output) : FastPa
                                            """);
         Assert.True((bool)result!);
     }
-}
-
-public class FastPathDeleteOperatorTests(ITestOutputHelper output) : DeleteOperatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

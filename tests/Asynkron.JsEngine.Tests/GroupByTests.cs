@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class GroupByTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class GroupByTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Object_GroupBy_GroupsByStringKey()

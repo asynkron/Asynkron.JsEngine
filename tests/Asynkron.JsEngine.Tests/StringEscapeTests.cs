@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class StringEscapeTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class StringEscapeTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task SimpleEscapedQuote()
@@ -119,9 +119,4 @@ public abstract class StringEscapeTestsBase(ITestOutputHelper output) : FastPath
         var result = await engine.Evaluate("let a = 'test\\\nline'; a;");
         Assert.Equal("testline", result);
     }
-}
-
-public class FastPathStringEscapeTests(ITestOutputHelper output) : StringEscapeTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

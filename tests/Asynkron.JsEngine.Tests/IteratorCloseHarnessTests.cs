@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class IteratorCloseHarnessTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class IteratorCloseHarnessTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForOfDestructuring_IteratorCloseNonObjectCaught_Sloppy()
@@ -94,9 +94,4 @@ public abstract class IteratorCloseHarnessTestsBase(ITestOutputHelper output) : 
             ({ caught, errName, nextCount, returnCount, unreachable });
             """;
     }
-}
-
-public class FastPathIteratorCloseHarnessTests(ITestOutputHelper output) : IteratorCloseHarnessTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

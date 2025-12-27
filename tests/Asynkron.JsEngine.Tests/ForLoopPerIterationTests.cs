@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Layered reproductions of test262 for-loop per-iteration scope semantics.
 /// These mirror key failing test262 cases so we can debug without the full harness.
 /// </summary>
-public abstract class ForLoopPerIterationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen()
@@ -101,9 +101,4 @@ public abstract class ForLoopPerIterationTestsBase(ITestOutputHelper output) : F
         Assert.Equal(1d, array.GetElement(1).ToObject());
         Assert.Equal(2d, array.GetElement(2).ToObject());
     }
-}
-
-public class FastPathForLoopPerIterationTests(ITestOutputHelper output) : ForLoopPerIterationTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

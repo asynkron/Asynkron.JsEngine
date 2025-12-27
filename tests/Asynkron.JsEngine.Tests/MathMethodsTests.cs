@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class MathMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class MathMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Math_Cbrt_CalculatesCubeRoot()
@@ -224,9 +224,4 @@ public abstract class MathMethodsTestsBase(ITestOutputHelper output) : FastPathT
         "))!;
         Assert.True(result);
     }
-}
-
-public class FastPathMathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

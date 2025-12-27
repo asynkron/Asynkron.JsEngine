@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class HexadecimalLiteralTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class HexadecimalLiteralTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Hexadecimal_Literal_LowercaseX_ParsesCorrectly()
@@ -191,9 +191,4 @@ public abstract class HexadecimalLiteralTestsBase(ITestOutputHelper output) : Fa
         Assert.True(result is double);
         Assert.True((double)result > 1.8e19);
     }
-}
-
-public class FastPathHexadecimalLiteralTests(ITestOutputHelper output) : HexadecimalLiteralTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

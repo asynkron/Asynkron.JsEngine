@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class DateBuiltinsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class DateBuiltinsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Theory(Timeout = 2000)]
     [InlineData("new Date(Date.UTC(2001, 1, 3, 4, 5, 6, 789))",
@@ -86,9 +86,4 @@ public abstract class DateBuiltinsTestsBase(ITestOutputHelper output) : FastPath
 
         Assert.Equal(expectedMs, result);
     }
-}
-
-public class FastPathDateBuiltinsTests(ITestOutputHelper output) : DateBuiltinsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

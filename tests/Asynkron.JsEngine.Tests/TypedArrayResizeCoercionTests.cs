@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TypedArrayResizeCoercionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedArrayResizeCoercionTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ValueOfCoercionCanResizeBackingBuffer()
@@ -42,9 +42,4 @@ public abstract class TypedArrayResizeCoercionTestsBase(ITestOutputHelper output
         Assert.Equal(2d, obj["afterBytes"]);
         Assert.Equal(-1d, obj["result"]);
     }
-}
-
-public class FastPathTypedArrayResizeCoercionTests(ITestOutputHelper output) : TypedArrayResizeCoercionTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

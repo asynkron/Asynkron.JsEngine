@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class MethodShorthandParsingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class MethodShorthandParsingTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task TestJ_ParseMethodShorthandVsRegularFunction()
@@ -188,9 +188,4 @@ public abstract class MethodShorthandParsingTestsBase(ITestOutputHelper output) 
     {
         return TestEngineFactory.CreateDebugEngine(nameof(MethodShorthandParsingTestsBase), enableFastPaths: EnableFastPaths);
     }
-}
-
-public class FastPathMethodShorthandParsingTests(ITestOutputHelper output) : MethodShorthandParsingTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

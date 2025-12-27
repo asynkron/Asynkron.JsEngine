@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class IteratorCloseDestructuringTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class IteratorCloseDestructuringTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task DestructuringAssignment_IteratorCloseNonObjectThrows()
@@ -209,9 +209,4 @@ public abstract class IteratorCloseDestructuringTestsBase(ITestOutputHelper outp
             assert.sameValue(unreachable, 0);
             """);
     }
-}
-
-public class FastPathIteratorCloseDestructuringTests(ITestOutputHelper output) : IteratorCloseDestructuringTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

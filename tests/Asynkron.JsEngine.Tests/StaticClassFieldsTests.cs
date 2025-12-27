@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class StaticClassFieldsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class StaticClassFieldsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Static_Field_With_Initializer()
@@ -210,9 +210,4 @@ public abstract class StaticClassFieldsTestsBase(ITestOutputHelper output) : Fas
                                        """);
         Assert.Equal(100.0, result);
     }
-}
-
-public class FastPathStaticClassFieldsTests(ITestOutputHelper output) : StaticClassFieldsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class BigIntTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class BigIntTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task BigIntLiteralParsing()
@@ -493,9 +493,4 @@ public abstract class BigIntTestsBase(ITestOutputHelper output) : FastPathTestBa
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(16), result); // (5+3) * (5-3) = 8 * 2 = 16
     }
-}
-
-public class FastPathBigIntTests(ITestOutputHelper output) : BigIntTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

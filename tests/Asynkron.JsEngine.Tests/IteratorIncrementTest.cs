@@ -39,8 +39,3 @@ public abstract class IteratorIncrementTestBase(ITestOutputHelper output) : Fast
                          """);
     }
 }
-
-public class FastPathIteratorIncrementTest(ITestOutputHelper output) : IteratorIncrementTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

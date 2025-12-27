@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ObjectMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ObjectMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Object_Freeze_Prevents_Property_Modification()
@@ -235,9 +235,4 @@ public abstract class ObjectMethodsTestsBase(ITestOutputHelper output) : FastPat
                                        """);
         Assert.Equal(6.0, result);
     }
-}
-
-public class FastPathObjectMethodsTests(ITestOutputHelper output) : ObjectMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

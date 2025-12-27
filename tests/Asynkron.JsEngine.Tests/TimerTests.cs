@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TimerTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TimerTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_ExecutesCallbackAfterDelay()
@@ -177,9 +177,4 @@ public abstract class TimerTestsBase(ITestOutputHelper output) : FastPathTestBas
 
         Assert.Equal("Hello from closure", capturedValue);
     }
-}
-
-public class FastPathTimerTests(ITestOutputHelper output) : TimerTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

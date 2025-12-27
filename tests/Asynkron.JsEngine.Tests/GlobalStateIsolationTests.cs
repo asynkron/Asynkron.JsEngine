@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class GlobalStateIsolationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class GlobalStateIsolationTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task PrototypeMutationsDoNotLeakBetweenEngines()
@@ -17,9 +17,4 @@ public abstract class GlobalStateIsolationTestsBase(ITestOutputHelper output) : 
 
         Assert.False(hasLeak);
     }
-}
-
-public class FastPathGlobalStateIsolationTests(ITestOutputHelper output) : GlobalStateIsolationTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests for JavaScript oddities related to null and undefined values.
 /// These tests ensure the engine correctly implements JavaScript's quirky behavior with these values.
 /// </summary>
-public abstract class NullUndefinedOddityTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NullUndefinedOddityTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task TypeofNull_ReturnsObject()
@@ -425,9 +425,4 @@ public abstract class NullUndefinedOddityTestsBase(ITestOutputHelper output) : F
                                        """);
         Assert.Equal("object,undefined,number,string,boolean", result);
     }
-}
-
-public class FastPathNullUndefinedOddityTests(ITestOutputHelper output) : NullUndefinedOddityTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

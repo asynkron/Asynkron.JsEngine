@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for comprehensive type coercion rules (toString, toNumber conversions)
 /// </summary>
-public abstract class TypeCoercionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypeCoercionTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // ========================================
     // Array to String Conversion
@@ -420,7 +420,3 @@ public abstract class TypeCoercionTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPathTypeCoercionTests(ITestOutputHelper output) : TypeCoercionTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

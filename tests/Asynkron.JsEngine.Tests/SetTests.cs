@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class SetTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class SetTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
@@ -361,9 +361,4 @@ public abstract class SetTestsBase(ITestOutputHelper output) : FastPathTestBase(
                                        """);
         Assert.Equal(2.0, result);
     }
-}
-
-public class FastPathSetTests(ITestOutputHelper output) : SetTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

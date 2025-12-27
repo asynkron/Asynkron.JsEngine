@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class IdentifierSlotLoggingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ForLoop_UsesSlotFastPathWithoutMisses()
@@ -125,9 +125,4 @@ var result = browser$5.ok === true;
         Assert.DoesNotContain(messages, m => m.Contains("Identifier slot read miss name=module", StringComparison.Ordinal));
         Assert.DoesNotContain(messages, m => m.Contains("Identifier slot write miss name=module", StringComparison.Ordinal));
     }
-}
-
-public class FastPathIdentifierSlotLoggingTests(ITestOutputHelper output) : IdentifierSlotLoggingTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

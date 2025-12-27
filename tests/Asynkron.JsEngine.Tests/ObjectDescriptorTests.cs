@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ObjectDescriptorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ObjectDescriptorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // Tests for Object.defineProperty with writable descriptor
 
@@ -665,9 +665,4 @@ public abstract class ObjectDescriptorTestsBase(ITestOutputHelper output) : Fast
                                            """);
         Assert.Equal(true, result);
     }
-}
-
-public class FastPathObjectDescriptorTests(ITestOutputHelper output) : ObjectDescriptorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

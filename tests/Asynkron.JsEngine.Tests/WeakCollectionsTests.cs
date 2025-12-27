@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class WeakCollectionsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class WeakCollectionsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WeakMap_CoreMethods_BehaveLikeNode()
@@ -63,9 +63,4 @@ public abstract class WeakCollectionsTestsBase(ITestOutputHelper output) : FastP
         Assert.True((bool)deleted!);
         Assert.False((bool)hasValue1AfterDelete!);
     }
-}
-
-public class FastPathWeakCollectionsTests(ITestOutputHelper output) : WeakCollectionsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

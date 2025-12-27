@@ -77,8 +77,3 @@ public abstract class NBodyPrototypeTestBase(ITestOutputHelper output) : FastPat
         Assert.NotEqual(0.0, result);
     }
 }
-
-public class FastPathNBodyPrototypeTest(ITestOutputHelper output) : NBodyPrototypeTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

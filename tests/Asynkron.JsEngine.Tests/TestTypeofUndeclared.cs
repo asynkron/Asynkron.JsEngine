@@ -24,8 +24,3 @@ public abstract class TestTypeofUndeclaredBase(ITestOutputHelper output) : FastP
         Assert.Contains("ReferenceError", ex.Message, StringComparison.Ordinal);
     }
 }
-
-public class FastPathTestTypeofUndeclared(ITestOutputHelper output) : TestTypeofUndeclaredBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

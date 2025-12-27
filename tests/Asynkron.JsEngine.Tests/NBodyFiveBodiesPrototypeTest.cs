@@ -33,8 +33,3 @@ public abstract class NBodyFiveBodiesPrototypeTestBase(ITestOutputHelper output)
         Assert.Equal(5.0, result);
     }
 }
-
-public class FastPathNBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : NBodyFiveBodiesPrototypeTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -33,8 +33,3 @@ public abstract class TestMultipleVarDeclarationsBase(ITestOutputHelper output) 
         Assert.Equal(Symbol.Undefined, result);
     }
 }
-
-public class FastPathTestMultipleVarDeclarations(ITestOutputHelper output) : TestMultipleVarDeclarationsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

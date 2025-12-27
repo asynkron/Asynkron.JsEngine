@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ToPropertyNameSymbolTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ToPropertyNameSymbolTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void ThrowsWhenSymbolToPrimitiveIsNotCallable()
@@ -56,9 +56,4 @@ public abstract class ToPropertyNameSymbolTestsBase(ITestOutputHelper output) : 
         await using var engine = CreateEngine();
         await Assert.ThrowsAsync<ThrowSignal>(() => engine.Evaluate(source));
     }
-}
-
-public class FastPathToPropertyNameSymbolTests(ITestOutputHelper output) : ToPropertyNameSymbolTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

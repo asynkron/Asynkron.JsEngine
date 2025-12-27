@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class NumberStaticMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NumberStaticMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsTrueForIntegers()
@@ -199,9 +199,4 @@ public abstract class NumberStaticMethodsTestsBase(ITestOutputHelper output) : F
             Thread.CurrentThread.CurrentCulture = originalCulture;
         }
     }
-}
-
-public class FastPathNumberStaticMethodsTests(ITestOutputHelper output) : NumberStaticMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

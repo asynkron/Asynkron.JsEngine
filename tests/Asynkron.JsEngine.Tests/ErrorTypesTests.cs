@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ErrorTypesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ErrorTypesTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Error_CanBeCreated()
@@ -344,7 +344,3 @@ public abstract class ErrorTypesTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class FastPathErrorTypesTests(ITestOutputHelper output) : ErrorTypesTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

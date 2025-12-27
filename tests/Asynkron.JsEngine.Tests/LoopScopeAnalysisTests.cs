@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class LoopScopeAnalysisTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void ForLoopWithLetInitializer_TracksPerIterationSlotsAndPlanBindings()
@@ -144,9 +144,4 @@ public abstract class LoopScopeAnalysisTestsBase(ITestOutputHelper output) : Fas
 
         Assert.Equal("abc", result);
     }
-}
-
-public class FastPathLoopScopeAnalysisTests(ITestOutputHelper output) : LoopScopeAnalysisTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

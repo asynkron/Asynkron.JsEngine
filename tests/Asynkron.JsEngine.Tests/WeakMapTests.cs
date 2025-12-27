@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class WeakMapTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class WeakMapTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WeakMap_Constructor_Creates_Empty_WeakMap()
@@ -346,9 +346,4 @@ public abstract class WeakMapTestsBase(ITestOutputHelper output) : FastPathTestB
                                        """);
         Assert.Equal("object", result);
     }
-}
-
-public class FastPathWeakMapTests(ITestOutputHelper output) : WeakMapTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

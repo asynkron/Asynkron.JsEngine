@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class GeneratorYieldSendTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class GeneratorYieldSendTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task YieldYieldForwardsSentValues()
@@ -150,11 +150,5 @@ public abstract class GeneratorYieldSendTestsBase(ITestOutputHelper output) : Fa
         Assert.True(obj.TryGetProperty("x", out var xValue));
         Assert.Equal(86d, xValue.AsDouble());
     }
-}
-
-[Collection("GeneratorIrCollection")]
-public class FastPathGeneratorYieldSendTests(ITestOutputHelper output) : GeneratorYieldSendTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }
 

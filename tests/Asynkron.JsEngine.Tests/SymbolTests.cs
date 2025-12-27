@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class SymbolTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class SymbolTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Symbol_Creates_Unique_Symbols()
@@ -169,7 +169,3 @@ public abstract class SymbolTestsBase(ITestOutputHelper output) : FastPathTestBa
     }
 }
 
-public class FastPathSymbolTests(ITestOutputHelper output) : SymbolTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

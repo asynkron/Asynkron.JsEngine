@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for constant expression folding transformation.
 /// </summary>
-public abstract class ConstantFoldingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ConstantFoldingTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_ArithmeticExpression_FoldsToResult()
@@ -94,9 +94,4 @@ public abstract class ConstantFoldingTestsBase(ITestOutputHelper output) : FastP
         Output.WriteLine("\nAfter typed constant folding:");
         Output.WriteLine(typedConstantFolded.ToString());
     }
-}
-
-public class FastPathConstantFoldingTests(ITestOutputHelper output) : ConstantFoldingTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

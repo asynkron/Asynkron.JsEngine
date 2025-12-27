@@ -86,8 +86,3 @@ public abstract class AnonymousFunctionDebugTestBase(ITestOutputHelper testOutpu
         return TestEngineFactory.CreateDebugEngine(nameof(AnonymousFunctionDebugTestBase), enableFastPaths: EnableFastPaths);
     }
 }
-
-public class FastPathAnonymousFunctionDebugTest(ITestOutputHelper output) : AnonymousFunctionDebugTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

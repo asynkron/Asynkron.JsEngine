@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ConsoleTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ConsoleTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task Console_Log_Should_Be_Available()
@@ -120,9 +120,4 @@ public abstract class ConsoleTestsBase(ITestOutputHelper output) : FastPathTestB
 
         Assert.True((bool)result!);
     }
-}
-
-public class FastPathConsoleTests(ITestOutputHelper output) : ConsoleTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

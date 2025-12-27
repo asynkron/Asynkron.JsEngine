@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class StrictModeTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class StrictModeTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task StrictMode_DetectedAndParsed()
@@ -377,9 +377,4 @@ public abstract class StrictModeTestsBase(ITestOutputHelper output) : FastPathTe
 
         Assert.True(result is bool b && b);
     }
-}
-
-public class FastPathStrictModeTests(ITestOutputHelper output) : StrictModeTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

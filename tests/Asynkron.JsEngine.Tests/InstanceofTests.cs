@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class InstanceofTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class InstanceofTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Instanceof_WithClass_ReturnsTrue()
@@ -84,9 +84,4 @@ public abstract class InstanceofTestsBase(ITestOutputHelper output) : FastPathTe
         ");
         Assert.Equal("correct", result);
     }
-}
-
-public class FastPathInstanceofTests(ITestOutputHelper output) : InstanceofTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

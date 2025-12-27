@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class StringWellFormedTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class StringWellFormedTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task IsWellFormed_ReturnsTrueForWellFormedString()

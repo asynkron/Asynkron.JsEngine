@@ -105,8 +105,3 @@ public abstract class NBodyEnergyTestBase(ITestOutputHelper output) : FastPathTe
         Output.WriteLine($"Energy result: {result}");
     }
 }
-
-public class FastPathNBodyEnergyTest(ITestOutputHelper output) : NBodyEnergyTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

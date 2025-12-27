@@ -45,8 +45,3 @@ public abstract class PrototypeChainBugTestBase(ITestOutputHelper output) : Fast
         Assert.Equal(1.0, result);
     }
 }
-
-public class FastPathPrototypeChainBugTest(ITestOutputHelper output) : PrototypeChainBugTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

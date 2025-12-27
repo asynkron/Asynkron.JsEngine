@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class PrivateFieldsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class PrivateFieldsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldBasicAccess()
@@ -260,9 +260,4 @@ public abstract class PrivateFieldsTestsBase(ITestOutputHelper output) : FastPat
                                        """);
         Assert.Equal(30d, result);
     }
-}
-
-public class FastPathPrivateFieldsTests(ITestOutputHelper output) : PrivateFieldsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

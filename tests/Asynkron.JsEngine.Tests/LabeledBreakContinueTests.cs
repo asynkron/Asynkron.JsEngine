@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for labeled break and continue statements with runtime execution.
 /// </summary>
-public abstract class LabeledBreakContinueTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class LabeledBreakContinueTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task LabeledBreakExitsOuterLoop()
@@ -259,9 +259,4 @@ public abstract class LabeledBreakContinueTestsBase(ITestOutputHelper output) : 
         // 00, 01, 02, 10, 11 (break outer)
         Assert.Equal("00,01,02,10,11,", result);
     }
-}
-
-public class FastPathLabeledBreakContinueTests(ITestOutputHelper output) : LabeledBreakContinueTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

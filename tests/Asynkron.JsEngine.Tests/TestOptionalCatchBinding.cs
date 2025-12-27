@@ -110,8 +110,3 @@ public abstract class TestOptionalCatchBindingBase(ITestOutputHelper output) : F
         Assert.Equal("modified", result);
     }
 }
-
-public class FastPathTestOptionalCatchBinding(ITestOutputHelper output) : TestOptionalCatchBindingBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

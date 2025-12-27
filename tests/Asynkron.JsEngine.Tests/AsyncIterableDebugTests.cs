@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Debug tests to diagnose and fix async iterable test failures.
 /// Following the pattern of adding __debug() calls to understand execution flow.
 /// </summary>
-public abstract class AsyncIterableDebugTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AsyncIterableDebugTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_Debug()
@@ -522,9 +522,4 @@ public abstract class AsyncIterableDebugTestsBase(ITestOutputHelper output) : Fa
     {
         return TestEngineFactory.CreateDebugEngine(nameof(AsyncIterableDebugTestsBase), enableFastPaths: EnableFastPaths);
     }
-}
-
-public class FastPathAsyncIterableDebugTests(ITestOutputHelper output) : AsyncIterableDebugTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

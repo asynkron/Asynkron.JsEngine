@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AdditionalObjectMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AdditionalObjectMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Object_GetOwnPropertyNames_ReturnsAllPropertyNames()
@@ -187,9 +187,4 @@ public abstract class AdditionalObjectMethodsTestsBase(ITestOutputHelper output)
                                            """);
         Assert.Equal(3d, result);
     }
-}
-
-public class FastPathAdditionalObjectMethodsTests(ITestOutputHelper output) : AdditionalObjectMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

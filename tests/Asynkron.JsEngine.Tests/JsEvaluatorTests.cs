@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class JsEvaluatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class JsEvaluatorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task EvaluateArithmeticAndVariableLookup()
@@ -2047,7 +2047,3 @@ testFunction();
     }
 }
 
-public class FastPathJsEvaluatorTests(ITestOutputHelper output) : JsEvaluatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

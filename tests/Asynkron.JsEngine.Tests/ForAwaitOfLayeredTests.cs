@@ -14,7 +14,7 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// The tests use FakeLogger to trace execution and understand what's happening.
 /// </summary>
-public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // ==================== LAYER 1: Basic Async Function ====================
 
@@ -467,9 +467,4 @@ public abstract class ForAwaitOfLayeredTestsBase(ITestOutputHelper output) : Fas
         Output.WriteLine($"Expected: 15 (if microtasks drained) or 0 (if not)");
         // We're testing the actual behavior, not asserting expected behavior yet
     }
-}
-
-public class FastPathForAwaitOfLayeredTests(ITestOutputHelper output) : ForAwaitOfLayeredTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

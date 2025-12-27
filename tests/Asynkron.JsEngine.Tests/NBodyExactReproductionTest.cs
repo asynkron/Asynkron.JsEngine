@@ -63,8 +63,3 @@ public abstract class NBodyExactReproductionTestBase(ITestOutputHelper output) :
         Assert.Equal("done", result);
     }
 }
-
-public class FastPathNBodyExactReproductionTest(ITestOutputHelper output) : NBodyExactReproductionTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

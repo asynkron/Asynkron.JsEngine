@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for generator functions (function*) and the iterator protocol.
 /// </summary>
-public abstract class GeneratorTestsBase(ITestOutputHelper testOutputHelper) : FastPathTestBase(testOutputHelper)
+public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBase(testOutputHelper)
 {
     private readonly ITestOutputHelper _testOutputHelper = testOutputHelper;
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
@@ -6376,11 +6376,5 @@ public abstract class GeneratorTestsBase(ITestOutputHelper testOutputHelper) : F
         Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
         Assert.Contains("\"xProp\":22", resultStr, StringComparison.Ordinal);
     }
-}
-
-[Collection("GeneratorIrCollection")]
-public class FastPathGeneratorTests(ITestOutputHelper output) : GeneratorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }
 

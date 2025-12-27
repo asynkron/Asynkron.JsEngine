@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class EventQueueTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class EventQueueTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Run_ExecutesCodeAndReturnsResult()
@@ -108,9 +108,4 @@ public abstract class EventQueueTestsBase(ITestOutputHelper output) : FastPathTe
         Assert.Contains(3d, capturedValues);
         Assert.Contains("from-task", capturedValues);
     }
-}
-
-public class FastPathEventQueueTests(ITestOutputHelper output) : EventQueueTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

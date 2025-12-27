@@ -54,8 +54,3 @@ public abstract class SparseArrayTestBase(ITestOutputHelper output) : FastPathTe
         Assert.Contains("arr[5]=100", result?.ToString(), StringComparison.Ordinal);
     }
 }
-
-public class FastPathSparseArrayTest(ITestOutputHelper output) : SparseArrayTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

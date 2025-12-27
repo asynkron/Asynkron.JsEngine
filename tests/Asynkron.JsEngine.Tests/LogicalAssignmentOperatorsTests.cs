@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class LogicalAssignmentOperatorsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class LogicalAssignmentOperatorsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task LogicalAndAssignment_AssignsWhenTruthy()
@@ -116,9 +116,4 @@ public abstract class LogicalAssignmentOperatorsTestsBase(ITestOutputHelper outp
                                            """);
         Assert.Equal(42d, result);
     }
-}
-
-public class FastPathLogicalAssignmentOperatorsTests(ITestOutputHelper output) : LogicalAssignmentOperatorsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

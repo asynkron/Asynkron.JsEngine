@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ModuleTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ModuleTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultFunction()
@@ -926,9 +926,4 @@ export default function() { return 23; };
 
         Assert.True((bool)result!);
     }
-}
-
-public class FastPathModuleTests(ITestOutputHelper output) : ModuleTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

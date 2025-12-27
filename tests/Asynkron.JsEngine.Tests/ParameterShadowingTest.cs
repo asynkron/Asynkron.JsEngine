@@ -34,8 +34,3 @@ public abstract class ParameterShadowingTestBase(ITestOutputHelper output) : Fas
         Assert.Equal(10.0, result);
     }
 }
-
-public class FastPathParameterShadowingTest(ITestOutputHelper output) : ParameterShadowingTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

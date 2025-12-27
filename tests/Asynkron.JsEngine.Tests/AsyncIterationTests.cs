@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AsyncIterationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AsyncIterationTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task RegularForOf_WithAwaitInBody()
@@ -650,9 +650,4 @@ public abstract class AsyncIterationTestsBase(ITestOutputHelper output) : FastPa
     {
         return TestEngineFactory.CreateDebugEngine(nameof(AsyncIterationTestsBase), enableFastPaths: EnableFastPaths);
     }
-}
-
-public class FastPathAsyncIterationTests(ITestOutputHelper output) : AsyncIterationTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

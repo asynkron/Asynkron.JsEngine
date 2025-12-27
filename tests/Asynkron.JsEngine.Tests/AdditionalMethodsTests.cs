@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AdditionalMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AdditionalMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // String methods
     [Fact(Timeout = 2000)]
@@ -207,9 +207,4 @@ public abstract class AdditionalMethodsTestsBase(ITestOutputHelper output) : Fas
                                            """);
         Assert.False((bool)result!);
     }
-}
-
-public class FastPathAdditionalMethodsTests(ITestOutputHelper output) : AdditionalMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

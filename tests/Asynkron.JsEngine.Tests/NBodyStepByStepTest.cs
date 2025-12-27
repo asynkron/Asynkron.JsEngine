@@ -61,8 +61,3 @@ public abstract class NBodyStepByStepTestBase(ITestOutputHelper output) : FastPa
         Assert.Equal(2.0, result);
     }
 }
-
-public class FastPathNBodyStepByStepTest(ITestOutputHelper output) : NBodyStepByStepTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

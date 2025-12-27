@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TypedArrayResizableTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedArrayResizableTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public void LastIndexOfReturnsMinusOneWhenFixedLengthViewShrinksOutOfBounds()
@@ -39,9 +39,4 @@ public abstract class TypedArrayResizableTestsBase(ITestOutputHelper output) : F
         Assert.Throws<ThrowSignal>(() =>
             TypedArrayBase.LastIndexOfInternal(fixedLength, new List<JsValue> { new JsValue(new JsBigInt(0)), new JsValue(2d) }));
     }
-}
-
-public class FastPathTypedArrayResizableTests(ITestOutputHelper output) : TypedArrayResizableTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

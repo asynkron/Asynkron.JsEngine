@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ClassElementEvalTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ClassElementEvalTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task InstanceFieldEvalCanAccessSuperProperty()
@@ -98,9 +98,4 @@ public abstract class ClassElementEvalTestsBase(ITestOutputHelper output) : Fast
 
         Assert.True((bool)result!);
     }
-}
-
-public class FastPathClassElementEvalTests(ITestOutputHelper output) : ClassElementEvalTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

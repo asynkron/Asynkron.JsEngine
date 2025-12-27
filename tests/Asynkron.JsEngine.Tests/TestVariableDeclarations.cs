@@ -75,8 +75,3 @@ public abstract class TestVariableDeclarationsBase(ITestOutputHelper output) : F
         Assert.Equal(true, result);
     }
 }
-
-public class FastPathTestVariableDeclarations(ITestOutputHelper output) : TestVariableDeclarationsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

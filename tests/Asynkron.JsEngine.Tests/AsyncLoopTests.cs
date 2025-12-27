@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AsyncLoopTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AsyncLoopTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForLoop_WithAwaitAndContinue_Works()
@@ -63,9 +63,4 @@ public abstract class AsyncLoopTestsBase(ITestOutputHelper output) : FastPathTes
         var value = await engine.Evaluate("result;");
         Assert.Equal("01", value);
     }
-}
-
-public class FastPathAsyncLoopTests(ITestOutputHelper output) : AsyncLoopTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

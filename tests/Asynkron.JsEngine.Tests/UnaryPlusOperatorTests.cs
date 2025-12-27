@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for the unary plus operator which converts values to numbers
 /// </summary>
-public abstract class UnaryPlusOperatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class UnaryPlusOperatorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task UnaryPlus_Number_ShouldReturnNumber()
@@ -219,9 +219,4 @@ public abstract class UnaryPlusOperatorTestsBase(ITestOutputHelper output) : Fas
         var result = await engine.Evaluate(code);
         Assert.Equal(8d, result);
     }
-}
-
-public class FastPathUnaryPlusOperatorTests(ITestOutputHelper output) : UnaryPlusOperatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

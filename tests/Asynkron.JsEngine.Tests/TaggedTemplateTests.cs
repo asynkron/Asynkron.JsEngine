@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for tagged template literals.
 /// </summary>
-public abstract class TaggedTemplateTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TaggedTemplateTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_BasicFunction()
@@ -194,9 +194,4 @@ public abstract class TaggedTemplateTestsBase(ITestOutputHelper output) : FastPa
                                            """);
         Assert.Equal(42d, result);
     }
-}
-
-public class FastPathTaggedTemplateTests(ITestOutputHelper output) : TaggedTemplateTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

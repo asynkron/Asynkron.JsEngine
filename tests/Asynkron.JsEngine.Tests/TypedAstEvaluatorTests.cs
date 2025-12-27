@@ -5,7 +5,7 @@
 //
 // namespace Asynkron.JsEngine.Tests;
 //
-// public abstract class TypedAstEvaluatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+// public class TypedAstEvaluatorTests(ITestOutputHelper output) : FastPathTestBase(output)
 // {
 //     [Theory]
 //     [InlineData("let sum = 0; let i = 0; while (i < 4) { sum = sum + i; i = i + 1; } sum;", 6d)]

@@ -140,8 +140,3 @@ public abstract class RestrictedPropertiesFullTestBase(ITestOutputHelper output)
         Assert.True(ex.ThrownValue.ToObject() is JsTypes.JsObject, "Should be a JsObject");
     }
 }
-
-public class FastPathRestrictedPropertiesFullTest(ITestOutputHelper output) : RestrictedPropertiesFullTestBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

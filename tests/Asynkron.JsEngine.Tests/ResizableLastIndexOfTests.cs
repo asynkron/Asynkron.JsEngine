@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ResizableLastIndexOfTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ResizableLastIndexOfTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ArrayPrototypeLastIndexOfUsesPreCoercionLengthWhenBufferGrows()
@@ -269,9 +269,4 @@ public abstract class ResizableLastIndexOfTestsBase(ITestOutputHelper output) : 
 
         Assert.Equal("ok", result);
     }
-}
-
-public class FastPathResizableLastIndexOfTests(ITestOutputHelper output) : ResizableLastIndexOfTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

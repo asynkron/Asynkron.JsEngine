@@ -119,11 +119,16 @@ public static partial class TypedAstEvaluator
 
             // Try ultra-fast path for simple numeric for loops
             // Pattern: for (let i = 0; i < limit; i++) { s += i; }
-            if ( plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
+            if (plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
             {
                 return fastResult;
             }
 
+            // Note: IR execution for loops is now handled at the function level.
+            // When EnableFastPaths is true, entire functions run via ExecutionPlanRunner,
+            // which includes loop IR. This fallback only runs when IR is disabled or failed.
+
+            // Fallback: AST interpretation for loops
             while (true)
             {
                 context.ThrowIfCancellationRequested();

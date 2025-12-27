@@ -609,6 +609,7 @@ public class AsyncAwaitTests(ITestOutputHelper output) : FastPathTestBase(output
 
                          """);
 
+        await Task.Delay(500); // Ensure enough time for timeouts to complete
         // Assert
         Assert.Equal("30", result);
     }

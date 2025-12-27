@@ -24,7 +24,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue AddValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both operands are already numbers (very common in loops)
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(left.NumberValue + right.NumberValue);
         }
@@ -154,7 +154,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue SubtractValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(left.NumberValue - right.NumberValue);
         }
@@ -169,7 +169,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue MultiplyValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(left.NumberValue * right.NumberValue);
         }
@@ -184,7 +184,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue DivideValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(left.NumberValue / right.NumberValue);
         }
@@ -211,7 +211,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue ModuloValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers - use MathMod for proper ES spec compliance
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsOps.MathMod(left.NumberValue, right.NumberValue));
         }
@@ -463,7 +463,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue LessThanValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return left.NumberValue < right.NumberValue ? JsValue.True : JsValue.False;
         }
@@ -479,7 +479,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue LessThanOrEqualValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return left.NumberValue <= right.NumberValue ? JsValue.True : JsValue.False;
         }
@@ -495,7 +495,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue GreaterThanValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return left.NumberValue > right.NumberValue ? JsValue.True : JsValue.False;
         }
@@ -511,7 +511,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue GreaterThanOrEqualValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return left.NumberValue >= right.NumberValue ? JsValue.True : JsValue.False;
         }
@@ -528,7 +528,7 @@ public static partial class TypedAstEvaluator
     {
         // Fast path: both numbers - use JsOps.MathPow for ES spec compliance
         // (handles special cases like abs(base)==1 with ±Infinity exponent)
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsOps.MathPow(left.NumberValue, right.NumberValue));
         }
@@ -605,7 +605,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue BitwiseAndValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) &
                                       JsNumericConversions.ToInt32(right.NumberValue));
@@ -625,7 +625,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue BitwiseOrValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) |
                                       JsNumericConversions.ToInt32(right.NumberValue));
@@ -645,7 +645,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue BitwiseXorValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) ^
                                       JsNumericConversions.ToInt32(right.NumberValue));
@@ -665,7 +665,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue LeftShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) <<
                                       (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
@@ -682,7 +682,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue RightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsNumericConversions.ToInt32(left.NumberValue) >>
                                       (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));
@@ -699,7 +699,7 @@ public static partial class TypedAstEvaluator
     internal static JsValue UnsignedRightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
-        if (context.RealmState.EnableFastPaths && left.IsNumber && right.IsNumber)
+        if ( left.IsNumber && right.IsNumber)
         {
             return JsValue.FromDouble(JsNumericConversions.ToUInt32(left.NumberValue) >>
                                       (JsNumericConversions.ToInt32(right.NumberValue) & 0x1F));

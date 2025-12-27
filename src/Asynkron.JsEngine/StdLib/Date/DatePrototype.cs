@@ -4,6 +4,7 @@ using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
+using Asynkron.JsEngine.StdLib.Temporal;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using static Asynkron.JsEngine.StdLib.DateHelper;
 
@@ -554,10 +555,71 @@ public sealed partial class DatePrototype
     [JsHostMethod("toTemporalInstant", Length = 0d)]
     public JsValue ToTemporalInstant(JsValue thisValue)
     {
-        // TODO: Implement Date.prototype.toTemporalInstant
-        // This method converts a Date to a Temporal.Instant
-        // Requires Temporal API implementation
-        throw new NotImplementedException("Date.prototype.toTemporalInstant is not yet implemented");
+        var timeValue = RequireDateValue(thisValue, Realm, out _);
+        if (double.IsNaN(timeValue) || double.IsInfinity(timeValue))
+        {
+            throw ThrowRangeError("Invalid time value", realm: Realm);
+        }
+
+        // Date -> Temporal.Instant is millisecond-based, so wrap the epoch milliseconds directly.
+        return TemporalHelper.CreateInstantFromEpochMilliseconds(Realm, timeValue);
+    }
+
+    [JsSymbolMethod("toPrimitive", Length = 1d)]
+    public JsValue ToPrimitive(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        RequireDateValue(thisValue, Realm, out var obj);
+
+        if (!args.GetArgument(0).TryGetString(out var hint))
+        {
+            throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
+        }
+
+        // Date prefers string conversion for the "default" hint.
+        var preferString = hint is "string" or "default";
+        if (!preferString && hint != "number")
+        {
+            throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
+        }
+
+        if (preferString)
+        {
+            if (TryInvokeAndReturnPrimitive(obj, "toString", out var result) ||
+                TryInvokeAndReturnPrimitive(obj, "valueOf", out result))
+            {
+                return result;
+            }
+        }
+        else
+        {
+            if (TryInvokeAndReturnPrimitive(obj, "valueOf", out var result) ||
+                TryInvokeAndReturnPrimitive(obj, "toString", out result))
+            {
+                return result;
+            }
+        }
+
+        throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
+    }
+
+    private static bool TryInvokeAndReturnPrimitive(JsObject obj, string methodName, out JsValue result)
+    {
+        result = JsValue.Undefined;
+        if (!obj.TryGetProperty(methodName, out var method) ||
+            !method.TryGetObject<IJsCallable>(out var callable))
+        {
+            return false;
+        }
+
+        // Follow OrdinaryToPrimitive: only return if the result is not an object.
+        var value = callable.Invoke([], new JsValue(obj));
+        if (value.IsObject)
+        {
+            return false;
+        }
+
+        result = value;
+        return true;
     }
 
     protected override void ConfigurePrototype()

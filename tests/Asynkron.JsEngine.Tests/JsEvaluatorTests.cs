@@ -1870,6 +1870,46 @@ public abstract class JsEvaluatorTestsBase(ITestOutputHelper output) : FastPathT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DateToTemporalInstantReturnsEpochMilliseconds()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           // Use a fixed epoch to keep the assertion stable.
+                                           let d = new Date(0);
+                                           d.toTemporalInstant().epochMilliseconds;
+
+                                           """);
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DateToPrimitiveUsesStringForDefaultHint()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           let d = new Date(0);
+                                           typeof d[Symbol.toPrimitive]("default");
+
+                                           """);
+        Assert.Equal("string", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DateToPrimitiveUsesNumberForNumberHint()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           let d = new Date(0);
+                                           d[Symbol.toPrimitive]("number");
+
+                                           """);
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task JsonParseHandlesObject()
     {
         await using var engine = CreateEngine();

@@ -348,7 +348,7 @@ public class JsRegExp
         return indices;
     }
 
-    private JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues)
+    private static JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues)
     {
         JsObject? groups = null;
 

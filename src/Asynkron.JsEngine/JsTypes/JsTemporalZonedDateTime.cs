@@ -26,7 +26,12 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     public JsTemporalZonedDateTime(
         int year, int month, int day,
         int hour, int minute, int second,
-        int millisecond, int microsecond, int nanosecond,
+
+        int millisecond, int microsecond,
+#pragma warning disable RCS1163
+        // ReSharper disable once UnusedParameter.Local
+        int nanosecond,
+#pragma warning restore RCS1163
         string timeZoneId,
         string calendar = "iso8601")
     {
@@ -275,7 +280,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
     public bool Equals(JsTemporalZonedDateTime? other)
     {
         if (other is null) return false;
-        return Instant.Equals(other.Instant) && TimeZoneId == other.TimeZoneId;
+        return Instant.Equals(other.Instant) && string.Equals(TimeZoneId, other.TimeZoneId, StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)
@@ -307,7 +312,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         baseStr += Offset;
         baseStr += $"[{TimeZoneId}]";
 
-        if (Calendar != "iso8601")
+        if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
             baseStr += $"[u-ca={Calendar}]";
         }

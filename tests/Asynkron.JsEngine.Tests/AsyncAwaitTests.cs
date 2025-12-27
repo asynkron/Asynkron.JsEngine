@@ -1001,6 +1001,6 @@ public class AsyncAwaitTests(ITestOutputHelper output) : FastPathTestBase(output
 
     private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTests), enableFastPaths: true);
+        return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTests));
     }
 }

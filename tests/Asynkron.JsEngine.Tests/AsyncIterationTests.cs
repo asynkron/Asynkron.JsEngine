@@ -648,6 +648,6 @@ public class AsyncIterationTests(ITestOutputHelper output) : FastPathTestBase(ou
 
     private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(AsyncIterationTests), enableFastPaths: true);
+        return TestEngineFactory.CreateDebugEngine(nameof(AsyncIterationTests));
     }
 }

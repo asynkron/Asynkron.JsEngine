@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -672,6 +673,72 @@ public static partial class TypedAstEvaluator
 
                     throw;
                 }
+            }
+
+            // ╔══════════════════════════════════════════════════════════════════════════════╗
+            // ║                                                                              ║
+            // ║   ██████╗ ██╗███████╗ █████╗ ██████╗ ██╗     ███████╗██████╗                 ║
+            // ║   ██╔══██╗██║██╔════╝██╔══██╗██╔══██╗██║     ██╔════╝██╔══██╗                ║
+            // ║   ██║  ██║██║███████╗███████║██████╔╝██║     █████╗  ██║  ██║                ║
+            // ║   ██║  ██║██║╚════██║██╔══██║██╔══██╗██║     ██╔══╝  ██║  ██║                ║
+            // ║   ██████╔╝██║███████║██║  ██║██████╔╝███████╗███████╗██████╔╝                ║
+            // ║   ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚═════╝                 ║
+            // ║                                                                              ║
+            // ║   SYNC IR EXECUTION PATH - TEMPORARILY DISABLED                              ║
+            // ║                                                                              ║
+            // ║   See: /todo-sync-ir-investigation.md for full investigation notes           ║
+            // ║                                                                              ║
+            // ║   Known issues when enabled:                                                 ║
+            // ║   1. Flatten_FlattensNestedArrays - HANGS (nested loops with conditionals)   ║
+            // ║   2. ForLoop_UsesSlotFastPathWithoutMisses - slot resolution broken          ║
+            // ║   3. WhileLoop_UsesSlotFastPathWithoutMisses - slot resolution broken        ║
+            // ║   4. ClassFieldInitializerCanAccessSuper - eval+super edge case              ║
+            // ║   5. ManualCpsLoop - environment tracking issues                             ║
+            // ║                                                                              ║
+            // ║   To re-enable: change "false &&" to "true &&" below                         ║
+            // ║                                                                              ║
+            // ╚══════════════════════════════════════════════════════════════════════════════╝
+            //
+            // Sync IR execution path for non-async, non-generator functions.
+            // This would unify execution with the generator/async IR path, avoiding mixed-mode bugs.
+            // Skip IR for:
+            // - Functions with homeObject (class methods/field initializers) - need special super handling
+            // - Functions with direct eval - AST path handles eval scope correctly
+            if (false && !_function.IsGenerator && !IsClassConstructor && _homeObject is null &&
+                _allowIdentifierCache && RealmState.EnableFastPaths)
+            {
+                var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+                if (planCache.Succeeded)
+                {
+                    RealmState.ReturnContext(context);
+                    try
+                    {
+                        var runner = new ExecutionPlanRunner(
+                            _function,
+                            _closure,
+                            arguments,
+                            thisValue,
+                            this,
+                            RealmState,
+                            _isStrict,
+                            _hasFunctionNameEnvironment,
+                            _homeObject,
+                            PrivateNameScope,
+                            _capturedPrivateNameScopes);
+                        return runner.RunSync();
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        if (callingContext is not null)
+                        {
+                            callingContext.SetThrow(signal.ThrownValue);
+                            return signal.ThrownValue;
+                        }
+
+                        throw;
+                    }
+                }
+                // If plan building failed, fall through to AST interpretation
             }
 
             var lexicalNames = RentSymbolSet(_lexicalTemplate);

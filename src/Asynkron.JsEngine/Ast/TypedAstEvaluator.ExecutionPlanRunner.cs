@@ -118,6 +118,36 @@ public static partial class TypedAstEvaluator
             EnsureExecutionEnvironment();
         }
 
+        /// <summary>
+        /// Runs the execution plan synchronously to completion.
+        /// Unlike generator iteration, this returns the raw completion value
+        /// rather than an iterator result object.
+        /// Used for sync function execution via IR.
+        /// </summary>
+        public JsValue RunSync()
+        {
+            // Run the plan - for sync functions this completes immediately
+            var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
+
+            // ExecutePlan returns an iterator result {value, done} for generators.
+            // For sync execution, extract the raw value.
+            // Handle both IteratorResultObject (lightweight) and JsObject (full) cases.
+            if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
+            {
+                iteratorResult.TryGetProperty("value", out var value);
+                return value;
+            }
+
+            if (result.TryGetObject<JsObject>(out var jsObject) &&
+                jsObject.TryGetProperty("value", out var jsValue))
+            {
+                return jsValue;
+            }
+
+            // If no iterator result (shouldn't happen), return as-is
+            return result;
+        }
+
         private JsValue Next(JsValue value)
         {
             return ExecutePlan(ResumeMode.Next, value);

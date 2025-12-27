@@ -83,6 +83,6 @@ public class AnonymousFunctionDebugTest(ITestOutputHelper testOutputHelper) : Fa
 
     private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(AnonymousFunctionDebugTestBase), enableFastPaths: EnableFastPaths);
+        return TestEngineFactory.CreateDebugEngine(nameof(AnonymousFunctionDebugTest));
     }
 }

@@ -186,6 +186,6 @@ public class MethodShorthandParsingTests(ITestOutputHelper output) : FastPathTes
 
     private JsEngine CreateDebugEngine()
     {
-        return TestEngineFactory.CreateDebugEngine(nameof(MethodShorthandParsingTestsBase), enableFastPaths: EnableFastPaths);
+        return TestEngineFactory.CreateDebugEngine(nameof(MethodShorthandParsingTests));
     }
 }

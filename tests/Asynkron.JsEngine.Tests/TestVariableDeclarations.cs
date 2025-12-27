@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TestVariableDeclarationsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TestVariableDeclarations(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task VarWithoutInitializer_ShouldBeUndefined()

@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TestOptionalCatchBindingBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TestOptionalCatchBinding(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task OptionalCatchBinding_BasicTest_ShouldCatchError()

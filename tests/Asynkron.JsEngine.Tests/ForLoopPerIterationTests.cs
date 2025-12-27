@@ -37,9 +37,8 @@ public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBa
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTestsBase),
-            new XunitLogger(Output, nameof(ForLoopPerIterationTestsBase)),
-            EnableFastPaths);
+            nameof(ForLoopPerIterationTests),
+            new XunitLogger(Output, nameof(ForLoopPerIterationTests)));
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal("outside", array.GetElement(0).ToObject());
@@ -66,9 +65,8 @@ public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBa
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTestsBase),
-            new XunitLogger(Output, nameof(ForLoopPerIterationTestsBase)),
-            EnableFastPaths);
+            nameof(ForLoopPerIterationTests),
+            new XunitLogger(Output, nameof(ForLoopPerIterationTests)));
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(0d, array.GetElement(0).ToObject());
@@ -92,9 +90,8 @@ public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBa
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTestsBase),
-            new XunitLogger(Output, nameof(ForLoopPerIterationTestsBase)),
-            EnableFastPaths);
+            nameof(ForLoopPerIterationTests),
+            new XunitLogger(Output, nameof(ForLoopPerIterationTests)));
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(0d, array.GetElement(0).ToObject());

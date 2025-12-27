@@ -11,12 +11,11 @@ public static class TestEngineFactory
     /// <summary>
     /// Creates a JsEngine with debug mode enabled. If JSENGINE_TRACE_REALM is set, attaches a console logger.
     /// </summary>
-    public static JsEngine CreateDebugEngine(string? loggerName = null, ILogger? logger = null, bool? enableFastPaths = null)
+    public static JsEngine CreateDebugEngine(string? loggerName = null, ILogger? logger = null)
     {
         var options = new JsEngineOptions
         {
             DebugMode = true,
-            EnableFastPaths = enableFastPaths ?? true
         };
         var engine = new JsEngine(options);
         AttachRealmLoggerIfEnabled(engine, loggerName, logger);

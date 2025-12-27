@@ -29,15 +29,18 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue Keys(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0)
+        var arg = args.GetArgument(0);
+
+        // Per spec: Object.keys throws TypeError for null/undefined
+        if (arg.IsNullOrUndefined)
         {
-            return JsValue.FromJsArray(new JsArray(realmState));
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
         IJsPropertyAccessor? obj = null;
-        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        if (!arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (TryGetObject(args[0], realmState, out var coerced))
+            if (TryGetObject(arg, realmState, out var coerced))
             {
                 obj = coerced;
             }
@@ -69,15 +72,18 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue Values(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0)
+        var arg = args.GetArgument(0);
+
+        // Per spec: Object.values throws TypeError for null/undefined
+        if (arg.IsNullOrUndefined)
         {
-            return JsValue.FromJsArray(new JsArray(realmState));
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
         IJsPropertyAccessor? obj = null;
-        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        if (!arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (TryGetObject(args[0], realmState, out var coerced))
+            if (TryGetObject(arg, realmState, out var coerced))
             {
                 obj = coerced;
             }
@@ -108,15 +114,18 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue Entries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0)
+        var arg = args.GetArgument(0);
+
+        // Per spec: Object.entries throws TypeError for null/undefined
+        if (arg.IsNullOrUndefined)
         {
-            return JsValue.FromJsArray(new JsArray(realmState));
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
         IJsPropertyAccessor? obj = null;
-        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
+        if (!arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (TryGetObject(args[0], realmState, out var coerced))
+            if (TryGetObject(arg, realmState, out var coerced))
             {
                 obj = coerced;
             }
@@ -177,9 +186,17 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue FromEntries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0 || !args[0].TryGetObject(out JsArray? entries))
+        var arg = args.GetArgument(0);
+
+        // Per spec: Object.fromEntries throws TypeError for null/undefined
+        if (arg.IsNullOrUndefined)
         {
-            return JsValue.FromJsObject(new JsObject(realmState.ObjectPrototype) { RealmState = realmState });
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
+        }
+
+        if (!arg.TryGetObject(out JsArray? entries))
+        {
+            throw ThrowTypeError("Argument is not iterable", realm: realmState);
         }
 
         var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };

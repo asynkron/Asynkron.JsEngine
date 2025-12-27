@@ -704,7 +704,7 @@ public static partial class TypedAstEvaluator
             // Skip IR for:
             // - Functions with homeObject (class methods/field initializers) - need special super handling
             // - Functions with direct eval - AST path handles eval scope correctly
-            if (false && !_function.IsGenerator && !IsClassConstructor && _homeObject is null &&
+            if (JsEngineConstants.SyncIrLoops  && !_function.IsGenerator && !IsClassConstructor && _homeObject is null &&
                 _allowIdentifierCache && RealmState.EnableFastPaths)
             {
                 var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();

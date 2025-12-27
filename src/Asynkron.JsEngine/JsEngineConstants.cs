@@ -12,4 +12,6 @@ public static class JsEngineConstants
     /// from circular prototype references.
     /// </summary>
     public const int MaxPrototypeChainDepth = 100;
+
+    public const bool SyncIrLoops = false;
 }

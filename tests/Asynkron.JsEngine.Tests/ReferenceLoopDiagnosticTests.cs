@@ -1,9 +1,4 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Testing;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;

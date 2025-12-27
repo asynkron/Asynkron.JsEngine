@@ -1,5 +1,4 @@
 using Xunit.Abstractions;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 

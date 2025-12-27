@@ -1,8 +1,4 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Testing;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -1023,8 +1019,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Generator iteration environments
-        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+        // Generator with 3 iterations: 3 activations, 0 resets (generator cleanup differs)
+        Assert.Equal(3, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]

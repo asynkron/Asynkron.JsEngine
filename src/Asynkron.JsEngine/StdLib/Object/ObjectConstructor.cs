@@ -352,9 +352,14 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             var protoValue = args[0];
             IJsPropertyAccessor? protoAccessor = null;
-            if (!protoValue.IsNull && !protoValue.TryGetObject(out protoAccessor))
+
+            if (!protoValue.IsNull)
             {
-                throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+                if (!protoValue.TryGetObjectLike(out var protoObjLike))
+                {
+                    throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+                }
+                protoAccessor = protoObjLike;
             }
 
             if (!protoValue.IsNull || protoAccessor is not null)
@@ -550,12 +555,15 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         // Per spec: If Type(proto) is neither Object nor Null, throw a TypeError exception.
         // We check for null explicitly and then check if it's an object
-        if (!protoValue.IsNull && !protoValue.TryGetObject(out _))
+        IJsPropertyAccessor? protoAccessor = null;
+        if (!protoValue.IsNull)
         {
-            throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+            if (!protoValue.TryGetObjectLike(out var protoObjLike))
+            {
+                throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+            }
+            protoAccessor = protoObjLike;
         }
-
-        var protoAccessor = protoValue.IsNull ? null : protoValue.ObjectValue as IJsPropertyAccessor;
 
         var target = targetValue.ObjectValue;
         switch (target)

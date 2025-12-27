@@ -271,46 +271,73 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
 
         var wrapper = new JsObject { RealmState = realm };
         var done = false;
+        var isExecuting = false;
 
         var nextFunc = new HostFunction((_, args) =>
         {
+            if (isExecuting)
+            {
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
+            }
+
             if (done)
             {
                 return CreateIterResult(JsValue.Undefined, true);
             }
 
-            if (!underlying.TryGetProperty("next", out var nextProp) ||
-                !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
-                nextMethod is null)
+            isExecuting = true;
+            try
             {
-                throw StandardLibrary.ThrowTypeError("Iterator must have a next method", null, realm);
-            }
+                if (!underlying.TryGetProperty("next", out var nextProp) ||
+                    !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
+                    nextMethod is null)
+                {
+                    throw StandardLibrary.ThrowTypeError("Iterator must have a next method", null, realm);
+                }
 
-            var result = nextMethod.Invoke(args.Count > 0 ? args : [], underlyingIterator);
-            if (!result.TryGetObject(out var resultObj) || resultObj is null)
+                var result = nextMethod.Invoke(args.Count > 0 ? args : [], underlyingIterator);
+                if (!result.TryGetObject(out var resultObj) || resultObj is null)
+                {
+                    throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, realm);
+                }
+
+                if (resultObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
+                {
+                    done = true;
+                }
+
+                return result;
+            }
+            finally
             {
-                throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, realm);
+                isExecuting = false;
             }
-
-            if (resultObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
-            {
-                done = true;
-            }
-
-            return result;
         }, isConstructor: false);
 
         var returnFunc = new HostFunction((_, _) =>
         {
-            done = true;
-            if (underlying.TryGetProperty("return", out var returnProp) &&
-                returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
-                returnMethod is not null)
+            if (isExecuting)
             {
-                return returnMethod.Invoke([], underlyingIterator);
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
             }
 
-            return CreateIterResult(JsValue.Undefined, true);
+            isExecuting = true;
+            try
+            {
+                done = true;
+                if (underlying.TryGetProperty("return", out var returnProp) &&
+                    returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
+                    returnMethod is not null)
+                {
+                    return returnMethod.Invoke([], underlyingIterator);
+                }
+
+                return CreateIterResult(JsValue.Undefined, true);
+            }
+            finally
+            {
+                isExecuting = false;
+            }
         }, isConstructor: false);
 
         wrapper.SetProperty("next", (JsValue)nextFunc);
@@ -338,68 +365,95 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         var iterableIndex = 0;
         IJsObjectLike? currentIterator = null;
         var done = false;
+        var isExecuting = false;
 
         var nextFunc = new HostFunction((_, _) =>
         {
+            if (isExecuting)
+            {
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
+            }
+
             if (done)
             {
                 return CreateIterResult(JsValue.Undefined, true);
             }
 
-            while (true)
+            isExecuting = true;
+            try
             {
-                // If we have a current iterator, try to get the next value
-                if (currentIterator is not null)
+                while (true)
                 {
-                    if (currentIterator.TryGetProperty("next", out var nextProp) &&
-                        nextProp.TryGetObject<IJsCallable>(out var nextMethod) &&
-                        nextMethod is not null)
+                    // If we have a current iterator, try to get the next value
+                    if (currentIterator is not null)
                     {
-                        var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
-                        if (result.TryGetObject(out var resultObj) && resultObj is not null)
+                        if (currentIterator.TryGetProperty("next", out var nextProp) &&
+                            nextProp.TryGetObject<IJsCallable>(out var nextMethod) &&
+                            nextMethod is not null)
                         {
-                            if (!resultObj.TryGetProperty("done", out var doneProp) || !JsOps.ToBoolean(doneProp))
+                            var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
+                            if (result.TryGetObject(out var resultObj) && resultObj is not null)
                             {
-                                return result;
+                                if (!resultObj.TryGetProperty("done", out var doneProp) || !JsOps.ToBoolean(doneProp))
+                                {
+                                    return result;
+                                }
                             }
                         }
+
+                        // Current iterator is exhausted
+                        currentIterator = null;
                     }
 
-                    // Current iterator is exhausted
-                    currentIterator = null;
-                }
+                    // Move to the next iterable
+                    if (iterableIndex >= iterables.Count)
+                    {
+                        done = true;
+                        return CreateIterResult(JsValue.Undefined, true);
+                    }
 
-                // Move to the next iterable
-                if (iterableIndex >= iterables.Count)
-                {
-                    done = true;
-                    return CreateIterResult(JsValue.Undefined, true);
+                    var nextIterable = iterables[iterableIndex++];
+                    currentIterator = GetIteratorFromIterable(nextIterable);
                 }
-
-                var nextIterable = iterables[iterableIndex++];
-                currentIterator = GetIteratorFromIterable(nextIterable);
+            }
+            finally
+            {
+                isExecuting = false;
             }
         }, isConstructor: false);
 
         var returnFunc = new HostFunction((_, _) =>
         {
-            done = true;
-            if (currentIterator is not null &&
-                currentIterator.TryGetProperty("return", out var returnProp) &&
-                returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
-                returnMethod is not null)
+            if (isExecuting)
             {
-                try
-                {
-                    returnMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
-                }
-                catch
-                {
-                    // Ignore errors from return()
-                }
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
             }
 
-            return CreateIterResult(JsValue.Undefined, true);
+            isExecuting = true;
+            try
+            {
+                done = true;
+                if (currentIterator is not null &&
+                    currentIterator.TryGetProperty("return", out var returnProp) &&
+                    returnProp.TryGetObject<IJsCallable>(out var returnMethod) &&
+                    returnMethod is not null)
+                {
+                    try
+                    {
+                        returnMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
+                    }
+                    catch
+                    {
+                        // Ignore errors from return()
+                    }
+                }
+
+                return CreateIterResult(JsValue.Undefined, true);
+            }
+            finally
+            {
+                isExecuting = false;
+            }
         }, isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);

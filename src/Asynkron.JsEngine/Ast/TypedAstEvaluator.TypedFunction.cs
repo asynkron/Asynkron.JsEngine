@@ -552,7 +552,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (calling _canUseFastPathBase)
+            if ( _canUseFastPathBase)
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
@@ -571,7 +571,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
-            if (calling _canUseFastPathBase)
+            if (_canUseFastPathBase)
             {
                 return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
@@ -589,7 +589,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (calling _canUseFastPathBase)
+            if ( _canUseFastPathBase)
             {
                 return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
             }

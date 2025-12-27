@@ -669,7 +669,8 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             // If we didn't have an accessor on this object, walk the prototype
             // chain for a private accessor before falling back to defining a slot.
             var prototype = Prototype;
-            while (prototype is not null)
+            var depth = 0;
+            while (prototype is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
             {
                 if (prototype._state is { } protoState &&
                     protoState.PrivateFields.TryGetValue(name, out var inherited))

@@ -119,7 +119,7 @@ public static partial class TypedAstEvaluator
 
             // Try ultra-fast path for simple numeric for loops
             // Pattern: for (let i = 0; i < limit; i++) { s += i; }
-            if (enableFastPaths && plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
+            if ( plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
             {
                 return fastResult;
             }
@@ -170,7 +170,7 @@ public static partial class TypedAstEvaluator
                 // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
                 // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
                 JsValue bodyResult;
-                if (enableFastPaths && singleStatement is not null)
+                if ( singleStatement is not null)
                 {
                     bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
                 }

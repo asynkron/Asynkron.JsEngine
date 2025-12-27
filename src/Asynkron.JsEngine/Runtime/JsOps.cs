@@ -659,7 +659,7 @@ internal static class JsOps
         var enableFastPaths = context?.RealmState.EnableFastPaths ?? true;
 
         // Fast path for same-type comparisons
-        if (enableFastPaths && left.Kind == right.Kind)
+        if ( left.Kind == right.Kind)
         {
             return left.Kind switch
             {
@@ -678,7 +678,7 @@ internal static class JsOps
         }
 
         // Fast path for null/undefined comparison
-        if (enableFastPaths &&
+        if (
             ((left.Kind == JsValueKind.Null && right.Kind == JsValueKind.Undefined) ||
              (left.Kind == JsValueKind.Undefined && right.Kind == JsValueKind.Null)))
         {

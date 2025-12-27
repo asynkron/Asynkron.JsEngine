@@ -440,7 +440,7 @@ public static partial class TypedAstEvaluator
 
             // Fast path: slot-based assignment using ScopeId to find the declaring environment.
             // This enables O(1) slot access for variables in any scope (local or closure).
-            if (enableFastPaths && expression is { SlotIndex: >= 0, ScopeId: >= 0 })
+            if ( expression is { SlotIndex: >= 0, ScopeId: >= 0 })
             {
                 var targetIdentifier = expression.TargetIdentifier ??
                                        new IdentifierExpression(
@@ -488,7 +488,7 @@ public static partial class TypedAstEvaluator
             // Fast path for compound assignments on simple identifiers
             // This avoids creating AssignmentReference structs entirely.
             // IMPORTANT: Only use this fast path for non-dynamic scopes (see comment below for simple assignments).
-            if (enableFastPaths &&
+            if (
                 expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
                 TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, expression.Target,
                     environment, context, out var compoundJsValue2, out var shouldAssignCompound2))
@@ -512,7 +512,7 @@ public static partial class TypedAstEvaluator
             // Dynamic scopes (with eval/with) require resolving the reference BEFORE
             // evaluating the RHS, per ES spec 13.15.2. The fast path evaluates RHS first
             // which breaks code like: with(scope) { x = (delete scope.x, 2); }
-            if (enableFastPaths && expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
+            if ( expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
             {
                 var targetValueJs =
                     EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);

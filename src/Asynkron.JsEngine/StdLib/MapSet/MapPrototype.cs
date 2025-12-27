@@ -1,6 +1,5 @@
 #region
 
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -67,21 +66,21 @@ public sealed partial class MapPrototype
     public JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireInstance(thisValue);
-        return new JsValue(CreateMapIterator(map, MapIterationKind.Entries));
+        return CreateMapIterator(map, MapIterationKind.Entries);
     }
 
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireInstance(thisValue);
-        return new JsValue(CreateMapIterator(map, MapIterationKind.Keys));
+        return CreateMapIterator(map, MapIterationKind.Keys);
     }
 
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var map = RequireInstance(thisValue);
-        return new JsValue(CreateMapIterator(map, MapIterationKind.Values));
+        return CreateMapIterator(map, MapIterationKind.Values);
     }
 
     [JsHostGetter("size")]
@@ -103,53 +102,11 @@ public sealed partial class MapPrototype
         // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
     }
 
-    private JsObject CreateMapIterator(JsMap map, MapIterationKind kind)
+    private JsValue CreateMapIterator(JsMap map, MapIterationKind kind)
     {
-        var iterator = new JsObject { RealmState = Realm };
-        var index = 0;
-
-        iterator.SetHostedProperty("next", (_, _) =>
-        {
-            var result = new JsObject { RealmState = Realm };
-            if (index < map.EntryCount)
-            {
-                var entry = map.GetEntry(index++);
-                var value = kind switch
-                {
-                    MapIterationKind.Keys => entry.Key,
-                    MapIterationKind.Values => entry.Value,
-                    _ => CreateEntryPair(entry.Key, entry.Value)
-                };
-
-                result.SetProperty("value", JsValue.FromObjectUnsafe(value));
-                result.SetProperty("done", false);
-            }
-            else
-            {
-                result.SetProperty("value", Symbol.Undefined);
-                result.SetProperty("done", true);
-            }
-
-            return result;
-        });
-
-        var iteratorKey = SymbolKeys.Iterator;
-        iterator.SetHostedProperty(iteratorKey, (_, _) => iterator);
-        return iterator;
-    }
-
-    private JsArray CreateEntryPair(object? first, object? second)
-    {
-        var pair = new JsArray(Realm);
-        pair.SetElement(0, first);
-        pair.SetElement(1, second);
-        return pair;
-    }
-
-    private enum MapIterationKind
-    {
-        Entries,
-        Keys,
-        Values
+        // Use the shared MapIteratorPrototype so @@iterator wiring stays consistent.
+        var iteratorPrototype = Realm.MapIteratorPrototype ??= MapIteratorPrototype.CreatePrototype(Realm);
+        var iterator = new JsMapIterator(map, kind, Realm, iteratorPrototype);
+        return iterator.AsJsValue;
     }
 }

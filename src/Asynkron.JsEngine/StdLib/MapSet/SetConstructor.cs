@@ -52,25 +52,23 @@ public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState r
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = new JsSet();
         instance.SetPrototype(proto);
-        PopulateSet(instance, args);
+        PopulateSet(instance, args, Realm);
         return instance;
     }
 
-    private static void PopulateSet(JsSet set, IReadOnlyList<JsValue> args)
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
+
+    private static void PopulateSet(JsSet set, IReadOnlyList<JsValue> args, RealmState realm)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (!args[0].TryGetObject<JsArray>(out var values))
-        {
-            return;
-        }
-
-        foreach (var value in values.Items)
-        {
-            set.Add(value);
-        }
+        MapSetIterationHelper.Iterate(args[0], realm, "Set constructor", value => set.Add(value));
     }
 }

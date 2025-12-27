@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -142,14 +141,9 @@ public static partial class TypedAstEvaluator
             {
                 try
                 {
-                    if (_closure.TryGetJsValue(Symbol.This, out var capturedThis))
-                    {
-                        _lexicalThis = capturedThis;
-                    }
-                    else
-                    {
-                        _lexicalThis = JsValue.Undefined;
-                    }
+                    _lexicalThis = _closure.TryGetJsValue(Symbol.This, out var capturedThis)
+                        ? capturedThis
+                        : JsValue.Undefined;
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                StringComparison.Ordinal))
@@ -665,13 +659,14 @@ public static partial class TypedAstEvaluator
                 }
                 catch (ThrowSignal signal)
                 {
-                    if (callingContext is not null)
+                    if (callingContext is null)
                     {
-                        callingContext.SetThrow(signal.ThrownValue);
-                        return signal.ThrownValue;
+                        throw;
                     }
 
-                    throw;
+                    callingContext.SetThrow(signal.ThrownValue);
+                    return signal.ThrownValue;
+
                 }
             }
 
@@ -729,13 +724,14 @@ public static partial class TypedAstEvaluator
                     }
                     catch (ThrowSignal signal)
                     {
-                        if (callingContext is not null)
+                        if (callingContext is null)
                         {
-                            callingContext.SetThrow(signal.ThrownValue);
-                            return signal.ThrownValue;
+                            throw;
                         }
 
-                        throw;
+                        callingContext.SetThrow(signal.ThrownValue);
+                        return signal.ThrownValue;
+
                     }
                 }
                 // If plan building failed, fall through to AST interpretation
@@ -905,7 +901,7 @@ public static partial class TypedAstEvaluator
                 // Inlined ToObject() conversion to avoid obsolete warning
                 var boundThis = thisValue.Kind switch
                 {
-                    JsValueKind.Undefined => (object?)Symbol.Undefined,
+                    JsValueKind.Undefined => Symbol.Undefined,
                     JsValueKind.Null => null,
                     JsValueKind.Boolean => JsValueCache.GetBoolean(thisValue.NumberValue != 0.0),
                     JsValueKind.Number => JsValueCache.GetNumber(thisValue.NumberValue),
@@ -1154,9 +1150,7 @@ public static partial class TypedAstEvaluator
                         if (IsAsyncFunction || _wasAsyncFunction)
                         {
                             var rejectedThrowResult = CreateRejectedPromise(thrown, executionEnvironment);
-                            return rejectedThrowResult is JsValue rejThrowJs
-                                ? rejThrowJs
-                                : rejectedThrowResult;
+                            return rejectedThrowResult;
                         }
 
                         if (callingContext is null)
@@ -1348,26 +1342,6 @@ public static partial class TypedAstEvaluator
             // Fallback if Promise.reject isn't available - return the reason directly
             // This shouldn't happen in normal operation since Promise is always registered
             return reason;
-        }
-
-        public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
-        {
-            var descriptor = _properties.GetOwnPropertyDescriptor(name);
-            if (descriptor is null || !string.Equals(name, "name", StringComparison.Ordinal))
-            {
-                return descriptor;
-            }
-
-            descriptor.Writable = false;
-            descriptor.Enumerable = false;
-            descriptor.Configurable = true;
-
-            return descriptor;
-        }
-
-        public IEnumerable<string> GetOwnPropertyNames()
-        {
-            return _properties.GetOwnPropertyNames();
         }
 
         public void SetPrivateNameScope(PrivateNameScope? scope)

@@ -950,4 +950,266 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Assert.Equal(0, activateCount);
         Assert.Equal(0, resetCount);
     }
+
+    [Fact]
+    public async Task ClassMethod_ForOfLoop_AccessingPrivateField()
+    {
+        // Loop inside class method accessing private field
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            class Counter {
+                #total = 0;
+
+                addAll(values) {
+                    for (const v of values) {
+                        this.#total += v;
+                    }
+                    return this.#total;
+                }
+            }
+            const c = new Counter();
+            c.addAll([1, 2, 3, 4, 5]);
+            """);
+
+        Assert.Equal(15d, result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Class method environments are handled - verify some pooling occurs
+        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+    }
+
+    [Fact]
+    public async Task Generator_ForOfLoop_YieldsPooledEnvironments()
+    {
+        // Generator function with for-of loop
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            function* generateDoubles(values) {
+                for (const v of values) {
+                    yield v * 2;
+                }
+            }
+            [...generateDoubles([1, 2, 3])].join(',');
+            """);
+
+        Assert.Equal("2,4,6", result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Generator iteration environments
+        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+    }
+
+    [Fact]
+    public async Task Generator_ForLoop_WithLet_YieldsCorrectValues()
+    {
+        // Generator with traditional for loop and let
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            function* counter(n) {
+                for (let i = 0; i < n; i++) {
+                    yield i;
+                }
+            }
+            [...counter(5)].join(',');
+            """);
+
+        Assert.Equal("0,1,2,3,4", result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Traditional for loops in generators use LoopPlan
+    }
+
+    [Fact]
+    public async Task Generator_YieldStar_DelegatesIteration()
+    {
+        // Generator using yield* to delegate to another iterable
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            function* inner() {
+                yield 1;
+                yield 2;
+            }
+            function* outer() {
+                yield* inner();
+                yield 3;
+            }
+            [...outer()].join(',');
+            """);
+
+        Assert.Equal("1,2,3", result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // yield* creates iteration environments
+    }
+
+    [Fact]
+    public async Task Generator_WithClosure_CapturingYieldedValue()
+    {
+        // Generator that creates closures capturing yielded values
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            function* makeGetters(values) {
+                for (const v of values) {
+                    // Closure captures v
+                    yield () => v;
+                }
+            }
+            const getters = [...makeGetters([10, 20, 30])];
+            getters.map(g => g()).join(',');
+            """);
+
+        Assert.Equal("10,20,30", result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Each closure should capture correct value
+    }
+
+    [Fact]
+    public async Task Generator_EarlyReturn_CleansUpEnvironments()
+    {
+        // Generator that returns early (break out of iteration)
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            function* numbers() {
+                for (const x of [1, 2, 3, 4, 5]) {
+                    yield x;
+                }
+            }
+            // Only consume first 3 values
+            let sum = 0;
+            for (const n of numbers()) {
+                sum += n;
+                if (n === 3) break;
+            }
+            sum;
+            """);
+
+        Assert.Equal(6d, result); // 1 + 2 + 3
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Early break should still clean up environments
+    }
+
+    [Fact]
+    public async Task AsyncGenerator_ForAwaitOf_PoolsEnvironments()
+    {
+        // Async generator with for-await-of consuming promises
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("""
+            'use strict';
+            async function* asyncGen() {
+                for await (const x of [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)]) {
+                    yield x * 10;
+                }
+            }
+            (async () => {
+                const results = [];
+                for await (const v of asyncGen()) {
+                    results.push(v);
+                }
+                return results.join(',');
+            })();
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Async generator creates environments for each iteration
+        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+    }
 }

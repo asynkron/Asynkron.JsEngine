@@ -56,6 +56,19 @@ public static partial class StandardLibrary
         target.SetProperty("length", (double)Math.Max(length, 0));
     }
 
+    internal static IJsObjectLike CreateCopyArray(long length, RealmState? realm, string methodName)
+    {
+        // Change-array-by-copy methods ignore @@species and always create a fresh Array.
+        if (length > MaxConcreteArrayLength)
+        {
+            throw ThrowRangeError($"{methodName} result exceeds 2^32 - 1 elements", realm: realm);
+        }
+
+        var array = new JsArray(realm);
+        array.SetProperty("length", (double)Math.Max(length, 0));
+        return array;
+    }
+
     internal static long LengthOfArrayLike(IJsPropertyAccessor accessor, RealmState? realm)
     {
         var context = realm?.CreateContext();

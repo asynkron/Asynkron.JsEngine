@@ -443,73 +443,82 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("toSorted", Length = 1d)]
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSorted", Realm);
+        const string MethodName = "Array.prototype.toSorted";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var values = new List<JsValue>((int)Math.Min(length, int.MaxValue));
+        if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
+        {
+            throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+        }
+
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var callable))
+        {
+            compareFn = callable;
+        }
+
+        // Snapshot elements before sorting; comparefn must not observe changes during enumeration.
+        var values = new List<(JsValue Value, long OriginalIndex)>((int)Math.Min(length, int.MaxValue));
         for (long k = 0; k < length; k++)
         {
             if (TryGetExistingElement(accessor, k, out var value))
             {
-                values.Add(value);
+                values.Add((value, k));
             }
         }
 
-        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var compareFn))
-        {
-            values.Sort((a, b) =>
-            {
-                var cmp = compareFn.Invoke([a, b], JsValue.Null);
-                if (!cmp.TryGetDouble(out var d))
-                {
-                    return 0;
-                }
+        // Keep the sort stable by falling back to the original index on ties.
+        values.Sort(Comparer);
 
-                if (double.IsNaN(d))
-                {
-                    return 0;
-                }
-
-                return d > 0 ? 1 : d < 0 ? -1 : 0;
-            });
-        }
-        else
-        {
-            values.Sort((a, b) =>
-            {
-                var aStr = JsValueToString(a);
-                var bStr = JsValueToString(b);
-                return string.CompareOrdinal(aStr, bStr);
-            });
-        }
-
-        var result = ArraySpeciesCreate(thisValue, length, Realm);
-
+        var result = CreateCopyArray(length, Realm, MethodName);
         long targetIndex = 0;
-        foreach (var value in values)
+        foreach (var pair in values)
         {
-            result.SetProperty(ToIndexString(targetIndex++), value);
-        }
-
-        for (var k = targetIndex; k < length; k++)
-        {
-            var key = ToIndexString(k);
-            result?.Delete(key);
+            result.SetProperty(ToIndexString(targetIndex++), pair.Value);
         }
 
         SetArrayLikeLength(result, length);
         return JsValue.FromObjectUnsafe(result);
+
+        int Comparer((JsValue Value, long OriginalIndex) a, (JsValue Value, long OriginalIndex) b)
+        {
+            if (compareFn is not null)
+            {
+                var cmp = compareFn.Invoke([a.Value, b.Value], JsValue.Undefined);
+                var context = Realm?.CreateContext();
+                var numeric = JsOps.ToNumber(cmp, context);
+                if (context?.IsThrow == true)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
+                if (double.IsNaN(numeric))
+                {
+                    return a.OriginalIndex.CompareTo(b.OriginalIndex);
+                }
+
+                var result = numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
+                return result != 0 ? result : a.OriginalIndex.CompareTo(b.OriginalIndex);
+            }
+
+            var aStr = JsValueToString(a.Value);
+            var bStr = JsValueToString(b.Value);
+            var ordinal = string.CompareOrdinal(aStr, bStr);
+            return ordinal != 0 ? ordinal : a.OriginalIndex.CompareTo(b.OriginalIndex);
+        }
     }
 
     [JsHostMethod("toReversed", Length = 0d)]
     public JsValue ToReversed(JsValue thisValue)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toReversed", Realm);
+        const string MethodName = "Array.prototype.toReversed";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
-        var result = ArraySpeciesCreate(thisValue, length, Realm);
+        var result = CreateCopyArray(length, Realm, MethodName);
         for (long k = 0; k < length; k++)
         {
             var from = length - 1 - k;
@@ -523,7 +532,8 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("toSpliced", Length = 2d)]
     public JsValue ToSpliced(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.toSpliced", Realm);
+        const string MethodName = "Array.prototype.toSpliced";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
@@ -555,10 +565,10 @@ public sealed partial class ArrayPrototype
         var newLength = length - actualDeleteCount + insertCount;
         if (newLength > MaxConcreteArrayLength)
         {
-            throw ThrowTypeError("Array.prototype.toSpliced cannot exceed 2^32 - 1 elements", realm: Realm);
+            throw ThrowRangeError($"{MethodName} result exceeds 2^32 - 1 elements", realm: Realm);
         }
 
-        var result = ArraySpeciesCreate(thisValue, newLength, Realm);
+        var result = CreateCopyArray(newLength, Realm, MethodName);
         long targetIndex = 0;
 
         for (long k = 0; k < actualStart; k++)
@@ -583,13 +593,14 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("with", Length = 2d)]
     public JsValue With(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.with", Realm);
+        const string MethodName = "Array.prototype.with";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
         var length = (long)ToLengthOrZero(lengthValue);
 
         if (args.Count == 0)
         {
-            throw ThrowTypeError("Array.prototype.with requires an index argument", realm: Realm);
+            throw ThrowTypeError($"{MethodName} requires an index argument", realm: Realm);
         }
 
         var indexNumber = ToIntegerOrInfinity(args[0]);
@@ -610,11 +621,11 @@ public sealed partial class ArrayPrototype
 
         if (integer < 0 || integer >= length)
         {
-            throw ThrowRangeError("Array.prototype.with index out of range", realm: Realm);
+            throw ThrowRangeError($"{MethodName} index out of range", realm: Realm);
         }
 
         var value = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var result = ArraySpeciesCreate(thisValue, length, Realm);
+        var result = CreateCopyArray(length, Realm, MethodName);
 
         for (long k = 0; k < length; k++)
         {

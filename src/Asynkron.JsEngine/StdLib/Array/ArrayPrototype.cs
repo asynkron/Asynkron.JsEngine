@@ -35,11 +35,17 @@ public sealed partial class ArrayPrototype
         Flag("fill");
         Flag("find");
         Flag("findIndex");
+        Flag("findLast");
+        Flag("findLastIndex");
         Flag("flat");
         Flag("flatMap");
         Flag("includes");
         Flag("keys");
+        Flag("toReversed");
+        Flag("toSorted");
+        Flag("toSpliced");
         Flag("values");
+        Flag("with");
 
         var symbol = Symbols.Unscopables;
         var key = SymbolKeys.Unscopables;

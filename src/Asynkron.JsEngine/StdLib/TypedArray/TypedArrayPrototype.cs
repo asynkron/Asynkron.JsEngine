@@ -118,6 +118,30 @@ public sealed partial class TypedArrayPrototype
         return WithImpl(thisValue, args);
     }
 
+    [JsHostMethod("at", Length = 1d)]
+    private JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.at");
+        var length = typedArray.Length;
+
+        var indexArg = args.GetArgument(0);
+        var relativeIndex = ToIntegerOrInfinity(indexArg, Realm?.CreateContext(pushScope: false));
+
+        if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
+        {
+            return JsValue.Undefined;
+        }
+
+        var index = relativeIndex < 0 ? length + (long)relativeIndex : (long)relativeIndex;
+
+        if (index < 0 || index >= length)
+        {
+            return JsValue.Undefined;
+        }
+
+        return typedArray.GetValueForIndex((int)index);
+    }
+
     [JsHostMethod("indexOf", Length = 1d)]
     private JsValue IndexOf(JsValue thisValue, IReadOnlyList<JsValue> args)
     {

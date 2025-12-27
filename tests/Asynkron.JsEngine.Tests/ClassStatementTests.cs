@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for ES6 class statement features based on common Test262 class issues
 /// </summary>
-public abstract class ClassStatementTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ClassStatementTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ClassConstructorBehavior()
@@ -303,7 +303,3 @@ public abstract class ClassStatementTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPathClassStatementTests(ITestOutputHelper output) : ClassStatementTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

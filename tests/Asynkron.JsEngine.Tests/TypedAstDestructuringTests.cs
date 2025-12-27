@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class TypedAstDestructuringTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedAstDestructuringTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task ArrayDestructuring_WithDefaultValue_Works()
@@ -87,7 +87,3 @@ public abstract class TypedAstDestructuringTestsBase(ITestOutputHelper output) :
     }
 }
 
-public class FastPathTypedAstDestructuringTests(ITestOutputHelper output) : TypedAstDestructuringTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for parameter naming including contextual keywords
 /// </summary>
-public abstract class ParameterNamingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ParameterNamingTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task FunctionParameter_Named_Set_ShouldWork()
@@ -138,7 +138,3 @@ public abstract class ParameterNamingTestsBase(ITestOutputHelper output) : FastP
     }
 }
 
-public class FastPathParameterNamingTests(ITestOutputHelper output) : ParameterNamingTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

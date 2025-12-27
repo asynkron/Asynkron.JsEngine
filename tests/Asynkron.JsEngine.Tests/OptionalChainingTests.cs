@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class OptionalChainingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class OptionalChainingTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task OptionalPropertyAccessNull()
@@ -149,7 +149,3 @@ public abstract class OptionalChainingTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPathOptionalChainingTests(ITestOutputHelper output) : OptionalChainingTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

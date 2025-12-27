@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class VoidOperatorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class VoidOperatorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task VoidZero_ShouldReturnUndefined()
@@ -132,7 +132,3 @@ public abstract class VoidOperatorTestsBase(ITestOutputHelper output) : FastPath
     }
 }
 
-public class FastPathVoidOperatorTests(ITestOutputHelper output) : VoidOperatorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

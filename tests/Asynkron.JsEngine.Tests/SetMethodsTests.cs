@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class SetMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class SetMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Set_Difference_ReturnsElementsInFirstSetOnly()
@@ -168,7 +168,3 @@ public abstract class SetMethodsTestsBase(ITestOutputHelper output) : FastPathTe
     }
 }
 
-public class SetMethodsTests(ITestOutputHelper output) : SetMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

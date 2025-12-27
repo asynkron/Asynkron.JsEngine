@@ -1066,6 +1066,39 @@ public static class TemporalHelper
         throw new InvalidOperationException("Value is not a Temporal.PlainDateTime");
     }
 
+    private static JsTemporalZonedDateTime GetZonedDateTime(JsValue value)
+    {
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(TemporalZonedDateTimeSlot, out var slot) &&
+            slot.TryGetObject<JsTemporalZonedDateTime>(out var zonedDateTime))
+        {
+            return zonedDateTime;
+        }
+        throw new InvalidOperationException("Value is not a Temporal.ZonedDateTime");
+    }
+
+    private static JsTemporalPlainYearMonth GetPlainYearMonth(JsValue value)
+    {
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(TemporalPlainYearMonthSlot, out var slot) &&
+            slot.TryGetObject<JsTemporalPlainYearMonth>(out var yearMonth))
+        {
+            return yearMonth;
+        }
+        throw new InvalidOperationException("Value is not a Temporal.PlainYearMonth");
+    }
+
+    private static JsTemporalPlainMonthDay GetPlainMonthDay(JsValue value)
+    {
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(TemporalPlainMonthDaySlot, out var slot) &&
+            slot.TryGetObject<JsTemporalPlainMonthDay>(out var monthDay))
+        {
+            return monthDay;
+        }
+        throw new InvalidOperationException("Value is not a Temporal.PlainMonthDay");
+    }
+
     #endregion
 
     #region Conversion methods
@@ -1224,6 +1257,100 @@ public static class TemporalHelper
         throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainDateTime", realm: realm);
     }
 
+    private static JsTemporalZonedDateTime ToTemporalZonedDateTime(JsValue value, RealmState realm)
+    {
+        // If it's already a Temporal.ZonedDateTime
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(TemporalZonedDateTimeSlot, out var slot) &&
+            slot.TryGetObject<JsTemporalZonedDateTime>(out var zonedDateTime))
+        {
+            return zonedDateTime;
+        }
+
+        // Try to parse as string
+        if (value.IsString)
+        {
+            return JsTemporalZonedDateTime.From(value.AsString() ?? "");
+        }
+
+        // If it's an object with zoned datetime properties
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            var year = (int)GetPropertyAsNumber(accessor, "year");
+            var month = (int)GetPropertyAsNumber(accessor, "month");
+            var day = (int)GetPropertyAsNumber(accessor, "day");
+            var hour = (int)GetPropertyAsNumber(accessor, "hour");
+            var minute = (int)GetPropertyAsNumber(accessor, "minute");
+            var second = (int)GetPropertyAsNumber(accessor, "second");
+            var millisecond = (int)GetPropertyAsNumber(accessor, "millisecond");
+            var microsecond = (int)GetPropertyAsNumber(accessor, "microsecond");
+            var nanosecond = (int)GetPropertyAsNumber(accessor, "nanosecond");
+            var timeZoneId = GetPropertyAsString(accessor, "timeZone") ?? TimeZoneInfo.Local.Id;
+            var calendar = GetPropertyAsString(accessor, "calendar") ?? "iso8601";
+
+            return new JsTemporalZonedDateTime(year, month, day, hour, minute, second,
+                millisecond, microsecond, nanosecond, timeZoneId, calendar);
+        }
+
+        throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.ZonedDateTime", realm: realm);
+    }
+
+    private static JsTemporalPlainYearMonth ToTemporalPlainYearMonth(JsValue value, RealmState realm)
+    {
+        // If it's already a Temporal.PlainYearMonth
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(TemporalPlainYearMonthSlot, out var slot) &&
+            slot.TryGetObject<JsTemporalPlainYearMonth>(out var yearMonth))
+        {
+            return yearMonth;
+        }
+
+        // Try to parse as string
+        if (value.IsString)
+        {
+            return JsTemporalPlainYearMonth.From(value.AsString() ?? "");
+        }
+
+        // If it's an object with year/month properties
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            var year = (int)GetPropertyAsNumber(accessor, "year");
+            var month = (int)GetPropertyAsNumber(accessor, "month");
+            var calendar = GetPropertyAsString(accessor, "calendar") ?? "iso8601";
+            return new JsTemporalPlainYearMonth(year, month, calendar);
+        }
+
+        throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainYearMonth", realm: realm);
+    }
+
+    private static JsTemporalPlainMonthDay ToTemporalPlainMonthDay(JsValue value, RealmState realm)
+    {
+        // If it's already a Temporal.PlainMonthDay
+        if (value.TryGetObject<JsObject>(out var obj) &&
+            obj.TryGetProperty(TemporalPlainMonthDaySlot, out var slot) &&
+            slot.TryGetObject<JsTemporalPlainMonthDay>(out var monthDay))
+        {
+            return monthDay;
+        }
+
+        // Try to parse as string
+        if (value.IsString)
+        {
+            return JsTemporalPlainMonthDay.From(value.AsString() ?? "");
+        }
+
+        // If it's an object with month/day properties
+        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        {
+            var month = (int)GetPropertyAsNumber(accessor, "month");
+            var day = (int)GetPropertyAsNumber(accessor, "day");
+            var calendar = GetPropertyAsString(accessor, "calendar") ?? "iso8601";
+            return new JsTemporalPlainMonthDay(month, day, calendar);
+        }
+
+        throw StandardLibrary.ThrowTypeError("Cannot convert to Temporal.PlainMonthDay", realm: realm);
+    }
+
     private static double GetPropertyAsNumber(IJsPropertyAccessor accessor, string name)
     {
         if (accessor.TryGetProperty(name, out var value) && !value.IsUndefined)
@@ -1231,6 +1358,15 @@ public static class TemporalHelper
             return JsOps.ToNumber(value);
         }
         return 0;
+    }
+
+    private static string? GetPropertyAsString(IJsPropertyAccessor accessor, string name)
+    {
+        if (accessor.TryGetProperty(name, out var value) && !value.IsUndefined)
+        {
+            return JsOps.ToJsString(value);
+        }
+        return null;
     }
 
     private static JsTemporalDuration ParseIsoDuration(string str, RealmState realm)

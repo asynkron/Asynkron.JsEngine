@@ -38,7 +38,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         var localDateTime = new DateTime(year, month, day, hour, minute, second, millisecond, microsecond);
         var offset = TimeZone.GetUtcOffset(localDateTime);
         var utcDateTime = localDateTime - offset;
-        Instant = JsTemporalInstant.FromDateTimeOffset(new DateTimeOffset(utcDateTime, TimeSpan.Zero));
+        Instant = new JsTemporalInstant(new DateTimeOffset(utcDateTime, TimeSpan.Zero));
     }
 
     public JsTemporalInstant Instant { get; }
@@ -179,7 +179,7 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         if (DateTimeOffset.TryParse(isoString, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dto))
         {
             timeZoneId ??= TimeZoneInfo.Local.Id;
-            var instant = JsTemporalInstant.FromDateTimeOffset(dto);
+            var instant = new JsTemporalInstant(dto);
             return new JsTemporalZonedDateTime(instant, timeZoneId);
         }
 

@@ -217,6 +217,16 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
     }
 
     /// <summary>
+    ///     Rounds the datetime to the specified unit.
+    /// </summary>
+    public JsTemporalPlainDateTime Round(string smallestUnit)
+    {
+        // Round the time component only (date components are not rounded)
+        var roundedTime = Time.Round(smallestUnit);
+        return new JsTemporalPlainDateTime(Date, roundedTime);
+    }
+
+    /// <summary>
     ///     Extracts just the date component.
     /// </summary>
     public JsTemporalPlainDate ToPlainDate() => Date;

@@ -209,6 +209,22 @@ public sealed class JsTemporalPlainDate : IEquatable<JsTemporalPlainDate>, IComp
         return new JsTemporalPlainDateTime(this, time);
     }
 
+    /// <summary>
+    ///     Extracts the year and month from this date.
+    /// </summary>
+    public JsTemporalPlainYearMonth ToPlainYearMonth()
+    {
+        return new JsTemporalPlainYearMonth(Year, Month, Calendar);
+    }
+
+    /// <summary>
+    ///     Extracts the month and day from this date.
+    /// </summary>
+    public JsTemporalPlainMonthDay ToPlainMonthDay()
+    {
+        return new JsTemporalPlainMonthDay(Month, Day, Calendar);
+    }
+
     public int CompareTo(JsTemporalPlainDate? other)
     {
         if (other is null) return 1;

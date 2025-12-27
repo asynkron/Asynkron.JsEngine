@@ -102,9 +102,10 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         // Register standard library objects
+        // Object must be registered first so that ObjectPrototype is available for other prototypes
+        SetGlobal("Object", ObjectConstructor.CreateConstructor(RealmState));
         SetGlobal("console", ConsolePrototype.CreatePrototype(RealmState));
         SetGlobal("Math", MathPrototype.CreatePrototype(RealmState));
-        SetGlobal("Object", ObjectConstructor.CreateConstructor(RealmState));
 
         // Per ECMAScript spec, the global object's [[Prototype]] is Object.prototype.
         // This ensures that methods like hasOwnProperty are inherited by the global object.

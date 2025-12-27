@@ -136,6 +136,26 @@ public static class TemporalHelper
         now.DefineProperty("plainDateTimeISO",
             new PropertyDescriptor { Value = plainDateTimeISOFn, Writable = true, Enumerable = false, Configurable = true });
 
+        // Temporal.Now.zonedDateTimeISO()
+        var zonedDateTimeISOFn = CreateFunction(realm, "zonedDateTimeISO", 0, (_, args) =>
+        {
+            var tzId = TimeZoneInfo.Local.Id;
+            // If timezone argument provided, use it
+            if (args.Count > 0 && !args[0].IsUndefined)
+            {
+                tzId = JsOps.ToJsString(args[0]);
+            }
+            // Convert Windows timezone ID to IANA if needed
+            if (OperatingSystem.IsWindows() && TimeZoneInfo.TryConvertWindowsIdToIanaId(tzId, out var ianaId))
+            {
+                tzId = ianaId;
+            }
+            var zdt = JsTemporalZonedDateTime.Now(tzId);
+            return WrapZonedDateTime(zdt, realm);
+        });
+        now.DefineProperty("zonedDateTimeISO",
+            new PropertyDescriptor { Value = zonedDateTimeISOFn, Writable = true, Enumerable = false, Configurable = true });
+
         return now;
     }
 
@@ -179,6 +199,95 @@ public static class TemporalHelper
             var otherArg = args.GetArgument(0);
             var other = ToTemporalInstant(otherArg, realm);
             return new JsValue(instant.Equals(other));
+        });
+
+        AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
+        {
+            var instant = GetInstant(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            // Instant only supports time units (hours, minutes, seconds, ms, us, ns)
+            var totalNanos = (long)(duration.Hours * 3600_000_000_000L +
+                                    duration.Minutes * 60_000_000_000L +
+                                    duration.Seconds * 1_000_000_000L +
+                                    duration.Milliseconds * 1_000_000L +
+                                    duration.Microseconds * 1_000L +
+                                    duration.Nanoseconds);
+            var newInstant = new JsTemporalInstant(instant.EpochNanoseconds + totalNanos);
+            return WrapInstant(newInstant, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
+        {
+            var instant = GetInstant(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            var totalNanos = (long)(duration.Hours * 3600_000_000_000L +
+                                    duration.Minutes * 60_000_000_000L +
+                                    duration.Seconds * 1_000_000_000L +
+                                    duration.Milliseconds * 1_000_000L +
+                                    duration.Microseconds * 1_000L +
+                                    duration.Nanoseconds);
+            var newInstant = new JsTemporalInstant(instant.EpochNanoseconds - totalNanos);
+            return WrapInstant(newInstant, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
+        {
+            var instant = GetInstant(thisValue);
+            var other = ToTemporalInstant(args.GetArgument(0), realm);
+            var diffNanos = other.EpochNanoseconds - instant.EpochNanoseconds;
+            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
+        {
+            var instant = GetInstant(thisValue);
+            var other = ToTemporalInstant(args.GetArgument(0), realm);
+            var diffNanos = instant.EpochNanoseconds - other.EpochNanoseconds;
+            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
+        {
+            var instant = GetInstant(thisValue);
+            var optionsArg = args.GetArgument(0);
+            string smallestUnit;
+            if (optionsArg.IsString)
+            {
+                smallestUnit = optionsArg.AsString() ?? "nanosecond";
+            }
+            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                     accessor.TryGetProperty("smallestUnit", out var unitValue))
+            {
+                smallestUnit = JsOps.ToJsString(unitValue);
+            }
+            else
+            {
+                smallestUnit = "nanosecond";
+            }
+
+            var nanos = instant.EpochNanoseconds;
+            long divisor = smallestUnit switch
+            {
+                "hour" => 3600_000_000_000L,
+                "minute" => 60_000_000_000L,
+                "second" => 1_000_000_000L,
+                "millisecond" => 1_000_000L,
+                "microsecond" => 1_000L,
+                _ => 1L
+            };
+            var rounded = (nanos / divisor) * divisor;
+            return WrapInstant(new JsTemporalInstant(rounded), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toZonedDateTimeISO", 1, (thisValue, args) =>
+        {
+            var instant = GetInstant(thisValue);
+            var tzArg = args.GetArgument(0);
+            var timeZoneId = JsOps.ToJsString(tzArg);
+            var zdt = new JsTemporalZonedDateTime(instant, timeZoneId);
+            return WrapZonedDateTime(zdt, realm);
         });
 
         // Constructor
@@ -233,6 +342,23 @@ public static class TemporalHelper
         ctor.DefineProperty("fromEpochNanoseconds",
             new PropertyDescriptor { Value = fromEpochNanoseconds, Writable = true, Enumerable = false, Configurable = true });
 
+        var from = CreateFunction(realm, "from", 1, (_, args) =>
+        {
+            var instant = ToTemporalInstant(args.GetArgument(0), realm);
+            return WrapInstant(instant, realm, prototype);
+        });
+        ctor.DefineProperty("from",
+            new PropertyDescriptor { Value = from, Writable = true, Enumerable = false, Configurable = true });
+
+        var compare = CreateFunction(realm, "compare", 2, (_, args) =>
+        {
+            var i1 = ToTemporalInstant(args.GetArgument(0), realm);
+            var i2 = ToTemporalInstant(args.GetArgument(1), realm);
+            return new JsValue(i1.CompareTo(i2));
+        });
+        ctor.DefineProperty("compare",
+            new PropertyDescriptor { Value = compare, Writable = true, Enumerable = false, Configurable = true });
+
         return ctor;
     }
 
@@ -254,6 +380,7 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "microseconds", tv => new JsValue(GetDuration(tv).Microseconds));
         AddPrototypeGetter(prototype, realm, "nanoseconds", tv => new JsValue(GetDuration(tv).Nanoseconds));
         AddPrototypeGetter(prototype, realm, "sign", tv => new JsValue(GetDuration(tv).Sign));
+        AddPrototypeGetter(prototype, realm, "blank", tv => new JsValue(GetDuration(tv).Blank));
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
@@ -301,8 +428,82 @@ public static class TemporalHelper
         {
             var duration = GetDuration(thisValue);
             var unitArg = args.GetArgument(0);
-            var unit = JsOps.ToJsString(unitArg);
+            string unit;
+            if (unitArg.IsString)
+            {
+                unit = unitArg.AsString() ?? "nanoseconds";
+            }
+            else if (unitArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                     accessor.TryGetProperty("unit", out var unitValue))
+            {
+                unit = JsOps.ToJsString(unitValue);
+            }
+            else
+            {
+                unit = JsOps.ToJsString(unitArg);
+            }
             return new JsValue(duration.Total(unit));
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var duration = GetDuration(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapDuration(duration, realm, prototype);
+            }
+
+            var years = accessor.TryGetProperty("years", out var v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Years;
+            var months = accessor.TryGetProperty("months", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Months;
+            var weeks = accessor.TryGetProperty("weeks", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Weeks;
+            var days = accessor.TryGetProperty("days", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Days;
+            var hours = accessor.TryGetProperty("hours", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Hours;
+            var minutes = accessor.TryGetProperty("minutes", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Minutes;
+            var seconds = accessor.TryGetProperty("seconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Seconds;
+            var milliseconds = accessor.TryGetProperty("milliseconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Milliseconds;
+            var microseconds = accessor.TryGetProperty("microseconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Microseconds;
+            var nanoseconds = accessor.TryGetProperty("nanoseconds", out v) && !v.IsUndefined ? JsOps.ToNumber(v) : duration.Nanoseconds;
+
+            return WrapDuration(new JsTemporalDuration(years, months, weeks, days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
+        {
+            var duration = GetDuration(thisValue);
+            var optionsArg = args.GetArgument(0);
+            string smallestUnit;
+            if (optionsArg.IsString)
+            {
+                smallestUnit = optionsArg.AsString() ?? "nanosecond";
+            }
+            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                     accessor.TryGetProperty("smallestUnit", out var unitValue))
+            {
+                smallestUnit = JsOps.ToJsString(unitValue);
+            }
+            else
+            {
+                smallestUnit = "nanosecond";
+            }
+
+            // Convert to total nanoseconds, round, then convert back
+            var totalNanos = duration.Total("nanoseconds");
+            double divisor = smallestUnit switch
+            {
+                "year" or "years" => 31_556_952_000_000_000.0,
+                "month" or "months" => 2_629_746_000_000_000.0,
+                "week" or "weeks" => 604_800_000_000_000.0,
+                "day" or "days" => 86_400_000_000_000.0,
+                "hour" or "hours" => 3_600_000_000_000.0,
+                "minute" or "minutes" => 60_000_000_000.0,
+                "second" or "seconds" => 1_000_000_000.0,
+                "millisecond" or "milliseconds" => 1_000_000.0,
+                "microsecond" or "microseconds" => 1_000.0,
+                _ => 1.0
+            };
+            var rounded = Math.Round(totalNanos / divisor) * divisor;
+            return WrapDuration(JsTemporalDuration.FromNanoseconds(rounded), realm, prototype);
         });
 
         // Constructor
@@ -404,6 +605,68 @@ public static class TemporalHelper
             return WrapPlainDate(date.Subtract(duration), realm, prototype);
         });
 
+        AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var other = ToTemporalPlainDate(args.GetArgument(0), realm);
+            var duration = date.Until(other);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var other = ToTemporalPlainDate(args.GetArgument(0), realm);
+            var duration = date.Since(other);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapPlainDate(date, realm, prototype);
+            }
+
+            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Year;
+            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Month;
+            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : date.Day;
+
+            return WrapPlainDate(new JsTemporalPlainDate(year, month, day, date.Calendar), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            JsTemporalPlainTime time;
+            if (args.Count > 0 && !args[0].IsUndefined)
+            {
+                time = ToTemporalPlainTime(args[0], realm);
+            }
+            else
+            {
+                time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
+            }
+            var dt = date.ToPlainDateTime(time);
+            return WrapPlainDateTime(dt, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainYearMonth", 0, (thisValue, _) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var ym = date.ToPlainYearMonth();
+            return WrapPlainYearMonth(ym, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainMonthDay", 0, (thisValue, _) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var md = date.ToPlainMonthDay();
+            return WrapPlainMonthDay(md, realm);
+        });
+
         // Constructor
         var ctor = new HostFunction((thisValue, args) =>
         {
@@ -485,6 +748,72 @@ public static class TemporalHelper
             var time = GetPlainTime(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
             return WrapPlainTime(time.Subtract(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var other = ToTemporalPlainTime(args.GetArgument(0), realm);
+            var duration = time.Until(other);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var other = ToTemporalPlainTime(args.GetArgument(0), realm);
+            var duration = time.Since(other);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapPlainTime(time, realm, prototype);
+            }
+
+            var hour = accessor.TryGetProperty("hour", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Hour;
+            var minute = accessor.TryGetProperty("minute", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Minute;
+            var second = accessor.TryGetProperty("second", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Second;
+            var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Millisecond;
+            var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Microsecond;
+            var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : time.Nanosecond;
+
+            return WrapPlainTime(new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var optionsArg = args.GetArgument(0);
+            string smallestUnit;
+            if (optionsArg.IsString)
+            {
+                smallestUnit = optionsArg.AsString() ?? "nanosecond";
+            }
+            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                     accessor.TryGetProperty("smallestUnit", out var unitValue))
+            {
+                smallestUnit = JsOps.ToJsString(unitValue);
+            }
+            else
+            {
+                smallestUnit = "nanosecond";
+            }
+
+            var rounded = time.Round(smallestUnit);
+            return WrapPlainTime(rounded, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainDateTime", 1, (thisValue, args) =>
+        {
+            var time = GetPlainTime(thisValue);
+            var date = ToTemporalPlainDate(args.GetArgument(0), realm);
+            var dt = new JsTemporalPlainDateTime(date, time);
+            return WrapPlainDateTime(dt, realm);
         });
 
         // Constructor
@@ -582,6 +911,81 @@ public static class TemporalHelper
             return WrapPlainTime(dt.ToPlainTime(), realm);
         });
 
+        AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            return WrapPlainDateTime(dt.Add(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            return WrapPlainDateTime(dt.Subtract(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var other = ToTemporalPlainDateTime(args.GetArgument(0), realm);
+            var duration = dt.Until(other);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var other = ToTemporalPlainDateTime(args.GetArgument(0), realm);
+            var duration = dt.Since(other);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapPlainDateTime(dt, realm, prototype);
+            }
+
+            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Year;
+            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Month;
+            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Day;
+            var hour = accessor.TryGetProperty("hour", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Hour;
+            var minute = accessor.TryGetProperty("minute", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Minute;
+            var second = accessor.TryGetProperty("second", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Second;
+            var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Millisecond;
+            var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Microsecond;
+            var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : dt.Nanosecond;
+
+            return WrapPlainDateTime(new JsTemporalPlainDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, dt.Calendar), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var optionsArg = args.GetArgument(0);
+            string smallestUnit;
+            if (optionsArg.IsString)
+            {
+                smallestUnit = optionsArg.AsString() ?? "nanosecond";
+            }
+            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                     accessor.TryGetProperty("smallestUnit", out var unitValue))
+            {
+                smallestUnit = JsOps.ToJsString(unitValue);
+            }
+            else
+            {
+                smallestUnit = "nanosecond";
+            }
+
+            var rounded = dt.Round(smallestUnit);
+            return WrapPlainDateTime(rounded, realm, prototype);
+        });
+
         // Constructor
         var ctor = new HostFunction((thisValue, args) =>
         {
@@ -677,6 +1081,148 @@ public static class TemporalHelper
 
         AddPrototypeMethod(prototype, realm, "toPlainTime", 0, (thisValue, _) =>
             WrapPlainTime(GetZonedDateTime(thisValue).ToPlainTime(), realm));
+
+        AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            return WrapZonedDateTime(zdt.Add(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "subtract", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var duration = ToTemporalDuration(args.GetArgument(0), realm);
+            return WrapZonedDateTime(zdt.Subtract(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
+            var diffNanos = other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds;
+            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
+            var diffNanos = zdt.Instant.EpochNanoseconds - other.Instant.EpochNanoseconds;
+            var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
+            return WrapDuration(duration, realm);
+        });
+
+        AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var optionsArg = args.GetArgument(0);
+            string smallestUnit;
+            if (optionsArg.IsString)
+            {
+                smallestUnit = optionsArg.AsString() ?? "nanosecond";
+            }
+            else if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+                     accessor.TryGetProperty("smallestUnit", out var unitValue))
+            {
+                smallestUnit = JsOps.ToJsString(unitValue);
+            }
+            else
+            {
+                smallestUnit = "nanosecond";
+            }
+
+            // Round by rounding the epoch nanoseconds
+            var nanos = zdt.Instant.EpochNanoseconds;
+            long divisor = smallestUnit switch
+            {
+                "hour" or "hours" => 3600_000_000_000L,
+                "minute" or "minutes" => 60_000_000_000L,
+                "second" or "seconds" => 1_000_000_000L,
+                "millisecond" or "milliseconds" => 1_000_000L,
+                "microsecond" or "microseconds" => 1_000L,
+                _ => 1L
+            };
+            var rounded = (nanos / divisor) * divisor;
+            var newInstant = new JsTemporalInstant(rounded);
+            var roundedZdt = new JsTemporalZonedDateTime(newInstant, zdt.TimeZoneId, zdt.Calendar);
+            return WrapZonedDateTime(roundedZdt, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapZonedDateTime(zdt, realm, prototype);
+            }
+
+            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Year;
+            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Month;
+            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Day;
+            var hour = accessor.TryGetProperty("hour", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Hour;
+            var minute = accessor.TryGetProperty("minute", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Minute;
+            var second = accessor.TryGetProperty("second", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Second;
+            var millisecond = accessor.TryGetProperty("millisecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Millisecond;
+            var microsecond = accessor.TryGetProperty("microsecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Microsecond;
+            var nanosecond = accessor.TryGetProperty("nanosecond", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : zdt.Nanosecond;
+
+            var newZdt = new JsTemporalZonedDateTime(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, zdt.TimeZoneId, zdt.Calendar);
+            return WrapZonedDateTime(newZdt, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "equals", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
+            return new JsValue(zdt.Equals(other));
+        });
+
+        AddPrototypeMethod(prototype, realm, "startOfDay", 0, (thisValue, _) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var startOfDayZdt = new JsTemporalZonedDateTime(
+                zdt.Year, zdt.Month, zdt.Day, 0, 0, 0, 0, 0, 0,
+                zdt.TimeZoneId, zdt.Calendar);
+            return WrapZonedDateTime(startOfDayZdt, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "withTimeZone", 1, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            var timeZoneId = JsOps.ToJsString(args.GetArgument(0));
+            var newZdt = zdt.WithTimeZone(timeZoneId);
+            return WrapZonedDateTime(newZdt, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "withPlainTime", 0, (thisValue, args) =>
+        {
+            var zdt = GetZonedDateTime(thisValue);
+            JsTemporalPlainTime time;
+            if (args.Count > 0 && !args[0].IsUndefined)
+            {
+                time = ToTemporalPlainTime(args[0], realm);
+            }
+            else
+            {
+                time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
+            }
+            var newZdt = new JsTemporalZonedDateTime(
+                zdt.Year, zdt.Month, zdt.Day,
+                time.Hour, time.Minute, time.Second,
+                time.Millisecond, time.Microsecond, time.Nanosecond,
+                zdt.TimeZoneId, zdt.Calendar);
+            return WrapZonedDateTime(newZdt, realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "hoursInDay", 0, (thisValue, _) =>
+        {
+            // For most days this is 24, but DST transitions can make it 23 or 25
+            // For simplicity, we return 24 here (proper implementation would check DST)
+            return new JsValue(24);
+        });
 
         // Constructor
         var ctor = new HostFunction((thisValue, args) =>

@@ -200,6 +200,27 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
         return other.Until(this);
     }
 
+    /// <summary>
+    ///     Rounds the time to the specified unit.
+    /// </summary>
+    public JsTemporalPlainTime Round(string smallestUnit)
+    {
+        var nanos = TotalNanoseconds;
+        long divisor = smallestUnit switch
+        {
+            "hour" or "hours" => NanosecondsPerHour,
+            "minute" or "minutes" => NanosecondsPerMinute,
+            "second" or "seconds" => NanosecondsPerSecond,
+            "millisecond" or "milliseconds" => NanosecondsPerMillisecond,
+            "microsecond" or "microseconds" => NanosecondsPerMicrosecond,
+            _ => 1L // nanosecond
+        };
+        var rounded = (nanos / divisor) * divisor;
+        // Wrap around if needed (shouldn't be, but be safe)
+        rounded = ((rounded % NanosecondsPerDay) + NanosecondsPerDay) % NanosecondsPerDay;
+        return FromNanoseconds(rounded);
+    }
+
     private static JsTemporalPlainTime FromNanoseconds(long totalNanoseconds)
     {
         var hours = (int)(totalNanoseconds / NanosecondsPerHour);

@@ -39,17 +39,34 @@ public sealed partial class MathPrototype
     public static JsValue Round(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
+
+        // Handle special values
         if (double.IsNaN(x) || double.IsInfinity(x))
         {
             return x;
         }
 
-        if (x >= 0)
+        // Preserve signed zeros: round(-0) = -0, round(+0) = +0
+        if (x == 0)
         {
-            return Math.Floor(x + 0.5);
+            return x;
         }
 
-        return Math.Ceiling(x - 0.5);
+        // Per spec: If x is greater than 0 but less than 0.5, the result is +0
+        // If x is less than 0 but greater than or equal to -0.5, the result is -0
+        if (x > 0 && x < 0.5)
+        {
+            return 0d;
+        }
+
+        if (x < 0 && x >= -0.5)
+        {
+            return -0d;
+        }
+
+        // For all other values, use floor(x + 0.5) which gives the correct rounding
+        // Note: For negative numbers, this gives "round half away from zero" behavior
+        return Math.Floor(x + 0.5);
     }
 
     [JsHostMethod("sqrt", Length = 1d)]
@@ -75,16 +92,29 @@ public sealed partial class MathPrototype
             return double.NegativeInfinity;
         }
 
-        var max = double.NegativeInfinity;
-        foreach (var arg in args)
+        // Must coerce all arguments first (for side effects like valueOf)
+        var coerced = new double[args.Count];
+        var hasNaN = false;
+        for (var i = 0; i < args.Count; i++)
         {
-            var d = JsOps.ToNumber(arg);
+            var d = JsOps.ToNumber(args[i]);
+            coerced[i] = d;
             if (double.IsNaN(d))
             {
-                return double.NaN;
+                hasNaN = true;
             }
+        }
 
-            if (d > max || double.IsNegativeInfinity(max))
+        if (hasNaN)
+        {
+            return double.NaN;
+        }
+
+        var max = double.NegativeInfinity;
+        foreach (var d in coerced)
+        {
+            // Per spec: +0 is considered to be larger than -0
+            if (d > max || (d == 0 && max == 0 && double.IsNegative(max) && !double.IsNegative(d)))
             {
                 max = d;
             }
@@ -101,16 +131,29 @@ public sealed partial class MathPrototype
             return double.PositiveInfinity;
         }
 
-        var min = double.PositiveInfinity;
-        foreach (var arg in args)
+        // Must coerce all arguments first (for side effects like valueOf)
+        var coerced = new double[args.Count];
+        var hasNaN = false;
+        for (var i = 0; i < args.Count; i++)
         {
-            var d = JsOps.ToNumber(arg);
+            var d = JsOps.ToNumber(args[i]);
+            coerced[i] = d;
             if (double.IsNaN(d))
             {
-                return double.NaN;
+                hasNaN = true;
             }
+        }
 
-            if (d < min || double.IsPositiveInfinity(min))
+        if (hasNaN)
+        {
+            return double.NaN;
+        }
+
+        var min = double.PositiveInfinity;
+        foreach (var d in coerced)
+        {
+            // Per spec: +0 is considered to be larger than -0, so -0 is the minimum
+            if (d < min || (d == 0 && min == 0 && !double.IsNegative(min) && double.IsNegative(d)))
             {
                 min = d;
             }
@@ -214,9 +257,16 @@ public sealed partial class MathPrototype
     public JsValue Sign(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
+
         if (double.IsNaN(x))
         {
             return double.NaN;
+        }
+
+        // Preserve signed zeros: sign(+0) = +0, sign(-0) = -0
+        if (x == 0)
+        {
+            return x; // Preserves sign of zero
         }
 
         return Math.Sign(x);
@@ -337,6 +387,29 @@ public sealed partial class MathPrototype
     public JsValue Expm1(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
+
+        // Handle special values per spec
+        if (double.IsNaN(x))
+        {
+            return double.NaN;
+        }
+
+        // Preserve signed zeros: expm1(+0) = +0, expm1(-0) = -0
+        if (x == 0)
+        {
+            return x; // Preserves sign of zero
+        }
+
+        if (double.IsNegativeInfinity(x))
+        {
+            return -1d;
+        }
+
+        if (double.IsPositiveInfinity(x))
+        {
+            return double.PositiveInfinity;
+        }
+
         return Math.Exp(x) - 1;
     }
 
@@ -344,6 +417,38 @@ public sealed partial class MathPrototype
     public JsValue Log1p(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
+
+        // Handle special values per spec
+        if (double.IsNaN(x))
+        {
+            return double.NaN;
+        }
+
+        // log1p(x) for x < -1 returns NaN
+        if (x < -1)
+        {
+            return double.NaN;
+        }
+
+        // log1p(-1) = -Infinity
+        // ReSharper disable once CompareOfFloatsByEqualityOperator
+        if (x == -1)
+        {
+            return double.NegativeInfinity;
+        }
+
+        // Preserve signed zeros: log1p(+0) = +0, log1p(-0) = -0
+        if (x == 0)
+        {
+            return x; // Preserves sign of zero
+        }
+
+        // log1p(+Infinity) = +Infinity
+        if (double.IsPositiveInfinity(x))
+        {
+            return double.PositiveInfinity;
+        }
+
         return Math.Log(1 + x);
     }
 

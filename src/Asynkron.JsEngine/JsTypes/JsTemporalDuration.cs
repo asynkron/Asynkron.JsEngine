@@ -105,6 +105,46 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
             milliseconds, microseconds, nanoseconds);
     }
 
+    /// <summary>
+    ///     Creates a Duration from total nanoseconds.
+    /// </summary>
+    public static JsTemporalDuration FromNanoseconds(double totalNanoseconds)
+    {
+        // Convert to time units
+        var absNanos = Math.Abs(totalNanoseconds);
+        var sign = totalNanoseconds < 0 ? -1 : 1;
+
+        var hours = Math.Floor(absNanos / 3_600_000_000_000.0);
+        absNanos -= hours * 3_600_000_000_000.0;
+
+        var minutes = Math.Floor(absNanos / 60_000_000_000.0);
+        absNanos -= minutes * 60_000_000_000.0;
+
+        var seconds = Math.Floor(absNanos / 1_000_000_000.0);
+        absNanos -= seconds * 1_000_000_000.0;
+
+        var milliseconds = Math.Floor(absNanos / 1_000_000.0);
+        absNanos -= milliseconds * 1_000_000.0;
+
+        var microseconds = Math.Floor(absNanos / 1_000.0);
+        absNanos -= microseconds * 1_000.0;
+
+        var nanoseconds = Math.Round(absNanos);
+
+        return new JsTemporalDuration(
+            hours: sign * hours,
+            minutes: sign * minutes,
+            seconds: sign * seconds,
+            milliseconds: sign * milliseconds,
+            microseconds: sign * microseconds,
+            nanoseconds: sign * nanoseconds);
+    }
+
+    /// <summary>
+    ///     Whether this duration is zero (blank).
+    /// </summary>
+    public bool Blank => Sign == 0;
+
     private int GetDurationSign()
     {
         var components = new[]

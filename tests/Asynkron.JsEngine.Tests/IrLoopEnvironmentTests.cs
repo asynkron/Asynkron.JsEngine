@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -194,5 +195,38 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
         output.WriteLine(planOutput);
 
         Assert.DoesNotContain("No execution plan available", planOutput);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TraceIrExecution_ForLoopWithClosures()
+    {
+        // This test demonstrates IR execution tracing with a logger
+        // The logger outputs each instruction as it executes
+        var logger = new XunitLogger(output, "IR-Trace");
+
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            Logger = logger
+        });
+
+        output.WriteLine("=== Executing async for-loop with closures (trace below) ===");
+        output.WriteLine("");
+
+        var result = await engine.EvaluateAndAwait("""
+            (async function testLoop() {
+                const funcs = [];
+                for (let i = 0; i < 2; i++) {
+                    funcs.push(() => i);
+                    await Promise.resolve();
+                }
+                return funcs[0]() + funcs[1]();
+            })();
+            """);
+
+        output.WriteLine("");
+        output.WriteLine($"=== Result: {result} (expected: 1 = 0 + 1) ===");
+
+        // 0 + 1 = 1
+        Assert.Equal(1.0, result);
     }
 }

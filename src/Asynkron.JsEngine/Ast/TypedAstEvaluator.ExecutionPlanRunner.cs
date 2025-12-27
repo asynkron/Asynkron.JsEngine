@@ -626,6 +626,13 @@ public static partial class TypedAstEvaluator
                     {
                         _currentInstructionIndex = _programCounter;
                         var instruction = _plan.Instructions[_programCounter];
+
+                        // Trace instruction execution when debug logging is enabled
+                        _realmState.Logger?.LogTrace(
+                            "[IR:{PC,3}] {Instruction}",
+                            _programCounter,
+                            ExecutionPlanPrinter.FormatInstruction(instruction));
+
                         switch (instruction)
                         {
                             case StatementInstruction statementInstruction:

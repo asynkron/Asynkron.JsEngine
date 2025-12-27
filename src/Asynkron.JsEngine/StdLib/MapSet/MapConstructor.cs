@@ -53,28 +53,31 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
         var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
         var instance = new JsMap();
         instance.SetPrototype(proto);
-        PopulateMap(instance, args);
+        PopulateMap(instance, args, Realm);
         return instance;
     }
 
-    private static void PopulateMap(JsMap map, IReadOnlyList<JsValue> args)
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
+
+    private static void PopulateMap(JsMap map, IReadOnlyList<JsValue> args, RealmState realm)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        if (!args[0].TryGetObject<JsArray>(out var entries))
-        {
-            return;
-        }
-
-        foreach (var entry in entries.Items)
+        MapSetIterationHelper.Iterate(args[0], realm, "Map constructor", entry =>
         {
             JsValue key;
             JsValue value;
+
             if (entry.TryGetObject<JsArray>(out var pair))
             {
+                // Common fast path: iterables of [key, value] arrays.
                 key = pair.GetElement(0);
                 value = pair.GetElement(1);
             }
@@ -85,11 +88,11 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             }
             else
             {
-                continue;
+                throw ThrowTypeError("Map constructor expects iterable entries", realm: realm);
             }
 
             map.Set(key, value);
-        }
+        });
     }
 
     [JsConstructorMethod("groupBy", Length = 2d)]
@@ -109,26 +112,19 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
             throw ThrowTypeError("Map.groupBy callback must be a function", realm: realm);
         }
         
-        // Get iterable (usually an array)
-        if (!items.TryGetObject<JsArray>(out var array) || array is null)
-        {
-            throw ThrowTypeError("Map.groupBy requires an iterable as first argument", realm: realm);
-        }
-        
         // Create result Map
         var result = new JsMap();
         result.SetPrototype(realm.MapPrototype);
-        
-        // Group elements
-        var k = 0;
-        while (k < array.Length)
+
+        // Group elements from any iterable.
+        var index = 0;
+        MapSetIterationHelper.Iterate(items, realm, "Map.groupBy", element =>
         {
-            var element = array.GetElement(k);
-            
             // Call callback with (element, index)
-            var key = callback.Invoke([element, (double)k], JsValue.Undefined);
-            
-            // Get or create array for this key
+            var key = callback.Invoke([element, (double)index], JsValue.Undefined);
+            index++;
+
+            // Get or create array for this key.
             JsArray group;
             if (result.Has(key))
             {
@@ -139,7 +135,7 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
                 }
                 else
                 {
-                    // Should not happen, but create a new array if the value is not an array
+                    // Fallback: replace non-array values with a new grouping array.
                     group = new JsArray(realm);
                     result.Set(key, JsValue.FromJsArray(group));
                 }
@@ -149,13 +145,11 @@ public sealed partial class MapConstructor(IJsObjectLike prototype, RealmState r
                 group = new JsArray(realm);
                 result.Set(key, JsValue.FromJsArray(group));
             }
-            
-            // Add element to group
+
+            // Add element to group.
             group.SetElement((uint)group.Length, element);
-            
-            k++;
-        }
-        
+        });
+
         return result.AsJsValue;
     }
 }

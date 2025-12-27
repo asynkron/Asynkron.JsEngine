@@ -522,13 +522,17 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue SetPrototypeOf(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count < 2)
+        var targetValue = args.GetArgument(0);
+        var protoValue = args.GetArgument(1);
+
+        // Per spec: If Type(proto) is neither Object nor Null, throw a TypeError exception.
+        // We check for null explicitly and then check if it's an object
+        if (!protoValue.IsNull && !protoValue.TryGetObject(out _))
         {
-            return args.GetArgument(0);
+            throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
         }
 
-        var targetValue = args[0];
-        var protoAccessor = args[1].IsNull ? null : args[1].ObjectValue as IJsPropertyAccessor;
+        var protoAccessor = protoValue.IsNull ? null : protoValue.ObjectValue as IJsPropertyAccessor;
 
         var target = targetValue.ObjectValue;
         switch (target)

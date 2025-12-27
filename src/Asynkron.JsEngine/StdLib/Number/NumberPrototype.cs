@@ -44,7 +44,19 @@ public sealed partial class NumberPrototype
     public JsValue ToFixed(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toFixed");
-        var fractionDigits = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
+
+        // Per spec: ToIntegerOrInfinity(fractionDigits), then check range
+        var fractionDigitsArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var fractionDigitsNum = fractionDigitsArg.IsUndefined ? 0d : JsOps.ToNumber(fractionDigitsArg);
+
+        // If fractionDigits is Infinity, throw RangeError
+        if (double.IsInfinity(fractionDigitsNum))
+        {
+            throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: Realm);
+        }
+
+        // ToIntegerOrInfinity: NaN becomes 0, truncate toward zero
+        var fractionDigits = double.IsNaN(fractionDigitsNum) ? 0 : (int)Math.Truncate(fractionDigitsNum);
         if (fractionDigits is < 0 or > 100)
         {
             throw ThrowRangeError("toFixed() digits argument must be between 0 and 100", realm: Realm);
@@ -58,6 +70,12 @@ public sealed partial class NumberPrototype
         if (double.IsInfinity(num))
         {
             return num > 0 ? "Infinity" : "-Infinity";
+        }
+
+        // For very large numbers (>= 10^21), return the same as ToString
+        if (Math.Abs(num) >= 1e21)
+        {
+            return num.ToString(CultureInfo.InvariantCulture);
         }
 
         return num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
@@ -182,17 +200,26 @@ public sealed partial class NumberPrototype
             return num;
         }
 
-        // Check if it's a Number object (with __value__ property)
+        // Check if it's a Number object (with __value__ property that is a number)
         if (receiver.TryGetObject(out object? obj) && obj is not null)
         {
             if (obj is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner))
             {
-                return JsOps.ToNumber(inner);
+                // Only accept if the __value__ is a number (Number wrapper objects)
+                // Other wrapper types (String, Boolean) also use __value__ but should not be accepted
+                if (inner.TryGetDouble(out var innerNum))
+                {
+                    return innerNum;
+                }
             }
 
             if (obj is IJsPropertyAccessor accessor && accessor.TryGetProperty("__value__", out var innerVal))
             {
-                return JsOps.ToNumber(innerVal);
+                // Only accept if the __value__ is a number
+                if (innerVal.TryGetDouble(out var innerNum))
+                {
+                    return innerNum;
+                }
             }
         }
 

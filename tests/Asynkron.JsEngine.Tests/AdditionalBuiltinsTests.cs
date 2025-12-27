@@ -58,7 +58,72 @@ public abstract class AdditionalBuiltinsTestsBase(ITestOutputHelper output) : Fa
     }
 }
 
-public class AdditionalBuiltinsTests(ITestOutputHelper output) : AdditionalBuiltinsTestsBase(output)
+public partial class AdditionalBuiltinsTests(ITestOutputHelper output) : AdditionalBuiltinsTestsBase(output)
 {
     protected override bool EnableFastPaths => true;
+
+    [Fact(Timeout = 2000)]
+    public async Task TypeError_InstanceOf_Works()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var e = new TypeError('test');
+            e instanceof TypeError;
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TypeError_CalledAsFunction_ReturnsInstance()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var e = TypeError('called as function');
+            e instanceof TypeError;
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Number_ValueOf_ThrowsTypeError_InstanceOf()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                var s = new String();
+                s.valueOf = Number.prototype.valueOf;
+                s.valueOf();
+                false;
+            } catch(e) {
+                e instanceof TypeError;
+            }
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task RangeError_InstanceOf_Works()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var e = new RangeError('test');
+            e instanceof RangeError;
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ToFixed_Infinity_ThrowsRangeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            try {
+                (1).toFixed(Infinity);
+                false;
+            } catch(e) {
+                e instanceof RangeError;
+            }
+        ");
+        Assert.True((bool)result!);
+    }
 }

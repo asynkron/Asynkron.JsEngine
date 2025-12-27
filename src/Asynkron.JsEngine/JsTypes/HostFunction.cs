@@ -154,6 +154,12 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
+        // Use context-aware handler if set (e.g., for error constructors that work without 'new')
+        if (InvokeWithContextForSnapshot is not null)
+        {
+            return InvokeWithContextForSnapshot(arguments, thisValue, null, JsValue.Undefined);
+        }
+
         return HandlerForSnapshot(thisValue, arguments);
     }
 

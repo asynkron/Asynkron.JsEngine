@@ -821,9 +821,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private bool TryGetPropertyJsValue(string name, JsValue receiver, int depth,
         EvaluationContext? context, out JsValue value)
     {
-        const int maxDepth = 100;
-
-        if (depth >= maxDepth)
+        if (depth >= JsEngineConstants.MaxPrototypeChainDepth)
         {
             value = JsValue.Undefined;
             return false;
@@ -1501,10 +1499,9 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// </summary>
     private static bool HasPropertyCore(JsObject? current, string name)
     {
-        const int maxDepth = 100; // Prototype chains are typically < 10 deep
         var depth = 0;
 
-        while (current is not null && depth++ < maxDepth)
+        while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
             if (current.GetOwnPropertyDescriptor(name) is not null)
             {
@@ -1530,11 +1527,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     public IJsCallable? GetSetter(string name)
     {
-        const int maxDepth = 100;
         var current = this;
         var depth = 0;
 
-        while (current is not null && depth++ < maxDepth)
+        while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
             if (current.TryGetValue(SetterPrefix + name, out var setter) &&
                 setter is IJsCallable callable)
@@ -1556,10 +1552,9 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// </summary>
     private static IJsCallable? FindSetterInPrototypeChain(IJsPropertyAccessor? current, string name)
     {
-        const int maxDepth = 100;
         var depth = 0;
 
-        while (current is not null && depth++ < maxDepth)
+        while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
             // Check if this level has an own accessor property with a setter
             var descriptor = current.GetOwnPropertyDescriptor(name);
@@ -1784,9 +1779,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         EvaluationContext? context,
         out object? value)
     {
-        const int maxDepth = 100;
-
-        while (prototype is not null && currentDepth++ < maxDepth)
+        while (prototype is not null && currentDepth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
             if (prototype is JsObject jsProto)
             {
@@ -1816,9 +1809,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private bool TryGetProperty(string name, object? receiver, int depth,
         EvaluationContext? context, out object? value)
     {
-        const int maxDepth = 100;
-
-        if (depth >= maxDepth)
+        if (depth >= JsEngineConstants.MaxPrototypeChainDepth)
         {
             value = null;
             return false;
@@ -1895,7 +1886,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             prototype = accessor;
         }
 
-        while (prototype is not null && depth++ < maxDepth)
+        while (prototype is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
             if (prototype is JsObject jsProto)
             {

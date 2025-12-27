@@ -2311,12 +2311,11 @@ public sealed class JsEnvironment : IRentable
             return true;
         }
 
-        const int maxDepth = 100;
         var depth = 0;
         var prototypeAccessor =
             (target as IPrototypeAccessorProvider)?.PrototypeAccessor ?? target.Prototype;
 
-        while (prototypeAccessor is not null && depth++ < maxDepth)
+        while (prototypeAccessor is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
             if (prototypeAccessor is not JsObject protoObj)
             {

@@ -184,6 +184,46 @@ public abstract class MathMethodsTestsBase(ITestOutputHelper output) : FastPathT
         var result = await engine.Evaluate("Math.log1p(Math.E - 1);");
         Assert.InRange((double)result!, 0.999, 1.001);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Math_Round_NegativeZeroEdgeCases()
+    {
+        await using var engine = CreateEngine();
+
+        // Math.round(-0.5) should return -0 (negative zero)
+        var result1 = (double)(await engine.Evaluate("1 / Math.round(-0.5);"))!;
+        Assert.Equal(double.NegativeInfinity, result1);
+
+        // Math.round(-0.25) should return -0 (negative zero)
+        var result2 = (double)(await engine.Evaluate("1 / Math.round(-0.25);"))!;
+        Assert.Equal(double.NegativeInfinity, result2);
+
+        // Math.round(-0) should return -0 (negative zero)
+        var result3 = (double)(await engine.Evaluate("1 / Math.round(-0);"))!;
+        Assert.Equal(double.NegativeInfinity, result3);
+
+        // Math.round(0.5 - Number.EPSILON / 4) should return +0 (positive zero)
+        // This tests that Number.EPSILON is correctly set to 2^-52, not double.Epsilon
+        var result4 = (double)(await engine.Evaluate("1 / Math.round(0.5 - Number.EPSILON / 4);"))!;
+        Assert.Equal(double.PositiveInfinity, result4);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Math_Round_LargeIntegersUnchanged()
+    {
+        await using var engine = CreateEngine();
+
+        // Large odd integers near 1/Number.EPSILON boundaries should be unchanged
+        var result = (bool)(await engine.Evaluate(@"
+            var x1 = -(2 / Number.EPSILON - 1);
+            var x2 = -(1 / Number.EPSILON + 1);
+            var x3 = 1 / Number.EPSILON + 1;
+            var x4 = 2 / Number.EPSILON - 1;
+            Math.round(x1) === x1 && Math.round(x2) === x2 &&
+            Math.round(x3) === x3 && Math.round(x4) === x4;
+        "))!;
+        Assert.True(result);
+    }
 }
 
 public class FastPathMathMethodsTests(ITestOutputHelper output) : MathMethodsTestsBase(output)

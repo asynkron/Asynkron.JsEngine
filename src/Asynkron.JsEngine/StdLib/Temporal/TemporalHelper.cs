@@ -10,6 +10,21 @@ using Asynkron.JsEngine.Runtime;
 namespace Asynkron.JsEngine.StdLib.Temporal;
 
 /// <summary>
+///     Holds cached prototypes for Temporal types to enable cross-type method calls.
+/// </summary>
+internal sealed class TemporalPrototypes
+{
+    public JsObject InstantPrototype { get; set; } = null!;
+    public JsObject DurationPrototype { get; set; } = null!;
+    public JsObject PlainDatePrototype { get; set; } = null!;
+    public JsObject PlainTimePrototype { get; set; } = null!;
+    public JsObject PlainDateTimePrototype { get; set; } = null!;
+    public JsObject ZonedDateTimePrototype { get; set; } = null!;
+    public JsObject PlainYearMonthPrototype { get; set; } = null!;
+    public JsObject PlainMonthDayPrototype { get; set; } = null!;
+}
+
+/// <summary>
 ///     Provides the Temporal API constructors and static methods.
 /// </summary>
 public static class TemporalHelper
@@ -23,63 +38,80 @@ public static class TemporalHelper
     private const string TemporalPlainYearMonthSlot = "[[TemporalPlainYearMonth]]";
     private const string TemporalPlainMonthDaySlot = "[[TemporalPlainMonthDay]]";
 
+    // Cached prototypes per realm - stored via WeakReference to avoid memory leaks
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<RealmState, TemporalPrototypes>
+        _prototypeCache = new();
+
     public static JsObject CreateTemporalObject(RealmState realm)
     {
         var temporal = new JsObject(realm.ObjectPrototype);
+
+        // Create and cache prototypes for this realm
+        var prototypes = new TemporalPrototypes();
+        _prototypeCache.Add(realm, prototypes);
 
         // Set @@toStringTag
         temporal.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal", Writable = false, Enumerable = false, Configurable = true });
 
         // Temporal.Now namespace
-        var now = CreateTemporalNow(realm);
+        var now = CreateTemporalNow(realm, prototypes);
         temporal.DefineProperty("Now",
             new PropertyDescriptor { Value = now, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.Instant constructor
-        var instantCtor = CreateInstantConstructor(realm);
+        var instantCtor = CreateInstantConstructor(realm, prototypes);
         temporal.DefineProperty("Instant",
             new PropertyDescriptor { Value = instantCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.Duration constructor
-        var durationCtor = CreateDurationConstructor(realm);
+        var durationCtor = CreateDurationConstructor(realm, prototypes);
         temporal.DefineProperty("Duration",
             new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.PlainDate constructor
-        var plainDateCtor = CreatePlainDateConstructor(realm);
+        var plainDateCtor = CreatePlainDateConstructor(realm, prototypes);
         temporal.DefineProperty("PlainDate",
             new PropertyDescriptor { Value = plainDateCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.PlainTime constructor
-        var plainTimeCtor = CreatePlainTimeConstructor(realm);
+        var plainTimeCtor = CreatePlainTimeConstructor(realm, prototypes);
         temporal.DefineProperty("PlainTime",
             new PropertyDescriptor { Value = plainTimeCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.PlainDateTime constructor
-        var plainDateTimeCtor = CreatePlainDateTimeConstructor(realm);
+        var plainDateTimeCtor = CreatePlainDateTimeConstructor(realm, prototypes);
         temporal.DefineProperty("PlainDateTime",
             new PropertyDescriptor { Value = plainDateTimeCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.ZonedDateTime constructor
-        var zonedDateTimeCtor = CreateZonedDateTimeConstructor(realm);
+        var zonedDateTimeCtor = CreateZonedDateTimeConstructor(realm, prototypes);
         temporal.DefineProperty("ZonedDateTime",
             new PropertyDescriptor { Value = zonedDateTimeCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.PlainYearMonth constructor
-        var plainYearMonthCtor = CreatePlainYearMonthConstructor(realm);
+        var plainYearMonthCtor = CreatePlainYearMonthConstructor(realm, prototypes);
         temporal.DefineProperty("PlainYearMonth",
             new PropertyDescriptor { Value = plainYearMonthCtor, Writable = true, Enumerable = false, Configurable = true });
 
         // Temporal.PlainMonthDay constructor
-        var plainMonthDayCtor = CreatePlainMonthDayConstructor(realm);
+        var plainMonthDayCtor = CreatePlainMonthDayConstructor(realm, prototypes);
         temporal.DefineProperty("PlainMonthDay",
             new PropertyDescriptor { Value = plainMonthDayCtor, Writable = true, Enumerable = false, Configurable = true });
 
         return temporal;
     }
 
-    private static JsObject CreateTemporalNow(RealmState realm)
+    private static TemporalPrototypes GetPrototypes(RealmState realm)
+    {
+        if (_prototypeCache.TryGetValue(realm, out var prototypes))
+        {
+            return prototypes;
+        }
+        throw new InvalidOperationException("Temporal prototypes not initialized for this realm");
+    }
+
+    private static JsObject CreateTemporalNow(RealmState realm, TemporalPrototypes prototypes)
     {
         var now = new JsObject(realm.ObjectPrototype);
 
@@ -90,7 +122,7 @@ public static class TemporalHelper
         var instantFn = CreateFunction(realm, "instant", 0, (_, _) =>
         {
             var instant = JsTemporalInstant.Now();
-            return WrapInstant(instant, realm);
+            return WrapInstant(instant, realm, prototypes.InstantPrototype);
         });
         now.DefineProperty("instant",
             new PropertyDescriptor { Value = instantFn, Writable = true, Enumerable = false, Configurable = true });
@@ -113,7 +145,7 @@ public static class TemporalHelper
         var plainDateISOFn = CreateFunction(realm, "plainDateISO", 0, (_, _) =>
         {
             var date = JsTemporalPlainDate.Today();
-            return WrapPlainDate(date, realm);
+            return WrapPlainDate(date, realm, prototypes.PlainDatePrototype);
         });
         now.DefineProperty("plainDateISO",
             new PropertyDescriptor { Value = plainDateISOFn, Writable = true, Enumerable = false, Configurable = true });
@@ -122,7 +154,7 @@ public static class TemporalHelper
         var plainTimeISOFn = CreateFunction(realm, "plainTimeISO", 0, (_, _) =>
         {
             var time = JsTemporalPlainTime.Now();
-            return WrapPlainTime(time, realm);
+            return WrapPlainTime(time, realm, prototypes.PlainTimePrototype);
         });
         now.DefineProperty("plainTimeISO",
             new PropertyDescriptor { Value = plainTimeISOFn, Writable = true, Enumerable = false, Configurable = true });
@@ -131,7 +163,7 @@ public static class TemporalHelper
         var plainDateTimeISOFn = CreateFunction(realm, "plainDateTimeISO", 0, (_, _) =>
         {
             var dt = JsTemporalPlainDateTime.Now();
-            return WrapPlainDateTime(dt, realm);
+            return WrapPlainDateTime(dt, realm, prototypes.PlainDateTimePrototype);
         });
         now.DefineProperty("plainDateTimeISO",
             new PropertyDescriptor { Value = plainDateTimeISOFn, Writable = true, Enumerable = false, Configurable = true });
@@ -151,7 +183,7 @@ public static class TemporalHelper
                 tzId = ianaId;
             }
             var zdt = JsTemporalZonedDateTime.Now(tzId);
-            return WrapZonedDateTime(zdt, realm);
+            return WrapZonedDateTime(zdt, realm, prototypes.ZonedDateTimePrototype);
         });
         now.DefineProperty("zonedDateTimeISO",
             new PropertyDescriptor { Value = zonedDateTimeISOFn, Writable = true, Enumerable = false, Configurable = true });
@@ -159,9 +191,10 @@ public static class TemporalHelper
         return now;
     }
 
-    private static HostFunction CreateInstantConstructor(RealmState realm)
+    private static HostFunction CreateInstantConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.InstantPrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.Instant", Writable = false, Enumerable = false, Configurable = true });
 
@@ -236,7 +269,7 @@ public static class TemporalHelper
             var other = ToTemporalInstant(args.GetArgument(0), realm);
             var diffNanos = other.EpochNanoseconds - instant.EpochNanoseconds;
             var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
@@ -245,7 +278,7 @@ public static class TemporalHelper
             var other = ToTemporalInstant(args.GetArgument(0), realm);
             var diffNanos = instant.EpochNanoseconds - other.EpochNanoseconds;
             var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
@@ -287,7 +320,7 @@ public static class TemporalHelper
             var tzArg = args.GetArgument(0);
             var timeZoneId = JsOps.ToJsString(tzArg);
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId);
-            return WrapZonedDateTime(zdt, realm);
+            return WrapZonedDateTime(zdt, realm, prototypes.ZonedDateTimePrototype);
         });
 
         // Constructor
@@ -362,9 +395,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreateDurationConstructor(RealmState realm)
+    private static HostFunction CreateDurationConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.DurationPrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.Duration", Writable = false, Enumerable = false, Configurable = true });
 
@@ -554,9 +588,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreatePlainDateConstructor(RealmState realm)
+    private static HostFunction CreatePlainDateConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.PlainDatePrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.PlainDate", Writable = false, Enumerable = false, Configurable = true });
 
@@ -610,7 +645,7 @@ public static class TemporalHelper
             var date = GetPlainDate(thisValue);
             var other = ToTemporalPlainDate(args.GetArgument(0), realm);
             var duration = date.Until(other);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
@@ -618,7 +653,7 @@ public static class TemporalHelper
             var date = GetPlainDate(thisValue);
             var other = ToTemporalPlainDate(args.GetArgument(0), realm);
             var duration = date.Since(other);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -650,21 +685,21 @@ public static class TemporalHelper
                 time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
             }
             var dt = date.ToPlainDateTime(time);
-            return WrapPlainDateTime(dt, realm);
+            return WrapPlainDateTime(dt, realm, prototypes.PlainDateTimePrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainYearMonth", 0, (thisValue, _) =>
         {
             var date = GetPlainDate(thisValue);
             var ym = date.ToPlainYearMonth();
-            return WrapPlainYearMonth(ym, realm);
+            return WrapPlainYearMonth(ym, realm, prototypes.PlainYearMonthPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainMonthDay", 0, (thisValue, _) =>
         {
             var date = GetPlainDate(thisValue);
             var md = date.ToPlainMonthDay();
-            return WrapPlainMonthDay(md, realm);
+            return WrapPlainMonthDay(md, realm, prototypes.PlainMonthDayPrototype);
         });
 
         // Constructor
@@ -705,9 +740,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreatePlainTimeConstructor(RealmState realm)
+    private static HostFunction CreatePlainTimeConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.PlainTimePrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.PlainTime", Writable = false, Enumerable = false, Configurable = true });
 
@@ -755,7 +791,7 @@ public static class TemporalHelper
             var time = GetPlainTime(thisValue);
             var other = ToTemporalPlainTime(args.GetArgument(0), realm);
             var duration = time.Until(other);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
@@ -763,7 +799,7 @@ public static class TemporalHelper
             var time = GetPlainTime(thisValue);
             var other = ToTemporalPlainTime(args.GetArgument(0), realm);
             var duration = time.Since(other);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -856,9 +892,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreatePlainDateTimeConstructor(RealmState realm)
+    private static HostFunction CreatePlainDateTimeConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.PlainDateTimePrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.PlainDateTime", Writable = false, Enumerable = false, Configurable = true });
 
@@ -902,13 +939,13 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toPlainDate", 0, (thisValue, _) =>
         {
             var dt = GetPlainDateTime(thisValue);
-            return WrapPlainDate(dt.ToPlainDate(), realm);
+            return WrapPlainDate(dt.ToPlainDate(), realm, prototypes.PlainDatePrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainTime", 0, (thisValue, _) =>
         {
             var dt = GetPlainDateTime(thisValue);
-            return WrapPlainTime(dt.ToPlainTime(), realm);
+            return WrapPlainTime(dt.ToPlainTime(), realm, prototypes.PlainTimePrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
@@ -930,7 +967,7 @@ public static class TemporalHelper
             var dt = GetPlainDateTime(thisValue);
             var other = ToTemporalPlainDateTime(args.GetArgument(0), realm);
             var duration = dt.Until(other);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
@@ -938,7 +975,7 @@ public static class TemporalHelper
             var dt = GetPlainDateTime(thisValue);
             var other = ToTemporalPlainDateTime(args.GetArgument(0), realm);
             var duration = dt.Since(other);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
@@ -1031,9 +1068,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreateZonedDateTimeConstructor(RealmState realm)
+    private static HostFunction CreateZonedDateTimeConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.ZonedDateTimePrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.ZonedDateTime", Writable = false, Enumerable = false, Configurable = true });
 
@@ -1071,16 +1109,16 @@ public static class TemporalHelper
             throw StandardLibrary.ThrowTypeError("Temporal.ZonedDateTime.prototype.valueOf does not support implicit conversion", realm: realm));
 
         AddPrototypeMethod(prototype, realm, "toInstant", 0, (thisValue, _) =>
-            WrapInstant(GetZonedDateTime(thisValue).ToInstant(), realm));
+            WrapInstant(GetZonedDateTime(thisValue).ToInstant(), realm, prototypes.InstantPrototype));
 
         AddPrototypeMethod(prototype, realm, "toPlainDateTime", 0, (thisValue, _) =>
-            WrapPlainDateTime(GetZonedDateTime(thisValue).ToPlainDateTime(), realm));
+            WrapPlainDateTime(GetZonedDateTime(thisValue).ToPlainDateTime(), realm, prototypes.PlainDateTimePrototype));
 
         AddPrototypeMethod(prototype, realm, "toPlainDate", 0, (thisValue, _) =>
-            WrapPlainDate(GetZonedDateTime(thisValue).ToPlainDate(), realm));
+            WrapPlainDate(GetZonedDateTime(thisValue).ToPlainDate(), realm, prototypes.PlainDatePrototype));
 
         AddPrototypeMethod(prototype, realm, "toPlainTime", 0, (thisValue, _) =>
-            WrapPlainTime(GetZonedDateTime(thisValue).ToPlainTime(), realm));
+            WrapPlainTime(GetZonedDateTime(thisValue).ToPlainTime(), realm, prototypes.PlainTimePrototype));
 
         AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
         {
@@ -1102,7 +1140,7 @@ public static class TemporalHelper
             var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
             var diffNanos = other.Instant.EpochNanoseconds - zdt.Instant.EpochNanoseconds;
             var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
@@ -1111,7 +1149,7 @@ public static class TemporalHelper
             var other = ToTemporalZonedDateTime(args.GetArgument(0), realm);
             var diffNanos = zdt.Instant.EpochNanoseconds - other.Instant.EpochNanoseconds;
             var duration = JsTemporalDuration.FromNanoseconds((double)diffNanos);
-            return WrapDuration(duration, realm);
+            return WrapDuration(duration, realm, prototypes.DurationPrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "round", 1, (thisValue, args) =>
@@ -1275,9 +1313,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreatePlainYearMonthConstructor(RealmState realm)
+    private static HostFunction CreatePlainYearMonthConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.PlainYearMonthPrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.PlainYearMonth", Writable = false, Enumerable = false, Configurable = true });
 

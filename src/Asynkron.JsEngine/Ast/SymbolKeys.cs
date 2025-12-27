@@ -16,4 +16,6 @@ public static class SymbolKeys
     public static readonly string Split = TypedAstSymbol.PropertyKey(Symbols.Split);
     public static readonly string IsConcatSpreadable = TypedAstSymbol.PropertyKey(Symbols.IsConcatSpreadable);
     public static readonly string Unscopables = TypedAstSymbol.PropertyKey(Symbols.Unscopables);
+    public static readonly string Dispose = TypedAstSymbol.PropertyKey(Symbols.Dispose);
+    public static readonly string AsyncDispose = TypedAstSymbol.PropertyKey(Symbols.AsyncDispose);
 }

@@ -82,6 +82,11 @@ This is a JavaScript interpreter written in C# targeting .NET 10. The execution 
 ### Debugging
 - Use `System.Diagnostics.Activity` for tracing (see `ActivityTracingTests.EvaluatorActivitiesAttachToTestRoot`)
 
+### Test Timeouts
+- All tests MUST complete within 20 seconds
+- When running tests via CLI, use: `dotnet test -- xUnit.MaxParallelThreads=1 -timeout 20000`
+- Tests that exceed 20 seconds indicate a bug (infinite loop, deadlock, or inefficient implementation)
+
 ## Project Structure
 
 ```

@@ -260,9 +260,13 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         }
     }
 
+    // JavaScript's Number.EPSILON is 2^-52, NOT C#'s double.Epsilon (which is the smallest positive double ~4.94e-324)
+    // Number.EPSILON represents the difference between 1 and the smallest floating point number greater than 1
+    private const double JsEpsilon = 2.220446049250313e-16; // 2^-52
+
     private static void AttachConstants(HostFunction constructor)
     {
-        DefineConstantProperty(constructor, "EPSILON", double.Epsilon);
+        DefineConstantProperty(constructor, "EPSILON", JsEpsilon);
         DefineConstantProperty(constructor, "MAX_SAFE_INTEGER", 9007199254740991d);
         DefineConstantProperty(constructor, "MIN_SAFE_INTEGER", -9007199254740991d);
         DefineConstantProperty(constructor, "MAX_VALUE", double.MaxValue);

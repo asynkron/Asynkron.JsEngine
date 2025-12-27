@@ -425,9 +425,10 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Pooling still occurs for some environments (TDZ, loop scope, etc.)
-        // The key assertion is the result - closures correctly captured values
-        Assert.True(activateCount >= 0, "Some pooled environments may be created");
+        // Closures in body prevent iteration env pooling, but TDZ/loop scope still pooled
+        // 5 activations, 2 resets
+        Assert.Equal(5, activateCount);
+        Assert.Equal(2, resetCount);
     }
 
     [Fact]
@@ -579,8 +580,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // At least 3 iterations before throw
-        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+        // 3 iterations before throw, plus TDZ/loop scope: 4 activations, 3 resets
+        Assert.Equal(4, activateCount);
+        Assert.Equal(3, resetCount);
     }
 
     [Fact]
@@ -616,9 +618,10 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Outer: 2 iterations, Inner: 3 iterations * 2 = 6
-        // Total: 2 + 6 = 8 activations
-        Assert.True(activateCount >= 8, $"Expected at least 8 activations, got {activateCount}");
+        // Outer: 2 iterations + TDZ/loop scope envs, Inner: 3 iterations * 2 = 6
+        // Total: 11 activations, 8 resets
+        Assert.Equal(11, activateCount);
+        Assert.Equal(8, resetCount);
     }
 
     [Fact]
@@ -694,8 +697,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Reset count: {resetCount}");
 
         // Await suspends execution but doesn't create closures
-        // 3 iterations should still be pooled
-        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+        // 3 iterations: 3 activations, 0 resets (async cleanup differs)
+        Assert.Equal(3, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
@@ -907,8 +911,10 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Some environments should be created
-        Assert.True(activateCount >= 5, $"Expected at least 5 activations, got {activateCount}");
+        // Outer: 2 complete + partial 3rd iteration, Inner: 3 + 2 iterations
+        // 11 activations, 8 resets (some envs not returned due to labeled break)
+        Assert.Equal(11, activateCount);
+        Assert.Equal(8, resetCount);
     }
 
     [Fact]
@@ -984,8 +990,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Class method environments are handled - verify some pooling occurs
-        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+        // Class method with for-of over 5 items: 3 activations, 3 resets (efficient reuse)
+        Assert.Equal(3, activateCount);
+        Assert.Equal(3, resetCount);
     }
 
     [Fact]
@@ -1055,7 +1062,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Traditional for loops in generators use LoopPlan
+        // Traditional for loops in generators: 5 activations (loop scope env + 5 iterations with let), 0 resets
+        Assert.Equal(5, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
@@ -1092,7 +1101,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // yield* creates iteration environments
+        // yield* with no for-of loops: 0 pooled environments (yields are direct)
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
@@ -1128,7 +1139,9 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Each closure should capture correct value
+        // Generator with closures: closures capture iteration environments, no pooling
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
@@ -1168,7 +1181,10 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Early break should still clean up environments
+        // Outer for-of: 3 iterations before break (3 envs), inner for-of: 3 iterations (3 envs)
+        // 6 activations total, 2 resets (some envs not returned due to break)
+        Assert.Equal(6, activateCount);
+        Assert.Equal(2, resetCount);
     }
 
     [Fact]
@@ -1206,7 +1222,8 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Async generator creates environments for each iteration
-        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+        // Async generator with 3 iterations: 6 activations (inner + outer for-await-of), 2 resets
+        Assert.Equal(6, activateCount);
+        Assert.Equal(2, resetCount);
     }
 }

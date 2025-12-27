@@ -2,7 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AsyncGeneratorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+[Collection("GeneratorIrCollection")]
+public class AsyncGeneratorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_ForAwaitCollectsSequence()
@@ -457,8 +458,3 @@ public abstract class AsyncGeneratorTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-[Collection("GeneratorIrCollection")]
-public class FastPathAsyncGeneratorTests(ITestOutputHelper output) : AsyncGeneratorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

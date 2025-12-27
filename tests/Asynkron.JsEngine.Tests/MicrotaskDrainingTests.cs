@@ -16,7 +16,7 @@ namespace Asynkron.JsEngine.Tests;
 ///   node -e "let y=0; (async()=>{y=await Promise.resolve(42)})(); console.log(y)"
 ///   Output: 0 (not 42)
 /// </summary>
-public abstract class MicrotaskDrainingTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class MicrotaskDrainingTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task MicrotasksRunAfterScriptCompletion_NotDuring()
@@ -232,17 +232,13 @@ public abstract class MicrotaskDrainingTestsBase(ITestOutputHelper output) : Fas
     }
 }
 
-public class FastPathMicrotaskDrainingTests(ITestOutputHelper output) : MicrotaskDrainingTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}
 
 /// <summary>
 /// Tests demonstrating the for await...of bug where async iteration
 /// doesn't complete when used inside an async IIFE.
 /// However, for await...of DOES work correctly with top-level await in ES modules.
 /// </summary>
-public abstract class ForAwaitOfBugTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ForAwaitOfBugTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_DoesNotComplete()
@@ -833,7 +829,3 @@ public abstract class ForAwaitOfBugTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPathForAwaitOfBugTests(ITestOutputHelper output) : ForAwaitOfBugTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

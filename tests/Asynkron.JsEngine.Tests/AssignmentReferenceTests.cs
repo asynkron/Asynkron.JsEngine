@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AssignmentReferenceTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AssignmentReferenceTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task InheritedNonWritableDataProperty_Sloppy_IgnoresWrite()
@@ -42,7 +42,3 @@ o.bar = 2;
     }
 }
 
-public class FastPathAssignmentReferenceTests(ITestOutputHelper output) : AssignmentReferenceTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

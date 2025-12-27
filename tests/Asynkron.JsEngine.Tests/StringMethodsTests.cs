@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for String prototype methods.
 /// </summary>
-public abstract class StringMethodsTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class StringMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task String_Length_Property()
@@ -618,7 +618,3 @@ public abstract class StringMethodsTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPathStringMethodsTests(ITestOutputHelper output) : StringMethodsTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -9,6 +9,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine.StdLib.Temporal;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -232,7 +233,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("BigInt64Array", TypedArrayHelper.CreateBigInt64ArrayConstructor(RealmState));
         SetGlobal("BigUint64Array", TypedArrayHelper.CreateBigUint64ArrayConstructor(RealmState));
         SetGlobal("Intl", IntlHelper.CreateIntlObject(RealmState));
-        SetGlobal("Temporal", IntlHelper.CreateTemporalObject(RealmState));
+        SetGlobal("Temporal", TemporalHelper.CreateTemporalObject(RealmState));
 
         // Register Error constructors
         SetGlobal("Error", ErrorHelper.CreateErrorConstructor(RealmState));

@@ -5,6 +5,8 @@ Look here
 and
 `~/git/asynkron/Asynkron.JsEngine/src/Asynkron.JsEngine/JsTypes`
 
+ONLY run tests for these types, any larger run will freeze. be as specific as possible when running tests
+
 ## 1. Temporal (≈ 200+)
 
 **Main objects:**

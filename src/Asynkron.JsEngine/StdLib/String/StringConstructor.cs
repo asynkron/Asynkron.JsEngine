@@ -35,15 +35,16 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         foreach (var arg in args)
         {
             var num = JsOps.ToNumber(arg);
-            if (double.IsNaN(num) || double.IsInfinity(num))
+            // Per spec, reject NaN, Infinity, and non-integers.
+            if (double.IsNaN(num) || double.IsInfinity(num) || num % 1 != 0)
             {
-                continue;
+                throw StandardLibrary.ThrowRangeError("Invalid code point");
             }
 
             var codePoint = (int)num;
             if (codePoint is < 0 or > 0x10FFFF)
             {
-                throw new Exception("RangeError: Invalid code point " + codePoint);
+                throw StandardLibrary.ThrowRangeError($"Invalid code point {codePoint}");
             }
 
             if (codePoint <= 0xFFFF)
@@ -73,12 +74,8 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         foreach (var arg in args)
         {
             var num = JsOps.ToNumber(arg);
-            if (double.IsNaN(num) || double.IsInfinity(num))
-            {
-                continue;
-            }
-
-            var charCode = (int)num & 0xFFFF;
+            // ToUint16 behavior: NaN/Infinity -> +0, then mod 2^16.
+            var charCode = ToUint16(num);
             result.Append((char)charCode);
         }
 
@@ -289,5 +286,23 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         {
             instance.SetPrototype(proto);
         }
+    }
+
+    private static int ToUint16(double number)
+    {
+        if (double.IsNaN(number) || double.IsInfinity(number) || number == 0)
+        {
+            return 0;
+        }
+
+        // Convert to a truncated integer, then wrap into 16-bit range.
+        var integer = Math.Sign(number) * Math.Floor(Math.Abs(number));
+        var modulo = (long)integer % 65536;
+        if (modulo < 0)
+        {
+            modulo += 65536;
+        }
+
+        return (int)modulo;
     }
 }

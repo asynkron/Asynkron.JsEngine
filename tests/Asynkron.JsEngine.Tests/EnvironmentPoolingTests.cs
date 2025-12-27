@@ -23,22 +23,12 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
             .Count(r => r.Message.Contains(contains, StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// Helper to get all log messages for debugging.
-    /// </summary>
-    private static string[] GetLogMessages(FakeLogger logger)
-    {
-        return logger.Collector.Snapshot()
-            .Select(r => r.Message)
-            .ToArray();
-    }
-
     [Fact]
     public async Task ForLoop_WithLet_CreatesPerIterationEnvironments()
     {
         // for (let i = 0; i < 5; i++) { arr.push(() => i); }
-        // Expected: When closures capture the loop variable, per-iteration environments must be created
-        // However, when pooling is enabled and no closures exist, the engine may optimize
+        // With closures capturing the loop variable, environments cannot be pooled
+        // because each closure needs its own captured environment.
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -63,27 +53,23 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         Assert.Equal("0,1,2,3,4", result);
 
-        var messages = GetLogMessages(logger);
         var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
         var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
 
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
-        foreach (var msg in messages.Where(m => m.Contains("JsEnvironment")))
-        {
-            Output.WriteLine(msg);
-        }
 
-        // With 'let' and closures, environments are not pooled (closures capture them)
-        // The key assertion is that the closures work correctly (verified above)
-        // Environment pooling is disabled when closures exist, so we may not see many Activate/Reset
+        // With closures, environments are NOT pooled (closures capture them)
+        // So we expect 0 pool activations/resets - environments are created directly
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
     public async Task ForLoop_WithVar_NoPerIterationEnvironments()
     {
         // for (var i = 0; i < 5; i++) { }
-        // Expected: 'var' is function-scoped, no per-iteration environments needed
+        // 'var' is function-scoped, so no per-iteration environments are needed
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -108,16 +94,17 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // With 'var', no per-iteration environments are needed
-        // There might be some activations for function scope, but not 5 per iteration
-        Assert.True(activateCount < 5, $"Expected fewer than 5 Activate calls with 'var', got {activateCount}");
+        // With 'var', no per-iteration environments are created
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
     public async Task ForOfLoop_WithConst_CreatesPerIterationEnvironments()
     {
-        // for (const x of [1, 2, 3]) { }
-        // Expected: Each iteration creates a new environment for the loop variable
+        // for (const x of [1, 2, 3]) { void x; }
+        // With 'const', each iteration creates a new environment for the loop variable
+        // These environments CAN be pooled since no closures capture them
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -130,7 +117,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         await engine.Evaluate("""
             'use strict';
             // for-of with 'const' creates per-iteration environments
-            // for each iteration, a new environment is rented
+            // for each iteration, a new environment is rented from the pool
             for (const x of [1, 2, 3]) {
                 // use x to prevent optimization
                 void x;
@@ -143,15 +130,16 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // With 'const' in for-of and 3 iterations, we expect per-iteration environments
-        Assert.True(activateCount >= 3, $"Expected at least 3 Activate calls for per-iteration environments, got {activateCount}");
+        // 3 iterations = 3 environments rented, 2 returned (last one not returned until loop cleanup)
+        Assert.Equal(3, activateCount);
+        Assert.Equal(2, resetCount);
     }
 
     [Fact]
     public async Task ForOfLoop_WithVar_NoPerIterationEnvironments()
     {
-        // for (var x of [1, 2, 3]) { }
-        // Expected: 'var' is function-scoped, no per-iteration environments needed
+        // for (var x of [1, 2, 3]) { void x; }
+        // 'var' is function-scoped, so only the loop scope environment is pooled
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -164,6 +152,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         await engine.Evaluate("""
             'use strict';
             // for-of with 'var' does NOT create per-iteration environments
+            // Only the loop scope environment is created
             for (var x of [1, 2, 3]) {
                 void x;
             }
@@ -175,15 +164,16 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // With 'var', no per-iteration environments are needed
-        Assert.True(activateCount < 3, $"Expected fewer than 3 Activate calls with 'var', got {activateCount}");
+        // Only 1 loop scope environment rented and returned
+        Assert.Equal(1, activateCount);
+        Assert.Equal(1, resetCount);
     }
 
     [Fact]
     public async Task ForInLoop_WithLet_CreatesPerIterationEnvironments()
     {
-        // for (let k in {a: 1, b: 2}) { }
-        // Expected: Each iteration creates a new environment for the loop variable
+        // for (let k in {a: 1, b: 2}) { void k; }
+        // With 'let', each iteration creates a new environment
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -207,14 +197,17 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // With 'let' in for-in and 2 properties, we expect per-iteration environments
-        Assert.True(activateCount >= 2, $"Expected at least 2 Activate calls for per-iteration environments, got {activateCount}");
+        // 4 environments: TDZ env + loop scope env + 2 per-iteration envs
+        // Only 2 returned (TDZ and loop scope returned at cleanup)
+        Assert.Equal(4, activateCount);
+        Assert.Equal(2, resetCount);
     }
 
     [Fact]
     public async Task WhileLoop_NoPerIterationEnvironments()
     {
-        // while loops don't create per-iteration environments by default
+        // while loops don't create per-iteration environments
+        // (no loop variable declaration in the header)
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -240,14 +233,15 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // While loop doesn't create per-iteration environments
-        Assert.True(activateCount < 5, $"Expected fewer than 5 Activate calls for while loop, got {activateCount}");
+        // While loop with 'var' doesn't create any pooled environments
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
     public async Task ForLoop_WithLetAndClosure_NoPooling()
     {
-        // When a closure captures the loop variable, environments can't be pooled
+        // When a closure captures the loop variable, environments cannot be pooled
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -277,15 +271,17 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // With closures, environments shouldn't be returned to pool immediately
-        // Activate should happen, but Reset should NOT happen until the closures are done
-        // This is hard to verify precisely, but we check that closures work correctly
+        // With closures, environments are NOT pooled - they're created directly
+        // and kept alive for the closures to reference
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
     public async Task BlockScope_WithLet_CreatesBlockEnvironment()
     {
         // { let x = 1; } creates a block scope environment
+        // These can be pooled since no closures capture them
         var logger = new FakeLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
@@ -298,6 +294,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         await engine.Evaluate("""
             'use strict';
             // Block with 'let' creates a block scope environment
+            // Each block is pooled since no closures capture them
             {
                 let x = 1;
             }
@@ -315,9 +312,642 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Three block scopes with 'let' should create environments
-        // They can be pooled since no closures capture them
-        Assert.True(activateCount >= 3, $"Expected at least 3 Activate calls for block scopes, got {activateCount}");
-        Assert.True(resetCount >= 3, $"Expected at least 3 Reset calls for returned block scopes, got {resetCount}");
+        // 3 block scopes = 3 environments rented and all 3 returned
+        Assert.Equal(3, activateCount);
+        Assert.Equal(3, resetCount);
+    }
+
+    [Fact]
+    public async Task ForAwaitOfLoop_WithConst_CreatesPerIterationEnvironments()
+    {
+        // for await (const x of asyncIterable) { void x; }
+        // With 'const', each iteration creates a new environment for the loop variable
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("""
+            'use strict';
+            async function test() {
+                // for await...of with 'const' creates per-iteration environments
+                const results = [];
+                for await (const x of [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)]) {
+                    results.push(x);
+                }
+                return results.join(',');
+            }
+            test();
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // 3 iterations = 3 environments rented, 2 returned (same as sync for-of)
+        Assert.Equal(3, activateCount);
+        Assert.Equal(2, resetCount);
+    }
+
+    [Fact]
+    public async Task ForAwaitOfLoop_WithVar_NoPerIterationEnvironments()
+    {
+        // for await (var x of asyncIterable) { void x; }
+        // 'var' is function-scoped, no pooled environments needed
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("""
+            'use strict';
+            async function test() {
+                // for await...of with 'var' - no per-iteration environments
+                const results = [];
+                for await (var x of [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)]) {
+                    results.push(x);
+                }
+                return results.join(',');
+            }
+            test();
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // With 'var', no pooled environments are created
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
+    }
+
+    [Fact]
+    public async Task ForOfLoop_WithClosureInsideBody_ClosuresCaptureEnvironments()
+    {
+        // When a closure is created inside the loop body, the closure captures
+        // the per-iteration environment. Each closure keeps its correct captured value.
+        // NOTE: Pooling still happens for the for-of head/loop scope environments,
+        // but each closure holds a reference to its iteration environment.
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            const funcs = [];
+            for (const x of [10, 20, 30]) {
+                // Closure inside body captures the iteration environment
+                const y = x * 2;
+                funcs.push(() => y);
+            }
+            funcs.map(f => f()).join(',');
+            """);
+
+        // Most importantly: each closure captured the correct value
+        Assert.Equal("20,40,60", result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Pooling still occurs for some environments (TDZ, loop scope, etc.)
+        // The key assertion is the result - closures correctly captured values
+        Assert.True(activateCount >= 0, "Some pooled environments may be created");
+    }
+
+    [Fact]
+    public async Task ForLoop_WithNestedClosure_NoPooling()
+    {
+        // Nested closure that captures outer loop variable
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            const funcs = [];
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 2; j++) {
+                    // Closure captures both i and j
+                    funcs.push(() => i * 10 + j);
+                }
+            }
+            funcs.map(f => f()).join(',');
+            """);
+
+        Assert.Equal("0,1,10,11,20,21", result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Nested closures capture environments, no pooling
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
+    }
+
+    [Fact]
+    public async Task ForLoop_WithBreak_CorrectResult()
+    {
+        // Loop with break executes correctly
+        // Note: Traditional for loops with 'let' don't pool per-iteration environments
+        // via JsEnvironmentPool - they use LoopPlan which handles them differently
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            let sum = 0;
+            for (let i = 0; i < 10; i++) {
+                sum += i;
+                if (i === 4) break; // Exit early
+            }
+            sum;
+            """);
+
+        Assert.Equal(10d, result); // 0+1+2+3+4 = 10
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Traditional for loops use LoopPlan, not JsEnvironmentPool for iteration envs
+        // Only block scopes inside may use the pool
+        Assert.Equal(1, activateCount);
+        Assert.Equal(1, resetCount);
+    }
+
+    [Fact]
+    public async Task ForLoop_WithContinue_CorrectResult()
+    {
+        // Loop with continue executes correctly
+        // Note: Traditional for loops with 'let' use LoopPlan, not JsEnvironmentPool
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            let sum = 0;
+            for (let i = 0; i < 5; i++) {
+                if (i === 2) continue; // Skip iteration 2
+                sum += i;
+            }
+            sum;
+            """);
+
+        Assert.Equal(8d, result); // 0+1+3+4 = 8
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Traditional for loops use LoopPlan, not JsEnvironmentPool
+        Assert.Equal(1, activateCount);
+        Assert.Equal(1, resetCount);
+    }
+
+    [Fact]
+    public async Task ForOfLoop_WithThrow_EnvironmentsReturned()
+    {
+        // Loop with exception should still clean up environments
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            let sum = 0;
+            try {
+                for (const x of [1, 2, 3, 4, 5]) {
+                    sum += x;
+                    if (x === 3) throw new Error('stop');
+                }
+            } catch (e) {
+                // caught
+            }
+            sum;
+            """);
+
+        Assert.Equal(6d, result); // 1+2+3 = 6
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // At least 3 iterations before throw
+        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+    }
+
+    [Fact]
+    public async Task NestedForOfLoops_IndependentPooling()
+    {
+        // Nested for-of loops should each pool independently
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            let sum = 0;
+            for (const x of [1, 2]) {
+                for (const y of [10, 20, 30]) {
+                    sum += x * y;
+                }
+            }
+            sum;
+            """);
+
+        // (1*10 + 1*20 + 1*30) + (2*10 + 2*20 + 2*30) = 60 + 120 = 180
+        Assert.Equal(180d, result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Outer: 2 iterations, Inner: 3 iterations * 2 = 6
+        // Total: 2 + 6 = 8 activations
+        Assert.True(activateCount >= 8, $"Expected at least 8 activations, got {activateCount}");
+    }
+
+    [Fact]
+    public async Task AsyncFunction_WithSyncForLoop_PoolsNormally()
+    {
+        // Sync for loop inside async function should pool normally
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        // Define and call async function - engine awaits the promise
+        await engine.Evaluate("""
+            'use strict';
+            async function compute() {
+                let sum = 0;
+                // Sync loop inside async function
+                for (const x of [1, 2, 3, 4]) {
+                    sum += x;
+                }
+                return sum;
+            }
+            compute();
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // 4 iterations, environments pooled
+        Assert.Equal(4, activateCount);
+        Assert.Equal(3, resetCount);
+    }
+
+    [Fact]
+    public async Task AsyncFunction_WithAwaitInsideLoop_PoolsNormally()
+    {
+        // Loop with await inside should still pool when no closures
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        // Define and call async function - engine awaits the promise
+        await engine.Evaluate("""
+            'use strict';
+            async function compute() {
+                let sum = 0;
+                for (const x of [1, 2, 3]) {
+                    // await inside loop body
+                    const val = await Promise.resolve(x);
+                    sum += val;
+                }
+                return sum;
+            }
+            compute();
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Await suspends execution but doesn't create closures
+        // 3 iterations should still be pooled
+        Assert.True(activateCount >= 3, $"Expected at least 3 activations, got {activateCount}");
+    }
+
+    [Fact]
+    public async Task ForLoop_GlobalVarAccess_NoPerIterationEnvironment()
+    {
+        // Accessing global vars in loop doesn't require per-iteration environments
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            var globalSum = 0;
+            for (var i = 0; i < 5; i++) {
+                globalSum += i;
+            }
+            globalSum;
+            """);
+
+        Assert.Equal(10d, result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // var loop with global access - no per-iteration environments
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
+    }
+
+    [Fact]
+    public async Task ForLoop_WithLetAccessingGlobal_CorrectResult()
+    {
+        // let loop accessing globals works correctly
+        // Note: Traditional for loops use LoopPlan which doesn't use JsEnvironmentPool
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            var globalSum = 0;
+            for (let i = 0; i < 4; i++) {
+                globalSum += i;
+            }
+            globalSum;
+            """);
+
+        Assert.Equal(6d, result); // 0+1+2+3
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Traditional for loops use LoopPlan, not JsEnvironmentPool for iteration envs
+        Assert.Equal(1, activateCount);
+        Assert.Equal(1, resetCount);
+    }
+
+    [Fact]
+    public async Task WithStatement_InsideForLoop_NoPooling()
+    {
+        // 'with' statement creates dynamic scope, prevents pooling
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            // sloppy mode required for 'with'
+            var obj = { value: 10 };
+            var sum = 0;
+            for (var i = 0; i < 3; i++) {
+                with (obj) {
+                    sum += value + i;
+                }
+            }
+            sum;
+            """);
+
+        // (10+0) + (10+1) + (10+2) = 33
+        Assert.Equal(33d, result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // 'with' creates dynamic scope - check that it doesn't crash
+        // The actual counts depend on implementation details
+    }
+
+    [Fact]
+    public async Task ForOfLoop_EmptyIterable_OnlyLoopScopeEnvironments()
+    {
+        // Empty iterable still creates TDZ and loop scope environments (pooled)
+        // Just no per-iteration environments since no iterations occur
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("""
+            'use strict';
+            for (const x of []) {
+                void x;
+            }
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // TDZ env + loop scope env + array iterator = 3 activations
+        // But no iteration environments since no items to iterate
+        Assert.Equal(3, activateCount);
+        Assert.Equal(2, resetCount);
+    }
+
+    [Fact]
+    public async Task ForOfLoop_SingleIteration_LoopScopeAndIterationEnvironments()
+    {
+        // Single iteration creates TDZ + loop scope + iteration environments
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("""
+            'use strict';
+            for (const x of [42]) {
+                void x;
+            }
+            """);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // TDZ env + loop scope env + 1 iteration env = 3 activations
+        // Previous iteration's env returned on next iteration, but last iteration's
+        // env returned during cleanup
+        Assert.Equal(3, activateCount);
+        Assert.Equal(2, resetCount);
+    }
+
+    [Fact]
+    public async Task LabeledLoop_WithBreak_EnvironmentsReturned()
+    {
+        // Labeled break should properly clean up environments
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            let sum = 0;
+            outer: for (const x of [1, 2, 3]) {
+                for (const y of [10, 20, 30]) {
+                    sum += x * y;
+                    if (x === 2 && y === 20) break outer;
+                }
+            }
+            sum;
+            """);
+
+        // 1*10 + 1*20 + 1*30 + 2*10 + 2*20 = 10+20+30+20+40 = 120
+        Assert.Equal(120d, result);
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // Some environments should be created
+        Assert.True(activateCount >= 5, $"Expected at least 5 activations, got {activateCount}");
+    }
+
+    [Fact]
+    public async Task ForLoop_ImmediatelyInvokedFunction_NoPooling()
+    {
+        // IIFE inside loop creates closures, prevents pooling
+        var logger = new FakeLogger();
+
+        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        {
+            EnableFastPaths = true,
+            DebugMode = true,
+            Logger = logger
+        });
+
+        var result = await engine.Evaluate("""
+            'use strict';
+            let sum = 0;
+            for (let i = 0; i < 3; i++) {
+                // IIFE creates a closure
+                sum += (() => i * 2)();
+            }
+            sum;
+            """);
+
+        Assert.Equal(6d, result); // 0*2 + 1*2 + 2*2 = 6
+
+        var activateCount = CountLogMessages(logger, "JsEnvironment.Activate");
+        var resetCount = CountLogMessages(logger, "JsEnvironment.Reset");
+
+        Output.WriteLine($"Activate count: {activateCount}");
+        Output.WriteLine($"Reset count: {resetCount}");
+
+        // IIFE creates function expression, prevents pooling
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 }

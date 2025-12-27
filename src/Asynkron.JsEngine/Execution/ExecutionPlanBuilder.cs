@@ -601,7 +601,7 @@ internal sealed class ExecutionPlanBuilder
             }
         }
 
-        // For lexical declarations (let/const), emit CreateIterationEnvironmentInstruction
+        // For lexical declarations (let/const), emit PushEnvironmentInstruction
         // AFTER the body but BEFORE the increment (PostIteration).
         // This matches the ECMAScript spec (ForBodyEvaluation):
         //   1. Evaluate condition
@@ -628,19 +628,32 @@ internal sealed class ExecutionPlanBuilder
             }
 
             // CreateEnv flows to PostIteration (increment)
-            createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+            createEnvIndex = Append(new PushEnvironmentInstruction(
                 postIterationEntry,
                 plan.PerIterationBindings,
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
-                plan.IterationParentScopeId,
                 plan.AllowIterationEnvironmentPooling));
             // Continue should go through CreateEnv before increment
             continueTarget = createEnvIndex;
         }
 
-        var scope = new LoopScope(label, continueTarget, nextIndex);
+        // Create Pop instruction for loop exit BEFORE building body
+        // This ensures breaks also go through the pop
+        var loopExitTarget = nextIndex;
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            loopExitTarget = Append(new PopEnvironmentInstruction(
+                plan.IterationScopeId,
+                plan.AllowIterationEnvironmentPooling,
+                nextIndex));
+        }
+
+        // TargetScopeId is the scope to pop TO when break/continue
+        // For loops with per-iteration bindings, we pop to the iteration scope's parent
+        var targetScopeId = plan.IterationScopeId >= 0 ? plan.IterationScopeId : -1;
+        var scope = new LoopScope(label, continueTarget, loopExitTarget, targetScopeId);
         _loopScopes.Push(scope);
 
         // Body flows to CreateEnv (if present) or PostIteration (increment)
@@ -672,19 +685,19 @@ internal sealed class ExecutionPlanBuilder
                 }
             }
 
-            var createEnvBeforeBody = Append(new CreateIterationEnvironmentInstruction(
+            var createEnvBeforeBody = Append(new PushEnvironmentInstruction(
                 bodyEntry,
                 plan.PerIterationBindings,
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
-                plan.IterationParentScopeId,
                 plan.AllowIterationEnvironmentPooling));
             iterationBodyEntry = createEnvBeforeBody;
         }
 
         // Branch flows to body directly (for For loops) or CreateEnv (for others)
-        var branchIndex = Append(new BranchInstruction(plan.Condition, iterationBodyEntry, nextIndex));
+        // loopExitTarget (with Pop if needed) was created earlier for LoopScope break target
+        var branchIndex = Append(new BranchInstruction(plan.Condition, iterationBodyEntry, loopExitTarget));
 
         var conditionEntry = branchIndex;
         if (!plan.ConditionPrologue.IsDefaultOrEmpty)
@@ -1010,16 +1023,28 @@ internal sealed class ExecutionPlanBuilder
         // LeaveTry - normal exit from the loop
         var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
 
-        // Now update the MoveNext break target to point to LeaveTry
+        // For loops with per-iteration bindings, create PopEnvironment before LeaveTry
+        var loopExitTarget = leaveTryIndex;
+        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            loopExitTarget = Append(new PopEnvironmentInstruction(
+                iteratorPlan.IterationScopeId,
+                iteratorPlan.CanReuseIterationEnvironment,
+                leaveTryIndex));
+        }
+
+        // Now update the MoveNext break target to point to Pop (or LeaveTry if no per-iteration bindings)
         _instructions[iteratorInstructions.MoveNextIndex] =
             (IteratorMoveNextInstruction)_instructions[iteratorInstructions.MoveNextIndex] with
             {
-                BreakIndex = leaveTryIndex
+                BreakIndex = loopExitTarget
             };
 
         // Build the loop body
         var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
-        var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, leaveTryIndex);
+        var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
+        var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, loopExitTarget, targetScopeId);
         _loopScopes.Push(scope);
         var bodyBuilt = TryBuildStatement(perIterationBlock, iteratorInstructions.MoveNextIndex, out var iterationEntry,
             label);
@@ -1033,7 +1058,7 @@ internal sealed class ExecutionPlanBuilder
             return false;
         }
 
-        // For lexical declarations (let/const), emit CreateIterationEnvironmentInstruction
+        // For lexical declarations (let/const), emit PushEnvironmentInstruction
         // to create fresh per-iteration bindings. This ensures closures capture separate values.
         var loopEntry = iterationEntry;
         if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
@@ -1052,13 +1077,12 @@ internal sealed class ExecutionPlanBuilder
                 }
             }
 
-            var createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+            var createEnvIndex = Append(new PushEnvironmentInstruction(
                 iterationEntry,
                 iteratorPlan.PerIterationBindings,
                 iteratorPlan.IterationScopeId,
                 iteratorPlan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
-                iteratorPlan.IterationParentScopeId,
                 iteratorPlan.CanReuseIterationEnvironment));
             loopEntry = createEnvIndex;
         }
@@ -1080,25 +1104,25 @@ internal sealed class ExecutionPlanBuilder
 
     private bool TryBuildBreak(BreakStatement statement, out int entryIndex)
     {
-        if (!TryResolveBreakTarget(statement.Label, out var target))
+        if (!TryResolveBreakTarget(statement.Label, out var target, out var targetScopeId))
         {
             entryIndex = -1;
             return false;
         }
 
-        entryIndex = Append(new BreakInstruction(target));
+        entryIndex = Append(new BreakInstruction(target, targetScopeId));
         return true;
     }
 
     private bool TryBuildContinue(ContinueStatement statement, out int entryIndex)
     {
-        if (!TryResolveContinueTarget(statement.Label, out var target))
+        if (!TryResolveContinueTarget(statement.Label, out var target, out var targetScopeId))
         {
             entryIndex = -1;
             return false;
         }
 
-        entryIndex = Append(new ContinueInstruction(target));
+        entryIndex = Append(new ContinueInstruction(target, targetScopeId));
         return true;
     }
 
@@ -1555,17 +1579,20 @@ internal sealed class ExecutionPlanBuilder
         return clause.Body with { Statements = builder.ToImmutableArray() };
     }
 
-    private bool TryResolveBreakTarget(Symbol? label, out int target)
+    private bool TryResolveBreakTarget(Symbol? label, out int target, out int targetScopeId)
     {
         if (_loopScopes.Count == 0)
         {
             target = -1;
+            targetScopeId = -1;
             return false;
         }
 
         if (label is null)
         {
-            target = _loopScopes.Peek().BreakTarget;
+            var scope = _loopScopes.Peek();
+            target = scope.BreakTarget;
+            targetScopeId = scope.TargetScopeId;
             return true;
         }
 
@@ -1574,25 +1601,30 @@ internal sealed class ExecutionPlanBuilder
             if (scope.Label is not null && ReferenceEquals(scope.Label, label))
             {
                 target = scope.BreakTarget;
+                targetScopeId = scope.TargetScopeId;
                 return true;
             }
         }
 
         target = -1;
+        targetScopeId = -1;
         return false;
     }
 
-    private bool TryResolveContinueTarget(Symbol? label, out int target)
+    private bool TryResolveContinueTarget(Symbol? label, out int target, out int targetScopeId)
     {
         if (_loopScopes.Count == 0)
         {
             target = -1;
+            targetScopeId = -1;
             return false;
         }
 
         if (label is null)
         {
-            target = _loopScopes.Peek().ContinueTarget;
+            var scope = _loopScopes.Peek();
+            target = scope.ContinueTarget;
+            targetScopeId = scope.TargetScopeId;
             return true;
         }
 
@@ -1601,11 +1633,13 @@ internal sealed class ExecutionPlanBuilder
             if (scope.Label is not null && ReferenceEquals(scope.Label, label))
             {
                 target = scope.ContinueTarget;
+                targetScopeId = scope.TargetScopeId;
                 return true;
             }
         }
 
         target = -1;
+        targetScopeId = -1;
         return false;
     }
 
@@ -1616,5 +1650,5 @@ internal sealed class ExecutionPlanBuilder
         return index;
     }
 
-    private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget);
+    private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget, int TargetScopeId);
 }

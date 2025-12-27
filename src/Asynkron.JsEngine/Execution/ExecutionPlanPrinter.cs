@@ -61,9 +61,12 @@ internal static class ExecutionPlanPrinter
                 (varDecl.Initializer != null ? $" = {FormatExpression(varDecl.Initializer)}" : "") +
                 $" → [{varDecl.Next}]",
 
-            CreateIterationEnvironmentInstruction createEnv =>
-                $"CREATE_ITER_ENV (bindings: [{string.Join(", ", createEnv.PerIterationBindings.Select(s => s.Name))}], " +
-                $"scopeId: {createEnv.ScopeId}, parentScopeId: {createEnv.ParentScopeId}, slots: {createEnv.SlotCount}, pool: {createEnv.AllowPooling}) → [{createEnv.Next}]",
+            PushEnvironmentInstruction pushEnv =>
+                $"PUSH_ENV (bindings: [{string.Join(", ", pushEnv.PerIterationBindings.Select(s => s.Name))}], " +
+                $"scopeId: {pushEnv.ScopeId}, slots: {pushEnv.SlotCount}, pool: {pushEnv.AllowPooling}) → [{pushEnv.Next}]",
+
+            PopEnvironmentInstruction popEnv =>
+                $"POP_ENV (scopeId: {popEnv.ScopeId}, pool: {popEnv.AllowPooling}) → [{popEnv.Next}]",
 
             ReturnInstruction ret =>
                 $"RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : ""),
@@ -72,10 +75,10 @@ internal static class ExecutionPlanPrinter
                 $"THROW {FormatExpression(thr.Expression)}",
 
             BreakInstruction brk =>
-                $"BREAK → [{brk.TargetIndex}]",
+                $"BREAK (popTo: {brk.TargetScopeId}) → [{brk.TargetIndex}]",
 
             ContinueInstruction cont =>
-                $"CONTINUE → [{cont.TargetIndex}]",
+                $"CONTINUE (popTo: {cont.TargetScopeId}) → [{cont.TargetIndex}]",
 
             YieldInstruction yield =>
                 $"YIELD" + (yield.YieldExpression != null ? $" {FormatExpression(yield.YieldExpression)}" : "") +

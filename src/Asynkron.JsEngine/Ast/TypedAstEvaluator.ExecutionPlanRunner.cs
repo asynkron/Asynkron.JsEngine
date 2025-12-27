@@ -933,169 +933,119 @@ public static partial class TypedAstEvaluator
                                 _programCounter = varDeclInstruction.Next;
                                 continue;
 
-                            case CreateIterationEnvironmentInstruction createEnvInstruction:
-                                // Create a fresh environment for this iteration to support per-iteration
-                                // bindings for let/const in loops. This ensures closures capture
-                                // separate values per iteration.
+                            case PushEnvironmentInstruction pushEnvInstruction:
+                                // Stack-based environment model for per-iteration bindings:
+                                // - If current env has same ScopeId as instruction → we're in a previous iteration
+                                //   Parent is current.Enclosing (the loop scope), current is previous iter env
+                                // - Otherwise → first iteration, current IS the loop scope
                                 //
-                                // IMPORTANT: The parent should always be the LOOP scope, not the previous
-                                // iteration's environment or an inner loop's environment. This ensures:
-                                // 1. All iteration environments have the same parent (loop scope)
-                                // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
-                                // 3. Scope chain doesn't grow unboundedly with iterations
-                                // 4. Nested loops don't corrupt each other's scope chains
-                                //
-                                // We use ParentScopeId when available to directly find the correct parent scope.
-                                // This prevents bugs where inner loop environments are incorrectly used as parents.
+                                // Per-iteration envs are SIBLINGS (same parent), values are COPIED between them.
+                                // This ensures closures capture separate values per iteration.
 
                                 JsEnvironment loopScope;
                                 JsEnvironment? previousIterEnv = null;
 
-                                // First, try to find the previous iteration environment for this loop
-                                if (createEnvInstruction.ScopeId >= 0 &&
-                                    environment.ScopeId == createEnvInstruction.ScopeId)
+                                if (pushEnvInstruction.ScopeId >= 0 &&
+                                    environment.ScopeId == pushEnvInstruction.ScopeId)
                                 {
-                                    // Current env is a per-iteration env from previous iteration of THIS loop
+                                    // In a previous iteration - parent is Enclosing, current is previous iter
                                     previousIterEnv = environment;
+                                    loopScope = environment.Enclosing!;
                                 }
                                 else
                                 {
-                                    // Walk up to find a previous iteration env with matching ScopeId
-                                    var searchEnv = environment;
-                                    var walkDepth = 0;
-                                    while (searchEnv != null && walkDepth < 100)
+                                    // First iteration - current IS the loop scope
+                                    loopScope = environment;
+                                }
+
+                                var allowPooling = pushEnvInstruction.AllowPooling;
+                                var newIterationEnv = allowPooling
+                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, "scope", logger: _realmState.Logger)
+                                    : new JsEnvironment(loopScope, false, false, null, "scope");
+
+                                // Initialize slots for O(1) identifier lookups
+                                if (pushEnvInstruction.SlotCount > 0 && pushEnvInstruction.ScopeId >= 0)
+                                {
+                                    newIterationEnv.InitializeSlots(pushEnvInstruction.SlotCount,
+                                        pushEnvInstruction.ScopeId);
+                                    if (!pushEnvInstruction.SlotMap.IsEmpty)
                                     {
-                                        if (searchEnv.ScopeId == createEnvInstruction.ScopeId)
-                                        {
-                                            previousIterEnv = searchEnv;
-                                            break;
-                                        }
-                                        searchEnv = searchEnv.Enclosing;
-                                        walkDepth++;
+                                        newIterationEnv.SetSlotMap(pushEnvInstruction.SlotMap);
                                     }
                                 }
 
-                                // Determine the loop scope (parent for iteration environments)
-                                if (createEnvInstruction.ParentScopeId >= 0)
+                                // Copy per-iteration bindings from appropriate source (for loop iterations)
+                                if (previousIterEnv != null && !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
                                 {
-                                    // Use ParentScopeId to find the exact parent scope.
-                                    // This is the reliable path for nested loops - we know exactly
-                                    // which scope should be the parent from scope analysis.
-                                    var parentEnv = environment.FindByScopeId(createEnvInstruction.ParentScopeId);
-                                    if (parentEnv != null)
+                                    // Copy from previous iteration (fast slot path if available)
+                                    var useSlotCopy = newIterationEnv.HasSlots &&
+                                                      previousIterEnv.HasSlots &&
+                                                      !pushEnvInstruction.SlotMap.IsEmpty;
+
+                                    if (useSlotCopy)
                                     {
-                                        loopScope = parentEnv;
+                                        foreach (var binding in pushEnvInstruction.PerIterationBindings)
+                                        {
+                                            if (pushEnvInstruction.SlotMap.TryGetValue(binding, out var slotIndex))
+                                            {
+                                                var value = previousIterEnv.GetSlotRef(slotIndex);
+                                                newIterationEnv.SetSlotDirect(slotIndex, value);
+                                            }
+                                        }
                                     }
                                     else
                                     {
-                                        // Parent scope not found in chain - use current environment
-                                        // This can happen on first iteration before parent scope exists
-                                        loopScope = environment;
-                                    }
-                                }
-                                else if (previousIterEnv != null)
-                                {
-                                    // Fallback: use previous iteration's Enclosing as loop scope
-                                    loopScope = previousIterEnv.Enclosing ?? environment;
-                                }
-                                else if (_currentDriverState?.LoopScopeEnvironment is { } savedLoopScope)
-                                {
-                                    // First iteration after async resume, use saved LoopScopeEnvironment
-                                    loopScope = savedLoopScope;
-                                }
-                                else
-                                {
-                                    // True first iteration - use current environment as parent
-                                    loopScope = environment;
-                                }
-                                // When pooling is allowed (no closures in loop body), reuse environments
-                                // to avoid per-iteration allocations
-                                var allowPooling = createEnvInstruction.AllowPooling;
-                                var newIterationEnv = allowPooling
-                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, "for-iteration", logger: _realmState.Logger)
-                                    : new JsEnvironment(loopScope, false, false, null, "for-iteration");
-
-                                // Initialize slots with the iteration scope's metadata.
-                                // This enables O(1) slot-based lookups for identifiers in the loop body.
-                                // Iterator temps (__forOf_iter_X, __forOf_value_X) are stored in the PARENT
-                                // scope with DIFFERENT scope IDs, so FindByScopeId will correctly walk past
-                                // this environment to find them in the parent.
-                                if (createEnvInstruction.SlotCount > 0 && createEnvInstruction.ScopeId >= 0)
-                                {
-                                    newIterationEnv.InitializeSlots(createEnvInstruction.SlotCount,
-                                        createEnvInstruction.ScopeId);
-                                    // Set the slot map so TrySetSlot works when defining bindings
-                                    if (!createEnvInstruction.SlotMap.IsEmpty)
-                                    {
-                                        newIterationEnv.SetSlotMap(createEnvInstruction.SlotMap);
-                                    }
-                                }
-
-                                // Copy per-iteration bindings from PREVIOUS iteration environment (if any).
-                                // This ensures each iteration's closures capture separate values.
-                                // IMPORTANT: Must copy BEFORE returning previousIterEnv to pool!
-
-                                // Use fast slot-based copying when we have a previous iteration environment
-                                // with matching scope ID and slots. This avoids dictionary allocations.
-                                // On first iteration (no previousIterEnv), we fall through to DefineJsValue
-                                // which is fine since it only happens once per loop.
-                                var useSlotCopy = previousIterEnv != null &&
-                                                  newIterationEnv.HasSlots &&
-                                                  previousIterEnv.HasSlots &&
-                                                  previousIterEnv.ScopeId == createEnvInstruction.ScopeId &&
-                                                  !createEnvInstruction.SlotMap.IsEmpty;
-
-                                if (useSlotCopy)
-                                {
-                                    // Fast path: direct slot copy from previous iteration
-                                    foreach (var binding in createEnvInstruction.PerIterationBindings)
-                                    {
-                                        if (createEnvInstruction.SlotMap.TryGetValue(binding, out var slotIndex))
+                                        foreach (var binding in pushEnvInstruction.PerIterationBindings)
                                         {
-                                            var value = previousIterEnv!.GetSlotRef(slotIndex);
-                                            newIterationEnv.SetSlotDirect(slotIndex, value);
+                                            if (previousIterEnv.TryGetJsValue(binding, out var value))
+                                            {
+                                                newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
+                                            }
                                         }
                                     }
-                                }
-                                else
-                                {
-                                    // Slow path: first iteration or no slots - use dictionary copy
-                                    var copyFromEnv = previousIterEnv ?? environment;
-                                    foreach (var binding in createEnvInstruction.PerIterationBindings)
+
+                                    // Return previous iteration env to pool (if pooled and not resumed-with)
+                                    if (allowPooling && !ReferenceEquals(previousIterEnv, _resumedWithEnvironment))
                                     {
-                                        if (copyFromEnv.TryGetJsValue(binding, out var value))
+                                        JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
+                                    }
+                                }
+                                else if (!pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                {
+                                    // First iteration - copy from loopScope where binding was defined
+                                    foreach (var binding in pushEnvInstruction.PerIterationBindings)
+                                    {
+                                        if (loopScope.TryGetJsValue(binding, out var value))
                                         {
                                             newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
                                         }
                                     }
                                 }
 
-                                // Only return previous iteration environment to pool if:
-                                // 1. Pooling is allowed (no closures in loop body)
-                                // 2. We have a previous iteration environment
-                                // 3. The previous env is NOT the one we resumed with
-                                //    If previousIterEnv == _resumedWithEnvironment, we suspended mid-iteration
-                                //    and the iteration is still in progress - don't return it yet.
-                                //    If they differ, that iteration completed and we can safely return it.
-                                if (allowPooling && previousIterEnv != null &&
-                                    !ReferenceEquals(previousIterEnv, _resumedWithEnvironment))
-                                {
-                                    JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
-                                }
-
-                                // Clear the resumed-with reference since we've now transitioned to a new iteration
                                 _resumedWithEnvironment = null;
 
-                                // Update the saved iteration environment on the driver state
-                                // This ensures after async resume we can find the correct loop scope
-                                if (_currentDriverState != null)
+                                // Update environment to new env (push onto stack)
+                                environment = newIterationEnv;
+                                _programCounter = pushEnvInstruction.Next;
+                                continue;
+
+                            case PopEnvironmentInstruction popEnvInstruction:
+                                // Pop the iteration environment when exiting a loop.
+                                // If current env matches ScopeId, pop (set to Enclosing).
+                                // If not (loop ran 0 times), this is a no-op.
+                                if (environment.ScopeId == popEnvInstruction.ScopeId)
                                 {
-                                    _currentDriverState.CurrentIterationEnvironment = newIterationEnv;
+                                    var envToPop = environment;
+                                    environment = environment.Enclosing!;
+
+                                    // Return to pool if allowed
+                                    if (popEnvInstruction.AllowPooling)
+                                    {
+                                        JsEnvironmentPool.Return(envToPop, _realmState.Logger);
+                                    }
                                 }
 
-                                // Update environment reference to use the new iteration environment
-                                environment = newIterationEnv;
-                                _programCounter = createEnvInstruction.Next;
+                                _programCounter = popEnvInstruction.Next;
                                 continue;
 
                             case YieldInstruction yieldInstruction:
@@ -2067,6 +2017,18 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
+                                // Pop environments until we reach the target scope
+                                if (breakInstruction.TargetScopeId >= 0)
+                                {
+                                    while (environment.ScopeId != breakInstruction.TargetScopeId &&
+                                           environment.Enclosing != null)
+                                    {
+                                        var popped = environment;
+                                        environment = environment.Enclosing;
+                                        // Note: we don't return to pool here as we don't track pooling per-env
+                                    }
+                                }
+
                                 _programCounter = breakInstruction.TargetIndex;
                                 continue;
 
@@ -2075,6 +2037,18 @@ public static partial class TypedAstEvaluator
                                         environment))
                                 {
                                     continue;
+                                }
+
+                                // Pop environments until we reach the target scope
+                                if (continueInstruction.TargetScopeId >= 0)
+                                {
+                                    while (environment.ScopeId != continueInstruction.TargetScopeId &&
+                                           environment.Enclosing != null)
+                                    {
+                                        var popped = environment;
+                                        environment = environment.Enclosing;
+                                        // Note: we don't return to pool here as we don't track pooling per-env
+                                    }
                                 }
 
                                 _programCounter = continueInstruction.TargetIndex;

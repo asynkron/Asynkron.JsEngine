@@ -322,4 +322,30 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
         output.WriteLine("=== IR Plan for 2 for + 1 for-await-of (FAILING CASE) ===");
         output.WriteLine(planOutput);
     }
+
+    [Fact(Timeout = 10000)]
+    public async Task NestedForLoops_WithForAwaitOf_ReturnsCorrectSum()
+    {
+        // Test without logging - just verify the result
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (let i = 0; i < 2; i++) {
+                    for (let j = 0; j < 2; j++) {
+                        for await (const n of arr) {
+                            sum += n;
+                        }
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        output.WriteLine($"Result: {result} (expected: 12)");
+        // 2 i-iterations × 2 j-iterations × (1+2) = 4 × 3 = 12
+        Assert.Equal(12.0, result);
+    }
 }

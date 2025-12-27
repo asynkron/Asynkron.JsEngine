@@ -1,251 +1,747 @@
-# JavaScript Built-in Objects and Methods to Implement
-
-Look here
-`~/git/asynkron/Asynkron.JsEngine/src/Asynkron.JsEngine/StdLib`
-and
-`~/git/asynkron/Asynkron.JsEngine/src/Asynkron.JsEngine/JsTypes`
-
-ONLY run tests for these types, any larger run will freeze. be as specific as possible when running tests
-
-## 1. Temporal (≈ 200+)
-
-**Main objects:**
-
-* Temporal.Duration
-* Temporal.Instant
-* Temporal.Now
-* Temporal.PlainDate
-* Temporal.PlainDateTime
-* Temporal.PlainMonthDay
-* Temporal.PlainTime
-* Temporal.PlainYearMonth
-* Temporal.ZonedDateTime
-
-**Methods:**
-
-* `compare`, `from`, `toString`, `toJSON`, `toLocaleString`, `equals`, `round`, `since`, `subtract`, `add`, `until`, `valueOf`
-* `prototype.add`, `prototype.subtract`, `prototype.toString`, `prototype.toJSON`, `prototype.toLocaleString`, `prototype.equals`, `prototype.round`
-* Duration-specific: `prototype.total`, `prototype.sign`, `prototype.days`, `prototype.hours`, `prototype.minutes`, `prototype.seconds`, `prototype.nanoseconds`, `prototype.years`, `prototype.months`, `prototype.weeks`, `prototype.with`
-* Instant-specific: `prototype.toZonedDateTimeISO`, `prototype.toInstant`, `prototype.toZonedDateTime`, `prototype.since`, `prototype.epochMilliseconds`, `prototype.epochNanoseconds`
-* PlainDate/DateTime/YearMonth: `prototype.calendarId`, `prototype.era`, `prototype.eraYear`, `prototype.inLeapYear`, `prototype.day`, `prototype.month`, `prototype.year`, `prototype.toPlainDateTime`, `prototype.toPlainMonthDay`, `prototype.toPlainYearMonth`, `prototype.toPlainTime`, `prototype.with`, `prototype.withCalendar`, `prototype.toZonedDateTime`, `prototype.weekOfYear`, `prototype.daysInMonth`, `prototype.daysInYear`, `prototype.daysInWeek`
-* ZonedDateTime-specific: `prototype.offset`, `prototype.offsetNanoseconds`, `prototype.timeZoneId`, `prototype.withTimeZone`, `prototype.getTimeZoneTransition`, `prototype.hoursInDay`, `prototype.startOfDay`, `prototype.withPlainTime`, `prototype.withCalendar`
-
----
-
-## 2. TypedArray / TypedArrayConstructors (≈ 140+)
-
-**Main entries:**
-
-* TypedArray, TypedArray.prototype.*, TypedArrayConstructors.*
-* Includes: `Int8Array`, `Uint8Array`, `Uint8ClampedArray`, `Int16Array`, `Uint16Array`, `Int32Array`, `Uint32Array`, `Float32Array`, `Float64Array`, `BigInt64Array`, `BigUint64Array`
-
-**Methods:**
-
-* `TypedArray.from`, `TypedArray.of`, `TypedArray.Symbol.species`
-* `TypedArray.prototype.at`, `buffer`, `byteLength`, `byteOffset`
-* `copyWithin`, `every`, `fill`, `filter`, `forEach`, `includes`, `join`, `length`, `map`, `reduce`, `reduceRight`, `set`, `slice`, `some`, `sort`, `subarray`, `toLocaleString`, `toReversed`, `toSorted`, `toString`, `with`
-* BigInt variants for all above (e.g. `filter.BigInt`, `reduce.BigInt`)
-* `TypedArrayConstructors.from`, `from.BigInt`, `of`, `of.BigInt`
-* Constructors: `ctors.noArgs`, `ctors.lengthArg`, `ctors.objectArg`, `ctors.bufferArg`, `ctors.typedarrayArg`
-* BigInt constructors: `ctorsBigint.noArgs`, `ctorsBigint.lengthArg`, `ctorsBigint.objectArg`, `ctorsBigint.bufferArg`, `ctorsBigint.typedarrayArg`
-* Internals: `internals.Get`, `internals.Set`, `internals.DefineOwnProperty`, `internals.Delete`, `internals.HasProperty`, `internals.GetOwnProperty`, `internals.OwnPropertyKeys` (+ `BigInt` versions)
-* Prototypes: `prototype.Symbol.toStringTag`, `prototype.Symbol.toStringTag.BigInt`
-
----
-
-## 3. Date (≈ 60)
-
-**Core:**
-
-* `Date`, `Date.parse`, `Date.UTC`
-
-**Prototype methods:**
-
-* Getters: `getDate`, `getDay`, `getFullYear`, `getHours`, `getMilliseconds`, `getMinutes`, `getMonth`, `getSeconds`, `getTime`, `getTimezoneOffset`, `getUTCDate`, `getUTCDay`, `getUTCFullYear`, `getUTCHours`, `getUTCMilliseconds`, `getUTCMinutes`, `getUTCMonth`, `getUTCSeconds`
-* Setters: `setDate`, `setFullYear`, `setHours`, `setMilliseconds`, `setMinutes`, `setMonth`, `setSeconds`, `setTime`, `setUTCDate`, `setUTCHours`, `setUTCMilliseconds`, `setUTCMinutes`, `setUTCMonth`, `setUTCSeconds`
-* Conversion: `toDateString`, `toISOString`, `toJSON`, `toString`, `toTimeString`, `toUTCString`, `toLocaleString`, `toTemporalInstant`, `valueOf`
-* Symbol: `Symbol.toPrimitive`
-
----
-
-## 4. Atomics (≈ 40)
-
-**Core object:** `Atomics`
-
-**Methods:**
-
-* Arithmetic ops (normal and bigint): `add`, `sub`, `and`, `or`, `xor`
-* Compare/exchange: `compareExchange`, `exchange`
-* Load/store: `load`, `store`
-* Lock/notify/wait: `notify`, `wait`, `waitAsync`
-* Misc: `isLockFree`
-* BigInt variants for every above: `add.bigint`, `sub.bigint`, etc.
-
----
-
-## 5. DataView (≈ 30)
-
-**Core:** `DataView`
-
-**Prototype:**
-
-* Properties: `buffer`, `byteLength`, `byteOffset`
-* Getters: `getInt8`, `getUint8`, `getInt16`, `getUint16`, `getInt32`, `getUint32`, `getFloat16`, `getFloat32`, `getFloat64`, `getBigInt64`, `getBigUint64`
-* Setters: `setInt8`, `setUint8`, `setInt16`, `setUint16`, `setInt32`, `setUint32`, `setFloat16`, `setFloat32`, `setFloat64`, `setBigInt64`, `setBigUint64`
-
----
-
-## 6. Array (≈ 28)
-
-**Core:** `Array`, `Array.from`, `Array.length`, `Array.Symbol.species`
-
-**Prototype methods:**
-
-* Mutation: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `copyWithin`, `fill`, `with`
-* Accessors: `slice`, `join`, `includes`, `indexOf`, `lastIndexOf`
-* Iteration: `map`, `filter`, `flat`, `flatMap`
-* String conversion: `toString`, `toLocaleString`
-* New methods: `toReversed`, `toSorted`, `toSpliced`
-* Symbol: `Symbol.unscopables`
-
----
-
-## 7. Function / Generator / AsyncFunction / AsyncGenerator (≈ 25)
-
-**Core types:** `Function`, `Function.prototype.*`, `GeneratorFunction`, `GeneratorFunction.prototype`, `GeneratorPrototype.*`, `AsyncFunction`, `AsyncGeneratorFunction`, `AsyncGeneratorFunction.prototype`, `AsyncGeneratorPrototype.*`
-
-**Methods:**
-
-* Function: `apply`, `bind`, `call`, `toString`, `Symbol.hasInstance`
-* Generators: `next`, `return`, `throw`
-* AsyncGenerator: `next`, `return`, `throw`
-* Internals: `Function.internals.Call`, `Function.internals.Construct`
-
----
-
-## 8. Object (≈ 20)
-
-**Static methods:**
-`assign`, `create`, `defineProperty`, `defineProperties`, `entries`, `fromEntries`, `getOwnPropertyDescriptor`, `getOwnPropertyDescriptors`, `getOwnPropertyNames`, `getOwnPropertySymbols`, `getPrototypeOf`, `groupBy`, `hasOwn`, `isFrozen`, `isSealed`, `keys`, `preventExtensions`, `seal`, `setPrototypeOf`, `values`
-
-**Prototype methods:**
-`hasOwnProperty`, `isPrototypeOf`, `propertyIsEnumerable`, `toLocaleString`, `toString`, `valueOf`, `.proto..`
-
----
-
-## 9. RegExp (≈ 20)
-
-**Core:** `RegExp`, `RegExp.Symbol.species`
-
-**Prototype:**
-`exec`, `test`, `toString`, `flags`, `source`, `dotAll`, `global`, `hasIndices`, `ignoreCase`, `multiline`, `sticky`, `unicode`, `unicodeSets`
-**Symbols:** `Symbol.match`, `Symbol.matchAll`, `Symbol.replace`, `Symbol.search`, `Symbol.split`
-**Features/tests:** `CharacterClassEscapes`, `dotall`, `lookBehind`, `namedGroups`, `propertyEscapes`, `regexpModifiers`, `unicodeSets.generated`
-
----
-
-## 10. String (≈ 20)
-
-**Core:** `String`, `String.fromCharCode`, `String.fromCodePoint`, `String.raw`
-
-**Prototype:**
-`includes`, `indexOf`, `endsWith`, `startsWith`, `match`, `matchAll`, `replace`, `replaceAll`, `split`, `substring`, `search`, `localeCompare`, `normalize`, `toLowerCase`, `toUpperCase`, `toLocaleLowerCase`, `toLocaleUpperCase`, `trim`, `trimStart`, `trimEnd`
-
----
-
-## 11. Reflect (≈ 11)
-
-`apply`, `construct`, `defineProperty`, `deleteProperty`, `get`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `has`, `isExtensible`, `ownKeys`, `preventExtensions`, `set`, `setPrototypeOf`
-
----
-
-## 12. Proxy (≈ 14)
-
-`Proxy`, `Proxy.revocable`, plus traps:
-`apply`, `construct`, `defineProperty`, `deleteProperty`, `get`, `getOwnPropertyDescriptor`, `getPrototypeOf`, `has`, `isExtensible`, `ownKeys`, `preventExtensions`, `set`, `setPrototypeOf`
-
----
-
-## 13. Map / Set / Iterator (≈ 10–12 each)
-
-**Map:**
-`Map`, `Map.prototype.forEach`, `Map.prototype.size`, `Map.groupBy`, `Map.Symbol.species`, `MapIteratorPrototype.next`
-
-**Set:**
-`Set`, `Set.prototype.forEach`, `Set.prototype.values`, `Set.prototype.size`, `Set.prototype.union`, `intersection`, `difference`, `symmetricDifference`, `isSubsetOf`, `isSupersetOf`, `isDisjointFrom`, `Set.Symbol.species`, `SetIteratorPrototype.next`
-
-**Iterator:**
-`Iterator.from`, `Iterator.concat`, `Iterator.prototype.*`, including `drop`, `take`, `map`, `filter`, `reduce`, `every`, `some`, `find`, `forEach`, `toArray`, `Symbol.iterator`, `Symbol.dispose`, `Symbol.toStringTag`
-
----
-
-## 14. Promise (≈ 10)
-
-`Promise`, `Promise.all`, `Promise.allSettled`, `Promise.any`, `Promise.race`, `Promise.resolve`, `Promise.reject`, `Promise.withResolvers`, `Promise.prototype.then`, `Promise.prototype.catch`, `Promise.prototype.finally`, `Promise.Symbol.species`
-
----
-
-## 15. Symbol (≈ 10)
-
-`Symbol.for`, `Symbol.keyFor`, `Symbol.asyncIterator`, `Symbol.iterator`, `Symbol.match`, `Symbol.matchAll`, `Symbol.replace`, `Symbol.search`, `Symbol.split`, `Symbol.toPrimitive`, `Symbol.toStringTag`, `Symbol.unscopables`, `Symbol.asyncDispose`, `Symbol.dispose`, `Symbol.hasInstance`, `Symbol.isConcatSpreadable`, `Symbol.species`, `Symbol.prototype.Symbol.toPrimitive`
-
----
-
-## 16. Error / NativeErrors (≈ 12)
-
-`Error`, `Error.prototype`,
-`NativeErrors.AggregateError`, `EvalError`, `RangeError`, `ReferenceError`, `SyntaxError`, `TypeError`, `URIError`, `SuppressedError` + each `prototype`
-
----
-
-## 17. DisposableStack / AsyncDisposableStack (≈ 12)
-
-**DisposableStack:**
-`DisposableStack`, `DisposableStack.prototype`, `adopt`, `defer`, `dispose`, `disposal`, `move`, `use`
-
-**AsyncDisposableStack:**
-`AsyncDisposableStack`, `AsyncDisposableStack.prototype`, `adopt`, `defer`, `disposeAsync`, `disposal`, `move`, `use`
-
----
-
-## 18. WeakMap / WeakSet / WeakRef (≈ 8)
-
-**WeakMap:** `delete`, `get`, `has`, `set`
-**WeakSet:** `add`, `delete`, `has`
-**WeakRef:** `deref`
-
----
-
-## 19. ShadowRealm (≈ 5)
-
-`ShadowRealm`, `ShadowRealm.prototype.evaluate`, `ShadowRealm.prototype.importValue`, `ShadowRealm.WrappedFunction`
-
----
-
-## 20. JSON (≈ 4)
-
-`JSON.parse`, `JSON.stringify`, `JSON.rawJSON`, `JSON.isRawJSON`
-
----
-
-## 21. BigInt (≈ 4)
-
-`BigInt`, `BigInt.asIntN`, `BigInt.asUintN`, `BigInt.prototype.toString`
-
----
-
-## 22. Number (≈ 6)
-
-`Number`, `Number.prototype.toExponential`, `toFixed`, `toPrecision`, `toString`, `valueOf`
-
----
-
-## 23. Boolean (≈ 3)
-
-`Boolean.prototype.toString`, `Boolean.prototype.valueOf`
-
----
-
-## 24. Misc built-ins (≈ 10 total)
-
-`IsFinite`, `IsNaN`, `ParseInt`, `ParseFloat`, `EncodeURI`, `EncodeURIComponent`, `DecodeURI`, `DecodeURIComponent`, `ThrowTypeError`
+       Array.from
+       Array.length
+       Array.prototype.concat
+       Array.prototype.copyWithin
+       Array.prototype.fill
+       Array.prototype.filter
+       Array.prototype.flat
+       Array.prototype.flatMap
+       Array.prototype.includes
+       Array.prototype.indexOf
+       Array.prototype.join
+       Array.prototype.lastIndexOf
+       Array.prototype.map
+       Array.prototype.pop
+       Array.prototype.push
+       Array.prototype.reduce
+       Array.prototype.reduceRight
+       Array.prototype.reverse
+       Array.prototype.shift
+       Array.prototype.slice
+       Array.prototype.some
+       Array.prototype.sort
+       Array.prototype.splice
+       Array.prototype.Symbol.unscopables
+       Array.prototype.toLocaleString
+       Array.prototype.toReversed
+       Array.prototype.toSorted
+       Array.prototype.toSpliced
+       Array.prototype.toString
+       Array.prototype.unshift
+       Array.prototype.values
+       Array.prototype.with
+       Array.Symbol.species
+       ArrayBuffer.prototype.byteLength
+       ArrayBuffer.prototype.detached
+       ArrayBuffer.prototype.maxByteLength
+       ArrayBuffer.prototype.resizable
+       ArrayBuffer.Symbol.species
+       ArrayIteratorPrototype.next
+       ArrayIteratorPrototype.Symbol.toStringTag
+       AsyncDisposableStack
+       AsyncDisposableStack.prototype
+       AsyncDisposableStack.prototype.adopt
+       AsyncDisposableStack.prototype.defer
+       AsyncDisposableStack.prototype.disposeAsync
+       AsyncDisposableStack.prototype.disposed
+       AsyncDisposableStack.prototype.move
+       AsyncDisposableStack.prototype.use
+       AsyncFunction
+       AsyncGeneratorFunction
+       AsyncGeneratorFunction.prototype
+       AsyncGeneratorPrototype
+       AsyncGeneratorPrototype.next
+       AsyncGeneratorPrototype.return
+       AsyncGeneratorPrototype.throw
+       AsyncIteratorPrototype.Symbol.asyncDispose
+       AsyncIteratorPrototype.Symbol.asyncIterator
+       Atomics
+       Atomics.add
+       Atomics.add.bigint
+       Atomics.and
+       Atomics.and.bigint
+       Atomics.compareExchange
+       Atomics.compareExchange.bigint
+       Atomics.exchange
+       Atomics.exchange.bigint
+       Atomics.isLockFree
+       Atomics.isLockFree.bigint
+       Atomics.load
+       Atomics.load.bigint
+       Atomics.notify
+       Atomics.notify.bigint
+       Atomics.or
+       Atomics.or.bigint
+       Atomics.store
+       Atomics.store.bigint
+       Atomics.sub
+       Atomics.sub.bigint
+       Atomics.wait
+       Atomics.wait.bigint
+       Atomics.waitAsync
+       Atomics.waitAsync.bigint
+       Atomics.xor
+       Atomics.xor.bigint
+       BigInt
+       BigInt.asIntN
+       BigInt.asUintN
+       BigInt.prototype.toString
+       Boolean.prototype
+       Boolean.prototype.toString
+       Boolean.prototype.valueOf
+       DataView
+       DataView.prototype.buffer
+       DataView.prototype.byteLength
+       DataView.prototype.byteOffset
+       DataView.prototype.getBigInt64
+       DataView.prototype.getBigUint64
+       DataView.prototype.getFloat16
+       DataView.prototype.getFloat32
+       DataView.prototype.getFloat64
+       DataView.prototype.getInt16
+       DataView.prototype.getInt32
+       DataView.prototype.getInt8
+       DataView.prototype.getUint16
+       DataView.prototype.getUint32
+       DataView.prototype.getUint8
+       DataView.prototype.setBigInt64
+       DataView.prototype.setBigUint64
+       DataView.prototype.setFloat16
+       DataView.prototype.setFloat32
+       DataView.prototype.setFloat64
+       DataView.prototype.setInt16
+       DataView.prototype.setInt32
+       DataView.prototype.setInt8
+       DataView.prototype.setUint16
+       DataView.prototype.setUint32
+       DataView.prototype.setUint8
+       Date
+       Date.parse
+       Date.prototype.getDate
+       Date.prototype.getDay
+       Date.prototype.getFullYear
+       Date.prototype.getHours
+       Date.prototype.getMilliseconds
+       Date.prototype.getMinutes
+       Date.prototype.getMonth
+       Date.prototype.getSeconds
+       Date.prototype.getTime
+       Date.prototype.getTimezoneOffset
+       Date.prototype.getUTCDate
+       Date.prototype.getUTCDay
+       Date.prototype.getUTCFullYear
+       Date.prototype.getUTCHours
+       Date.prototype.getUTCMilliseconds
+       Date.prototype.getUTCMinutes
+       Date.prototype.getUTCMonth
+       Date.prototype.getUTCSeconds
+       Date.prototype.setDate
+       Date.prototype.setFullYear
+       Date.prototype.setHours
+       Date.prototype.setMilliseconds
+       Date.prototype.setMinutes
+       Date.prototype.setMonth
+       Date.prototype.setSeconds
+       Date.prototype.setTime
+       Date.prototype.setUTCDate
+       Date.prototype.setUTCHours
+       Date.prototype.setUTCMilliseconds
+       Date.prototype.setUTCMinutes
+       Date.prototype.setUTCMonth
+       Date.prototype.setUTCSeconds
+       Date.prototype.Symbol.toPrimitive
+       Date.prototype.toDateString
+       Date.prototype.toISOString
+       Date.prototype.toJSON
+       Date.prototype.toString
+       Date.prototype.toTemporalInstant
+       Date.prototype.toTimeString
+       Date.prototype.toUTCString
+       Date.prototype.valueOf
+       Date.UTC
+       DecodeURI
+       DecodeURIComponent
+       DisposableStack
+       DisposableStack.prototype
+       DisposableStack.prototype.adopt
+       DisposableStack.prototype.defer
+       DisposableStack.prototype.dispose
+       DisposableStack.prototype.disposed
+       DisposableStack.prototype.move
+       DisposableStack.prototype.use
+       EncodeURI
+       EncodeURIComponent
+       Error
+       Error.prototype
+       Eval
+       FinalizationRegistry
+       FinalizationRegistry.prototype
+       FinalizationRegistry.prototype.register
+       FinalizationRegistry.prototype.unregister
+       Function
+       Function.internals.Call
+       Function.internals.Construct
+       Function.prototype
+       Function.prototype.apply
+       Function.prototype.bind
+       Function.prototype.call
+       Function.prototype.Symbol.hasInstance
+       Function.prototype.toString
+       GeneratorFunction
+       GeneratorFunction.prototype
+       GeneratorPrototype
+       GeneratorPrototype.next
+       GeneratorPrototype.return
+       GeneratorPrototype.throw
+       IsFinite
+       IsNaN
+       Iterator
+       Iterator.concat
+       Iterator.from
+       Iterator.prototype.constructor
+       Iterator.prototype.drop
+       Iterator.prototype.every
+       Iterator.prototype.filter
+       Iterator.prototype.find
+       Iterator.prototype.flatMap
+       Iterator.prototype.forEach
+       Iterator.prototype.map
+       Iterator.prototype.reduce
+       Iterator.prototype.some
+       Iterator.prototype.Symbol.dispose
+       Iterator.prototype.Symbol.iterator
+       Iterator.prototype.Symbol.toStringTag
+       Iterator.prototype.take
+       Iterator.prototype.toArray
+       JSON.isRawJSON
+       JSON.parse
+       JSON.rawJSON
+       JSON.stringify
+       Map
+       Map.groupBy
+       Map.prototype
+       Map.prototype.forEach
+       Map.prototype.size
+       Map.Symbol.species
+       NativeErrors
+       NativeErrors.AggregateError
+       NativeErrors.AggregateError.prototype
+       NativeErrors.EvalError
+       NativeErrors.EvalError.prototype
+       NativeErrors.RangeError
+       NativeErrors.RangeError.prototype
+       NativeErrors.ReferenceError
+       NativeErrors.ReferenceError.prototype
+       NativeErrors.SuppressedError
+       NativeErrors.SuppressedError.prototype
+       NativeErrors.SyntaxError
+       NativeErrors.SyntaxError.prototype
+       NativeErrors.TypeError
+       NativeErrors.TypeError.prototype
+       NativeErrors.URIError
+       NativeErrors.URIError.prototype
+       Number
+       Number.prototype.toExponential
+       Number.prototype.toFixed
+       Number.prototype.toPrecision
+       Object
+       Object.assign
+       Object.create
+       Object.defineProperties
+       Object.defineProperty
+       Object.entries
+       Object.freeze
+       Object.fromEntries
+       Object.getOwnPropertyDescriptor
+       Object.getOwnPropertyDescriptors
+       Object.getOwnPropertyNames
+       Object.getOwnPropertySymbols
+       Object.getPrototypeOf
+       Object.isFrozen
+       Object.isSealed
+       Object.keys
+       Object.preventExtensions
+       Object.prototype
+       Object.prototype...proto..
+       Object.prototype.hasOwnProperty
+       Object.prototype.isPrototypeOf
+       Object.prototype.toLocaleString
+       Object.prototype.toString
+       Object.seal
+       Object.setPrototypeOf
+       Object.values
+       ParseFloat
+       ParseInt
+       Promise
+       Promise.all
+       Promise.allSettled
+       Promise.any
+       Promise.prototype.catch
+       Promise.prototype.finally
+       Promise.prototype.then
+       Promise.race
+       Promise.reject
+       Promise.resolve
+       Promise.Symbol.species
+       Promise.withResolvers
+       Proxy
+       Proxy.apply
+       Proxy.construct
+       Proxy.defineProperty
+       Proxy.deleteProperty
+       Proxy.get
+       Proxy.getOwnPropertyDescriptor
+       Proxy.getPrototypeOf
+       Proxy.has
+       Proxy.isExtensible
+       Proxy.ownKeys
+       Proxy.preventExtensions
+       Proxy.revocable
+       Proxy.set
+       Proxy.setPrototypeOf
+       Reflect.apply
+       Reflect.construct
+       Reflect.defineProperty
+       Reflect.deleteProperty
+       Reflect.get
+       Reflect.getOwnPropertyDescriptor
+       Reflect.getPrototypeOf
+       Reflect.has
+       Reflect.isExtensible
+       Reflect.ownKeys
+       Reflect.preventExtensions
+       Reflect.set
+       Reflect.setPrototypeOf
+       RegExp
+       RegExp.CharacterClassEscapes
+       RegExp.dotall
+       RegExp.lookBehind
+       RegExp.matchIndices
+       RegExp.namedGroups
+       RegExp.propertyEscapes
+       RegExp.propertyEscapes.generated
+       RegExp.propertyEscapes.generated.strings
+       RegExp.prototype
+       RegExp.prototype.dotAll
+       RegExp.prototype.exec
+       RegExp.prototype.flags
+       RegExp.prototype.global
+       RegExp.prototype.hasIndices
+       RegExp.prototype.ignoreCase
+       RegExp.prototype.multiline
+       RegExp.prototype.source
+       RegExp.prototype.sticky
+       RegExp.prototype.Symbol.match
+       RegExp.prototype.Symbol.matchAll
+       RegExp.prototype.Symbol.replace
+       RegExp.prototype.Symbol.search
+       RegExp.prototype.Symbol.split
+       RegExp.prototype.test
+       RegExp.prototype.unicode
+       RegExp.prototype.unicodeSets
+       RegExp.regexpModifiers
+       RegExp.Symbol.species
+       RegExp.unicodeSets.generated
+       RegExpStringIteratorPrototype
+       RegExpStringIteratorPrototype.next
+       Set
+       Set.prototype.difference
+       Set.prototype.forEach
+       Set.prototype.intersection
+       Set.prototype.isDisjointFrom
+       Set.prototype.isSubsetOf
+       Set.prototype.isSupersetOf
+       Set.prototype.size
+       Set.prototype.symmetricDifference
+       Set.prototype.union
+       Set.Symbol.species
+       ShadowRealm
+       ShadowRealm.prototype
+       ShadowRealm.prototype.evaluate
+       ShadowRealm.prototype.importValue
+       ShadowRealm.WrappedFunction
+       SharedArrayBuffer.prototype.byteLength
+       SharedArrayBuffer.prototype.growable
+       SharedArrayBuffer.prototype.maxByteLength
+       SharedArrayBuffer.prototype.slice
+       String
+       String.fromCodePoint
+       String.prototype
+       String.prototype.indexOf
+       String.prototype.localeCompare
+       String.prototype.match
+       String.prototype.matchAll
+       String.prototype.normalize
+       String.prototype.replace
+       String.prototype.replaceAll
+       String.prototype.search
+       String.prototype.split
+       String.prototype.toLocaleLowerCase
+       String.prototype.toLocaleUpperCase
+       String.prototype.toLowerCase
+       String.prototype.toUpperCase
+       String.prototype.trim
+       String.prototype.trimEnd
+       String.prototype.trimStart
+       String.raw
+       StringIteratorPrototype
+       StringIteratorPrototype.next
+       Symbol
+       Symbol.asyncDispose
+       Symbol.asyncIterator
+       Symbol.dispose
+       Symbol.for
+       Symbol.hasInstance
+       Symbol.isConcatSpreadable
+       Symbol.iterator
+       Symbol.keyFor
+       Symbol.match
+       Symbol.matchAll
+       Symbol.prototype.Symbol.toPrimitive
+       Symbol.replace
+       Symbol.search
+       Symbol.species
+       Symbol.split
+       Symbol.toPrimitive
+       Symbol.toStringTag
+       Symbol.unscopables
+       Temporal.Duration
+       Temporal.Duration.compare
+       Temporal.Duration.from
+       Temporal.Duration.prototype.abs
+       Temporal.Duration.prototype.add
+       Temporal.Duration.prototype.blank
+       Temporal.Duration.prototype.days
+       Temporal.Duration.prototype.hours
+       Temporal.Duration.prototype.microseconds
+       Temporal.Duration.prototype.milliseconds
+       Temporal.Duration.prototype.minutes
+       Temporal.Duration.prototype.months
+       Temporal.Duration.prototype.nanoseconds
+       Temporal.Duration.prototype.negated
+       Temporal.Duration.prototype.round
+       Temporal.Duration.prototype.seconds
+       Temporal.Duration.prototype.sign
+       Temporal.Duration.prototype.subtract
+       Temporal.Duration.prototype.toJSON
+       Temporal.Duration.prototype.toLocaleString
+       Temporal.Duration.prototype.toString
+       Temporal.Duration.prototype.total
+       Temporal.Duration.prototype.weeks
+       Temporal.Duration.prototype.with
+       Temporal.Duration.prototype.years
+       Temporal.Instant
+       Temporal.Instant.compare
+       Temporal.Instant.from
+       Temporal.Instant.fromEpochMilliseconds
+       Temporal.Instant.fromEpochNanoseconds
+       Temporal.Instant.prototype.add
+       Temporal.Instant.prototype.epochMilliseconds
+       Temporal.Instant.prototype.epochNanoseconds
+       Temporal.Instant.prototype.equals
+       Temporal.Instant.prototype.round
+       Temporal.Instant.prototype.since
+       Temporal.Instant.prototype.subtract
+       Temporal.Instant.prototype.toJSON
+       Temporal.Instant.prototype.toLocaleString
+       Temporal.Instant.prototype.toString
+       Temporal.Instant.prototype.toZonedDateTimeISO
+       Temporal.Instant.prototype.until
+       Temporal.Now.instant
+       Temporal.Now.plainDateISO
+       Temporal.Now.plainDateTimeISO
+       Temporal.Now.plainTimeISO
+       Temporal.Now.zonedDateTimeISO
+       Temporal.PlainDate
+       Temporal.PlainDate.compare
+       Temporal.PlainDate.from
+       Temporal.PlainDate.prototype.add
+       Temporal.PlainDate.prototype.calendarId
+       Temporal.PlainDate.prototype.day
+       Temporal.PlainDate.prototype.dayOfWeek
+       Temporal.PlainDate.prototype.dayOfYear
+       Temporal.PlainDate.prototype.daysInMonth
+       Temporal.PlainDate.prototype.daysInWeek
+       Temporal.PlainDate.prototype.daysInYear
+       Temporal.PlainDate.prototype.equals
+       Temporal.PlainDate.prototype.era
+       Temporal.PlainDate.prototype.eraYear
+       Temporal.PlainDate.prototype.inLeapYear
+       Temporal.PlainDate.prototype.month
+       Temporal.PlainDate.prototype.monthCode
+       Temporal.PlainDate.prototype.monthsInYear
+       Temporal.PlainDate.prototype.since
+       Temporal.PlainDate.prototype.subtract
+       Temporal.PlainDate.prototype.toJSON
+       Temporal.PlainDate.prototype.toLocaleString
+       Temporal.PlainDate.prototype.toPlainDateTime
+       Temporal.PlainDate.prototype.toPlainMonthDay
+       Temporal.PlainDate.prototype.toPlainYearMonth
+       Temporal.PlainDate.prototype.toString
+       Temporal.PlainDate.prototype.toZonedDateTime
+       Temporal.PlainDate.prototype.until
+       Temporal.PlainDate.prototype.weekOfYear
+       Temporal.PlainDate.prototype.with
+       Temporal.PlainDate.prototype.withCalendar
+       Temporal.PlainDate.prototype.year
+       Temporal.PlainDate.prototype.yearOfWeek
+       Temporal.PlainDateTime
+       Temporal.PlainDateTime.compare
+       Temporal.PlainDateTime.from
+       Temporal.PlainDateTime.prototype.add
+       Temporal.PlainDateTime.prototype.calendarId
+       Temporal.PlainDateTime.prototype.day
+       Temporal.PlainDateTime.prototype.dayOfWeek
+       Temporal.PlainDateTime.prototype.dayOfYear
+       Temporal.PlainDateTime.prototype.daysInMonth
+       Temporal.PlainDateTime.prototype.daysInWeek
+       Temporal.PlainDateTime.prototype.daysInYear
+       Temporal.PlainDateTime.prototype.equals
+       Temporal.PlainDateTime.prototype.era
+       Temporal.PlainDateTime.prototype.eraYear
+       Temporal.PlainDateTime.prototype.hour
+       Temporal.PlainDateTime.prototype.inLeapYear
+       Temporal.PlainDateTime.prototype.microsecond
+       Temporal.PlainDateTime.prototype.millisecond
+       Temporal.PlainDateTime.prototype.minute
+       Temporal.PlainDateTime.prototype.month
+       Temporal.PlainDateTime.prototype.monthCode
+       Temporal.PlainDateTime.prototype.monthsInYear
+       Temporal.PlainDateTime.prototype.nanosecond
+       Temporal.PlainDateTime.prototype.round
+       Temporal.PlainDateTime.prototype.second
+       Temporal.PlainDateTime.prototype.since
+       Temporal.PlainDateTime.prototype.subtract
+       Temporal.PlainDateTime.prototype.toJSON
+       Temporal.PlainDateTime.prototype.toLocaleString
+       Temporal.PlainDateTime.prototype.toPlainDate
+       Temporal.PlainDateTime.prototype.toPlainTime
+       Temporal.PlainDateTime.prototype.toString
+       Temporal.PlainDateTime.prototype.toZonedDateTime
+       Temporal.PlainDateTime.prototype.until
+       Temporal.PlainDateTime.prototype.weekOfYear
+       Temporal.PlainDateTime.prototype.with
+       Temporal.PlainDateTime.prototype.withCalendar
+       Temporal.PlainDateTime.prototype.withPlainTime
+       Temporal.PlainDateTime.prototype.year
+       Temporal.PlainDateTime.prototype.yearOfWeek
+       Temporal.PlainMonthDay
+       Temporal.PlainMonthDay.from
+       Temporal.PlainMonthDay.prototype.calendarId
+       Temporal.PlainMonthDay.prototype.day
+       Temporal.PlainMonthDay.prototype.equals
+       Temporal.PlainMonthDay.prototype.month
+       Temporal.PlainMonthDay.prototype.monthCode
+       Temporal.PlainMonthDay.prototype.toJSON
+       Temporal.PlainMonthDay.prototype.toLocaleString
+       Temporal.PlainMonthDay.prototype.toPlainDate
+       Temporal.PlainMonthDay.prototype.toString
+       Temporal.PlainMonthDay.prototype.valueOf
+       Temporal.PlainMonthDay.prototype.with
+       Temporal.PlainTime
+       Temporal.PlainTime.compare
+       Temporal.PlainTime.from
+       Temporal.PlainTime.prototype.add
+       Temporal.PlainTime.prototype.equals
+       Temporal.PlainTime.prototype.hour
+       Temporal.PlainTime.prototype.microsecond
+       Temporal.PlainTime.prototype.millisecond
+       Temporal.PlainTime.prototype.minute
+       Temporal.PlainTime.prototype.nanosecond
+       Temporal.PlainTime.prototype.round
+       Temporal.PlainTime.prototype.second
+       Temporal.PlainTime.prototype.since
+       Temporal.PlainTime.prototype.subtract
+       Temporal.PlainTime.prototype.toJSON
+       Temporal.PlainTime.prototype.toLocaleString
+       Temporal.PlainTime.prototype.toString
+       Temporal.PlainTime.prototype.until
+       Temporal.PlainTime.prototype.with
+       Temporal.PlainYearMonth
+       Temporal.PlainYearMonth.compare
+       Temporal.PlainYearMonth.from
+       Temporal.PlainYearMonth.prototype.add
+       Temporal.PlainYearMonth.prototype.calendarId
+       Temporal.PlainYearMonth.prototype.daysInMonth
+       Temporal.PlainYearMonth.prototype.daysInYear
+       Temporal.PlainYearMonth.prototype.equals
+       Temporal.PlainYearMonth.prototype.era
+       Temporal.PlainYearMonth.prototype.eraYear
+       Temporal.PlainYearMonth.prototype.inLeapYear
+       Temporal.PlainYearMonth.prototype.month
+       Temporal.PlainYearMonth.prototype.monthCode
+       Temporal.PlainYearMonth.prototype.monthsInYear
+       Temporal.PlainYearMonth.prototype.since
+       Temporal.PlainYearMonth.prototype.subtract
+       Temporal.PlainYearMonth.prototype.toJSON
+       Temporal.PlainYearMonth.prototype.toLocaleString
+       Temporal.PlainYearMonth.prototype.toPlainDate
+       Temporal.PlainYearMonth.prototype.toString
+       Temporal.PlainYearMonth.prototype.until
+       Temporal.PlainYearMonth.prototype.with
+       Temporal.PlainYearMonth.prototype.year
+       Temporal.ZonedDateTime
+       Temporal.ZonedDateTime.compare
+       Temporal.ZonedDateTime.from
+       Temporal.ZonedDateTime.prototype.add
+       Temporal.ZonedDateTime.prototype.calendarId
+       Temporal.ZonedDateTime.prototype.day
+       Temporal.ZonedDateTime.prototype.dayOfWeek
+       Temporal.ZonedDateTime.prototype.dayOfYear
+       Temporal.ZonedDateTime.prototype.daysInMonth
+       Temporal.ZonedDateTime.prototype.daysInWeek
+       Temporal.ZonedDateTime.prototype.daysInYear
+       Temporal.ZonedDateTime.prototype.epochMilliseconds
+       Temporal.ZonedDateTime.prototype.epochNanoseconds
+       Temporal.ZonedDateTime.prototype.equals
+       Temporal.ZonedDateTime.prototype.era
+       Temporal.ZonedDateTime.prototype.eraYear
+       Temporal.ZonedDateTime.prototype.getTimeZoneTransition
+       Temporal.ZonedDateTime.prototype.hour
+       Temporal.ZonedDateTime.prototype.hoursInDay
+       Temporal.ZonedDateTime.prototype.inLeapYear
+       Temporal.ZonedDateTime.prototype.microsecond
+       Temporal.ZonedDateTime.prototype.millisecond
+       Temporal.ZonedDateTime.prototype.minute
+       Temporal.ZonedDateTime.prototype.month
+       Temporal.ZonedDateTime.prototype.monthCode
+       Temporal.ZonedDateTime.prototype.monthsInYear
+       Temporal.ZonedDateTime.prototype.nanosecond
+       Temporal.ZonedDateTime.prototype.offset
+       Temporal.ZonedDateTime.prototype.offsetNanoseconds
+       Temporal.ZonedDateTime.prototype.round
+       Temporal.ZonedDateTime.prototype.second
+       Temporal.ZonedDateTime.prototype.since
+       Temporal.ZonedDateTime.prototype.startOfDay
+       Temporal.ZonedDateTime.prototype.subtract
+       Temporal.ZonedDateTime.prototype.timeZoneId
+       Temporal.ZonedDateTime.prototype.toInstant
+       Temporal.ZonedDateTime.prototype.toJSON
+       Temporal.ZonedDateTime.prototype.toLocaleString
+       Temporal.ZonedDateTime.prototype.toPlainDate
+       Temporal.ZonedDateTime.prototype.toPlainDateTime
+       Temporal.ZonedDateTime.prototype.toPlainTime
+       Temporal.ZonedDateTime.prototype.toString
+       Temporal.ZonedDateTime.prototype.until
+       Temporal.ZonedDateTime.prototype.weekOfYear
+       Temporal.ZonedDateTime.prototype.with
+       Temporal.ZonedDateTime.prototype.withCalendar
+       Temporal.ZonedDateTime.prototype.withPlainTime
+       Temporal.ZonedDateTime.prototype.withTimeZone
+       Temporal.ZonedDateTime.prototype.year
+       Temporal.ZonedDateTime.prototype.yearOfWeek
+       ThrowTypeError
+       TypedArray
+       TypedArray.from
+       TypedArray.of
+       TypedArray.prototype
+       TypedArray.prototype.at
+       TypedArray.prototype.buffer
+       TypedArray.prototype.byteLength
+       TypedArray.prototype.byteOffset
+       TypedArray.prototype.copyWithin
+       TypedArray.prototype.copyWithin.BigInt
+       TypedArray.prototype.entries
+       TypedArray.prototype.every
+       TypedArray.prototype.fill
+       TypedArray.prototype.fill.BigInt
+       TypedArray.prototype.filter
+       TypedArray.prototype.filter.BigInt
+       TypedArray.prototype.find
+       TypedArray.prototype.findIndex
+       TypedArray.prototype.findLast
+       TypedArray.prototype.findLastIndex
+       TypedArray.prototype.forEach
+       TypedArray.prototype.forEach.BigInt
+       TypedArray.prototype.includes
+       TypedArray.prototype.includes.BigInt
+       TypedArray.prototype.join
+       TypedArray.prototype.join.BigInt
+       TypedArray.prototype.length
+       TypedArray.prototype.map
+       TypedArray.prototype.map.BigInt
+       TypedArray.prototype.reduce
+       TypedArray.prototype.reduce.BigInt
+       TypedArray.prototype.reduceRight
+       TypedArray.prototype.reduceRight.BigInt
+       TypedArray.prototype.set
+       TypedArray.prototype.set.BigInt
+       TypedArray.prototype.slice
+       TypedArray.prototype.slice.BigInt
+       TypedArray.prototype.some
+       TypedArray.prototype.some.BigInt
+       TypedArray.prototype.sort
+       TypedArray.prototype.sort.BigInt
+       TypedArray.prototype.subarray
+       TypedArray.prototype.subarray.BigInt
+       TypedArray.prototype.Symbol.toStringTag
+       TypedArray.prototype.Symbol.toStringTag.BigInt
+       TypedArray.prototype.toLocaleString
+       TypedArray.prototype.toLocaleString.BigInt
+       TypedArray.prototype.toReversed
+       TypedArray.prototype.toSorted
+       TypedArray.prototype.with
+       TypedArray.prototype.with.BigInt
+       TypedArray.Symbol.species
+       TypedArrayConstructors.BigInt64Array
+       TypedArrayConstructors.BigInt64Array.prototype
+       TypedArrayConstructors.BigUint64Array
+       TypedArrayConstructors.BigUint64Array.prototype
+       TypedArrayConstructors.ctors.bufferArg
+       TypedArrayConstructors.ctors.lengthArg
+       TypedArrayConstructors.ctors.noArgs
+       TypedArrayConstructors.ctors.objectArg
+       TypedArrayConstructors.ctors.typedarrayArg
+       TypedArrayConstructors.ctorsBigint.bufferArg
+       TypedArrayConstructors.ctorsBigint.lengthArg
+       TypedArrayConstructors.ctorsBigint.noArgs
+       TypedArrayConstructors.ctorsBigint.objectArg
+       TypedArrayConstructors.ctorsBigint.typedarrayArg
+       TypedArrayConstructors.Float32Array
+       TypedArrayConstructors.Float32Array.prototype
+       TypedArrayConstructors.Float64Array
+       TypedArrayConstructors.Float64Array.prototype
+       TypedArrayConstructors.from
+       TypedArrayConstructors.from.BigInt
+       TypedArrayConstructors.Int16Array
+       TypedArrayConstructors.Int16Array.prototype
+       TypedArrayConstructors.Int32Array
+       TypedArrayConstructors.Int32Array.prototype
+       TypedArrayConstructors.Int8Array
+       TypedArrayConstructors.Int8Array.prototype
+       TypedArrayConstructors.internals.DefineOwnProperty
+       TypedArrayConstructors.internals.DefineOwnProperty.BigInt
+       TypedArrayConstructors.internals.Delete
+       TypedArrayConstructors.internals.Delete.BigInt
+       TypedArrayConstructors.internals.Get
+       TypedArrayConstructors.internals.Get.BigInt
+       TypedArrayConstructors.internals.GetOwnProperty
+       TypedArrayConstructors.internals.GetOwnProperty.BigInt
+       TypedArrayConstructors.internals.HasProperty
+       TypedArrayConstructors.internals.HasProperty.BigInt
+       TypedArrayConstructors.internals.OwnPropertyKeys
+       TypedArrayConstructors.internals.OwnPropertyKeys.BigInt
+       TypedArrayConstructors.internals.Set
+       TypedArrayConstructors.internals.Set.BigInt
+       TypedArrayConstructors.of
+       TypedArrayConstructors.of.BigInt
+       TypedArrayConstructors.prototype.Symbol.toStringTag
+       TypedArrayConstructors.Uint16Array
+       TypedArrayConstructors.Uint16Array.prototype
+       TypedArrayConstructors.Uint32Array
+       TypedArrayConstructors.Uint32Array.prototype
+       TypedArrayConstructors.Uint8Array
+       TypedArrayConstructors.Uint8Array.prototype
+       TypedArrayConstructors.Uint8ClampedArray
+       TypedArrayConstructors.Uint8ClampedArray.prototype
+       WeakMap
+       WeakMap.prototype.delete
+       WeakMap.prototype.get
+       WeakMap.prototype.has
+       WeakMap.prototype.set
+       WeakRef
+       WeakRef.prototype.deref
+       WeakSet
+       WeakSet.prototype.add
+       WeakSet.prototype.delete
+       WeakSet.prototype.has

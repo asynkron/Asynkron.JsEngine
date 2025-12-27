@@ -493,4 +493,47 @@ public class BigIntTests(ITestOutputHelper output) : FastPathTestBase(output)
         Assert.IsType<JsBigInt>(result);
         Assert.Equal(new JsBigInt(16), result); // (5+3) * (5-3) = 8 * 2 = 16
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task NumberConstructorConvertsBigIntToNumber()
+    {
+        // Per ES2024 21.1.1.1: Number(value) should convert BigInt to Number
+        // This is an explicit conversion, unlike ToNumber which throws
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Number(10n);");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NumberConstructorConvertsBigIntToNumberNegative()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Number(-5n);");
+        Assert.Equal(-5d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NumberConstructorConvertsBigIntToNumberZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Number(0n);");
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NumberConstructorConvertsBigIntCanBeUsedInArithmetic()
+    {
+        // After converting to Number, we can use it in arithmetic
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("Number(3n) + 4;");
+        Assert.Equal(7d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NumberConstructorConvertsBigIntTypeofIsNumber()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("typeof Number(10n);");
+        Assert.Equal("number", result);
+    }
 }

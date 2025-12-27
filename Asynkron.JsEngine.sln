@@ -97,6 +97,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "todo", "todo", "{3C93D9EB-8
 		todo-csharp-transpiler.md = todo-csharp-transpiler.md
 		todo-large-iteration-async-bug.md = todo-large-iteration-async-bug.md
 		todo.md = todo.md
+		todo-builtins.md = todo-builtins.md
 	EndProjectSection
 EndProject
 Global

@@ -34,7 +34,7 @@ internal static class MapSetIterationHelper
             iterCallable is not null)
         {
             var iteratorValue = iterCallable.Invoke([], iterable);
-            if (!iteratorValue.TryGetObject(out var iteratorObj) || iteratorObj is null)
+            if (!iteratorValue.TryGetObjectLike(out var iteratorObj) || iteratorObj is null)
             {
                 throw StandardLibrary.ThrowTypeError($"{operation} iterator method must return an object", realm: realm);
             }
@@ -85,7 +85,7 @@ internal static class MapSetIterationHelper
         }
 
         var resultValue = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
-        if (!resultValue.TryGetObject(out var resultObj) || resultObj is null)
+        if (!resultValue.TryGetObjectLike(out var resultObj) || resultObj is null)
         {
             throw StandardLibrary.ThrowTypeError($"{operation} iterator result must be an object", realm: realm);
         }

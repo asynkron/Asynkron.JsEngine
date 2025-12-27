@@ -208,7 +208,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return new JsValue(0d);
         }
 
-        return new JsValue(JsOps.ToNumber(args.GetArgument(0)));
+        return new JsValue(ToNumberAllowingBigInt(args.GetArgument(0)));
     }
 
     protected override void ConfigureConstructor(HostFunction constructor)
@@ -220,7 +220,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         {
             if (newTarget.IsUndefined)
             {
-                return new JsValue(args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0)));
+                return new JsValue(args.Count == 0 ? 0d : ToNumberAllowingBigInt(args.GetArgument(0)));
             }
 
             var target = _constructor ?? constructor;
@@ -248,8 +248,40 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
 
     private static void InitializeNumberWrapper(JsObject wrapper, IReadOnlyList<JsValue> args)
     {
-        var result = args.Count == 0 ? 0d : JsOps.ToNumber(args.GetArgument(0));
+        var result = args.Count == 0 ? 0d : ToNumberAllowingBigInt(args.GetArgument(0));
         wrapper.SetProperty("__value__", result);
+    }
+
+    /// <summary>
+    /// Per ES2024 21.1.1.1 Number(value):
+    /// 1. If value is not present, return +0.
+    /// 2. Let n be ToNumeric(value).
+    /// 3. If n is a BigInt, let n be ℝ(n) (the mathematical value converted to Number).
+    /// 4. Return n.
+    ///
+    /// This differs from ToNumber which throws TypeError for BigInt.
+    /// </summary>
+    private static double ToNumberAllowingBigInt(JsValue value)
+    {
+        // First, convert to numeric (Number or BigInt) using ToNumeric semantics
+        var numeric = JsOps.ToNumericAsJsValue(value);
+
+        // If it's already a Number, return it
+        if (numeric.IsNumber)
+        {
+            return numeric.NumberValue;
+        }
+
+        // If it's a BigInt, convert to double (explicit Number() conversion is allowed)
+        if (numeric.IsBigInt)
+        {
+            var bigInt = numeric.AsBigInt();
+            // Convert BigInt to double - this may lose precision for very large values
+            return (double)bigInt.Value;
+        }
+
+        // Fallback for other cases (shouldn't happen, but be safe)
+        return double.NaN;
     }
 
     private void EnsurePrototypeNumberData()

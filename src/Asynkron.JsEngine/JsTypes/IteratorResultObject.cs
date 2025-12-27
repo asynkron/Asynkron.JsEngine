@@ -7,7 +7,12 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Avoids the overhead of JsObject's dictionary-based property storage for the
 ///     common case of iterator results which are typically only read, not modified.
 /// </summary>
-internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue
+/// <remarks>
+/// Implements <see cref="IJsSurfacedMutable"/> because JS code can hold references
+/// to iterator results (e.g., <c>let result = iterator.next(); saved = result;</c>).
+/// This means instances CANNOT be pooled.
+/// </remarks>
+internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfacedMutable
 {
     private static readonly string[] PropertyNames = ["value", "done"];
 

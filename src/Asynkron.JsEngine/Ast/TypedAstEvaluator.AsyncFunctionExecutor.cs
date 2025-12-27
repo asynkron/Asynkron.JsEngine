@@ -246,38 +246,40 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         ///     Poolable callback for async function resume - avoids allocation on hot path.
+        ///     Callbacks are created in pairs (fulfilled + rejected) but only one is invoked.
+        ///     The invoked callback returns both itself AND its sibling to the pool.
         /// </summary>
         private sealed class AsyncResumeCallback : IJsCallable
         {
-            [ThreadStatic]
-            private static AsyncResumeCallback? TCachedFulfilled;
-
-            [ThreadStatic]
-            private static AsyncResumeCallback? TCachedRejected;
+            private static readonly ObjectPool<AsyncResumeCallback> FulfilledPool = new(32, static () => new AsyncResumeCallback());
+            private static readonly ObjectPool<AsyncResumeCallback> RejectedPool = new(32, static () => new AsyncResumeCallback());
 
             private AsyncFunctionExecutor? _executor;
             private IJsCallable? _resolve;
             private IJsCallable? _reject;
             private bool _isRejection;
+            private AsyncResumeCallback? _sibling; // The other callback in the pair
 
             public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
                 AsyncFunctionExecutor executor,
                 IJsCallable resolve,
                 IJsCallable reject)
             {
-                var fulfilled = TCachedFulfilled ?? new AsyncResumeCallback();
-                TCachedFulfilled = null;
+                var fulfilled = FulfilledPool.Rent();
                 fulfilled._executor = executor;
                 fulfilled._resolve = resolve;
                 fulfilled._reject = reject;
                 fulfilled._isRejection = false;
 
-                var rejected = TCachedRejected ?? new AsyncResumeCallback();
-                TCachedRejected = null;
+                var rejected = RejectedPool.Rent();
                 rejected._executor = executor;
                 rejected._resolve = resolve;
                 rejected._reject = reject;
                 rejected._isRejection = true;
+
+                // Link siblings so the invoked one can return both
+                fulfilled._sibling = rejected;
+                rejected._sibling = fulfilled;
 
                 return (fulfilled, rejected);
             }
@@ -288,11 +290,13 @@ public static partial class TypedAstEvaluator
                 var resolve = _resolve!;
                 var reject = _reject!;
                 var isRejection = _isRejection;
+                var sibling = _sibling;
 
                 // Clear state before execution
                 _executor = null;
                 _resolve = null;
                 _reject = null;
+                _sibling = null;
 
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
@@ -305,11 +309,31 @@ public static partial class TypedAstEvaluator
                 }
                 finally
                 {
-                    // Return to appropriate pool
+                    // Return both this callback AND its sibling to pools
                     if (isRejection)
-                        TCachedRejected = this;
+                    {
+                        RejectedPool.Return(this);
+                        if (sibling is not null)
+                        {
+                            sibling._executor = null;
+                            sibling._resolve = null;
+                            sibling._reject = null;
+                            sibling._sibling = null;
+                            FulfilledPool.Return(sibling);
+                        }
+                    }
                     else
-                        TCachedFulfilled = this;
+                    {
+                        FulfilledPool.Return(this);
+                        if (sibling is not null)
+                        {
+                            sibling._executor = null;
+                            sibling._resolve = null;
+                            sibling._reject = null;
+                            sibling._sibling = null;
+                            RejectedPool.Return(sibling);
+                        }
+                    }
                 }
 
                 return JsValue.Undefined;

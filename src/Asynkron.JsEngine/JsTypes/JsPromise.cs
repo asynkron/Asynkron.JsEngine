@@ -15,7 +15,7 @@ public sealed class JsPromise : IMicrotask
     internal const string InternalPromiseKey = "__promise__";
 
     private readonly JsEngine _engine;
-    private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)> _handlers = [];
+    private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)>? _handlers;
 
     private bool _handlersScheduled;
 
@@ -39,7 +39,7 @@ public sealed class JsPromise : IMicrotask
     }
 
     // Debug helpers for instrumentation
-    internal int DebugHandlerCount => _handlers.Count;
+    internal int DebugHandlerCount => _handlers?.Count ?? 0;
     internal string DebugState => _state.ToString();
     internal int DebugId => RuntimeHelpers.GetHashCode(this);
 
@@ -184,7 +184,7 @@ public sealed class JsPromise : IMicrotask
     public JsPromise Then(IJsCallable? onFulfilled, IJsCallable? onRejected = null)
     {
         var nextPromise = new JsPromise(_engine);
-        _handlers.Add((onFulfilled, onRejected, nextPromise));
+        (_handlers ??= []).Add((onFulfilled, onRejected, nextPromise));
 
         if (_state != PromiseState.Pending)
         {
@@ -244,7 +244,7 @@ public sealed class JsPromise : IMicrotask
         }
 
         // Process handlers without allocating if possible
-        var count = _handlers.Count;
+        var count = _handlers?.Count ?? 0;
         if (count == 0)
         {
             return;
@@ -252,8 +252,8 @@ public sealed class JsPromise : IMicrotask
 
         // Swap handlers list with spare to avoid ToArray allocation (no locks needed)
         // This allows new handlers to be added during processing
-        var handlersToProcess = _handlers;
-        _handlers = _spareHandlers ?? [];
+        var handlersToProcess = _handlers!;
+        _handlers = _spareHandlers;
         _spareHandlers = null;
 
         for (var i = 0; i < handlersToProcess.Count; i++)
@@ -290,7 +290,7 @@ public sealed class JsPromise : IMicrotask
         handlersToProcess.Clear();
         _spareHandlers = handlersToProcess;
 
-        if (_handlers.Count > 0)
+        if (_handlers?.Count > 0)
         {
             ScheduleProcessing();
         }

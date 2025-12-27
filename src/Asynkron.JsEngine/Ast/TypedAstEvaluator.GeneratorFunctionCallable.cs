@@ -15,9 +15,9 @@ public static partial class TypedAstEvaluator
     /// Callable for synchronous generator functions (function*).
     /// Returns a sync iterator when invoked.
     /// </summary>
-    private sealed class TypedGeneratorFactory : GeneratorFunctionBase
+    private sealed class GeneratorFunctionCallable : GeneratorFunctionBase
     {
-        public TypedGeneratorFactory(
+        public GeneratorFunctionCallable(
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,
@@ -199,7 +199,7 @@ public static partial class TypedAstEvaluator
 
             var created = JsValue.FromObjectUnsafe(createdObj);
 
-            // The result should now be a TypedGeneratorFactory
+            // The result should now be a GeneratorFunctionCallable
             if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {
                 // Resolve the prototype from the newTarget

@@ -51,6 +51,7 @@ public sealed class RealmState
     public HostFunction? RangeErrorConstructor { get; set; }
     public HostFunction? SyntaxErrorConstructor { get; set; }
     public HostFunction? ReferenceErrorConstructor { get; set; }
+    public HostFunction? URIErrorConstructor { get; set; }
     public JsObject? ReferenceErrorPrototype { get; set; }
     public JsObject? BooleanPrototype { get; set; }
     public JsObject? NumberPrototype { get; set; }

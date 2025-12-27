@@ -157,6 +157,12 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("parseFloat", GlobalHelper.CreateParseFloatFunction());
         SetGlobal("isNaN", GlobalHelper.CreateIsNaNFunction());
         SetGlobal("isFinite", GlobalHelper.CreateIsFiniteFunction());
+        SetGlobal("encodeURI", GlobalHelper.CreateEncodeURIFunction(RealmState));
+        SetGlobal("encodeURIComponent", GlobalHelper.CreateEncodeURIComponentFunction(RealmState));
+        SetGlobal("decodeURI", GlobalHelper.CreateDecodeURIFunction(RealmState));
+        SetGlobal("decodeURIComponent", GlobalHelper.CreateDecodeURIComponentFunction(RealmState));
+        SetGlobal("escape", GlobalHelper.CreateEscapeFunction());
+        SetGlobal("unescape", GlobalHelper.CreateUnescapeFunction());
 
         // Shared TypedArray intrinsic (abstract)
         var typedArrayCtor = TypedArrayHelper.EnsureTypedArrayIntrinsic(RealmState);

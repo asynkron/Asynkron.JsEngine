@@ -119,6 +119,24 @@ public static partial class StandardLibrary
         return new ThrowSignal(CreateSyntaxError(message, context, realm));
     }
 
+    private static JsValue CreateURIError(string message, EvaluationContext? context = null, RealmState? realm = null)
+    {
+        realm ??= context?.RealmState;
+        if (realm?.URIErrorConstructor is not IJsCallable callable)
+        {
+            return CreateErrorFallback("URIError", message, realm);
+        }
+
+        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        return result.IsUndefined ? CreateErrorFallback("URIError", message, realm) : result;
+    }
+
+    internal static ThrowSignal ThrowURIError(string message, EvaluationContext? context = null,
+        RealmState? realm = null)
+    {
+        return new ThrowSignal(CreateURIError(message, context, realm));
+    }
+
     internal static void DefineConstantProperty(
         IJsPropertyAccessor target,
         string name,

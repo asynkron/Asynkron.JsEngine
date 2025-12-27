@@ -1,8 +1,10 @@
 #region
 
 using System.Globalization;
+using System.Text;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -26,22 +28,68 @@ public static class GlobalHelper
                 return JsValue.NaN;
             }
 
-            var radix = args.Count > 1 && args[1].TryGetDouble(out var r) ? (int)r : 10;
+            // Handle sign first (before hex prefix detection)
+            var sign = 1;
+            if (str.StartsWith('-'))
+            {
+                sign = -1;
+                str = str[1..];
+            }
+            else if (str.StartsWith('+'))
+            {
+                str = str[1..];
+            }
+
+            // Get radix - undefined means 0 (auto-detect)
+            int radix;
+            if (args.Count > 1 && !args[1].IsUndefined)
+            {
+                var radixNum = JsOps.ToNumber(args[1]);
+                radix = double.IsNaN(radixNum) ? 0 : (int)radixNum;
+            }
+            else
+            {
+                radix = 0; // Auto-detect
+            }
+
+            // Handle radix 0 (auto-detect) or explicit radix 16 with hex prefix
+            var stripPrefix = false;
+            if (radix == 0)
+            {
+                if (str.Length >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+                {
+                    radix = 16;
+                    stripPrefix = true;
+                }
+                else
+                {
+                    radix = 10;
+                }
+            }
+            else if (radix == 16)
+            {
+                // For radix 16, optionally strip "0x" or "0X" prefix
+                if (str.Length >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+                {
+                    stripPrefix = true;
+                }
+            }
+
+            // Validate radix
             if (radix is < 2 or > 36)
             {
                 return JsValue.NaN;
             }
 
-            // Handle sign
-            var sign = 1;
-            if (str.StartsWith('-'))
+            // Strip hex prefix if needed
+            if (stripPrefix)
             {
-                sign = -1;
-                str = str[1..].TrimStart();
+                str = str[2..];
             }
-            else if (str.StartsWith('+'))
+
+            if (str.Length == 0)
             {
-                str = str[1..].TrimStart();
+                return JsValue.NaN;
             }
 
             // Parse until we hit invalid character
@@ -227,5 +275,351 @@ public static class GlobalHelper
             var numericValue = JsOps.ToNumber(value);
             return new JsValue(!double.IsNaN(numericValue) && !double.IsInfinity(numericValue));
         });
+    }
+
+    // Characters that are NOT encoded by encodeURI (uriReserved + uriUnescaped + '#')
+    // uriReserved: ; / ? : @ & = + $ ,
+    // uriUnescaped: A-Z a-z 0-9 - _ . ! ~ * ' ( )
+    // Plus: #
+    private static readonly HashSet<char> EncodeUriUnescaped =
+    [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        '-', '_', '.', '!', '~', '*', '\'', '(', ')',
+        ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'
+    ];
+
+    // Characters that are NOT encoded by encodeURIComponent (uriUnescaped only)
+    // uriUnescaped: A-Z a-z 0-9 - _ . ! ~ * ' ( )
+    private static readonly HashSet<char> EncodeUriComponentUnescaped =
+    [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        '-', '_', '.', '!', '~', '*', '\'', '(', ')'
+    ];
+
+    /// <summary>
+    ///     Creates the global encodeURI function.
+    /// </summary>
+    public static HostFunction CreateEncodeURIFunction(RealmState realm)
+    {
+        var fn = new HostFunction(args =>
+        {
+            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+            return EncodeUri(str, EncodeUriUnescaped, realm);
+        }, isConstructor: false);
+        fn.Properties.Delete("prototype");
+        return fn;
+    }
+
+    /// <summary>
+    ///     Creates the global encodeURIComponent function.
+    /// </summary>
+    public static HostFunction CreateEncodeURIComponentFunction(RealmState realm)
+    {
+        var fn = new HostFunction(args =>
+        {
+            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+            return EncodeUri(str, EncodeUriComponentUnescaped, realm);
+        }, isConstructor: false);
+        fn.Properties.Delete("prototype");
+        return fn;
+    }
+
+    /// <summary>
+    ///     Creates the global decodeURI function.
+    /// </summary>
+    public static HostFunction CreateDecodeURIFunction(RealmState realm)
+    {
+        var fn = new HostFunction(args =>
+        {
+            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+            return DecodeUri(str, EncodeUriUnescaped, realm);
+        }, isConstructor: false);
+        fn.Properties.Delete("prototype");
+        return fn;
+    }
+
+    /// <summary>
+    ///     Creates the global decodeURIComponent function.
+    /// </summary>
+    public static HostFunction CreateDecodeURIComponentFunction(RealmState realm)
+    {
+        var fn = new HostFunction(args =>
+        {
+            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+            return DecodeUri(str, EncodeUriComponentUnescaped, realm);
+        }, isConstructor: false);
+        fn.Properties.Delete("prototype");
+        return fn;
+    }
+
+    private static JsValue EncodeUri(string str, HashSet<char> unescapedSet, RealmState realm)
+    {
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < str.Length; i++)
+        {
+            var c = str[i];
+
+            if (unescapedSet.Contains(c))
+            {
+                sb.Append(c);
+                continue;
+            }
+
+            // Handle surrogate pairs
+            if (char.IsHighSurrogate(c))
+            {
+                if (i + 1 >= str.Length || !char.IsLowSurrogate(str[i + 1]))
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                var codePoint = char.ConvertToUtf32(c, str[i + 1]);
+                var bytes = Encoding.UTF8.GetBytes(char.ConvertFromUtf32(codePoint));
+                foreach (var b in bytes)
+                {
+                    sb.Append('%');
+                    sb.Append(b.ToString("X2", CultureInfo.InvariantCulture));
+                }
+
+                i++; // Skip the low surrogate
+                continue;
+            }
+
+            if (char.IsLowSurrogate(c))
+            {
+                throw ThrowURIError("URI malformed", realm: realm);
+            }
+
+            // Encode the character as UTF-8 bytes
+            var charBytes = Encoding.UTF8.GetBytes(c.ToString());
+            foreach (var b in charBytes)
+            {
+                sb.Append('%');
+                sb.Append(b.ToString("X2", CultureInfo.InvariantCulture));
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static JsValue DecodeUri(string str, HashSet<char> reservedSet, RealmState realm)
+    {
+        var sb = new StringBuilder();
+        var bytes = new List<byte>();
+
+        for (var i = 0; i < str.Length; i++)
+        {
+            var c = str[i];
+
+            if (c != '%')
+            {
+                sb.Append(c);
+                continue;
+            }
+
+            // Parse percent-encoded sequence
+            bytes.Clear();
+            while (i < str.Length && str[i] == '%')
+            {
+                if (i + 2 >= str.Length)
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                var hex = str.Substring(i + 1, 2);
+                if (!byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+                {
+                    throw ThrowURIError("URI malformed", realm: realm);
+                }
+
+                bytes.Add(b);
+                i += 3;
+
+                // Check if this is a multi-byte UTF-8 sequence
+                if (bytes.Count == 1)
+                {
+                    var firstByte = bytes[0];
+                    int expectedBytes;
+                    if ((firstByte & 0x80) == 0)
+                    {
+                        expectedBytes = 1;
+                    }
+                    else if ((firstByte & 0xE0) == 0xC0)
+                    {
+                        expectedBytes = 2;
+                    }
+                    else if ((firstByte & 0xF0) == 0xE0)
+                    {
+                        expectedBytes = 3;
+                    }
+                    else if ((firstByte & 0xF8) == 0xF0)
+                    {
+                        expectedBytes = 4;
+                    }
+                    else
+                    {
+                        throw ThrowURIError("URI malformed", realm: realm);
+                    }
+
+                    // Read remaining bytes
+                    while (bytes.Count < expectedBytes && i < str.Length && str[i] == '%')
+                    {
+                        if (i + 2 >= str.Length)
+                        {
+                            throw ThrowURIError("URI malformed", realm: realm);
+                        }
+
+                        hex = str.Substring(i + 1, 2);
+                        if (!byte.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b))
+                        {
+                            throw ThrowURIError("URI malformed", realm: realm);
+                        }
+
+                        // Validate continuation byte
+                        if ((b & 0xC0) != 0x80)
+                        {
+                            throw ThrowURIError("URI malformed", realm: realm);
+                        }
+
+                        bytes.Add(b);
+                        i += 3;
+                    }
+
+                    if (bytes.Count != expectedBytes)
+                    {
+                        throw ThrowURIError("URI malformed", realm: realm);
+                    }
+                }
+            }
+
+            i--; // Back up since the outer loop will increment
+
+            // Decode the UTF-8 bytes
+            string decoded;
+            try
+            {
+                decoded = Encoding.UTF8.GetString(bytes.ToArray());
+            }
+            catch
+            {
+                throw ThrowURIError("URI malformed", realm: realm);
+            }
+
+            // For decodeURI, don't decode reserved characters
+            if (decoded.Length == 1 && reservedSet.Contains(decoded[0]) && bytes.Count == 1)
+            {
+                // Keep the percent-encoded form for reserved characters
+                sb.Append('%');
+                sb.Append(bytes[0].ToString("X2", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                sb.Append(decoded);
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // Characters that are NOT escaped by the legacy escape() function
+    // A-Z a-z 0-9 @ * _ + - . /
+    private static readonly HashSet<char> EscapeUnescaped =
+    [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+        '@', '*', '_', '+', '-', '.', '/'
+    ];
+
+    /// <summary>
+    ///     Creates the legacy global escape function.
+    /// </summary>
+    public static HostFunction CreateEscapeFunction()
+    {
+        var fn = new HostFunction(args =>
+        {
+            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+            var sb = new StringBuilder();
+
+            foreach (var c in str)
+            {
+                if (EscapeUnescaped.Contains(c))
+                {
+                    sb.Append(c);
+                }
+                else if (c < 256)
+                {
+                    sb.Append('%');
+                    sb.Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    sb.Append("%u");
+                    sb.Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
+                }
+            }
+
+            return sb.ToString();
+        }, isConstructor: false);
+        fn.Properties.Delete("prototype");
+        return fn;
+    }
+
+    /// <summary>
+    ///     Creates the legacy global unescape function.
+    /// </summary>
+    public static HostFunction CreateUnescapeFunction()
+    {
+        var fn = new HostFunction(args =>
+        {
+            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
+            var sb = new StringBuilder();
+
+            for (var i = 0; i < str.Length; i++)
+            {
+                var c = str[i];
+                if (c == '%')
+                {
+                    // Check for %uXXXX format
+                    if (i + 5 < str.Length && str[i + 1] == 'u')
+                    {
+                        var hex = str.Substring(i + 2, 4);
+                        if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var charCode))
+                        {
+                            sb.Append((char)charCode);
+                            i += 5;
+                            continue;
+                        }
+                    }
+                    // Check for %XX format
+                    else if (i + 2 < str.Length)
+                    {
+                        var hex = str.Substring(i + 1, 2);
+                        if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var charCode))
+                        {
+                            sb.Append((char)charCode);
+                            i += 2;
+                            continue;
+                        }
+                    }
+                }
+                sb.Append(c);
+            }
+
+            return sb.ToString();
+        }, isConstructor: false);
+        fn.Properties.Delete("prototype");
+        return fn;
     }
 }

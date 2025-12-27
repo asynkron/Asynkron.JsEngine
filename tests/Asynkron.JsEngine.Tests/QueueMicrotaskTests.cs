@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// queueMicrotask schedules a callback to run as a microtask, after the current
 /// synchronous code completes but before the next macrotask (like setTimeout).
 /// </summary>
-public abstract class QueueMicrotaskTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class QueueMicrotaskTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ExecutesCallback()
@@ -200,7 +200,3 @@ public abstract class QueueMicrotaskTestsBase(ITestOutputHelper output) : FastPa
     }
 }
 
-public class FastPathQueueMicrotaskTests(ITestOutputHelper output) : QueueMicrotaskTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class IntlSupportedValuesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class IntlSupportedValuesTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact]
     public async Task SupportedValuesRejectSymbolKeys()
@@ -74,7 +74,3 @@ public abstract class IntlSupportedValuesTestsBase(ITestOutputHelper output) : F
     }
 }
 
-public class FastPathIntlSupportedValuesTests(ITestOutputHelper output) : IntlSupportedValuesTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ArrayConstructorTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ArrayConstructorTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_Constructor_WithLength_CreatesArrayWithLength()
@@ -71,7 +71,3 @@ public abstract class ArrayConstructorTestsBase(ITestOutputHelper output) : Fast
     }
 }
 
-public class FastPathArrayConstructorTests(ITestOutputHelper output) : ArrayConstructorTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

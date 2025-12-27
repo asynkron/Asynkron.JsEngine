@@ -694,8 +694,14 @@ public static partial class TypedAstEvaluator
             // ║                                                                              ║
             // ╚══════════════════════════════════════════════════════════════════════════════╝
             //
-            // Sync IR execution path for non-async, non-generator functions.
-            // This would unify execution with the generator/async IR path, avoiding mixed-mode bugs.
+            // ┌──────────────────────────────────────────────────────────────────────────────┐
+            // │ IMPORTANT: ALL FUNCTIONS NOW USE IR (ExecutionPlanRunner)                   │
+            // │                                                                              │
+            // │ This includes SYNC functions, not just async/generators!                    │
+            // │ The IR path unifies execution and avoids mixed-mode environment bugs.       │
+            // │ If you're debugging function execution, look at ExecutionPlanRunner.cs      │
+            // └──────────────────────────────────────────────────────────────────────────────┘
+            //
             // Skip IR for:
             // - Functions with homeObject (class methods/field initializers) - need special super handling
             // - Functions with direct eval - AST path handles eval scope correctly

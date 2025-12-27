@@ -3014,6 +3014,15 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Tries to get the slot index for a symbol from this environment's slot map.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryGetSlotIndex(Symbol name, out int slotIndex)
+    {
+        return _slotMap.TryGetValue(name, out slotIndex) && slotIndex >= 0;
+    }
+
+    /// <summary>
     /// Finds the environment in the chain that has the specified scope ID.
     /// Returns null if not found (caller should fall back to dictionary lookup).
     /// </summary>

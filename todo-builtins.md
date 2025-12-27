@@ -189,7 +189,6 @@
        GeneratorPrototype_next
        GeneratorPrototype_return
        GeneratorPrototype_throw
-       Global
        IsFinite
        IsNaN
        Iterator
@@ -384,37 +383,23 @@
        String_fromCharCode
        String_fromCodePoint
        String_prototype
-       String_prototype_at
-       String_prototype_charAt
-       String_prototype_charCodeAt
-       String_prototype_codePointAt
-       String_prototype_concat
        String_prototype_endsWith
        String_prototype_includes
        String_prototype_indexOf
-       String_prototype_isWellFormed
-       String_prototype_lastIndexOf
        String_prototype_localeCompare
        String_prototype_match
        String_prototype_matchAll
        String_prototype_normalize
-       String_prototype_padEnd
-       String_prototype_padStart
-       String_prototype_repeat
        String_prototype_replace
        String_prototype_replaceAll
        String_prototype_search
-       String_prototype_slice
        String_prototype_split
        String_prototype_startsWith
        String_prototype_substring
-       String_prototype_Symbol_iterator
        String_prototype_toLocaleLowerCase
        String_prototype_toLocaleUpperCase
        String_prototype_toLowerCase
-       String_prototype_toString
        String_prototype_toUpperCase
-       String_prototype_toWellFormed
        String_prototype_trim
        String_prototype_trimEnd
        String_prototype_trimStart
@@ -440,7 +425,6 @@
        Symbol_toPrimitive
        Symbol_toStringTag
        Symbol_unscopables
-       Temporal
        Temporal_Duration
        Temporal_Duration_compare
        Temporal_Duration_from
@@ -462,9 +446,7 @@
        Temporal_Duration_prototype_toJSON
        Temporal_Duration_prototype_toLocaleString
        Temporal_Duration_prototype_toString
-       Temporal_Duration_prototype_toStringTag
        Temporal_Duration_prototype_total
-       Temporal_Duration_prototype_valueOf
        Temporal_Duration_prototype_weeks
        Temporal_Duration_prototype_with
        Temporal_Duration_prototype_years
@@ -473,7 +455,6 @@
        Temporal_Instant_from
        Temporal_Instant_fromEpochMilliseconds
        Temporal_Instant_fromEpochNanoseconds
-       Temporal_Instant_prototype
        Temporal_Instant_prototype_add
        Temporal_Instant_prototype_epochMilliseconds
        Temporal_Instant_prototype_epochNanoseconds
@@ -484,22 +465,17 @@
        Temporal_Instant_prototype_toJSON
        Temporal_Instant_prototype_toLocaleString
        Temporal_Instant_prototype_toString
-       Temporal_Instant_prototype_toStringTag
        Temporal_Instant_prototype_toZonedDateTimeISO
        Temporal_Instant_prototype_until
        Temporal_Instant_prototype_valueOf
-       Temporal_Now
        Temporal_Now_instant
        Temporal_Now_plainDateISO
        Temporal_Now_plainDateTimeISO
        Temporal_Now_plainTimeISO
-       Temporal_Now_timeZoneId
-       Temporal_Now_toStringTag
        Temporal_Now_zonedDateTimeISO
        Temporal_PlainDate
        Temporal_PlainDate_compare
        Temporal_PlainDate_from
-       Temporal_PlainDate_prototype
        Temporal_PlainDate_prototype_add
        Temporal_PlainDate_prototype_calendarId
        Temporal_PlainDate_prototype_day
@@ -523,10 +499,8 @@
        Temporal_PlainDate_prototype_toPlainMonthDay
        Temporal_PlainDate_prototype_toPlainYearMonth
        Temporal_PlainDate_prototype_toString
-       Temporal_PlainDate_prototype_toStringTag
        Temporal_PlainDate_prototype_toZonedDateTime
        Temporal_PlainDate_prototype_until
-       Temporal_PlainDate_prototype_valueOf
        Temporal_PlainDate_prototype_weekOfYear
        Temporal_PlainDate_prototype_with
        Temporal_PlainDate_prototype_withCalendar
@@ -535,7 +509,6 @@
        Temporal_PlainDateTime
        Temporal_PlainDateTime_compare
        Temporal_PlainDateTime_from
-       Temporal_PlainDateTime_prototype
        Temporal_PlainDateTime_prototype_add
        Temporal_PlainDateTime_prototype_calendarId
        Temporal_PlainDateTime_prototype_day
@@ -565,10 +538,8 @@
        Temporal_PlainDateTime_prototype_toPlainDate
        Temporal_PlainDateTime_prototype_toPlainTime
        Temporal_PlainDateTime_prototype_toString
-       Temporal_PlainDateTime_prototype_toStringTag
        Temporal_PlainDateTime_prototype_toZonedDateTime
        Temporal_PlainDateTime_prototype_until
-       Temporal_PlainDateTime_prototype_valueOf
        Temporal_PlainDateTime_prototype_weekOfYear
        Temporal_PlainDateTime_prototype_with
        Temporal_PlainDateTime_prototype_withCalendar
@@ -577,7 +548,6 @@
        Temporal_PlainDateTime_prototype_yearOfWeek
        Temporal_PlainMonthDay
        Temporal_PlainMonthDay_from
-       Temporal_PlainMonthDay_prototype
        Temporal_PlainMonthDay_prototype_calendarId
        Temporal_PlainMonthDay_prototype_day
        Temporal_PlainMonthDay_prototype_equals
@@ -587,13 +557,11 @@
        Temporal_PlainMonthDay_prototype_toLocaleString
        Temporal_PlainMonthDay_prototype_toPlainDate
        Temporal_PlainMonthDay_prototype_toString
-       Temporal_PlainMonthDay_prototype_toStringTag
        Temporal_PlainMonthDay_prototype_valueOf
        Temporal_PlainMonthDay_prototype_with
        Temporal_PlainTime
        Temporal_PlainTime_compare
        Temporal_PlainTime_from
-       Temporal_PlainTime_prototype
        Temporal_PlainTime_prototype_add
        Temporal_PlainTime_prototype_equals
        Temporal_PlainTime_prototype_hour
@@ -608,14 +576,11 @@
        Temporal_PlainTime_prototype_toJSON
        Temporal_PlainTime_prototype_toLocaleString
        Temporal_PlainTime_prototype_toString
-       Temporal_PlainTime_prototype_toStringTag
        Temporal_PlainTime_prototype_until
-       Temporal_PlainTime_prototype_valueOf
        Temporal_PlainTime_prototype_with
        Temporal_PlainYearMonth
        Temporal_PlainYearMonth_compare
        Temporal_PlainYearMonth_from
-       Temporal_PlainYearMonth_prototype
        Temporal_PlainYearMonth_prototype_add
        Temporal_PlainYearMonth_prototype_calendarId
        Temporal_PlainYearMonth_prototype_daysInMonth
@@ -633,16 +598,12 @@
        Temporal_PlainYearMonth_prototype_toLocaleString
        Temporal_PlainYearMonth_prototype_toPlainDate
        Temporal_PlainYearMonth_prototype_toString
-       Temporal_PlainYearMonth_prototype_toStringTag
        Temporal_PlainYearMonth_prototype_until
-       Temporal_PlainYearMonth_prototype_valueOf
        Temporal_PlainYearMonth_prototype_with
        Temporal_PlainYearMonth_prototype_year
-       Temporal_toStringTag
        Temporal_ZonedDateTime
        Temporal_ZonedDateTime_compare
        Temporal_ZonedDateTime_from
-       Temporal_ZonedDateTime_prototype
        Temporal_ZonedDateTime_prototype_add
        Temporal_ZonedDateTime_prototype_calendarId
        Temporal_ZonedDateTime_prototype_day
@@ -682,7 +643,6 @@
        Temporal_ZonedDateTime_prototype_toPlainDateTime
        Temporal_ZonedDateTime_prototype_toPlainTime
        Temporal_ZonedDateTime_prototype_toString
-       Temporal_ZonedDateTime_prototype_toStringTag
        Temporal_ZonedDateTime_prototype_until
        Temporal_ZonedDateTime_prototype_valueOf
        Temporal_ZonedDateTime_prototype_weekOfYear
@@ -698,7 +658,6 @@
        TypedArray_of
        TypedArray_prototype
        TypedArray_prototype_at
-       TypedArray_prototype_at_BigInt
        TypedArray_prototype_buffer
        TypedArray_prototype_byteLength
        TypedArray_prototype_byteOffset

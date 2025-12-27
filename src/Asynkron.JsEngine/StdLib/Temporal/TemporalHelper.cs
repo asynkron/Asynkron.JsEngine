@@ -187,7 +187,7 @@ public static class TemporalHelper
             var epochNanoseconds = args.GetArgument(0);
 
             JsTemporalInstant instant;
-            if (epochNanoseconds.TryGetObject<JsBigInt>(out var bigInt))
+            if (epochNanoseconds.TryGetBigInt(out var bigInt))
             {
                 instant = new JsTemporalInstant(bigInt.Value);
             }
@@ -219,7 +219,7 @@ public static class TemporalHelper
         {
             var arg = args.GetArgument(0);
             BigInteger nanos;
-            if (arg.TryGetObject<JsBigInt>(out var bigInt))
+            if (arg.TryGetBigInt(out var bigInt))
             {
                 nanos = bigInt.Value;
             }
@@ -689,7 +689,7 @@ public static class TemporalHelper
             var calendar = calendarArg.IsUndefined ? "iso8601" : JsOps.ToJsString(calendarArg);
 
             JsTemporalInstant instant;
-            if (epochNanoseconds.TryGetObject<JsBigInt>(out var bigInt))
+            if (epochNanoseconds.TryGetBigInt(out var bigInt))
             {
                 instant = new JsTemporalInstant(bigInt.Value);
             }

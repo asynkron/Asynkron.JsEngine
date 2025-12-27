@@ -32,6 +32,8 @@ internal sealed class ActionMicrotask : IMicrotask, IRentable
         }
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _action = null;

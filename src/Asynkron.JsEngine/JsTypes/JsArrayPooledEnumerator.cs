@@ -58,6 +58,8 @@ internal sealed class JsArrayPooledEnumerator : IEnumerator<JsValue>, IRentable
 
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _array = null;

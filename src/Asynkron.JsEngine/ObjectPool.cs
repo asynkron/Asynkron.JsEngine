@@ -12,8 +12,15 @@ namespace Asynkron.JsEngine;
 internal interface IRentable
 {
     /// <summary>
+    /// Called when the object is rented from the pool.
+    /// Use this to rent sub-objects or initialize transient state.
+    /// </summary>
+    void Activate();
+
+    /// <summary>
     /// Resets the object to a clean state for reuse.
     /// Called automatically when the object is returned to the pool.
+    /// Use this to return sub-objects to their pools.
     /// </summary>
     void Reset();
 }
@@ -77,11 +84,20 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
             var item = items[i];
             if (item is not null && Interlocked.CompareExchange(ref items[i], null, item) == item)
             {
+                if (IsRentable)
+                {
+                    ((IRentable)item).Activate();
+                }
                 return item;
             }
         }
 
-        return factory();
+        var newItem = factory();
+        if (IsRentable)
+        {
+            ((IRentable)newItem).Activate();
+        }
+        return newItem;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

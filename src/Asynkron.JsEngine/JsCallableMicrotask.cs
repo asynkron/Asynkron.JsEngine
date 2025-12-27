@@ -34,6 +34,8 @@ internal sealed class JsCallableMicrotask : IMicrotask, IRentable
         }
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _callback = null;

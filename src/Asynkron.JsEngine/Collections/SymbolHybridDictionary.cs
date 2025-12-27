@@ -21,6 +21,7 @@ namespace Asynkron.JsEngine.Collections;
 public sealed class SymbolHybridDictionary<TValue>
 {
     private const int CutoverPoint = 8;
+    private const int InitialArraySize = 4;
     private int _count;
 
     // Large storage - full dictionary with reference equality
@@ -104,7 +105,20 @@ public sealed class SymbolHybridDictionary<TValue>
             return;
         }
 
-        _entries ??= new Entry[CutoverPoint];
+        if (_entries is null)
+        {
+            // Start with small array - most environments have few bindings
+            _entries = new Entry[InitialArraySize];
+        }
+        else if (_count >= _entries.Length)
+        {
+            // Grow array when needed (double size up to cutover)
+            var newSize = Math.Min(_entries.Length * 2, CutoverPoint);
+            var newEntries = new Entry[newSize];
+            Array.Copy(_entries, newEntries, _count);
+            _entries = newEntries;
+        }
+
         _entries[_count++] = new Entry { Key = key, Value = value };
     }
 

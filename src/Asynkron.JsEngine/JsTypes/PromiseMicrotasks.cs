@@ -31,6 +31,8 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask, IRentabl
         Pool.Return(this);
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _value = JsValue.Undefined;
@@ -87,6 +89,8 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask, IRentable
             Pool.Return(this);
         }
     }
+
+    public void Activate() { }
 
     public void Reset()
     {

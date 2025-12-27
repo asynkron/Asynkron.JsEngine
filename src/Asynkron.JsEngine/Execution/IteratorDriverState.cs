@@ -64,6 +64,14 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     public JsEnvironment? LoopScopeEnvironment { get; set; }
 
     /// <summary>
+    /// Called when state is rented from pool.
+    /// </summary>
+    void IRentable.Activate()
+    {
+        // No sub-objects to rent
+    }
+
+    /// <summary>
     /// Resets the state for reuse from pool.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

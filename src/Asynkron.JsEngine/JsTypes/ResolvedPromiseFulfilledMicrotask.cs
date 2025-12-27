@@ -53,6 +53,8 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask, IRentable
         }
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _callback = null;

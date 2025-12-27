@@ -227,6 +227,15 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    ///     Called when environment is rented from pool.
+    ///     Implements IRentable.Activate().
+    /// </summary>
+    void IRentable.Activate()
+    {
+        // Slots are allocated on demand via InitializeSlots - no pre-activation needed
+    }
+
+    /// <summary>
     ///     Resets the environment to a neutral state for pool return.
     ///     Implements IRentable.Reset().
     /// </summary>

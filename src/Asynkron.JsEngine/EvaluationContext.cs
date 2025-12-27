@@ -487,6 +487,14 @@ public sealed class EvaluationContext(
     }
 
     /// <summary>
+    ///     Called when context is rented from pool.
+    /// </summary>
+    void IRentable.Activate()
+    {
+        // No sub-objects to rent - stacks are cleared on reset
+    }
+
+    /// <summary>
     ///     Resets the context for reuse. Clears all stacks and signals.
     /// </summary>
     void IRentable.Reset() => Reset();
@@ -630,6 +638,11 @@ public sealed class EvaluationContext(
 
             _disposed = true;
             Pool.Return(this);
+        }
+
+        void IRentable.Activate()
+        {
+            // No sub-objects to rent
         }
 
         void IRentable.Reset()

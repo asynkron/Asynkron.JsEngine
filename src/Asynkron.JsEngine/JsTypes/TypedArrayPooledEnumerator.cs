@@ -68,6 +68,8 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
 
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _typedArray = null;

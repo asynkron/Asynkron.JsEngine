@@ -63,6 +63,8 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
         return true;
     }
 
+    public void Activate() { }
+
     public void Reset()
     {
         _value = null;

@@ -29,6 +29,7 @@ internal static class IteratorDriverFactory
             statement.DeclarationKind,
             rewrittenBody,
             statement.PerIterationScopeId,
+            statement.PerIterationParentScopeId,
             statement.PerIterationSlotCount,
             statement.PerIterationSlotIndices,
             statement.PerIterationBindings,

@@ -1,3 +1,5 @@
+<img src="assets/images/logo.png" width="100%" alt="Asynkron.JsEngine Logo">
+
 # Asynkron.JsEngine
 
 A lightweight JavaScript interpreter written in C# that parses and evaluates JavaScript code using an S-expression intermediate representation.

@@ -634,6 +634,7 @@ internal sealed class ExecutionPlanBuilder
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
+                plan.IterationParentScopeId,
                 plan.AllowIterationEnvironmentPooling));
             // Continue should go through CreateEnv before increment
             continueTarget = createEnvIndex;
@@ -677,6 +678,7 @@ internal sealed class ExecutionPlanBuilder
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
+                plan.IterationParentScopeId,
                 plan.AllowIterationEnvironmentPooling));
             iterationBodyEntry = createEnvBeforeBody;
         }
@@ -1056,6 +1058,7 @@ internal sealed class ExecutionPlanBuilder
                 iteratorPlan.IterationScopeId,
                 iteratorPlan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
+                iteratorPlan.IterationParentScopeId,
                 iteratorPlan.CanReuseIterationEnvironment));
             loopEntry = createEnvIndex;
         }

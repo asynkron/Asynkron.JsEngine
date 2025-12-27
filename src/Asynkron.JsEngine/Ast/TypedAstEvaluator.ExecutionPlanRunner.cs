@@ -939,100 +939,74 @@ public static partial class TypedAstEvaluator
                                 // separate values per iteration.
                                 //
                                 // IMPORTANT: The parent should always be the LOOP scope, not the previous
-                                // iteration's environment. This ensures:
+                                // iteration's environment or an inner loop's environment. This ensures:
                                 // 1. All iteration environments have the same parent (loop scope)
                                 // 2. Iterator temps (__forOf_value_X) stored in loop scope are accessible
                                 // 3. Scope chain doesn't grow unboundedly with iterations
+                                // 4. Nested loops don't corrupt each other's scope chains
                                 //
-                                // There are three cases to handle:
-                                //
-                                // Case 1: Normal subsequent iteration - environment.ScopeId matches instruction.
-                                //         The current environment is the previous iteration's per-iteration env.
-                                //         Loop scope = environment.Enclosing
-                                //
-                                // Case 2: After async resume - environment is reset to function scope.
-                                //         We use _currentDriverState.CurrentIterationEnvironment to find the
-                                //         previous iteration's environment.
-                                //
-                                // Case 3: First iteration - no previous iteration env exists.
-                                //         Loop scope = current environment.
+                                // We use ParentScopeId when available to directly find the correct parent scope.
+                                // This prevents bugs where inner loop environments are incorrectly used as parents.
 
                                 JsEnvironment loopScope;
                                 JsEnvironment? previousIterEnv = null;
 
+                                // First, try to find the previous iteration environment for this loop
                                 if (createEnvInstruction.ScopeId >= 0 &&
                                     environment.ScopeId == createEnvInstruction.ScopeId)
                                 {
-                                    // Case 1: Current env is a per-iteration env from previous iteration
+                                    // Current env is a per-iteration env from previous iteration of THIS loop
                                     previousIterEnv = environment;
-                                    loopScope = environment.Enclosing ?? environment;
-                                }
-                                else if (_currentDriverState?.CurrentIterationEnvironment is { } savedIterEnv)
-                                {
-                                    // Case 2: After async resume, use saved iteration environment
-                                    // Walk up from saved env to find the correct loop scope for this instruction
-                                    var searchEnv = savedIterEnv;
-                                    while (searchEnv != null && searchEnv.ScopeId != createEnvInstruction.ScopeId)
-                                    {
-                                        searchEnv = searchEnv.Enclosing;
-                                    }
-
-                                    if (searchEnv != null)
-                                    {
-                                        // Found a matching scope - it's a previous iteration env
-                                        previousIterEnv = searchEnv;
-                                        loopScope = searchEnv.Enclosing ?? environment;
-                                    }
-                                    else
-                                    {
-                                        // No match found - this is a fresh loop iteration.
-                                        // Use current environment as the loop scope.
-                                        // This happens for for-await-of creating its own iteration envs,
-                                        // or when an outer loop just created a new iteration env.
-                                        loopScope = environment;
-                                    }
-                                }
-                                else if (_currentDriverState?.LoopScopeEnvironment is { } savedLoopScope)
-                                {
-                                    // Case 2c: First iteration after async resume, use LoopScopeEnvironment
-                                    // CurrentIterationEnvironment is not yet set (first iteration of this loop),
-                                    // but we have the loop scope saved from IteratorInit.
-                                    loopScope = savedLoopScope;
                                 }
                                 else
                                 {
-                                    // Case 3: No driver state. This can happen when:
-                                    //   a) True first iteration of the loop (loopScope = current environment)
-                                    //   b) After an inner for-await-of completed and cleared _currentDriverState.
-                                    //      In this case, environment may point to an inner loop's iteration env,
-                                    //      NOT this loop's scope. We need to walk up to find the correct scope.
-                                    //
-                                    // Walk up the environment chain looking for an env with matching ScopeId
-                                    // (a previous iteration of THIS loop). If found, its Enclosing is the loop scope.
+                                    // Walk up to find a previous iteration env with matching ScopeId
                                     var searchEnv = environment;
-                                    JsEnvironment? foundPreviousIter = null;
                                     var walkDepth = 0;
                                     while (searchEnv != null && walkDepth < 100)
                                     {
                                         if (searchEnv.ScopeId == createEnvInstruction.ScopeId)
                                         {
-                                            foundPreviousIter = searchEnv;
+                                            previousIterEnv = searchEnv;
                                             break;
                                         }
                                         searchEnv = searchEnv.Enclosing;
                                         walkDepth++;
                                     }
+                                }
 
-                                    if (foundPreviousIter != null)
+                                // Determine the loop scope (parent for iteration environments)
+                                if (createEnvInstruction.ParentScopeId >= 0)
+                                {
+                                    // Use ParentScopeId to find the exact parent scope.
+                                    // This is the reliable path for nested loops - we know exactly
+                                    // which scope should be the parent from scope analysis.
+                                    var parentEnv = environment.FindByScopeId(createEnvInstruction.ParentScopeId);
+                                    if (parentEnv != null)
                                     {
-                                        // Found a previous iteration env for this loop
-                                        loopScope = foundPreviousIter.Enclosing ?? environment;
+                                        loopScope = parentEnv;
                                     }
                                     else
                                     {
-                                        // True first iteration
+                                        // Parent scope not found in chain - use current environment
+                                        // This can happen on first iteration before parent scope exists
                                         loopScope = environment;
                                     }
+                                }
+                                else if (previousIterEnv != null)
+                                {
+                                    // Fallback: use previous iteration's Enclosing as loop scope
+                                    loopScope = previousIterEnv.Enclosing ?? environment;
+                                }
+                                else if (_currentDriverState?.LoopScopeEnvironment is { } savedLoopScope)
+                                {
+                                    // First iteration after async resume, use saved LoopScopeEnvironment
+                                    loopScope = savedLoopScope;
+                                }
+                                else
+                                {
+                                    // True first iteration - use current environment as parent
+                                    loopScope = environment;
                                 }
                                 // When pooling is allowed (no closures in loop body), reuse environments
                                 // to avoid per-iteration allocations

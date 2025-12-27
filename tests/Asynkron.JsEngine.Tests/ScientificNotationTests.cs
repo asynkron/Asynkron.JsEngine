@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class ScientificNotationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ScientificNotationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ScientificNotation_PositiveExponent_ParsesCorrectly()
@@ -117,9 +117,4 @@ public abstract class ScientificNotationTestsBase(ITestOutputHelper output) : Fa
         var result = await engine.Evaluate("1e2 * 5");
         Assert.Equal(500d, result);
     }
-}
-
-public class FastPathScientificNotationTests(ITestOutputHelper output) : ScientificNotationTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

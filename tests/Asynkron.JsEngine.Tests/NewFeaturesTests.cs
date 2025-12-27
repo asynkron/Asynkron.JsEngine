@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class NewFeaturesTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class NewFeaturesTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     // Single-quoted strings tests
     [Fact(Timeout = 2000)]
@@ -360,7 +360,3 @@ test(false);
     }
 }
 
-public class FastPathNewFeaturesTests(ITestOutputHelper output) : NewFeaturesTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

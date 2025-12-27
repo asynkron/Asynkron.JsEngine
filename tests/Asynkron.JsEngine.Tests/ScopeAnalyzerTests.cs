@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Note: These tests use the parser and scope analyzer directly, so the EnableFastPaths
 /// setting does not affect their behavior. Both FastPath and Reference modes run identically.
 /// </summary>
-public abstract class ScopeAnalyzerTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ScopeAnalyzerTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
     private static ProgramNode ParseAndAnalyze(string source)
     {
@@ -269,7 +269,3 @@ public abstract class ScopeAnalyzerTestsBase(ITestOutputHelper output) : FastPat
     }
 }
 
-public class FastPathScopeAnalyzerTests(ITestOutputHelper output) : ScopeAnalyzerTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
-}

@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ReturnWithLineBreakReturnsUndefined()
@@ -312,9 +312,4 @@ public abstract class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper out
 
         Assert.Equal("/base", result);
     }
-}
-
-public class FastPathAutomaticSemicolonInsertionTests(ITestOutputHelper output) : AutomaticSemicolonInsertionTestsBase(output)
-{
-    protected override bool EnableFastPaths => true;
 }

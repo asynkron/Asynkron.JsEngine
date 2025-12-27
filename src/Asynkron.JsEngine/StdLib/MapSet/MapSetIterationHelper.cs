@@ -3,7 +3,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -13,8 +12,6 @@ internal static class MapSetIterationHelper
 {
     internal static IJsObjectLike GetIterator(JsValue iterable, RealmState realm, string operation)
     {
-        realm.Logger?.LogInformation("GetIterator: operation={Operation} iterableKind={Kind}", operation, iterable.Kind);
-
         if (iterable.IsNullOrUndefined)
         {
             throw StandardLibrary.ThrowTypeError($"{operation} requires an iterable", realm: realm);
@@ -26,20 +23,16 @@ internal static class MapSetIterationHelper
             return CreateStringIterator(str, realm);
         }
 
-        if (!iterable.TryGetObject(out var obj) || obj is null)
+        if (!iterable.TryGetObjectLike(out var obj) || obj is null)
         {
-            realm.Logger?.LogInformation("GetIterator: TryGetObject failed");
             throw StandardLibrary.ThrowTypeError($"{operation} requires an iterable", realm: realm);
         }
-
-        realm.Logger?.LogInformation("GetIterator: objType={ObjType} lookingFor={SymbolKey}", obj.GetType().Name, SymbolKeys.Iterator);
 
         // Prefer Symbol.iterator if present.
         if (obj.TryGetProperty(SymbolKeys.Iterator, out var iterMethod) &&
             iterMethod.TryGetObject<IJsCallable>(out var iterCallable) &&
             iterCallable is not null)
         {
-            realm.Logger?.LogInformation("GetIterator: found Symbol.iterator");
             var iteratorValue = iterCallable.Invoke([], iterable);
             if (!iteratorValue.TryGetObject(out var iteratorObj) || iteratorObj is null)
             {
@@ -49,8 +42,6 @@ internal static class MapSetIterationHelper
             return iteratorObj;
         }
 
-        realm.Logger?.LogInformation("GetIterator: Symbol.iterator NOT found, checking next()");
-
         // Fall back to iterator-like objects with a callable next().
         if (obj.TryGetProperty("next", out var nextProp) &&
             nextProp.TryGetObject<IJsCallable>(out _))
@@ -58,7 +49,6 @@ internal static class MapSetIterationHelper
             return obj;
         }
 
-        realm.Logger?.LogInformation("GetIterator: neither Symbol.iterator nor next() found, throwing");
         throw StandardLibrary.ThrowTypeError($"{operation} requires an iterable", realm: realm);
     }
 

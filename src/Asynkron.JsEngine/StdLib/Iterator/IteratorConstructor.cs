@@ -39,25 +39,31 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         return new JsValue(iteratorObj);
     }
 
+    protected override void ConfigureConstructor(HostFunction constructor)
+    {
+        // Store the iterator prototype in the realm for static method access
+        Realm.IteratorPrototype ??= Prototype as JsObject;
+    }
+
     /// <summary>
     /// Iterator.from(value) - Creates an iterator from an iterable or iterator-like object.
     /// If value is already an iterator with the correct prototype, returns it directly.
     /// Otherwise, wraps it in a new iterator that delegates to the original.
     /// </summary>
     [JsConstructorMethod("from", Length = 1d)]
-    public JsValue From(IReadOnlyList<JsValue> args)
+    public static JsValue From(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var value = args.Count > 0 ? args[0] : JsValue.Undefined;
 
         // Get an iterator from the value
-        var iterator = GetIteratorFlattenable(value, out var alreadyIterator);
+        var iterator = GetIteratorFlattenable(value, realm, out var alreadyIterator);
 
         if (alreadyIterator)
         {
             // Check if the iterator already has Iterator.prototype in its prototype chain
             if (iterator.TryGetObject(out var iteratorObj) && iteratorObj is not null)
             {
-                if (HasIteratorPrototype(iteratorObj))
+                if (HasIteratorPrototype(iteratorObj, realm))
                 {
                     // Already a proper Iterator - return as-is
                     return iterator;
@@ -66,14 +72,14 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         }
 
         // Wrap the iterator in a WrapForValidIteratorPrototype object
-        return CreateWrappedIterator(iterator);
+        return CreateWrappedIterator(iterator, realm);
     }
 
     /// <summary>
     /// Iterator.concat(...items) - Creates an iterator that concatenates all the given iterables.
     /// </summary>
     [JsConstructorMethod("concat", Length = 0d)]
-    public JsValue Concat(IReadOnlyList<JsValue> args)
+    public static JsValue Concat(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         // Validate all arguments are iterable first
         var iterables = new List<JsValue>();
@@ -81,13 +87,13 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         {
             if (!IsIterable(arg))
             {
-                throw StandardLibrary.ThrowTypeError("Iterator.concat requires iterable arguments", null, Realm);
+                throw StandardLibrary.ThrowTypeError("Iterator.concat requires iterable arguments", null, realm);
             }
 
             iterables.Add(arg);
         }
 
-        return CreateConcatIterator(iterables);
+        return CreateConcatIterator(iterables, realm);
     }
 
     #region Helper Methods
@@ -95,13 +101,13 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     /// <summary>
     /// Gets an iterator from a value, handling both iterables and iterator-like objects.
     /// </summary>
-    private JsValue GetIteratorFlattenable(JsValue value, out bool alreadyIterator)
+    private static JsValue GetIteratorFlattenable(JsValue value, RealmState? realm, out bool alreadyIterator)
     {
         alreadyIterator = false;
 
         if (!value.TryGetObject(out var obj) || obj is null)
         {
-            throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, Realm);
+            throw StandardLibrary.ThrowTypeError("Iterator.from requires an object", null, realm);
         }
 
         // First, check if it's an iterator (has a next method)
@@ -120,25 +126,31 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             var result = iterCallable.Invoke([], value);
             if (!result.TryGetObject(out var iteratorObj) || iteratorObj is null)
             {
-                throw StandardLibrary.ThrowTypeError("Symbol.iterator must return an object", null, Realm);
+                throw StandardLibrary.ThrowTypeError("Symbol.iterator must return an object", null, realm);
             }
 
             alreadyIterator = true;
             return result;
         }
 
-        throw StandardLibrary.ThrowTypeError("Value is not iterable", null, Realm);
+        throw StandardLibrary.ThrowTypeError("Value is not iterable", null, realm);
     }
 
     /// <summary>
     /// Checks if an object has Iterator.prototype in its prototype chain.
     /// </summary>
-    private bool HasIteratorPrototype(IJsObjectLike obj)
+    private static bool HasIteratorPrototype(IJsObjectLike obj, RealmState? realm)
     {
+        var iteratorProto = realm?.IteratorPrototype;
+        if (iteratorProto is null)
+        {
+            return false;
+        }
+
         var current = obj.Prototype;
         while (current is not null)
         {
-            if (current == Prototype)
+            if (current == iteratorProto)
             {
                 return true;
             }
@@ -250,14 +262,14 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     /// Creates a wrapped iterator that delegates to the underlying iterator
     /// but has Iterator.prototype in its prototype chain.
     /// </summary>
-    private JsValue CreateWrappedIterator(JsValue underlyingIterator)
+    private static JsValue CreateWrappedIterator(JsValue underlyingIterator, RealmState? realm)
     {
         if (!underlyingIterator.TryGetObject(out var underlying) || underlying is null)
         {
-            throw StandardLibrary.ThrowTypeError("Iterator must be an object", null, Realm);
+            throw StandardLibrary.ThrowTypeError("Iterator must be an object", null, realm);
         }
 
-        var wrapper = new JsObject { RealmState = Realm };
+        var wrapper = new JsObject { RealmState = realm };
         var done = false;
 
         var nextFunc = new HostFunction((_, args) =>
@@ -271,13 +283,13 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
                 nextMethod is null)
             {
-                throw StandardLibrary.ThrowTypeError("Iterator must have a next method", null, Realm);
+                throw StandardLibrary.ThrowTypeError("Iterator must have a next method", null, realm);
             }
 
             var result = nextMethod.Invoke(args.Count > 0 ? args : [], underlyingIterator);
             if (!result.TryGetObject(out var resultObj) || resultObj is null)
             {
-                throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, Realm);
+                throw StandardLibrary.ThrowTypeError("Iterator result must be an object", null, realm);
             }
 
             if (resultObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
@@ -308,9 +320,10 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         wrapper.SetProperty(SymbolKeys.Iterator, (JsValue)new HostFunction((thisVal, _) => thisVal, isConstructor: false));
 
         // Set the prototype to Iterator.prototype
-        if (Prototype is JsObject proto)
+        var iteratorProto = realm?.IteratorPrototype;
+        if (iteratorProto is not null)
         {
-            wrapper.SetPrototype(proto);
+            wrapper.SetPrototype(iteratorProto);
         }
 
         return new JsValue(wrapper);
@@ -319,9 +332,9 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     /// <summary>
     /// Creates an iterator that concatenates multiple iterables.
     /// </summary>
-    private JsValue CreateConcatIterator(List<JsValue> iterables)
+    private static JsValue CreateConcatIterator(List<JsValue> iterables, RealmState? realm)
     {
-        var iterator = new JsObject { RealmState = Realm };
+        var iterator = new JsObject { RealmState = realm };
         var iterableIndex = 0;
         IJsObjectLike? currentIterator = null;
         var done = false;
@@ -396,9 +409,10 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         iterator.SetProperty(SymbolKeys.Iterator, (JsValue)new HostFunction((thisVal, _) => thisVal, isConstructor: false));
 
         // Set the prototype to Iterator.prototype
-        if (Prototype is JsObject proto)
+        var iteratorProto = realm?.IteratorPrototype;
+        if (iteratorProto is not null)
         {
-            iterator.SetPrototype(proto);
+            iterator.SetPrototype(iteratorProto);
         }
 
         return new JsValue(iterator);

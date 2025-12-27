@@ -223,6 +223,13 @@ public static class TemporalHelper
             return new JsValue(instant.ToString());
         });
 
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
+        {
+            // Basic implementation - returns ISO 8601 instant string
+            var instant = GetInstant(thisValue);
+            return new JsValue(instant.ToString());
+        });
+
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.Instant.prototype.valueOf does not support implicit conversion", realm: realm));
 
@@ -429,6 +436,13 @@ public static class TemporalHelper
             return new JsValue(duration.ToString());
         });
 
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
+        {
+            // Basic implementation - returns ISO 8601 duration string
+            var duration = GetDuration(thisValue);
+            return new JsValue(duration.ToString());
+        });
+
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.Duration.prototype.valueOf does not support implicit conversion", realm: realm));
 
@@ -608,12 +622,18 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainDate(tv).MonthsInYear));
         AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainDate(tv).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainDate(tv).Calendar));
+        AddPrototypeGetter(prototype, realm, "daysInWeek", _ => new JsValue(7)); // ISO 8601 always has 7 days per week
+        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
             new JsValue(GetPlainDate(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetPlainDate(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
             new JsValue(GetPlainDate(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
@@ -702,6 +722,42 @@ public static class TemporalHelper
             return WrapPlainMonthDay(md, realm, prototypes.PlainMonthDayPrototype);
         });
 
+        AddPrototypeMethod(prototype, realm, "toZonedDateTime", 1, (thisValue, args) =>
+        {
+            var date = GetPlainDate(thisValue);
+            var arg = args.GetArgument(0);
+            string timeZone;
+            JsTemporalPlainTime time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
+
+            if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
+            {
+                // Object with timeZone and optional plainTime
+                if (accessor.TryGetProperty("timeZone", out var tzValue))
+                {
+                    timeZone = JsOps.ToJsString(tzValue);
+                }
+                else
+                {
+                    throw StandardLibrary.ThrowTypeError("toZonedDateTime requires a timeZone property", null, realm);
+                }
+
+                if (accessor.TryGetProperty("plainTime", out var timeValue) && !timeValue.IsUndefined)
+                {
+                    time = ToTemporalPlainTime(timeValue, realm);
+                }
+            }
+            else
+            {
+                // String timezone
+                timeZone = JsOps.ToJsString(arg);
+            }
+
+            var dt = date.ToPlainDateTime(time);
+            var zdt = new JsTemporalZonedDateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second,
+                dt.Millisecond, dt.Microsecond, dt.Nanosecond, timeZone, date.Calendar);
+            return WrapZonedDateTime(zdt, realm, prototypes.ZonedDateTimePrototype);
+        });
+
         // Constructor
         var ctor = new HostFunction((thisValue, args) =>
         {
@@ -760,6 +816,9 @@ public static class TemporalHelper
             new JsValue(GetPlainTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetPlainTime(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
             new JsValue(GetPlainTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
@@ -918,12 +977,18 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainDateTime(tv).MonthsInYear));
         AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainDateTime(tv).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainDateTime(tv).Calendar));
+        AddPrototypeGetter(prototype, realm, "daysInWeek", _ => new JsValue(7)); // ISO 8601 always has 7 days per week
+        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
             new JsValue(GetPlainDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetPlainDateTime(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
             new JsValue(GetPlainDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
@@ -946,6 +1011,47 @@ public static class TemporalHelper
         {
             var dt = GetPlainDateTime(thisValue);
             return WrapPlainTime(dt.ToPlainTime(), realm, prototypes.PlainTimePrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainYearMonth", 0, (thisValue, _) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var ym = new JsTemporalPlainYearMonth(dt.Year, dt.Month, dt.Calendar);
+            return WrapPlainYearMonth(ym, realm, prototypes.PlainYearMonthPrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toPlainMonthDay", 0, (thisValue, _) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var md = new JsTemporalPlainMonthDay(dt.Month, dt.Day, dt.Calendar);
+            return WrapPlainMonthDay(md, realm, prototypes.PlainMonthDayPrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "toZonedDateTime", 1, (thisValue, args) =>
+        {
+            var dt = GetPlainDateTime(thisValue);
+            var tzArg = args.GetArgument(0);
+            string timeZone;
+
+            if (tzArg.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
+            {
+                if (accessor.TryGetProperty("timeZone", out var tzValue))
+                {
+                    timeZone = JsOps.ToJsString(tzValue);
+                }
+                else
+                {
+                    throw StandardLibrary.ThrowTypeError("toZonedDateTime requires a timeZone property", null, realm);
+                }
+            }
+            else
+            {
+                timeZone = JsOps.ToJsString(tzArg);
+            }
+
+            var zdt = new JsTemporalZonedDateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second,
+                dt.Millisecond, dt.Microsecond, dt.Nanosecond, timeZone, dt.Calendar);
+            return WrapZonedDateTime(zdt, realm, prototypes.ZonedDateTimePrototype);
         });
 
         AddPrototypeMethod(prototype, realm, "add", 1, (thisValue, args) =>
@@ -1097,12 +1203,27 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "timeZoneId", tv => new JsValue(GetZonedDateTime(tv).TimeZoneId));
         AddPrototypeGetter(prototype, realm, "offset", tv => new JsValue(GetZonedDateTime(tv).Offset));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetZonedDateTime(tv).Calendar));
+        AddPrototypeGetter(prototype, realm, "daysInWeek", _ => new JsValue(7)); // ISO 8601 always has 7 days per week
+        AddPrototypeGetter(prototype, realm, "monthsInYear", _ => new JsValue(12)); // ISO 8601 always has 12 months per year
+        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "offsetNanoseconds", tv =>
+        {
+            var zdt = GetZonedDateTime(tv);
+            // Parse offset string like "+01:00" to nanoseconds
+            var offset = zdt.Offset;
+            var totalSeconds = ParseOffsetToSeconds(offset);
+            return new JsValue((double)totalSeconds * 1_000_000_000L);
+        });
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
             new JsValue(GetZonedDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetZonedDateTime(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
             new JsValue(GetZonedDateTime(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
@@ -1329,12 +1450,17 @@ public static class TemporalHelper
         AddPrototypeGetter(prototype, realm, "monthsInYear", tv => new JsValue(GetPlainYearMonth(tv).MonthsInYear));
         AddPrototypeGetter(prototype, realm, "inLeapYear", tv => new JsValue(GetPlainYearMonth(tv).InLeapYear));
         AddPrototypeGetter(prototype, realm, "calendarId", tv => new JsValue(GetPlainYearMonth(tv).Calendar));
+        AddPrototypeGetter(prototype, realm, "era", _ => JsValue.Undefined); // ISO 8601 calendar has no era
+        AddPrototypeGetter(prototype, realm, "eraYear", _ => JsValue.Undefined); // ISO 8601 calendar has no era
 
         // Prototype methods
         AddPrototypeMethod(prototype, realm, "toString", 0, (thisValue, _) =>
             new JsValue(GetPlainYearMonth(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
+            new JsValue(GetPlainYearMonth(thisValue).ToString()));
+
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
             new JsValue(GetPlainYearMonth(thisValue).ToString()));
 
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
@@ -1359,6 +1485,43 @@ public static class TemporalHelper
             var ym = GetPlainYearMonth(thisValue);
             var duration = ToTemporalDuration(args.GetArgument(0), realm);
             return WrapPlainYearMonth(ym.Subtract(duration), realm, prototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "until", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var other = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
+            // Calculate difference in months
+            var monthsDiff = (other.Year - ym.Year) * 12 + (other.Month - ym.Month);
+            var years = monthsDiff / 12;
+            var months = monthsDiff % 12;
+            return WrapDuration(new JsTemporalDuration(years, months, 0, 0, 0, 0, 0, 0, 0, 0), realm, prototypes.DurationPrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "since", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var other = ToTemporalPlainYearMonth(args.GetArgument(0), realm);
+            // Calculate difference in months
+            var monthsDiff = (ym.Year - other.Year) * 12 + (ym.Month - other.Month);
+            var years = monthsDiff / 12;
+            var months = monthsDiff % 12;
+            return WrapDuration(new JsTemporalDuration(years, months, 0, 0, 0, 0, 0, 0, 0, 0), realm, prototypes.DurationPrototype);
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var ym = GetPlainYearMonth(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapPlainYearMonth(ym, realm, prototype);
+            }
+
+            var year = accessor.TryGetProperty("year", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : ym.Year;
+            var month = accessor.TryGetProperty("month", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : ym.Month;
+
+            return WrapPlainYearMonth(new JsTemporalPlainYearMonth(year, month, ym.Calendar), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDate", 1, (thisValue, args) =>
@@ -1435,6 +1598,9 @@ public static class TemporalHelper
         AddPrototypeMethod(prototype, realm, "toJSON", 0, (thisValue, _) =>
             new JsValue(GetPlainMonthDay(thisValue).ToString()));
 
+        AddPrototypeMethod(prototype, realm, "toLocaleString", 0, (thisValue, _) =>
+            new JsValue(GetPlainMonthDay(thisValue).ToString()));
+
         AddPrototypeMethod(prototype, realm, "valueOf", 0, (_, _) =>
             throw StandardLibrary.ThrowTypeError("Temporal.PlainMonthDay.prototype.valueOf does not support implicit conversion", realm: realm));
 
@@ -1443,6 +1609,21 @@ public static class TemporalHelper
             var md = GetPlainMonthDay(thisValue);
             var other = ToTemporalPlainMonthDay(args.GetArgument(0), realm);
             return new JsValue(md.Equals(other));
+        });
+
+        AddPrototypeMethod(prototype, realm, "with", 1, (thisValue, args) =>
+        {
+            var md = GetPlainMonthDay(thisValue);
+            var overrides = args.GetArgument(0);
+            if (!overrides.TryGetObject<IJsPropertyAccessor>(out var accessor))
+            {
+                return WrapPlainMonthDay(md, realm, prototype);
+            }
+
+            var month = accessor.TryGetProperty("month", out var v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : md.Month;
+            var day = accessor.TryGetProperty("day", out v) && !v.IsUndefined ? (int)JsOps.ToNumber(v) : md.Day;
+
+            return WrapPlainMonthDay(new JsTemporalPlainMonthDay(month, day, md.Calendar), realm, prototype);
         });
 
         AddPrototypeMethod(prototype, realm, "toPlainDate", 1, (thisValue, args) =>
@@ -1531,6 +1712,33 @@ public static class TemporalHelper
         if (index >= args.Count || args[index].IsUndefined)
             return 0;
         return JsOps.ToNumber(args[index]);
+    }
+
+    private static long ParseOffsetToSeconds(string offset)
+    {
+        // Parse offset string like "+01:00", "-05:30", or "Z"
+        if (string.IsNullOrEmpty(offset) || offset == "Z")
+            return 0;
+
+        var sign = 1;
+        var start = 0;
+
+        if (offset[0] == '+')
+        {
+            start = 1;
+        }
+        else if (offset[0] == '-')
+        {
+            sign = -1;
+            start = 1;
+        }
+
+        var parts = offset.Substring(start).Split(':');
+        var hours = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+        var minutes = parts.Length > 1 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        var seconds = parts.Length > 2 ? int.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture) : 0;
+
+        return sign * (hours * 3600L + minutes * 60L + seconds);
     }
 
     #endregion

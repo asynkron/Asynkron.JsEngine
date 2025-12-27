@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -196,7 +197,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     private JsValue CreateAndPopulateTypedArray(IJsCallable ctor, IList<JsValue> values, IJsCallable? mapFn, JsValue mapThis)
     {
         var length = values.Count;
-        var taObj = ctor.Invoke([JsValue.FromDouble(length)], (JsValue)ctor);
+        var taObj = ctor.Invoke([JsValue.FromDouble(length)], JsValue.FromObjectUnsafe(ctor));
         if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
         {
             throw ThrowTypeError("%TypedArray%.from: constructor did not return a typed array", realm: Realm);

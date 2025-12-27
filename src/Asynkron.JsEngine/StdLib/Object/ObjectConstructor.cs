@@ -99,9 +99,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var values = new JsArray(realmState);
+        var receiver = JsValue.FromObjectUnsafe(obj);
         foreach (var key in obj.GetEnumerablePropertyNames())
         {
-            if (obj.TryGetProperty(key, out var value))
+            if (obj.TryGetProperty(key, receiver, out var value))
             {
                 values.Push(value);
             }
@@ -141,9 +142,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var entries = new JsArray(realmState);
+        var receiver = JsValue.FromObjectUnsafe(obj);
         foreach (var key in obj.GetEnumerablePropertyNames())
         {
-            if (!obj.TryGetProperty(key, out var value))
+            if (!obj.TryGetProperty(key, receiver, out var value))
             {
                 continue;
             }
@@ -156,30 +158,43 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("assign", Length = 2d)]
-    public static JsValue Assign(IReadOnlyList<JsValue> args)
+    public static JsValue Assign(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        if (args.Count == 0 || !args[0].TryGetObject<IJsPropertyAccessor>(out var targetAccessor))
+        var realmState = RequireRealm(realm);
+        var targetValue = args.GetArgument(0);
+
+        // Object.assign throws on null/undefined targets but boxes primitives.
+        if (!TryGetObject(targetValue, realmState, out var targetAccessor))
         {
-            return args.GetArgument(0);
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
+        var targetJs = JsValue.FromObjectUnsafe(targetAccessor);
         for (var i = 1; i < args.Count; i++)
         {
-            if (!args[i].TryGetObject(out var source))
+            var sourceValue = args[i];
+            if (!TryGetObject(sourceValue, realmState, out var sourceAccessor))
             {
                 continue;
             }
 
-            foreach (var key in source.GetOwnPropertyNames())
+            var sourceJs = JsValue.FromObjectUnsafe(sourceAccessor);
+            foreach (var key in sourceAccessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
-                if (source.TryGetProperty(key, out var value))
+                var descriptor = sourceAccessor.GetOwnPropertyDescriptor(key);
+                if (descriptor is null || descriptor.Enumerable != true)
                 {
-                    targetAccessor.SetProperty(key, value);
+                    continue;
+                }
+
+                if (sourceAccessor.TryGetProperty(key, sourceJs, out var value))
+                {
+                    targetAccessor.SetProperty(key, value, targetJs);
                 }
             }
         }
 
-        return args[0];
+        return targetJs;
     }
 
     [JsConstructorMethod("fromEntries", Length = 1d)]
@@ -194,22 +209,26 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
-        if (!arg.TryGetObject(out JsArray? entries))
-        {
-            throw ThrowTypeError("Argument is not iterable", realm: realmState);
-        }
-
         var result = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
-        foreach (var entry in entries.Items)
+        foreach (var entry in EnumerateIteratorValues(arg, realmState, "Object.fromEntries"))
         {
-            if (!entry.TryGetObject<JsArray>(out var entryArray) || entryArray.Items.Count < 2)
+            // Each entry should be an object (typically [key, value]).
+            if (!TryGetObject(entry, realmState, out var entryAccessor))
             {
-                continue;
+                throw ThrowTypeError("Iterator value is not an entry object", realm: realmState);
             }
 
-            var keyValue = entryArray.GetElement(0);
-            var key = JsOps.ToJsString(keyValue);
-            var value = entryArray.GetElement(1);
+            if (!entryAccessor.TryGetProperty("0", JsValue.FromObjectUnsafe(entryAccessor), out var keyValue))
+            {
+                keyValue = JsValue.Undefined;
+            }
+
+            if (!entryAccessor.TryGetProperty("1", JsValue.FromObjectUnsafe(entryAccessor), out var value))
+            {
+                value = JsValue.Undefined;
+            }
+
+            var key = JsOps.GetRequiredPropertyName(keyValue);
             result[key] = value;
         }
 
@@ -217,26 +236,19 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     }
 
     [JsConstructorMethod("hasOwn", Length = 2d)]
-    public static JsValue HasOwn(IReadOnlyList<JsValue> args)
+    public static JsValue HasOwn(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        if (args.Count < 2)
+        var realmState = RequireRealm(realm);
+        var targetValue = args.GetArgument(0);
+
+        // Object.hasOwn follows ToObject, so null/undefined should throw here.
+        if (!TryGetObject(targetValue, realmState, out var accessor))
         {
-            return JsValue.False;
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
-        var propName = JsOps.ToPropertyName(args[1]);
-        if (propName is null)
-        {
-            return JsValue.False;
-        }
-
-        var hasOwn = args[0].ObjectValue switch
-        {
-            JsObject obj => obj.GetOwnPropertyDescriptor(propName) is not null,
-            JsArray array => array.GetOwnPropertyDescriptor(propName) is not null,
-            IJsObjectLike accessor => accessor.GetOwnPropertyDescriptor(propName) is not null,
-            _ => false
-        };
+        var propName = JsOps.GetRequiredPropertyName(args.GetArgument(1));
+        var hasOwn = accessor.GetOwnPropertyDescriptor(propName) is not null;
         return new JsValue(hasOwn);
     }
 
@@ -335,9 +347,19 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     {
         var realmState = RequireRealm(realm);
         var obj = new JsObject { RealmState = realmState };
-        if (args.Count > 0 && !args[0].IsNull && args[0].TryGetObject<IJsPropertyAccessor>(out var protoValue))
+
+        if (args.Count > 0)
         {
-            obj.SetPrototype(protoValue);
+            var protoValue = args[0];
+            if (!protoValue.IsNull && !protoValue.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+            {
+                throw ThrowTypeError("Object prototype may only be an Object or null", realm: realmState);
+            }
+
+            if (!protoValue.IsNull)
+            {
+                obj.SetPrototype(protoAccessor);
+            }
         }
 
         if (args.Count <= 1 || !args[1].TryGetObject(out var propsObj))
@@ -363,27 +385,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue GetOwnPropertyNames(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0)
+        var targetValue = args.GetArgument(0);
+        if (!TryGetObject(targetValue, realmState, out var obj))
         {
-            return JsValue.FromJsArray(new JsArray(realmState));
-        }
-
-        IJsPropertyAccessor? obj = null;
-        if (!args[0].TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            if (TryGetObject(args[0], realmState, out var coerced))
-            {
-                obj = coerced;
-            }
-        }
-        else
-        {
-            obj = accessor;
-        }
-
-        if (obj is null)
-        {
-            return JsValue.FromJsArray(new JsArray(realmState));
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
         var names = new JsArray(obj.GetOwnPropertyNames(), realmState);
@@ -429,7 +434,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         var descriptors = new JsObject(realmState.ObjectPrototype) { RealmState = realmState };
 
-        foreach (var key in obj.GetOwnPropertyNames())
+        foreach (var key in obj.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
         {
             var descriptor = obj.GetOwnPropertyDescriptor(key);
             if (descriptor is null)
@@ -601,14 +606,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     public static JsValue GetOwnPropertySymbols(IReadOnlyList<JsValue> args, RealmState? realm)
     {
         var realmState = RequireRealm(realm);
-        if (args.Count == 0)
+        var targetValue = args.GetArgument(0);
+        if (!TryGetObject(targetValue, realmState, out var obj))
         {
-            return JsValue.FromJsArray(new JsArray(realmState));
-        }
-
-        if (!TryGetObject(args[0], realmState, out var obj))
-        {
-            return JsValue.FromJsArray(new JsArray(realmState));
+            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
         var symbols = new JsArray(realmState);
@@ -750,37 +751,29 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var realmState = RequireRealm(realm);
         var items = args.GetArgument(0);
         var callbackFn = args.GetArgument(1);
-        
+
         // Validate callback
         if (!callbackFn.TryGetObject<IJsCallable>(out var callback) || callback is null)
         {
             throw ThrowTypeError("Object.groupBy callback must be a function", realm: realmState);
         }
-        
-        // Get iterable (usually an array)
-        if (!items.TryGetObject<JsArray>(out var array) || array is null)
-        {
-            throw ThrowTypeError("Object.groupBy requires an iterable as first argument", realm: realmState);
-        }
-        
+
         // Create result object
         var result = new JsObject { RealmState = realmState };
-        
-        // Group elements
-        var k = 0;
-        while (k < array.Length)
+
+        // Group elements from any iterable.
+        var index = 0;
+        foreach (var element in EnumerateIteratorValues(items, realmState, "Object.groupBy"))
         {
-            var element = array.GetElement(k);
-            
-            // Call callback with (element, index)
-            var key = callback.Invoke([element, (double)k], JsValue.Undefined);
-            
-            // Convert key to property key
-            var propertyKey = JsOps.ToJsString(key);
-            
-            // Get or create array for this key
+            // Call callback with (element, index).
+            var key = callback.Invoke([element, (double)index], JsValue.Undefined);
+
+            // Convert key to a property key (string/symbol internal key).
+            var propertyKey = JsOps.GetRequiredPropertyName(key);
+
+            // Get or create array for this key.
             JsArray group;
-            if (result.TryGetProperty(propertyKey, out var existingGroup) && 
+            if (result.TryGetProperty(propertyKey, out var existingGroup) &&
                 existingGroup.TryGetObject<JsArray>(out var existingArray) &&
                 existingArray is not null)
             {
@@ -791,13 +784,90 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
                 group = new JsArray(realmState);
                 result.SetProperty(propertyKey, JsValue.FromJsArray(group));
             }
-            
-            // Add element to group
+
+            // Add element to group.
             group.SetElement((uint)group.Length, element);
-            
-            k++;
+            index++;
         }
-        
+
         return JsValue.FromJsObject(result);
+    }
+
+    private static IEnumerable<JsValue> EnumerateIteratorValues(
+        JsValue source,
+        RealmState realm,
+        string methodName)
+    {
+        var iteratorValue = GetIteratorObject(source, realm, methodName);
+        if (!iteratorValue.TryGetObject<IJsPropertyAccessor>(out var iteratorAccessor))
+        {
+            throw ThrowTypeError($"{methodName} iterator must be an object", realm: realm);
+        }
+
+        var iteratorReceiver = JsValue.FromObjectUnsafe(iteratorAccessor);
+        if (!iteratorAccessor.TryGetProperty("next", iteratorReceiver, out var nextMethod) ||
+            !nextMethod.TryGetObject<IJsCallable>(out var nextCallable) ||
+            nextCallable is null)
+        {
+            throw ThrowTypeError($"{methodName} iterator must have a callable next method", realm: realm);
+        }
+
+        while (true)
+        {
+            var nextResult = nextCallable.Invoke([], iteratorReceiver);
+            if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultAccessor))
+            {
+                throw ThrowTypeError($"{methodName} iterator result must be an object", realm: realm);
+            }
+
+            var resultReceiver = JsValue.FromObjectUnsafe(resultAccessor);
+            var done = resultAccessor.TryGetProperty("done", resultReceiver, out var doneValue) &&
+                       JsOps.ToBoolean(doneValue);
+            if (done)
+            {
+                yield break;
+            }
+
+            if (resultAccessor.TryGetProperty("value", resultReceiver, out var value))
+            {
+                yield return value;
+            }
+            else
+            {
+                yield return JsValue.Undefined;
+            }
+        }
+    }
+
+    private static JsValue GetIteratorObject(JsValue source, RealmState realm, string methodName)
+    {
+        if (!TryGetObject(source, realm, out var accessor))
+        {
+            throw ThrowTypeError($"{methodName} requires an iterable object", realm: realm);
+        }
+
+        var receiver = JsValue.FromObjectUnsafe(accessor);
+        // Iterator-like objects can be used directly if they expose a callable next.
+        if (accessor.TryGetProperty("next", receiver, out var nextMethod) &&
+            nextMethod.TryGetObject<IJsCallable>(out _))
+        {
+            return receiver;
+        }
+
+        // Otherwise, try Symbol.iterator to obtain the iterator.
+        if (accessor.TryGetProperty(SymbolKeys.Iterator, receiver, out var iteratorMethod) &&
+            iteratorMethod.TryGetObject<IJsCallable>(out var iteratorCallable) &&
+            iteratorCallable is not null)
+        {
+            var iterator = iteratorCallable.Invoke([], receiver);
+            if (!iterator.TryGetObject(out var iteratorObj) || iteratorObj is null)
+            {
+                throw ThrowTypeError($"{methodName} Symbol.iterator must return an object", realm: realm);
+            }
+
+            return iterator;
+        }
+
+        throw ThrowTypeError($"{methodName} requires an iterable object", realm: realm);
     }
 }

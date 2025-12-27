@@ -75,7 +75,12 @@ public sealed partial class ObjectPrototype
     [JsHostMethod("valueOf", Length = 0d)]
     public static JsValue ValueOf(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        return thisValue;
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Object.prototype.valueOf called on null or undefined", realm: Realm);
+        }
+
+        return JsValue.FromObjectUnsafe(obj);
     }
 
     [JsHostMethod("hasOwnProperty", Length = 1d)]
@@ -86,6 +91,11 @@ public sealed partial class ObjectPrototype
             return new JsValue(false);
         }
 
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Object.prototype.hasOwnProperty called on null or undefined", realm: Realm);
+        }
+
         var propertyName = JsOps.ToPropertyName(args[0]);
         if (propertyName is null)
         {
@@ -93,15 +103,15 @@ public sealed partial class ObjectPrototype
         }
 
         var result = false;
-        if (thisValue.TryGetObject<JsObject>(out var obj))
+        if (obj is JsObject jsObject)
         {
-            result = obj.GetOwnPropertyDescriptor(propertyName) is not null;
+            result = jsObject.GetOwnPropertyDescriptor(propertyName) is not null;
         }
-        else if (thisValue.TryGetObject<JsArray>(out var array))
+        else if (obj is JsArray array)
         {
             result = array.GetOwnPropertyDescriptor(propertyName) is not null;
         }
-        else if (thisValue.TryGetObject<IJsObjectLike>(out var accessor))
+        else if (obj is IJsObjectLike accessor)
         {
             result = accessor.GetOwnPropertyDescriptor(propertyName) is not null;
         }
@@ -117,19 +127,31 @@ public sealed partial class ObjectPrototype
             return new JsValue(false);
         }
 
+        if (!TryGetObject(thisValue, Realm, out var obj))
+        {
+            throw ThrowTypeError("Object.prototype.propertyIsEnumerable called on null or undefined", realm: Realm);
+        }
+
         var propertyName = JsOps.ToPropertyName(args[0]);
         if (propertyName is null)
         {
             return new JsValue(false);
         }
 
-        if (!thisValue.TryGetObject<IJsObjectLike>(out var accessor))
+        if (obj is not IJsObjectLike accessor)
         {
             return new JsValue(false);
         }
 
         var desc = accessor.GetOwnPropertyDescriptor(propertyName);
         return new JsValue(desc?.Enumerable == true);
+    }
+
+    [JsHostMethod("toLocaleString", Length = 0d)]
+    private static JsValue ToLocaleString(JsValue thisValue)
+    {
+        // Spec: Object.prototype.toLocaleString delegates to toString().
+        return ToString(thisValue);
     }
 
     [JsHostMethod("__lookupGetter__", Length = 1d)]

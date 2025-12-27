@@ -80,12 +80,12 @@ public static partial class TypedAstEvaluator
                             typed.SetHomeObject(obj);
                             typed.DisableConstruction();
                         }
-                        else if (callable is TypedGeneratorFactory generatorFactory)
+                        else if (callable is GeneratorFunctionCallable generatorFactory)
                         {
                             generatorFactory.SetHomeObject(obj);
                             generatorFactory.DisableConstruction();
                         }
-                        else if (callable is AsyncGeneratorFactory asyncGeneratorFactory)
+                        else if (callable is AsyncGeneratorFunctionCallable asyncGeneratorFactory)
                         {
                             asyncGeneratorFactory.SetHomeObject(obj);
                             asyncGeneratorFactory.DisableConstruction();

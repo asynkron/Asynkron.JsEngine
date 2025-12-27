@@ -408,10 +408,10 @@ public static partial class TypedAstEvaluator
 
             IJsCallable callable = functionExpression.IsGenerator switch
             {
-                true when functionExpression.IsAsync => new AsyncGeneratorFactory(functionExpression,
+                true when functionExpression.IsAsync => new AsyncGeneratorFunctionCallable(functionExpression,
                     closureEnvironment,
                     context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
-                true => new TypedGeneratorFactory(functionExpression, closureEnvironment, context.RealmState,
+                true => new GeneratorFunctionCallable(functionExpression, closureEnvironment, context.RealmState,
                     isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
                     isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
@@ -428,20 +428,20 @@ public static partial class TypedAstEvaluator
                 case TypedFunction typed:
                     typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case TypedGeneratorFactory generatorFactory when context.CurrentPrivateNameScope is not null &&
+                case GeneratorFunctionCallable generatorFactory when context.CurrentPrivateNameScope is not null &&
                                                                  generatorFactory.PrivateNameScope is null:
                     generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case TypedGeneratorFactory generatorFactory:
+                case GeneratorFunctionCallable generatorFactory:
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case AsyncGeneratorFactory asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&
+                case AsyncGeneratorFunctionCallable asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&
                                                                       asyncGeneratorFactory.PrivateNameScope is null:
                     asyncGeneratorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case AsyncGeneratorFactory asyncGeneratorFactory:
+                case AsyncGeneratorFunctionCallable asyncGeneratorFactory:
                     asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
             }

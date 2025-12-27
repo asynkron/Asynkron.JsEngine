@@ -12,10 +12,10 @@ public static partial class TypedAstEvaluator
 {
     /// <summary>
     ///     Drives an async function to completion using the generator IR executor.
-    ///     Unlike AsyncGeneratorInstance which exposes .next()/.return()/.throw() methods,
+    ///     Unlike AsyncGeneratorIterator which exposes .next()/.return()/.throw() methods,
     ///     this class drives execution automatically and returns a single Promise.
     /// </summary>
-    internal sealed class AsyncFunctionExecutor
+    internal sealed class AsyncFunctionDriver
     {
         private readonly IReadOnlyList<JsValue> _arguments;
         private readonly IJsCallable _callable;
@@ -31,7 +31,7 @@ public static partial class TypedAstEvaluator
 
         private ExecutionPlanRunner? _inner;
 
-        public AsyncFunctionExecutor(
+        public AsyncFunctionDriver(
             FunctionExpression function,
             JsEnvironment closure,
             IReadOnlyList<JsValue> arguments,
@@ -254,14 +254,14 @@ public static partial class TypedAstEvaluator
             private static readonly ObjectPool<AsyncResumeCallback> FulfilledPool = new(32, static () => new AsyncResumeCallback());
             private static readonly ObjectPool<AsyncResumeCallback> RejectedPool = new(32, static () => new AsyncResumeCallback());
 
-            private AsyncFunctionExecutor? _executor;
+            private AsyncFunctionDriver? _executor;
             private IJsCallable? _resolve;
             private IJsCallable? _reject;
             private bool _isRejection;
             private AsyncResumeCallback? _sibling; // The other callback in the pair
 
             public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
-                AsyncFunctionExecutor executor,
+                AsyncFunctionDriver executor,
                 IJsCallable resolve,
                 IJsCallable reject)
             {

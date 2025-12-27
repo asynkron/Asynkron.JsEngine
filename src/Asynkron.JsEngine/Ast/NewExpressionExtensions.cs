@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(errorJs);
             }
 
-            if (constructor is TypedGeneratorFactory)
+            if (constructor is GeneratorFunctionCallable)
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"],

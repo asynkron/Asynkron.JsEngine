@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
             if (funcExpr.IsAsync)
             {
                 var asyncGen =
-                    new AsyncGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+                    new AsyncGeneratorFunctionCallable(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     asyncGen.EnsureHasName(functionName, true);
@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var gen = new TypedGeneratorFactory(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+                var gen = new GeneratorFunctionCallable(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     gen.EnsureHasName(functionName, true);

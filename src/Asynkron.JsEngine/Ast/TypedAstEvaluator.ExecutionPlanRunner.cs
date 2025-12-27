@@ -2408,7 +2408,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Async-aware mode: surface promise-like values as pending steps
-            // so AsyncGeneratorInstance can resume via the event queue.
+            // so AsyncGeneratorIterator can resume via the event queue.
             // awaitedValue is already JsValue
             if (TryResolvePromiseOrYield(awaitedValue, context, out var resolved))
             {

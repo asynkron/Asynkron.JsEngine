@@ -91,7 +91,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.DisableConstruction();
                         typedFunction.EnsureHasName(displayName, true);
                         break;
-                    case TypedGeneratorFactory generatorFactory:
+                    case GeneratorFunctionCallable generatorFactory:
                         generatorFactory.SetPrivateNameScope(privateNameScope);
                         if (homeObject is not null)
                         {
@@ -102,7 +102,7 @@ public static partial class TypedAstEvaluator
                         generatorFactory.DisableConstruction();
                         generatorFactory.EnsureHasName(displayName, true);
                         break;
-                    case AsyncGeneratorFactory asyncGeneratorFactory:
+                    case AsyncGeneratorFunctionCallable asyncGeneratorFactory:
                         asyncGeneratorFactory.SetPrivateNameScope(privateNameScope);
                         if (homeObject is not null)
                         {

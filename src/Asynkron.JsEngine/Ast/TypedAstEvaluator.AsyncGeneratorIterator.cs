@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private sealed class AsyncGeneratorInstance(
+    private sealed class AsyncGeneratorIterator(
         FunctionExpression function,
         JsEnvironment closure,
         IReadOnlyList<JsValue> arguments,
@@ -256,13 +256,13 @@ public static partial class TypedAstEvaluator
             [ThreadStatic]
             private static AsyncResumeCallback? TCachedRejected;
 
-            private AsyncGeneratorInstance? _executor;
+            private AsyncGeneratorIterator? _executor;
             private IJsCallable? _resolve;
             private IJsCallable? _reject;
             private bool _isRejection;
 
             public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
-                AsyncGeneratorInstance executor,
+                AsyncGeneratorIterator executor,
                 IJsCallable resolve,
                 IJsCallable reject)
             {

@@ -86,10 +86,10 @@ public static partial class TypedAstEvaluator
                 case TypedFunction typedFunction:
                     typedFunction.EnsureHasName(displayName, true);
                     break;
-                case TypedGeneratorFactory generatorFactory:
+                case GeneratorFunctionCallable generatorFactory:
                     generatorFactory.EnsureHasName(displayName, true);
                     break;
-                case AsyncGeneratorFactory asyncGeneratorFactory:
+                case AsyncGeneratorFunctionCallable asyncGeneratorFactory:
                     asyncGeneratorFactory.EnsureHasName(displayName, true);
                     break;
             }

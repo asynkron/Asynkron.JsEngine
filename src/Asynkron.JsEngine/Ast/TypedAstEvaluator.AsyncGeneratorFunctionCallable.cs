@@ -15,9 +15,9 @@ public static partial class TypedAstEvaluator
     /// Callable for async generator functions (async function*).
     /// Returns an async iterator when invoked.
     /// </summary>
-    private sealed class AsyncGeneratorFactory : GeneratorFunctionBase
+    private sealed class AsyncGeneratorFunctionCallable : GeneratorFunctionBase
     {
-        public AsyncGeneratorFactory(
+        public AsyncGeneratorFunctionCallable(
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,
@@ -38,7 +38,7 @@ public static partial class TypedAstEvaluator
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
-            var instance = new AsyncGeneratorInstance(
+            var instance = new AsyncGeneratorIterator(
                 _function,
                 _closure,
                 arguments,

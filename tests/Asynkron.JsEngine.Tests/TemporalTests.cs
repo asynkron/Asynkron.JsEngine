@@ -280,4 +280,170 @@ public class TemporalTests
         var result = await engine.Evaluate("typeof new Temporal.PlainMonthDay(12, 25).toPlainDate({year: 2024})");
         Assert.Equal("object", result);
     }
+
+    // Tests for newly added prototype methods
+
+    // PlainDate methods
+    [Fact]
+    public async Task Temporal_PlainDate_With()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 15).with({month: 6}).toString()");
+        Assert.Equal("2024-06-15", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_Until()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 1).until(new Temporal.PlainDate(2024, 1, 11)).days");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_Since()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 11).since(new Temporal.PlainDate(2024, 1, 1)).days");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_ToPlainDateTime()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainDateTime({hour: 10, minute: 30}).toString()");
+        Assert.Equal("2024-12-25T10:30:00", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_ToPlainYearMonth()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainYearMonth().toString()");
+        Assert.Equal("2024-12", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDate_ToPlainMonthDay()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainMonthDay().toString()");
+        Assert.Equal("--12-25", result);
+    }
+
+    // PlainTime methods
+    [Fact]
+    public async Task Temporal_PlainTime_With()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 0).with({hour: 14}).toString()");
+        Assert.Equal("14:30:00", result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainTime_Round()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 45, 500).round('second').toString()");
+        Assert.Equal("10:30:45", result);
+    }
+
+    // PlainDateTime methods
+    [Fact]
+    public async Task Temporal_PlainDateTime_Add()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 1, 1, 10, 0).add({days: 5}).day");
+        Assert.Equal(6d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDateTime_Subtract()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 1, 10, 10, 0).subtract({days: 5}).day");
+        Assert.Equal(5d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_PlainDateTime_With()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 1, 1, 10, 0).with({hour: 15}).hour");
+        Assert.Equal(15d, result);
+    }
+
+    // Duration methods
+    [Fact]
+    public async Task Temporal_Duration_With()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Temporal.Duration.from({hours: 1, minutes: 30}).with({hours: 2}).hours");
+        Assert.Equal(2d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_Duration_Blank()
+    {
+        await using var engine = new JsEngine();
+        var blank = await engine.Evaluate("Temporal.Duration.from({}).blank");
+        var notBlank = await engine.Evaluate("Temporal.Duration.from({hours: 1}).blank");
+        Assert.Equal(true, blank);
+        Assert.Equal(false, notBlank);
+    }
+
+    // Instant methods
+    [Fact]
+    public async Task Temporal_Instant_Add()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Temporal.Instant.fromEpochMilliseconds(0).add({hours: 1}).epochMilliseconds");
+        Assert.Equal(3600000d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_Instant_Subtract()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("Temporal.Instant.fromEpochMilliseconds(3600000).subtract({hours: 1}).epochMilliseconds");
+        Assert.Equal(0d, result);
+    }
+
+    // ZonedDateTime methods
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Add()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').add({hours: 1}).epochMilliseconds");
+        Assert.Equal(3600000d, result);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_StartOfDay()
+    {
+        await using var engine = new JsEngine();
+        var hour = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(3600000000000), 'UTC').startOfDay().hour");
+        var minute = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(3600000000000), 'UTC').startOfDay().minute");
+        Assert.Equal(0d, hour);
+        Assert.Equal(0d, minute);
+    }
+
+    [Fact]
+    public async Task Temporal_ZonedDateTime_Equals()
+    {
+        await using var engine = new JsEngine();
+        var eq = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'UTC'))");
+        var neq = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(1000000000), 'UTC'))");
+        Assert.Equal(true, eq);
+        Assert.Equal(false, neq);
+    }
+
+    [Fact]
+    public async Task Temporal_Now_ZonedDateTimeISO()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("typeof Temporal.Now.zonedDateTimeISO() === 'object'");
+        Assert.Equal(true, result);
+    }
 }

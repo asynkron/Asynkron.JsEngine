@@ -64,9 +64,27 @@ public sealed partial class MathPrototype
             return -0d;
         }
 
-        // For all other values, use floor(x + 0.5) which gives the correct rounding
-        // Note: For negative numbers, this gives "round half away from zero" behavior
-        return Math.Floor(x + 0.5);
+        // For large magnitudes where x is already an integer (|x| >= 2^52),
+        // return x directly to avoid precision loss when adding 0.5
+        // IEEE 754 double precision can only represent integers exactly up to 2^53
+        const double maxSafeForRounding = 4503599627370496d; // 2^52
+        if (x >= maxSafeForRounding || x <= -maxSafeForRounding)
+        {
+            return x;
+        }
+
+        // Use floor(x) and check fractional part to avoid precision issues with x + 0.5
+        var floored = Math.Floor(x);
+        var frac = x - floored;
+
+        // Round half away from zero (toward +infinity for ties)
+        // frac >= 0.5 means round up
+        if (frac >= 0.5)
+        {
+            return floored + 1;
+        }
+
+        return floored;
     }
 
     [JsHostMethod("sqrt", Length = 1d)]

@@ -59,6 +59,13 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
         DefineLegacyRegExpAccessors(constructor, Realm);
     }
 
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        // Keep species defaulted to the constructor for subclassing behavior.
+        return thisValue;
+    }
+
     private JsValue ConstructRegExp(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor,
         JsObject? thisArg)
     {

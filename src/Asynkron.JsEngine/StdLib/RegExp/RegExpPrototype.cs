@@ -1,6 +1,9 @@
 #region
 
+using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -56,7 +59,9 @@ public sealed partial class RegExpPrototype : JsPrototype
     public JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var resolved = ResolveRegExpInstance(thisValue);
-        var result = resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{resolved.Flags}";
+        var flagsValue = Flags(thisValue);
+        var flagsText = JsOps.ToJsString(flagsValue);
+        var result = resolved is null ? "/undefined/" : $"/{resolved.Pattern}/{flagsText}";
         return new JsValue(result);
     }
 
@@ -147,7 +152,24 @@ public sealed partial class RegExpPrototype : JsPrototype
     [JsHostGetter("flags")]
     public JsValue Flags(JsValue thisValue)
     {
-        return new JsValue(GetSortedFlags(RequireRegExp(thisValue)));
+        if (!thisValue.IsObject)
+        {
+            throw ThrowTypeError("RegExp method called on incompatible receiver", realm: Realm);
+        }
+
+        var context = Realm?.CreateContext();
+        var builder = new StringBuilder();
+
+        AppendFlag(builder, thisValue, "hasIndices", 'd', context);
+        AppendFlag(builder, thisValue, "global", 'g', context);
+        AppendFlag(builder, thisValue, "ignoreCase", 'i', context);
+        AppendFlag(builder, thisValue, "multiline", 'm', context);
+        AppendFlag(builder, thisValue, "dotAll", 's', context);
+        AppendFlag(builder, thisValue, "unicode", 'u', context);
+        AppendFlag(builder, thisValue, "unicodeSets", 'v', context);
+        AppendFlag(builder, thisValue, "sticky", 'y', context);
+
+        return new JsValue(builder.ToString());
     }
 
     [JsHostGetter("source")]
@@ -182,10 +204,22 @@ public sealed partial class RegExpPrototype : JsPrototype
         return new JsValue(RequireRegExp(thisValue).DotAll);
     }
 
+    [JsHostGetter("hasIndices")]
+    public JsValue HasIndices(JsValue thisValue)
+    {
+        return new JsValue(RequireRegExp(thisValue).HasIndices);
+    }
+
     [JsHostGetter("unicode")]
     public JsValue Unicode(JsValue thisValue)
     {
         return new JsValue(RequireRegExp(thisValue).Unicode);
+    }
+
+    [JsHostGetter("unicodeSets")]
+    public JsValue UnicodeSets(JsValue thisValue)
+    {
+        return new JsValue(RequireRegExp(thisValue).UnicodeSets);
     }
 
     [JsHostGetter("sticky")]
@@ -217,41 +251,228 @@ public sealed partial class RegExpPrototype : JsPrototype
         return resolved;
     }
 
-    private static string GetSortedFlags(JsRegExp regex)
+    [JsSymbolMethod("match", Length = 1d)]
+    private JsValue MatchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        Span<char> buffer = stackalloc char[6];
-        var length = 0;
-        if (regex.Global)
+        var resolved = RequireRegExp(thisValue);
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+
+        if (!resolved.Global)
         {
-            buffer[length++] = 'g';
+            var single = resolved.Exec(input);
+            return single is null ? JsValue.Null : JsValue.FromObjectUnsafe(single);
         }
 
-        if (regex.IgnoreCase)
+        resolved.SetLastIndex(0);
+        var matches = new JsArray(Realm);
+
+        while (true)
         {
-            buffer[length++] = 'i';
+            var match = resolved.Exec(input);
+            if (match is null)
+            {
+                break;
+            }
+
+            var matchText = match.Items.Count > 0 ? match.Items[0].ToJsString() : string.Empty;
+            matches.Push(matchText);
+
+            if (matchText.Length != 0)
+            {
+                continue;
+            }
+
+            // Avoid infinite loops on zero-length matches.
+            var nextIndex = AdvanceStringIndex(input, resolved.GetLastIndex(), resolved.Unicode);
+            resolved.SetLastIndex(nextIndex);
         }
 
-        if (regex.Multiline)
+        return matches.Length == 0 ? JsValue.Null : JsValue.FromJsArray(matches);
+    }
+
+    [JsSymbolMethod("matchAll", Length = 1d)]
+    private JsValue MatchAllSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var resolved = RequireRegExp(thisValue);
+        if (!resolved.Global)
         {
-            buffer[length++] = 'm';
+            throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
         }
 
-        if (regex.DotAll)
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+        return JsValue.FromJsArray(resolved.MatchAll(input));
+    }
+
+    [JsSymbolMethod("replace", Length = 2d)]
+    private JsValue ReplaceSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var resolved = RequireRegExp(thisValue);
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+        var replacement = args.GetArgument(1);
+        var regex = resolved.GetRegex();
+
+        if (replacement.TryGetObject<IJsCallable>(out var replacer))
         {
-            buffer[length++] = 's';
+            var builder = new StringBuilder();
+            var lastIndex = 0;
+
+            foreach (Match match in regex.Matches(input))
+            {
+                if (!match.Success)
+                {
+                    continue;
+                }
+
+                if (!resolved.Global && lastIndex > 0)
+                {
+                    break;
+                }
+
+                if (match.Index > lastIndex)
+                {
+                    builder.Append(input.AsSpan(lastIndex, match.Index - lastIndex));
+                }
+
+                var replaceArgs = BuildReplaceArguments(match, regex, input);
+                var replacementValue = replacer.Invoke(replaceArgs, JsValue.Undefined);
+                builder.Append(replacementValue.ToJsString());
+
+                lastIndex = match.Index + match.Length;
+                if (!resolved.Global)
+                {
+                    break;
+                }
+            }
+
+            if (lastIndex < input.Length)
+            {
+                builder.Append(input.AsSpan(lastIndex));
+            }
+
+            return new JsValue(builder.ToString());
         }
 
-        if (regex.Unicode)
+        var replaceText = JsOps.ToJsString(replacement);
+        if (resolved.Global)
         {
-            buffer[length++] = 'u';
+            return new JsValue(regex.Replace(input, replaceText));
         }
 
-        if (regex.Sticky)
+        var singleMatch = regex.Match(input);
+        if (!singleMatch.Success)
         {
-            buffer[length++] = 'y';
+            return new JsValue(input);
         }
 
-        return new string(buffer[..length]);
+        return new JsValue(string.Concat(input.AsSpan(0, singleMatch.Index), replaceText,
+            input.AsSpan(singleMatch.Index + singleMatch.Length)));
+    }
+
+    [JsSymbolMethod("search", Length = 1d)]
+    private JsValue SearchSymbol(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        var resolved = RequireRegExp(thisValue);
+        var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+
+        resolved.SetLastIndex(0);
+        var result = resolved.Exec(input);
+        if (result is not null && result.TryGetProperty("index", out var indexValue) &&
+            indexValue.TryGetDouble(out var indexNumber))
+        {
+            return new JsValue(indexNumber);
+        }
+
+        return new JsValue(-1d);
+    }
+
+    private static int AdvanceStringIndex(string input, int index, bool unicode)
+    {
+        if (!unicode || index + 1 >= input.Length)
+        {
+            return Math.Min(index + 1, input.Length);
+        }
+
+        var first = input[index];
+        if (char.IsHighSurrogate(first) && index + 1 < input.Length && char.IsLowSurrogate(input[index + 1]))
+        {
+            return Math.Min(index + 2, input.Length);
+        }
+
+        return Math.Min(index + 1, input.Length);
+    }
+
+    private static IReadOnlyList<JsValue> BuildReplaceArguments(Match match, Regex regex, string input)
+    {
+        var args = new List<JsValue>(match.Groups.Count + 3)
+        {
+            new(match.Value)
+        };
+
+        for (var i = 1; i < match.Groups.Count; i++)
+        {
+            var group = match.Groups[i];
+            args.Add(group.Success ? new JsValue(group.Value) : JsValue.Undefined);
+        }
+
+        args.Add(new JsValue((double)match.Index));
+        args.Add(new JsValue(input));
+
+        var groups = BuildGroupsObject(match, regex);
+        if (groups is not null)
+        {
+            args.Add(JsValue.FromJsObject(groups));
+        }
+
+        return args;
+    }
+
+    private static JsObject? BuildGroupsObject(Match match, Regex regex)
+    {
+        JsObject? groups = null;
+
+        foreach (var name in match.Groups.Keys)
+        {
+            if (int.TryParse(name, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+            {
+                continue;
+            }
+
+            var groupNumber = regex.GroupNumberFromName(name);
+            var group = match.Groups[groupNumber];
+            groups ??= new JsObject();
+            groups.SetProperty(name, group.Success ? new JsValue(group.Value) : JsValue.Undefined);
+        }
+
+        return groups;
+    }
+
+    private void AppendFlag(StringBuilder builder, JsValue receiver, string propertyName, char flag,
+        EvaluationContext? context)
+    {
+        if (TryGetFlag(receiver, propertyName, context))
+        {
+            builder.Append(flag);
+        }
+    }
+
+    private static bool TryGetFlag(JsValue receiver, string propertyName, EvaluationContext? context)
+    {
+        if (!JsOps.TryGetPropertyValue(receiver, propertyName, out var value, context))
+        {
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            return false;
+        }
+
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        return value.IsTruthy;
     }
 
     [JsSymbolMethod("split", Length = 2d)]

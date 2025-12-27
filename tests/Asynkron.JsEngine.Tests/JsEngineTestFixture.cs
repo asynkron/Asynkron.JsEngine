@@ -28,7 +28,7 @@ public class JsEngineTestFixture
     /// </summary>
     public JsEngine CreateEngine()
     {
-        return new JsEngine(new JsEngineOptions { EnableFastPaths = EnableFastPaths });
+        return new JsEngine();
     }
 
     /// <summary>
@@ -39,7 +39,6 @@ public class JsEngineTestFixture
     {
         return new JsEngine(new JsEngineOptions
         {
-            EnableFastPaths = EnableFastPaths,
             DebugMode = debugMode,
             Logger = logger,
             TimeZone = timeZone ?? TimeZoneInfo.Utc

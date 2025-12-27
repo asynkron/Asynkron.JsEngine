@@ -13,7 +13,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
         var logger = new FakeLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
-            EnableFastPaths = fp,
+
             DebugMode = true,
             Logger = logger
         });
@@ -52,7 +52,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
         var logger = new FakeLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
-            EnableFastPaths = fp,
+
             DebugMode = true,
             Logger = logger
         });
@@ -89,7 +89,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
         var logger = new FakeLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
-            EnableFastPaths = fp,
+
             DebugMode = true,
             Logger = logger
         });

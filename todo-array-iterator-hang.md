@@ -53,7 +53,7 @@
 
 ### 2025-02-10 updates
 
-- Removed hard-coded `enableFastPaths = true` sites in the engine so loop/assignment fast paths now honor `RealmState.EnableFastPaths` (LoopPlan numeric fast path and assignment slot fast path now read the setting instead of forcing true).
+- Removed hard-coded `` sites in the engine so loop/assignment fast paths now honor `RealmState.EnableFastPaths` (LoopPlan numeric fast path and assignment slot fast path now read the setting instead of forcing true).
 - Test attempt after this change: `dotnet test ... --filter "Reference_ArrayIteratorMethodsTests.Array_Keys_CanBeIterated"` with a 120s timeout still hung; process was killed by timeout and MSBuild reported `MSB4166 Child node exited prematurely` (likely due to the timeout). Need a shorter, instrumented run or a smaller repro to see if the hang remains with fast paths disabled and the forced fast-path toggle removed.
 - Logging hooks: Realm logger/FakeLogger can track environment creation. Existing patterns in tests (`IdentifierSlotLoggingTests`, `ReferenceLoopDiagnosticTests`, `ForAwaitOfLayeredTests`) show how to inspect `logger.Collector.Snapshot()` for env/slot events. Plan: wire FakeLogger into the repro and log `CreatePerIterationEnvironment` + binding writes/reads to confirm which env carries `i`.
 - Spec reminder: for `for (let ...)` the loop has a declarative environment for loop variables and creates a fresh per-iteration environment each turn; the loop body should execute against that per-iteration env (no separate extra body env unless the body is a block creating its own scope). Need to ensure the per-iteration env encloses the loop env and that reads/writes for `i` hit the same env instance per iteration.

@@ -29,7 +29,6 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
             DebugMode = true,
             Logger = logger
         });
@@ -70,7 +69,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -105,7 +104,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -140,7 +139,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -174,7 +173,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -208,7 +207,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -242,7 +241,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -282,7 +281,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -322,7 +321,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -360,7 +359,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -400,7 +399,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -439,7 +438,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -479,7 +478,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -517,7 +516,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -553,7 +552,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -593,7 +592,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -632,7 +631,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -670,7 +669,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -710,7 +709,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -746,7 +745,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -781,7 +780,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -820,7 +819,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -852,7 +851,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -885,7 +884,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -925,7 +924,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -961,7 +960,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -1007,7 +1006,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -1043,7 +1042,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -1079,7 +1078,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -1118,7 +1117,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -1156,7 +1155,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });
@@ -1199,7 +1198,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
-            EnableFastPaths = true,
+
             DebugMode = true,
             Logger = logger
         });

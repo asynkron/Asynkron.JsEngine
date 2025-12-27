@@ -13,5 +13,5 @@ public static class JsEngineConstants
     /// </summary>
     public const int MaxPrototypeChainDepth = 100;
 
-    public const bool SyncIrLoops = false;
+    public const bool SyncIrLoops = true;
 }

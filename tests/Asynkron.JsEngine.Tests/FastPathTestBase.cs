@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
-/// Base class for tests. Always uses fast paths (EnableFastPaths = true).
+/// Base class for tests. Always uses fast paths ().
 /// </summary>
 public class FastPathTestBase(ITestOutputHelper output)
 {
@@ -14,7 +14,7 @@ public class FastPathTestBase(ITestOutputHelper output)
     /// </summary>
     protected JsEngine CreateEngine()
     {
-        return new JsEngine(new JsEngineOptions { EnableFastPaths = true });
+        return new JsEngine(new JsEngineOptions {  });
     }
 
     /// <summary>
@@ -22,7 +22,7 @@ public class FastPathTestBase(ITestOutputHelper output)
     /// </summary>
     protected JsEngine CreateEngine(Action<JsEngineOptions> configure)
     {
-        var options = new JsEngineOptions { EnableFastPaths = true };
+        var options = new JsEngineOptions {  };
         configure(options);
         return new JsEngine(options);
     }

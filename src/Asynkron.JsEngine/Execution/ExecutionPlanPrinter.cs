@@ -63,7 +63,7 @@ internal static class ExecutionPlanPrinter
 
             CreateIterationEnvironmentInstruction createEnv =>
                 $"CREATE_ITER_ENV (bindings: [{string.Join(", ", createEnv.PerIterationBindings.Select(s => s.Name))}], " +
-                $"scopeId: {createEnv.ScopeId}, slots: {createEnv.SlotCount}, pool: {createEnv.AllowPooling}) → [{createEnv.Next}]",
+                $"scopeId: {createEnv.ScopeId}, parentScopeId: {createEnv.ParentScopeId}, slots: {createEnv.SlotCount}, pool: {createEnv.AllowPooling}) → [{createEnv.Next}]",
 
             ReturnInstruction ret =>
                 $"RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : ""),

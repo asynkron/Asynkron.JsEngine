@@ -24,6 +24,7 @@ internal sealed record LoopPlan(
     ImmutableArray<Symbol> PerIterationBindings = default,
     bool AllowIterationEnvironmentPooling = false,
     int IterationScopeId = -1,
+    int IterationParentScopeId = -1,
     int IterationSlotCount = -1,
     ImmutableArray<int> PerIterationSlotIndices = default)
 {

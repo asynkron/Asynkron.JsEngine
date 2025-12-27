@@ -968,6 +968,7 @@ public sealed class ScopeAnalyzer
         return resolved with
         {
             PerIterationScopeId = perIterationScopeId,
+            PerIterationParentScopeId = needsScope ? parentScope.ScopeId : -1,
             PerIterationSlotCount = perIterationSlotCount,
             PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default
         };
@@ -1011,6 +1012,7 @@ public sealed class ScopeAnalyzer
         return resolved with
         {
             PerIterationScopeId = perIterationScopeId,
+            PerIterationParentScopeId = needsScope ? parentScope.ScopeId : -1,
             PerIterationSlotCount = perIterationSlotCount,
             PerIterationSlotIndices = perIterationSlotIndices?.ToImmutableArray() ?? default,
             PerIterationBindings = perIterationBindings?.ToImmutableArray() ?? default

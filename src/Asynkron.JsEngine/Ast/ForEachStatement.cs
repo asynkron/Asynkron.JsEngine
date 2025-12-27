@@ -19,6 +19,7 @@ public sealed record ForEachStatement(
     ForEachKind Kind,
     VariableKind? DeclarationKind,
     int PerIterationScopeId = -1,
+    int PerIterationParentScopeId = -1,
     int PerIterationSlotCount = -1,
     ImmutableArray<int> PerIterationSlotIndices = default,
     ImmutableArray<Symbol> PerIterationBindings = default) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>

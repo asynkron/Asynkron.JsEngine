@@ -18,6 +18,7 @@ public sealed record ForStatement(
     ExpressionNode? Increment,
     StatementNode Body,
     int PerIterationScopeId = -1,
+    int PerIterationParentScopeId = -1,
     int PerIterationSlotCount = -1,
     ImmutableArray<int> PerIterationSlotIndices = default) : StatementNode(Source), IAstCacheable<LoopPlan>
 {

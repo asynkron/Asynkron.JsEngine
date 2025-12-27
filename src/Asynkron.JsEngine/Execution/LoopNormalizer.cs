@@ -93,6 +93,7 @@ internal static class LoopNormalizer
             false,
             perIterationBindings,
             statement.PerIterationScopeId,
+            statement.PerIterationParentScopeId,
             statement.PerIterationSlotCount,
             statement.PerIterationSlotIndices);
         failureReason = null;
@@ -153,6 +154,7 @@ internal static class LoopNormalizer
         bool conditionAfterBody,
         ImmutableArray<Symbol> perIterationBindings = default,
         int iterationScopeId = -1,
+        int iterationParentScopeId = -1,
         int iterationSlotCount = -1,
         ImmutableArray<int> perIterationSlotIndices = default)
     {
@@ -177,6 +179,7 @@ internal static class LoopNormalizer
             perIterationBindings,
             allowIterationEnvironmentPooling,
             iterationScopeId,
+            iterationParentScopeId,
             iterationSlotCount,
             perIterationSlotIndices);
     }

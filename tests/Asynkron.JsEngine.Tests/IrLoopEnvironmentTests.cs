@@ -324,9 +324,34 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
     }
 
     [Fact(Timeout = 10000)]
+    public async Task SingleForLoop_WithForAwaitOf_ReturnsCorrectSum()
+    {
+        // Simpler test: just j + for-await-of (no outer i loop)
+        // No logger to avoid initialization noise
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (let j = 0; j < 2; j++) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        Output.WriteLine($"Result: {result} (expected: 6)");
+        // 2 j-iterations × (1+2) = 2 × 3 = 6
+        Assert.Equal(6.0, result);
+    }
+
+    [Fact(Timeout = 10000)]
     public async Task NestedForLoops_WithForAwaitOf_ReturnsCorrectSum()
     {
-        // Test without logging - just verify the result
+        // No logger to avoid initialization noise and hangs
         await using var engine = CreateEngine();
 
         var result = await engine.EvaluateAndAwait("""

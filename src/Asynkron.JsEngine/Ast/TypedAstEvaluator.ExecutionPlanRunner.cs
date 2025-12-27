@@ -1779,6 +1779,8 @@ public static partial class TypedAstEvaluator
                                                     StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                         iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
                                                 }
+                                                // Save environment before suspending so we restore it on resume
+                                                _executionEnvironment = environment;
                                                 _state = GeneratorState.Suspended;
                                                 _programCounter = iteratorIndex;
                                                 return CreateIteratorResult(JsValue.Undefined, false);
@@ -1857,6 +1859,8 @@ public static partial class TypedAstEvaluator
                                                 StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                     iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
                                             }
+                                            // Save environment before suspending so we restore it on resume
+                                            _executionEnvironment = environment;
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
                                             return CreateIteratorResult(JsValue.Undefined, false);
@@ -1923,6 +1927,8 @@ public static partial class TypedAstEvaluator
                                                 StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                     iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
                                             }
+                                            // Save environment before suspending so we restore it on resume
+                                            _executionEnvironment = environment;
                                             _state = GeneratorState.Suspended;
                                             _programCounter = iteratorIndex;
                                             return CreateIteratorResult(JsValue.Undefined, false);

@@ -1044,9 +1044,27 @@ internal sealed class ExecutionPlanBuilder
         // Build the loop body
         var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
-        var scope = new LoopScope(label, iteratorInstructions.MoveNextIndex, loopExitTarget, targetScopeId);
+
+        // For per-iteration bindings, we need to POP the iteration environment at the END of each
+        // iteration body, BEFORE going back to ITER_MOVE_NEXT. This ensures the environment stack
+        // stays balanced and we return to the correct scope for the next iteration.
+        var bodyNextTarget = iteratorInstructions.MoveNextIndex;
+        var continueTarget = iteratorInstructions.MoveNextIndex;
+        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            // Create POP_ENV that goes to ITER_MOVE_NEXT - body will flow to this
+            var popEnvForContinue = Append(new PopEnvironmentInstruction(
+                iteratorPlan.IterationScopeId,
+                iteratorPlan.CanReuseIterationEnvironment,
+                iteratorInstructions.MoveNextIndex));
+            bodyNextTarget = popEnvForContinue;
+            continueTarget = popEnvForContinue;
+        }
+
+        var scope = new LoopScope(label, continueTarget, loopExitTarget, targetScopeId);
         _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(perIterationBlock, iteratorInstructions.MoveNextIndex, out var iterationEntry,
+        var bodyBuilt = TryBuildStatement(perIterationBlock, bodyNextTarget, out var iterationEntry,
             label);
         _loopScopes.Pop();
 

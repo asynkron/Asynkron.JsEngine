@@ -212,21 +212,114 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
         output.WriteLine("=== Executing async for-loop with closures (trace below) ===");
         output.WriteLine("");
 
-        var result = await engine.EvaluateAndAwait("""
+        // Define and call the async function, then get the result
+        await engine.EvaluateAndAwait("""
+            let result;
             (async function testLoop() {
                 const funcs = [];
                 for (let i = 0; i < 2; i++) {
                     funcs.push(() => i);
                     await Promise.resolve();
                 }
-                return funcs[0]() + funcs[1]();
+                result = funcs[0]() + funcs[1]();
             })();
             """);
+
+        var result = await engine.Evaluate("result");
 
         output.WriteLine("");
         output.WriteLine($"=== Result: {result} (expected: 1 = 0 + 1) ===");
 
         // 0 + 1 = 1
         Assert.Equal(1.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TraceIrExecution_PASSING_SingleForWithForAwaitOf()
+    {
+        // PASSING CASE: 1 for loop + 1 for-await-of (sum = 6)
+        var logger = new XunitLogger(output, "PASS");
+
+        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+
+        output.WriteLine("=== PASSING: 1 for + 1 for-await-of (expected: 6) ===");
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (let i = 0; i < 2; i++) {
+                    for await (const n of arr) {
+                        sum += n;
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        output.WriteLine($"=== Result: {result} (expected: 6) ===");
+        Assert.Equal(6.0, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TraceIrExecution_FAILING_DoubleForWithForAwaitOf()
+    {
+        // FAILING CASE: 2 for loops + 1 for-await-of (expected: 12, actual: 6)
+        var logger = new XunitLogger(output, "FAIL");
+
+        await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
+
+        output.WriteLine("=== FAILING: 2 for + 1 for-await-of (expected: 12) ===");
+
+        var result = await engine.EvaluateAndAwait("""
+            let sum = 0;
+            (async function() {
+                const arr = [1, 2];
+                for (let i = 0; i < 2; i++) {
+                    for (let j = 0; j < 2; j++) {
+                        for await (const n of arr) {
+                            sum += n;
+                        }
+                    }
+                }
+            })();
+            sum;
+            """);
+
+        output.WriteLine($"=== Result: {result} (expected: 12, getting half = 6) ===");
+        // Don't assert - we know it fails, we just want to see the trace
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrintIrPlan_DoubleForWithForAwaitOf()
+    {
+        // Print the IR plan for the failing case to analyze structure
+        await using var engine = CreateEngine();
+
+        var program = engine.ParseProgram("""
+            async function doubleNestedBug() {
+                const arr = [1, 2];
+                let sum = 0;
+                for (let i = 0; i < 2; i++) {
+                    for (let j = 0; j < 2; j++) {
+                        for await (const n of arr) {
+                            sum += n;
+                        }
+                    }
+                }
+                return sum;
+            }
+            """);
+
+        await engine.Evaluate(program);
+
+        var funcDecl = program.Body[0] as Asynkron.JsEngine.Ast.FunctionDeclaration;
+        Assert.NotNull(funcDecl);
+
+        var planOutput = ExecutionPlanDiagnostics.PrintPlan(funcDecl.Function);
+        Assert.NotNull(planOutput);
+
+        output.WriteLine("=== IR Plan for 2 for + 1 for-await-of (FAILING CASE) ===");
+        output.WriteLine(planOutput);
     }
 }

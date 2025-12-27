@@ -601,27 +601,18 @@ internal sealed class ExecutionPlanBuilder
             }
         }
 
-        var continueTarget = postIterationEntry;
-        var scope = new LoopScope(label, continueTarget, nextIndex);
-        _loopScopes.Push(scope);
-
-        if (!TryBuildStatement(plan.Body, continueTarget, out var bodyEntry, label))
-        {
-            _loopScopes.Pop();
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        _loopScopes.Pop();
-
         // For lexical declarations (let/const), emit CreateIterationEnvironmentInstruction
-        // to create fresh per-iteration bindings. This ensures closures capture separate values.
-        // This also ensures the environment is reset to the loop scope at the start of each iteration,
-        // which is critical when the loop body contains async code (for-await-of) that creates
-        // its own nested iteration environments.
-        var iterationBodyEntry = bodyEntry;
-        if (!plan.PerIterationBindings.IsDefaultOrEmpty)
+        // AFTER the body but BEFORE the increment (PostIteration).
+        // This matches the ECMAScript spec (ForBodyEvaluation):
+        //   1. Evaluate condition
+        //   2. Evaluate body (closures capture current environment)
+        //   3. CreatePerIterationEnvironment (create new env, copy values)
+        //   4. Evaluate increment (modifies new env, not the captured one)
+        //
+        // This ensures closures capture the pre-increment value of loop variables.
+        var continueTarget = postIterationEntry;
+        int createEnvIndex = -1;
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
         {
             // Build slot map from per-iteration bindings and slot indices
             var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
@@ -636,16 +627,61 @@ internal sealed class ExecutionPlanBuilder
                 }
             }
 
-            var createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+            // CreateEnv flows to PostIteration (increment)
+            createEnvIndex = Append(new CreateIterationEnvironmentInstruction(
+                postIterationEntry,
+                plan.PerIterationBindings,
+                plan.IterationScopeId,
+                plan.IterationSlotCount,
+                slotMapBuilder.ToImmutable(),
+                plan.AllowIterationEnvironmentPooling));
+            // Continue should go through CreateEnv before increment
+            continueTarget = createEnvIndex;
+        }
+
+        var scope = new LoopScope(label, continueTarget, nextIndex);
+        _loopScopes.Push(scope);
+
+        // Body flows to CreateEnv (if present) or PostIteration (increment)
+        var bodyNextTarget = createEnvIndex >= 0 ? createEnvIndex : postIterationEntry;
+        if (!TryBuildStatement(plan.Body, bodyNextTarget, out var bodyEntry, label))
+        {
+            _loopScopes.Pop();
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        _loopScopes.Pop();
+
+        // For non-For loops (while, do-while), create environment before body (original behavior)
+        var iterationBodyEntry = bodyEntry;
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind != LoopKind.For)
+        {
+            // Build slot map from per-iteration bindings and slot indices
+            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+            var bindings = plan.PerIterationBindings;
+            var slotIndices = plan.PerIterationSlotIndices;
+            var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
+            for (var i = 0; i < count; i++)
+            {
+                if (slotIndices[i] >= 0)
+                {
+                    slotMapBuilder[bindings[i]] = slotIndices[i];
+                }
+            }
+
+            var createEnvBeforeBody = Append(new CreateIterationEnvironmentInstruction(
                 bodyEntry,
                 plan.PerIterationBindings,
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMapBuilder.ToImmutable(),
                 plan.AllowIterationEnvironmentPooling));
-            iterationBodyEntry = createEnvIndex;
+            iterationBodyEntry = createEnvBeforeBody;
         }
 
+        // Branch flows to body directly (for For loops) or CreateEnv (for others)
         var branchIndex = Append(new BranchInstruction(plan.Condition, iterationBodyEntry, nextIndex));
 
         var conditionEntry = branchIndex;

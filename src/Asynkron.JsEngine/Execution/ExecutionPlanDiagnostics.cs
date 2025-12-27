@@ -90,4 +90,26 @@ public static class ExecutionPlanDiagnostics
 
         return function.Source?.ToString() ?? "<anonymous>";
     }
+
+    /// <summary>
+    /// Pretty prints the execution plan for a function. Returns null if no plan is available.
+    /// </summary>
+    public static string? PrintPlan(FunctionExpression function)
+    {
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        if (cache.Plan is null)
+        {
+            return $"No execution plan available. Reason: {cache.FailureReason ?? "unknown"}";
+        }
+
+        return ExecutionPlanPrinter.Print(cache.Plan.Instructions, cache.Plan.EntryPoint);
+    }
+
+    /// <summary>
+    /// Pretty prints a single instruction.
+    /// </summary>
+    internal static string FormatInstruction(ExecutionInstruction instruction)
+    {
+        return ExecutionPlanPrinter.FormatInstruction(instruction);
+    }
 }

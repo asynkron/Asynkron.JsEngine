@@ -1375,7 +1375,7 @@ public static class TemporalHelper
             {
                 day = (int)JsOps.ToNumber(dayArg);
             }
-            return WrapPlainDate(ym.ToPlainDate(day), realm);
+            return WrapPlainDate(ym.ToPlainDate(day), realm, prototypes.PlainDatePrototype);
         });
 
         // Constructor
@@ -1415,9 +1415,10 @@ public static class TemporalHelper
         return ctor;
     }
 
-    private static HostFunction CreatePlainMonthDayConstructor(RealmState realm)
+    private static HostFunction CreatePlainMonthDayConstructor(RealmState realm, TemporalPrototypes prototypes)
     {
         var prototype = new JsObject(realm.ObjectPrototype);
+        prototypes.PlainMonthDayPrototype = prototype;
         prototype.DefineProperty(SymbolKeys.ToStringTag,
             new PropertyDescriptor { Value = "Temporal.PlainMonthDay", Writable = false, Enumerable = false, Configurable = true });
 
@@ -1458,7 +1459,7 @@ public static class TemporalHelper
             {
                 year = (int)JsOps.ToNumber(yearArg);
             }
-            return WrapPlainDate(md.ToPlainDate(year), realm);
+            return WrapPlainDate(md.ToPlainDate(year), realm, prototypes.PlainDatePrototype);
         });
 
         // Constructor

@@ -94,6 +94,12 @@ public sealed partial class TypedArrayPrototype
         return ReverseImpl(thisValue);
     }
 
+    [JsHostMethod("sort", Length = 1d)]
+    private JsValue Sort(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        return SortImpl(thisValue, args);
+    }
+
     [JsHostMethod("toReversed", Length = 0d)]
     private JsValue ToReversed(JsValue thisValue)
     {
@@ -198,6 +204,24 @@ public sealed partial class TypedArrayPrototype
                 return JsValue.FromJsArray(pair);
             },
             Realm));
+    }
+
+    [JsHostMethod("join", Length = 1d)]
+    private JsValue Join(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        return JoinImpl(thisValue, args);
+    }
+
+    [JsHostMethod("toString", Length = 0d)]
+    private JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        return ToStringImpl(thisValue, args);
+    }
+
+    [JsHostMethod("toLocaleString", Length = 0d)]
+    private JsValue ToLocaleString(JsValue thisValue, IReadOnlyList<JsValue> args)
+    {
+        return ToLocaleStringImpl(thisValue, args);
     }
 
     protected override void ConfigurePrototype()

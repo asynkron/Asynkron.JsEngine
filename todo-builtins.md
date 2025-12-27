@@ -1,3 +1,10 @@
+# JavaScript Built-in Objects and Methods to Implement
+
+Look here
+`~/git/asynkron/Asynkron.JsEngine/src/Asynkron.JsEngine/StdLib`
+and
+`~/git/asynkron/Asynkron.JsEngine/src/Asynkron.JsEngine/JsTypes`
+
 ## 1. Temporal (≈ 200+)
 
 **Main objects:**

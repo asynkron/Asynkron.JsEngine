@@ -342,7 +342,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                         nextProp.TryGetObject<IJsCallable>(out var nextMethod) &&
                         nextMethod is not null)
                     {
-                        var result = nextMethod.Invoke([], new JsValue(currentIterator));
+                        var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
                         if (result.TryGetObject(out var resultObj) && resultObj is not null)
                         {
                             if (!resultObj.TryGetProperty("done", out var doneProp) || !JsOps.ToBoolean(doneProp))
@@ -378,7 +378,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             {
                 try
                 {
-                    returnMethod.Invoke([], new JsValue(currentIterator));
+                    returnMethod.Invoke([], JsValue.FromObjectUnsafe(currentIterator));
                 }
                 catch
                 {

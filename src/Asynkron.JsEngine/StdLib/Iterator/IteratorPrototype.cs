@@ -145,14 +145,14 @@ public sealed partial class IteratorPrototype : JsPrototype
     public JsValue ToArray(JsValue thisValue)
     {
         var iterated = GetIteratorDirect(thisValue);
-        var result = new JsArray { RealmState = Realm };
+        var result = new JsArray(Realm);
 
         while (true)
         {
             var next = IteratorStep(iterated);
             if (next is null)
             {
-                return new JsValue(result);
+                return JsValue.FromObjectUnsafe(result);
             }
 
             var value = IteratorValue(next);
@@ -364,7 +364,7 @@ public sealed partial class IteratorPrototype : JsPrototype
             throw StandardLibrary.ThrowTypeError("Iterator must have a callable 'next' method", null, null);
         }
 
-        var result = nextMethod.Invoke([], new JsValue(iterator));
+        var result = nextMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
 
         if (!result.TryGetObject(out var resultObj) || resultObj is null)
         {
@@ -403,7 +403,7 @@ public sealed partial class IteratorPrototype : JsPrototype
         {
             try
             {
-                returnMethod.Invoke([], new JsValue(iterator));
+                returnMethod.Invoke([], JsValue.FromObjectUnsafe(iterator));
             }
             catch
             {

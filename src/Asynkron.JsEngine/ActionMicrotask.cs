@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Asynkron.JsEngine;
 
 /// <summary>
@@ -32,9 +34,9 @@ internal sealed class ActionMicrotask : IMicrotask, IRentable
         }
     }
 
-    public void Activate() { }
+    public void Activate(ILogger? logger) { }
 
-    public void Reset()
+    public void Reset(ILogger? logger)
     {
         _action = null;
         Epoch = 0;

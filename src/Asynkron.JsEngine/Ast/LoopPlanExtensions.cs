@@ -259,7 +259,7 @@ public static partial class TypedAstEvaluator
             {
                 if (allowIterationEnvPooling)
                 {
-                    JsEnvironmentPool.Return(iterationEnvironment);
+                    JsEnvironmentPool.Return(iterationEnvironment, logger);
                 }
                 // Otherwise keep the final iteration environment alive for any closures that captured it.
             }
@@ -286,7 +286,8 @@ public static partial class TypedAstEvaluator
                     false,
                     false,
                     null,
-                    "for-iteration")
+                    "for-iteration",
+                    logger: logger)
                 : new JsEnvironment(
                     outerEnvironment,
                     false,

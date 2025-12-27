@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Parser;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -23,14 +24,15 @@ internal static class JsEnvironmentPool
         SourceReference? creatingSource = null,
         string? description = null,
         bool isParameterEnvironment = false,
-        bool isBodyEnvironment = false)
+        bool isBodyEnvironment = false,
+        ILogger? logger = null)
     {
-        var env = Pool.Rent();
+        var env = Pool.Rent(logger);
         env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description,
             isParameterEnvironment, isBodyEnvironment);
         return env;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Return(JsEnvironment environment) => Pool.Return(environment);
+    public static void Return(JsEnvironment environment, ILogger? logger = null) => Pool.Return(environment, logger);
 }

@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -19,7 +20,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
     private readonly T?[] _items = new T?[size];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T Rent()
+    public T Rent(ILogger? logger = null)
     {
         var items = _items;
         for (var i = 0; i < items.Length; i++)
@@ -29,7 +30,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
             {
                 if (IsRentable)
                 {
-                    ((IRentable)item).Activate();
+                    ((IRentable)item).Activate(logger);
                 }
                 return item;
             }
@@ -38,17 +39,17 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
         var newItem = factory();
         if (IsRentable)
         {
-            ((IRentable)newItem).Activate();
+            ((IRentable)newItem).Activate(logger);
         }
         return newItem;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Return(T item)
+    public void Return(T item, ILogger? logger = null)
     {
         if (IsRentable)
         {
-            ((IRentable)item).Reset();
+            ((IRentable)item).Reset(logger);
         }
 
         var items = _items;

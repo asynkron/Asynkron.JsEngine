@@ -1,6 +1,6 @@
 ﻿#region
 
-using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -15,12 +15,14 @@ internal interface IRentable
     /// Called when the object is rented from the pool.
     /// Use this to rent sub-objects or initialize transient state.
     /// </summary>
-    void Activate();
+    /// <param name="logger">Optional logger for diagnostics during testing.</param>
+    void Activate(ILogger? logger = null);
 
     /// <summary>
     /// Resets the object to a clean state for reuse.
     /// Called automatically when the object is returned to the pool.
     /// Use this to return sub-objects to their pools.
     /// </summary>
-    void Reset();
+    /// <param name="logger">Optional logger for diagnostics during testing.</param>
+    void Reset(ILogger? logger = null);
 }

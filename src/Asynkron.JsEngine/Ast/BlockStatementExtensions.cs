@@ -99,9 +99,10 @@ public static partial class TypedAstEvaluator
         {
             // Check if we can safely pool the environment (no closures or dynamic scope that would capture it)
             var canPoolEnvironment = !ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
+            var logger = context.RealmState.Logger;
 
             var scope = canPoolEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, block.IsStrict)
+                ? JsEnvironmentPool.Rent(environment, false, block.IsStrict, logger: logger)
                 : new JsEnvironment(environment, false, block.IsStrict);
 
             try
@@ -112,7 +113,7 @@ public static partial class TypedAstEvaluator
             {
                 if (canPoolEnvironment)
                 {
-                    JsEnvironmentPool.Return(scope);
+                    JsEnvironmentPool.Return(scope, logger);
                 }
             }
         }

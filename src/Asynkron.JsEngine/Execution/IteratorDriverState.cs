@@ -3,6 +3,7 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -66,17 +67,18 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     /// <summary>
     /// Called when state is rented from pool.
     /// </summary>
-    void IRentable.Activate()
+    void IRentable.Activate(ILogger? logger)
     {
-        // No sub-objects to rent
+        logger?.LogInformation("IteratorDriverState.Activate");
     }
 
     /// <summary>
     /// Resets the state for reuse from pool.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Reset()
+    public void Reset(ILogger? logger)
     {
+        logger?.LogInformation("IteratorDriverState.Reset");
         IteratorObject = null;
         Enumerator = null;
         IsAsyncIterator = false;

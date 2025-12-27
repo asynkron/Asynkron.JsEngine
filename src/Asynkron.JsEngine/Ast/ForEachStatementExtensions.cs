@@ -23,6 +23,7 @@ public static partial class TypedAstEvaluator
             // Use cached analysis to check if loop environment can be pooled
             // (no closures in target or iterable that would capture it)
             var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
+            var logger = context.RealmState.Logger;
 
             var iterableEnvironment = environment;
             var pooledTdzEnvironment = false;
@@ -34,7 +35,7 @@ public static partial class TypedAstEvaluator
                 if (canPoolLoopEnvironment)
                 {
                     iterableEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
-                        "for-each-head-tdz");
+                        "for-each-head-tdz", logger: logger);
                     pooledTdzEnvironment = true;
                 }
                 else
@@ -84,7 +85,7 @@ public static partial class TypedAstEvaluator
 
             // Use pooled environment for loop scope only if no closures will capture the chain
             var loopEnvironment = canPoolLoopEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop")
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop", logger: logger)
                 : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
             var lastValueJs = JsValue.Undefined;
 
@@ -162,7 +163,7 @@ public static partial class TypedAstEvaluator
                     if (useIterationSlotsForIn)
                     {
                         iterationEnvironment = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                            "for-each-iteration");
+                            "for-each-iteration", logger: logger);
                         iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
                     }
                     else
@@ -218,11 +219,11 @@ public static partial class TypedAstEvaluator
                 // Return pooled environments
                 if (pooledTdzEnvironment)
                 {
-                    JsEnvironmentPool.Return(iterableEnvironment);
+                    JsEnvironmentPool.Return(iterableEnvironment, logger);
                 }
                 if (canPoolLoopEnvironment)
                 {
-                    JsEnvironmentPool.Return(loopEnvironment);
+                    JsEnvironmentPool.Return(loopEnvironment, logger);
                 }
             }
         }
@@ -233,6 +234,7 @@ public static partial class TypedAstEvaluator
             // Use cached analysis to check if loop environment can be pooled
             // (no closures in target or iterable that would capture it)
             var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
+            var logger = context.RealmState.Logger;
 
             var iterableEnvironment = environment;
             var pooledTdzEnvironment = false;
@@ -244,7 +246,7 @@ public static partial class TypedAstEvaluator
                 if (canPoolLoopEnvironment)
                 {
                     iterableEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
-                        "for-each-head-tdz");
+                        "for-each-head-tdz", logger: logger);
                     pooledTdzEnvironment = true;
                 }
                 else
@@ -273,7 +275,7 @@ public static partial class TypedAstEvaluator
 
             // Use pooled environment for loop scope only if no closures will capture the chain
             var loopEnvironment = canPoolLoopEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop")
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
                 : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
 
             try
@@ -325,11 +327,11 @@ public static partial class TypedAstEvaluator
                 // Return pooled environments
                 if (pooledTdzEnvironment)
                 {
-                    JsEnvironmentPool.Return(iterableEnvironment);
+                    JsEnvironmentPool.Return(iterableEnvironment, logger);
                 }
                 if (canPoolLoopEnvironment)
                 {
-                    JsEnvironmentPool.Return(loopEnvironment);
+                    JsEnvironmentPool.Return(loopEnvironment, logger);
                 }
             }
         }

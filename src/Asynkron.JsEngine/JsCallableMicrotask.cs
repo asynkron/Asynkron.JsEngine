@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
 
@@ -34,9 +35,9 @@ internal sealed class JsCallableMicrotask : IMicrotask, IRentable
         }
     }
 
-    public void Activate() { }
+    public void Activate(ILogger? logger) { }
 
-    public void Reset()
+    public void Reset(ILogger? logger)
     {
         _callback = null;
         Epoch = 0;

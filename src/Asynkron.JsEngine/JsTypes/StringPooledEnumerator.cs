@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -63,7 +64,9 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
         return true;
     }
 
-    public void Activate() { }
+    void IRentable.Activate(ILogger? logger) { }
+
+    void IRentable.Reset(ILogger? logger) => Reset();
 
     public void Reset()
     {

@@ -1001,7 +1001,7 @@ public static partial class TypedAstEvaluator
                                 // to avoid per-iteration allocations
                                 var allowPooling = createEnvInstruction.AllowPooling;
                                 var newIterationEnv = allowPooling
-                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, "for-iteration")
+                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, "for-iteration", logger: _realmState.Logger)
                                     : new JsEnvironment(loopScope, false, false, null, "for-iteration");
 
                                 // Initialize slots with the iteration scope's metadata.
@@ -1069,7 +1069,7 @@ public static partial class TypedAstEvaluator
                                 if (allowPooling && previousIterEnv != null &&
                                     !ReferenceEquals(previousIterEnv, _resumedWithEnvironment))
                                 {
-                                    JsEnvironmentPool.Return(previousIterEnv);
+                                    JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
                                 }
 
                                 // Clear the resumed-with reference since we've now transitioned to a new iteration

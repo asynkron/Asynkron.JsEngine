@@ -2,6 +2,7 @@
 
 using System.Collections;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -68,7 +69,9 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
 
     }
 
-    public void Activate() { }
+    void IRentable.Activate(ILogger? logger) { }
+
+    void IRentable.Reset(ILogger? logger) => Reset();
 
     public void Reset()
     {

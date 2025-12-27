@@ -19,9 +19,9 @@ public static partial class TypedAstEvaluator
         /// Avoids Func&lt;JsEnvironment&gt; lambda allocation.
         /// </summary>
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        private JsEnvironment RentIterationEnvironment(JsEnvironment loopEnvironment)
+        private JsEnvironment RentIterationEnvironment(JsEnvironment loopEnvironment, ILogger? logger = null)
         {
-            var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration");
+            var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration", logger: logger);
             env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
             return env;
         }
@@ -68,11 +68,12 @@ public static partial class TypedAstEvaluator
                                        plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
                                        plan.CanReuseIterationEnvironment;
             var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
+            var logger = context.RealmState.Logger;
             if (canReuseLetConstEnv)
             {
                 // Create ONE iteration environment before the loop and cache JsVariable
                 reusableIterationEnvironment = useIterationSlots
-                    ? plan.RentIterationEnvironment(loopEnvironment)
+                    ? plan.RentIterationEnvironment(loopEnvironment, logger)
                     : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration-reused");
                 cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
             }
@@ -136,7 +137,7 @@ public static partial class TypedAstEvaluator
                                                    (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                                                        or VariableKind.Using or VariableKind.AwaitUsing
                                                        ? useIterationSlots
-                                                           ? plan.RentIterationEnvironment(loopEnvironment)
+                                                           ? plan.RentIterationEnvironment(loopEnvironment, logger)
                                                            : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
                                                        : loopEnvironment);
 
@@ -264,7 +265,7 @@ public static partial class TypedAstEvaluator
                                                    (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                                                        or VariableKind.Using or VariableKind.AwaitUsing
                                                        ? useIterationSlots
-                                                           ? plan.RentIterationEnvironment(loopEnvironment)
+                                                           ? plan.RentIterationEnvironment(loopEnvironment, logger)
                                                            : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
                                                        : loopEnvironment);
 
@@ -362,7 +363,7 @@ public static partial class TypedAstEvaluator
                                                    (plan.DeclarationKind is VariableKind.Let or VariableKind.Const
                                                        or VariableKind.Using or VariableKind.AwaitUsing
                                                        ? useIterationSlots
-                                                           ? plan.RentIterationEnvironment(loopEnvironment)
+                                                           ? plan.RentIterationEnvironment(loopEnvironment, logger)
                                                            : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
                                                        : loopEnvironment);
 

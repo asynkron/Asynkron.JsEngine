@@ -6,6 +6,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -489,15 +490,19 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Called when context is rented from pool.
     /// </summary>
-    void IRentable.Activate()
+    void IRentable.Activate(ILogger? logger)
     {
-        // No sub-objects to rent - stacks are cleared on reset
+        logger?.LogInformation("EvaluationContext.Activate");
     }
 
     /// <summary>
     ///     Resets the context for reuse. Clears all stacks and signals.
     /// </summary>
-    void IRentable.Reset() => Reset();
+    void IRentable.Reset(ILogger? logger)
+    {
+        logger?.LogInformation("EvaluationContext.Reset");
+        Reset();
+    }
 
     /// <summary>
     ///     Resets the context for reuse. Clears all stacks and signals.
@@ -640,12 +645,9 @@ public sealed class EvaluationContext(
             Pool.Return(this);
         }
 
-        void IRentable.Activate()
-        {
-            // No sub-objects to rent
-        }
+        void IRentable.Activate(ILogger? logger) { }
 
-        void IRentable.Reset()
+        void IRentable.Reset(ILogger? logger)
         {
             _scopes = null;
             _disposed = false;

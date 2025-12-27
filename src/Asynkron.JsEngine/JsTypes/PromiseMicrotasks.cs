@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Asynkron.JsEngine.JsTypes;
 
 /// <summary>
@@ -31,9 +33,9 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask, IRentabl
         Pool.Return(this);
     }
 
-    public void Activate() { }
+    public void Activate(ILogger? logger) { }
 
-    public void Reset()
+    public void Reset(ILogger? logger)
     {
         _value = JsValue.Undefined;
         _nextPromise = null;
@@ -90,9 +92,9 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask, IRentable
         }
     }
 
-    public void Activate() { }
+    public void Activate(ILogger? logger) { }
 
-    public void Reset()
+    public void Reset(ILogger? logger)
     {
         _callback = null;
         _value = JsValue.Undefined;

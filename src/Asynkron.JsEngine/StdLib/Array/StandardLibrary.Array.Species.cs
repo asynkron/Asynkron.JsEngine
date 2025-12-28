@@ -153,11 +153,8 @@ public static partial class StandardLibrary
                 throw ThrowTypeError($"{methodName}: constructor did not return an object", realm: realm);
             }
 
-            if (!passLengthToConstructor)
-            {
-                SetArrayLikeLength(result, 0);
-            }
-
+            // Don't set length to 0 here - it creates a data property that shadows setters on the prototype.
+            // The caller (Array.from, Array.of, etc.) will set the final length after populating elements.
             return result;
         }
 

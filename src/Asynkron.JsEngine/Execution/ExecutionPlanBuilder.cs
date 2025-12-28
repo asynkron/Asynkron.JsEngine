@@ -1052,7 +1052,7 @@ internal sealed class ExecutionPlanBuilder
             };
 
         // Build the loop body
-        var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot);
+        var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot, iteratorInstructions.ValueSlotIndex);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
 
         // For per-iteration bindings, we need to POP the iteration environment at the END of each
@@ -1254,9 +1254,16 @@ internal sealed class ExecutionPlanBuilder
         return Symbol.Intern(symbolName);
     }
 
-    private static StatementNode CreateIteratorIterationBlock(IteratorDriverPlan plan, Symbol valueSymbol)
+    private static StatementNode CreateIteratorIterationBlock(IteratorDriverPlan plan, Symbol valueSymbol, int valueSlotIndex)
     {
-        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol);
+        // Stamp the identifier expression with slot info for O(1) access
+        // ScopeId = 0 means the function's primary scope where execution plan slots live
+        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol) with
+        {
+            SlotIndex = valueSlotIndex,
+            ScopeId = 0,
+            ScopeDepth = 0
+        };
         StatementNode bindingStatement;
 
         if (plan.DeclarationKind is null)

@@ -39,7 +39,6 @@ public sealed class JsEngine : IAsyncDisposable
 
     // Module registry: maps module paths to their exported values
     private readonly Dictionary<string, ModuleEntry> _moduleRegistry = new(StringComparer.Ordinal);
-    private readonly ScopeAnalyzer _scopeAnalyzer = new();
     private readonly ConcurrentDictionary<int, CancellationTokenSource> _timers = new();
     private readonly TypedConstantExpressionTransformer _typedConstantTransformer = new();
     private int _activeTimerCount; // Track registered timers (timeouts/intervals)
@@ -475,8 +474,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         typedProgram = _typedConstantTransformer.Transform(typedProgram);
 
-        // Scope analysis: resolve variable references to slot indices for O(1) lookup
-        typedProgram = _scopeAnalyzer.Analyze(typedProgram);
+        // Warmup caches and build execution plans (which handle slot assignment)
         AstCacheWarmup.Warm(typedProgram);
 
         // NOTE: CPS transformation is no longer used for async functions.

@@ -60,7 +60,7 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    private static bool ContainsWithOrDirectEval(BlockStatement block)
+    internal static bool ContainsWithOrDirectEval(BlockStatement block)
     {
         if (block.TryGetContainsDynamicScope(out var cached))
         {

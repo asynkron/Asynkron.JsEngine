@@ -12,7 +12,7 @@
 //     {
 //         // Arrange
 //         var transformer = new CpsTransformer();
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var program = engine.Parse("let x = 1 + 2;");
 //
 //         // Act
@@ -56,7 +56,7 @@
 //     {
 //         // Arrange
 //         var transformer = new CpsTransformer();
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var program = engine.Parse("let x = 1 + 2;");
 //
 //         // Act
@@ -83,7 +83,7 @@
 //     {
 //         // Arrange
 //         var transformer = new CpsTransformer();
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var program = engine.Parse("function test() { return 42; }");
 //
 //         // Act
@@ -99,7 +99,7 @@
 //     {
 //         // Arrange
 //         var transformer = new CpsTransformer();
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         var program = engine.Parse("""
 //
 //                                                function fibonacci(n) {

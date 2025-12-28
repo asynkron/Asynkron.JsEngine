@@ -1,15 +1,17 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests to verify that control flow (break, continue, return) works correctly
 /// with the new signal-based implementation.
 /// </summary>
-public class SignalPatternTests
+public class SignalPatternTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithBreak_WorksCorrectly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let count = 0;
@@ -31,7 +33,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithContinue_WorksCorrectly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let sum = 0;
@@ -54,7 +56,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task Function_WithReturn_WorksCorrectly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function test() {
@@ -71,7 +73,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task NestedLoops_WithBreakAndContinue_WorkCorrectly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        let result = 0;
@@ -98,7 +100,7 @@ public class SignalPatternTests
     [Fact(Timeout = 2000)]
     public async Task TryCatchFinally_WithReturn_WorksCorrectly()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        function test() {

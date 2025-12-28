@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class TemporalTests
+public class TemporalTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Temporal_Object_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal === 'object'");
         Assert.Equal(true, result);
     }
@@ -13,7 +15,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Now_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.Now === 'object'");
         Assert.Equal(true, result);
     }
@@ -21,7 +23,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Now_Instant_Works()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Now.instant() !== undefined");
         Assert.Equal(true, result);
     }
@@ -29,7 +31,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Now_TimeZoneId_Returns_String()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.Now.timeZoneId() === 'string'");
         Assert.Equal(true, result);
     }
@@ -37,7 +39,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Instant_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.Instant === 'function'");
         Assert.Equal(true, result);
     }
@@ -45,7 +47,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Duration_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.Duration === 'function'");
         Assert.Equal(true, result);
     }
@@ -53,7 +55,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.PlainDate === 'function'");
         Assert.Equal(true, result);
     }
@@ -61,7 +63,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainTime_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.PlainTime === 'function'");
         Assert.Equal(true, result);
     }
@@ -69,7 +71,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDateTime_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.PlainDateTime === 'function'");
         Assert.Equal(true, result);
     }
@@ -77,7 +79,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Instant_FromEpochMilliseconds()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Instant.fromEpochMilliseconds(0).epochMilliseconds");
         Assert.Equal(0d, result);
     }
@@ -85,7 +87,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Duration_From_Object()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Duration.from({hours: 1, minutes: 30}).hours");
         Assert.Equal(1d, result);
     }
@@ -93,7 +95,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).year");
         Assert.Equal(2024d, result);
     }
@@ -101,7 +103,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainTime_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 0).hour");
         Assert.Equal(10d, result);
     }
@@ -109,7 +111,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDateTime_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 12, 25, 10, 30).month");
         Assert.Equal(12d, result);
     }
@@ -117,7 +119,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toString()");
         Assert.Equal("2024-12-25", result);
     }
@@ -125,7 +127,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainTime_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 45).toString()");
         Assert.Equal("10:30:45", result);
     }
@@ -133,7 +135,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDateTime_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 12, 25, 10, 30).toString()");
         Assert.Equal("2024-12-25T10:30:00", result);
     }
@@ -141,7 +143,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Duration_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Duration.from({hours: 1, minutes: 30}).toString()");
         Assert.Equal("PT1H30M", result);
     }
@@ -149,7 +151,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Instant_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Instant.fromEpochMilliseconds(0).toString()");
         Assert.Equal("1970-01-01T00:00:00Z", result);
     }
@@ -158,7 +160,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.ZonedDateTime === 'function'");
         Assert.Equal(true, result);
     }
@@ -166,7 +168,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').epochMilliseconds");
         Assert.Equal(0d, result);
     }
@@ -174,7 +176,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_Properties()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // Use BigInt constructor to avoid parsing issues
         var year = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').year");
         var month = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').month");
@@ -187,7 +189,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_TimeZoneId()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').timeZoneId");
         Assert.Equal("UTC", result);
     }
@@ -196,7 +198,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainYearMonth_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.PlainYearMonth === 'function'");
         Assert.Equal(true, result);
     }
@@ -204,7 +206,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainYearMonth_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var year = await engine.Evaluate("new Temporal.PlainYearMonth(2024, 12).year");
         var month = await engine.Evaluate("new Temporal.PlainYearMonth(2024, 12).month");
         Assert.Equal(2024d, year);
@@ -214,7 +216,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainYearMonth_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainYearMonth(2024, 12).toString()");
         Assert.Equal("2024-12", result);
     }
@@ -222,7 +224,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainYearMonth_DaysInMonth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainYearMonth(2024, 2).daysInMonth");
         Assert.Equal(29d, result); // 2024 is a leap year
     }
@@ -230,7 +232,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainYearMonth_InLeapYear()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var leap = await engine.Evaluate("new Temporal.PlainYearMonth(2024, 1).inLeapYear");
         var notLeap = await engine.Evaluate("new Temporal.PlainYearMonth(2023, 1).inLeapYear");
         Assert.Equal(true, leap);
@@ -241,7 +243,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainMonthDay_Exists()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.PlainMonthDay === 'function'");
         Assert.Equal(true, result);
     }
@@ -249,7 +251,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainMonthDay_Constructor()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var month = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).month");
         var day = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).day");
         Assert.Equal(12d, month);
@@ -259,7 +261,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainMonthDay_ToString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainMonthDay(12, 25).toString()");
         Assert.Equal("--12-25", result);
     }
@@ -267,7 +269,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainMonthDay_MonthCode()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainMonthDay(1, 15).monthCode");
         Assert.Equal("M01", result);
     }
@@ -275,7 +277,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainMonthDay_ToPlainDate()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         // toPlainDate returns an object, verify it's callable
         var result = await engine.Evaluate("typeof new Temporal.PlainMonthDay(12, 25).toPlainDate({year: 2024})");
         Assert.Equal("object", result);
@@ -287,7 +289,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_With()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 15).with({month: 6}).toString()");
         Assert.Equal("2024-06-15", result);
     }
@@ -295,7 +297,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_Until()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 1).until(new Temporal.PlainDate(2024, 1, 11)).days");
         Assert.Equal(10d, result);
     }
@@ -303,7 +305,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_Since()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 1, 11).since(new Temporal.PlainDate(2024, 1, 1)).days");
         Assert.Equal(10d, result);
     }
@@ -311,7 +313,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_ToPlainDateTime()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainDateTime({hour: 10, minute: 30}).toString()");
         Assert.Equal("2024-12-25T10:30:00", result);
     }
@@ -319,7 +321,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_ToPlainYearMonth()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainYearMonth().toString()");
         Assert.Equal("2024-12", result);
     }
@@ -327,7 +329,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDate_ToPlainMonthDay()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDate(2024, 12, 25).toPlainMonthDay().toString()");
         Assert.Equal("--12-25", result);
     }
@@ -336,7 +338,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainTime_With()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 0).with({hour: 14}).toString()");
         Assert.Equal("14:30:00", result);
     }
@@ -344,7 +346,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainTime_Round()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainTime(10, 30, 45, 500).round('second').toString()");
         Assert.Equal("10:30:45", result);
     }
@@ -353,7 +355,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDateTime_Add()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 1, 1, 10, 0).add({days: 5}).day");
         Assert.Equal(6d, result);
     }
@@ -361,7 +363,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDateTime_Subtract()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 1, 10, 10, 0).subtract({days: 5}).day");
         Assert.Equal(5d, result);
     }
@@ -369,7 +371,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_PlainDateTime_With()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.PlainDateTime(2024, 1, 1, 10, 0).with({hour: 15}).hour");
         Assert.Equal(15d, result);
     }
@@ -378,7 +380,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Duration_With()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Duration.from({hours: 1, minutes: 30}).with({hours: 2}).hours");
         Assert.Equal(2d, result);
     }
@@ -386,7 +388,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Duration_Blank()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var blank = await engine.Evaluate("Temporal.Duration.from({}).blank");
         var notBlank = await engine.Evaluate("Temporal.Duration.from({hours: 1}).blank");
         Assert.Equal(true, blank);
@@ -397,7 +399,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Instant_Add()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Instant.fromEpochMilliseconds(0).add({hours: 1}).epochMilliseconds");
         Assert.Equal(3600000d, result);
     }
@@ -405,7 +407,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Instant_Subtract()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("Temporal.Instant.fromEpochMilliseconds(3600000).subtract({hours: 1}).epochMilliseconds");
         Assert.Equal(0d, result);
     }
@@ -414,7 +416,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_Add()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').add({hours: 1}).epochMilliseconds");
         Assert.Equal(3600000d, result);
     }
@@ -422,7 +424,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_StartOfDay()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var hour = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(3600000000000), 'UTC').startOfDay().hour");
         var minute = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(3600000000000), 'UTC').startOfDay().minute");
         Assert.Equal(0d, hour);
@@ -432,7 +434,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_ZonedDateTime_Equals()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var eq = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(0), 'UTC'))");
         var neq = await engine.Evaluate("new Temporal.ZonedDateTime(BigInt(0), 'UTC').equals(new Temporal.ZonedDateTime(BigInt(1000000000), 'UTC'))");
         Assert.Equal(true, eq);
@@ -442,7 +444,7 @@ public class TemporalTests
     [Fact]
     public async Task Temporal_Now_ZonedDateTimeISO()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate("typeof Temporal.Now.zonedDateTimeISO() === 'object'");
         Assert.Equal(true, result);
     }

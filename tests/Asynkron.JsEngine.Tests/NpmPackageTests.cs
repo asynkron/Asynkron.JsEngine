@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
@@ -8,7 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 /// - Are well-known and battle-tested
 /// - Help validate the engine's JavaScript compatibility
 /// </summary>
-public class NpmPackageTests
+public class NpmPackageTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================
     // left-pad: String padding utility
@@ -17,7 +20,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_PadsStringWithSpaces()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         // Implementation based on the famous left-pad npm package
         var script = """
@@ -44,7 +47,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_PadsStringWithCustomCharacter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -70,7 +73,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_HandlesEmptyString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -96,7 +99,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task LeftPad_NoModificationIfAlreadyLongEnough()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -126,7 +129,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task IsOdd_IdentifiesOddNumbers()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -151,7 +154,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task IsEven_IdentifiesEvenNumbers()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -177,7 +180,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task IsOdd_HandlesNegativeNumbers()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -205,7 +208,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Clamp_ReturnsNumberWithinRange()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -224,7 +227,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Clamp_ClampsToMinimum()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -243,7 +246,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Clamp_ClampsToMaximum()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -266,7 +269,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task InRange_ReturnsTrueForNumberInRange()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -289,7 +292,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task InRange_ReturnsFalseForNumberOutOfRange()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -312,7 +315,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task InRange_HandlesSingleArgumentForm()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -339,7 +342,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Fibonacci_GeneratesCorrectSequence()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -364,7 +367,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Fibonacci_IterativeVersion()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -398,7 +401,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Luhn_ValidatesValidCreditCard()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -435,7 +438,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Luhn_RejectsInvalidCreditCard()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -476,7 +479,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task ArrayShuffle_MaintainsAllElements()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -518,7 +521,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task DeepEqual_ComparesSimpleObjects()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -559,7 +562,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task DeepEqual_DetectsDifferences()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -606,7 +609,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task CamelCase_ConvertsHyphenatedString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -643,7 +646,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task CamelCase_HandlesUnderscores()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -684,7 +687,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task KebabCase_ConvertsCamelCase()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -725,7 +728,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Capitalize_CapitalizesFirstLetter()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -745,7 +748,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Capitalize_HandlesEmptyString()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -769,7 +772,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Flatten_FlattensNestedArrays()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -807,7 +810,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Sum_AddsArrayOfNumbers()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -830,7 +833,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Sum_HandlesEmptyArray()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -857,7 +860,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Unique_RemovesDuplicates()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -898,7 +901,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Chunk_SplitsArrayIntoChunks()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 
@@ -931,7 +934,7 @@ public class NpmPackageTests
     [Fact(Timeout = 2000)]
     public async Task Chunk_VerifyChunkContents()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var script = """
 

@@ -1,9 +1,11 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
 /// Tests to verify that exceptions thrown by the evaluator include source code references.
 /// </summary>
-public class SourceReferenceInExceptionsTests
+public class SourceReferenceInExceptionsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
@@ -15,7 +17,7 @@ public class SourceReferenceInExceptionsTests
         let [a, b] = 123;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(source));
 
         // Should include source reference
@@ -34,7 +36,7 @@ public class SourceReferenceInExceptionsTests
         let result = ++++x;
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
         // This should work fine
         Assert.NotNull(result);
@@ -50,7 +52,7 @@ public class SourceReferenceInExceptionsTests
         test();
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var ex = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(source));
 
         // Should include source reference (though the specific format may vary)
@@ -69,7 +71,7 @@ public class SourceReferenceInExceptionsTests
         let result = obj[obj];  // Using object as property key - converts to '[object Object]'
         ";
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);
         // This should work (converts object to string)
         Assert.NotNull(result);

@@ -1,6 +1,8 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class DebugFormatArgsTests
+public class DebugFormatArgsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task SetupCopiesFormatArgsOntoCreateDebug()
@@ -34,7 +36,7 @@ public class DebugFormatArgsTests
             var createDebug = setup(exports);
             """;
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(script);
 
         var typeOfFormatArgs = await engine.Evaluate("typeof createDebug.formatArgs;");
@@ -96,7 +98,7 @@ public class DebugFormatArgsTests
             var dbg = setup(exports);
             """;
 
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         await engine.Evaluate(script);
 
         var calledWith = await engine.Evaluate("calledWith;");

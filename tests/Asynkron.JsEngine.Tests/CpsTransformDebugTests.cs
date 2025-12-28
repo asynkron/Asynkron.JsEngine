@@ -7,13 +7,13 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to debug CPS transformation for loops with await.
 /// These tests help understand what the transformer is producing.
 /// </summary>
-public class CpsTransformDebugTests(ITestOutputHelper output)
+public class CpsTransformDebugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task SimpleForOf_WithAwait_Debug()
     {
         // Simplest possible test case - single iteration
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
 
@@ -40,7 +40,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
     public async Task VerySimpleForOf_NoAwaitInLoop_Debug()
     {
         // Control test - no await in loop body
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
 
@@ -68,7 +68,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
     public async Task ForOf_WithAwaitOutsideLoop_Debug()
     {
         // Test await before loop - should work
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         await engine.Evaluate("""
 
@@ -95,7 +95,7 @@ public class CpsTransformDebugTests(ITestOutputHelper output)
     public async Task ForOf_WithConsoleLog_Debug()
     {
         // Add logging to see if loop executes at all
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var logMessages = new List<string>();
 
         engine.SetGlobalFunction("log", args =>

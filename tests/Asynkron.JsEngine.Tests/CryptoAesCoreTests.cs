@@ -12,7 +12,7 @@
 //
 //         var script = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //
 //         const string coreTest = @"
@@ -36,7 +36,7 @@
 //     {
 //         var script = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //
 //         // Stabilise the nonce used by AESEncryptCtr so the roundtrip is deterministic.

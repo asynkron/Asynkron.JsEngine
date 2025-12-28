@@ -6,12 +6,12 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Focused test to debug the global iterable issue with detailed error logging
 /// </summary>
-public class AsyncIterableDebugTest(ITestOutputHelper output)
+public class AsyncIterableDebugTest(ITestOutputHelper output): InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_CatchRejections()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
@@ -72,7 +72,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_ParsedCode()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
 
         var code = @"
             let globalIterable = {
@@ -102,7 +102,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output)
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_WithLocalVariable()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         engine.SetGlobalFunction("log", args =>
         {
             var msg = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";

@@ -1,10 +1,12 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyExactCopyTest
+public class NBodyExactCopyTest(ITestOutputHelper output) : InternalTestBase(output)
 {
-    protected static async Task RunTest(string source)
+    protected async Task RunTest(string source)
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         engine.SetGlobalFunction("log", args =>
         {
             Console.WriteLine(args.Count > 0 ? args[0].ToObject()?.ToString() : string.Empty);

@@ -11,7 +11,7 @@
 //     [Fact(Timeout = 60000)]
 //     public async Task SimpleThrow_WithStringConcatenation()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 //
 //         try
@@ -39,7 +39,7 @@
 //     [Fact(Timeout = 60000)]
 //     public async Task CryptoMd5_Diagnose()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 //
 //         var content = SunSpiderTests.GetEmbeddedFile("crypto-md5.js");
@@ -109,7 +109,7 @@
 //     [Fact(Timeout = 60000)]
 //     public async Task CryptoSha1_Diagnose()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 //
 //         var content = SunSpiderTests.GetEmbeddedFile("crypto-sha1.js");
@@ -175,7 +175,7 @@
 //     [Fact(Timeout = 60000)]
 //     public async Task StringTagcloud_Diagnose()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 //
 //         var content = SunSpiderTests.GetEmbeddedFile("string-tagcloud.js");
@@ -202,7 +202,7 @@
 //     [Fact(Timeout = 60000)]
 //     public async Task CryptoAes_Diagnose_CoreVsEscaping()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         engine.ExecutionTimeout = TimeSpan.FromMinutes(2);
 //
 //         var content = SunSpiderTests.GetEmbeddedFile("crypto-aes.js");
@@ -258,7 +258,7 @@
 //     [Fact(Timeout = 60000, Skip = "Investigative test")]
 //     public async Task Babel_Debug_Diagnose_CreateDebugEnableLoad()
 //     {
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //
 //         var content = SunSpiderTests.GetEmbeddedFile("babel-standalone.js");
 //
@@ -314,7 +314,7 @@
 //             })();
 //             """;
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //
 //         var typeModuleExports = await engine.Evaluate("globalThis.__diagTypeModuleExports;");
@@ -334,7 +334,7 @@
 //             globalThis.__diagHasOwnType = typeof obj.hasOwnProperty;
 //             """;
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //
 //         var hasOwnType = await engine.Evaluate("globalThis.__diagHasOwnType;");
@@ -355,7 +355,7 @@
 //             globalThis.__diagReverseKeyCount = Object.keys(reverse).length;
 //             """;
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //
 //         var count = await engine.Evaluate("globalThis.__diagReverseKeyCount;");
@@ -405,7 +405,7 @@
 //             globalMethod = globalDate[funcName];
 //             """;
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //
 //         var funcName = await engine.Evaluate("globalFunc;");
@@ -465,7 +465,7 @@
 //             var result = new Date(0).dateFormat("d");
 //             """;
 //
-//         await using var engine = new JsEngine();
+//         await using var engine = CreateEngine();
 //         await engine.Evaluate(script);
 //     }
 // }

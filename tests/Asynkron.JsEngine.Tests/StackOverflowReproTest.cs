@@ -1,11 +1,13 @@
+using Xunit.Abstractions;
+
 namespace Asynkron.JsEngine.Tests;
 
-public class StackOverflowReproTest
+public class StackOverflowReproTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task SimpleClassCreation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
 class A {}
 class B extends A {
@@ -22,7 +24,7 @@ class B extends A {
     [Fact(Timeout = 5000)]
     public async Task ClassInstantiation()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
 class A {}
 class B extends A {
@@ -40,7 +42,7 @@ var b = new B();
     [Fact(Timeout = 5000)]
     public async Task ClassInheritancePrototypeChain()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
 class A {}
 class B extends A {
@@ -62,7 +64,7 @@ var result3 = Object.getPrototypeOf(A.prototype) === Object.prototype;
     [Fact(Timeout = 5000)]
     public async Task NewTargetViaSuperCall()
     {
-        await using var engine = new JsEngine();
+        await using var engine = CreateEngine();
         var code = @"
 class A {
   constructor() {

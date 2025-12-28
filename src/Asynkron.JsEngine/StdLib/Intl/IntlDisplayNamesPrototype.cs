@@ -70,7 +70,7 @@ public sealed partial class IntlDisplayNamesPrototype
             return new JsValue(canonical);
         }
 
-        return fallback == "none" ? JsValue.Undefined : new JsValue(codeInput);
+        return string.Equals(fallback, "none", StringComparison.Ordinal) ? JsValue.Undefined : new JsValue(codeInput);
     }
 
     [JsHostMethod("resolvedOptions", Length = 0d)]

@@ -333,10 +333,10 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 return true;
             }
 
-            // Handle strings - use value equality
+            // Handle strings - use ordinal value equality (JavaScript semantics)
             if (x is string sx && y is string sy)
             {
-                return sx == sy;
+                return string.Equals(sx, sy, StringComparison.Ordinal);
             }
 
             // For reference types, use reference equality

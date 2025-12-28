@@ -103,9 +103,9 @@ public sealed partial class IntlNumberFormatPrototype
         obj.SetProperty("currency",
             slots.Currency is { Length: > 0 } currencyValue ? (JsValue)currencyValue : JsValue.Undefined);
         obj.SetProperty("currencyDisplay",
-            slots.Style == "currency" ? (JsValue)slots.CurrencyDisplay : JsValue.Undefined);
+            string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? (JsValue)slots.CurrencyDisplay : JsValue.Undefined);
         obj.SetProperty("currencySign",
-            (JsValue)(slots.Style == "currency" ? slots.CurrencySign : "standard"));
+            (JsValue)(string.Equals(slots.Style, "currency", StringComparison.Ordinal) ? slots.CurrencySign : "standard"));
         obj.SetProperty("minimumIntegerDigits", (double)slots.MinimumIntegerDigits);
         if (slots.UseSignificantDigits)
         {
@@ -125,7 +125,7 @@ public sealed partial class IntlNumberFormatPrototype
         obj.SetProperty("useGrouping", (JsValue)(slots.UseGrouping ? "auto" : "never"));
         obj.SetProperty("notation", (JsValue)slots.Notation);
         obj.SetProperty("signDisplay", (JsValue)slots.SignDisplay);
-        if (slots.Style == "unit")
+        if (string.Equals(slots.Style, "unit", StringComparison.Ordinal))
         {
             obj.SetProperty("unit", slots.Unit is { Length: > 0 } unitValue ? (JsValue)unitValue : JsValue.Undefined);
             obj.SetProperty("unitDisplay", (JsValue)slots.UnitDisplay);

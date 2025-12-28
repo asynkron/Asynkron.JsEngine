@@ -152,7 +152,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     public bool Equals(JsTemporalPlainYearMonth? other)
     {
         if (other is null) return false;
-        return Year == other.Year && Month == other.Month && Calendar == other.Calendar;
+        return Year == other.Year && Month == other.Month && string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)
@@ -171,7 +171,7 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     public override string ToString()
     {
         var result = $"{Year:D4}-{Month:D2}";
-        if (Calendar != "iso8601")
+        if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
             result += $"[u-ca={Calendar}]";
         }

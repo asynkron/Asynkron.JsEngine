@@ -201,12 +201,12 @@ public sealed partial class IntlCollatorConstructor(IJsObjectLike prototype, Rea
             }
 
             var value = values[0].ToLowerInvariant();
-            if (value == "true")
+            if (string.Equals(value, "true", StringComparison.Ordinal))
             {
                 return true;
             }
 
-            if (value == "false")
+            if (string.Equals(value, "false", StringComparison.Ordinal))
             {
                 return false;
             }

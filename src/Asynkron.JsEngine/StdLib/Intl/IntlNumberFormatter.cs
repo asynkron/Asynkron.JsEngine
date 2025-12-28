@@ -57,7 +57,7 @@ internal static class IntlNumberFormatter
         IntlNumberFormatInternalSlots slots,
         bool wasNegative)
     {
-        if (slots.Style == "percent")
+        if (string.Equals(slots.Style, "percent", StringComparison.Ordinal))
         {
             MultiplyByPowerOfTen(quantity, 2);
         }

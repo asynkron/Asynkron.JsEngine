@@ -61,7 +61,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         string? currency = null;
         var currencyDisplay = "symbol";
         var currencySign = "standard";
-        if (style == "currency")
+        if (string.Equals(style, "currency", StringComparison.Ordinal))
         {
             currency = ResolveCurrency(options);
             currencyDisplay = ResolveCurrencyDisplay(options);
@@ -70,7 +70,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
 
         string? unit = null;
         var unitDisplay = "short";
-        if (style == "unit")
+        if (string.Equals(style, "unit", StringComparison.Ordinal))
         {
             unit = ResolveUnit(options);
             unitDisplay = ResolveUnitDisplay(options);
@@ -238,8 +238,8 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
         var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
 
-        var currencyDigits = style == "currency" ? GetCurrencyDigits(currency) : 0;
-        var minimumFractionDefault = style == "currency" ? currencyDigits : 0;
+        var currencyDigits = string.Equals(style, "currency", StringComparison.Ordinal) ? GetCurrencyDigits(currency) : 0;
+        var minimumFractionDefault = string.Equals(style, "currency", StringComparison.Ordinal) ? currencyDigits : 0;
         var maximumFractionDefault = style switch
         {
             "currency" => currencyDigits,

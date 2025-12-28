@@ -838,7 +838,7 @@ public class JsRegExp
                         }
 
                         var numText = pattern[start..end];
-                        if (numText == "0" && (end == pattern.Length || !char.IsDigit(pattern[end])))
+                        if (string.Equals(numText, "0", StringComparison.Ordinal) && (end == pattern.Length || !char.IsDigit(pattern[end])))
                         {
                             AppendCodePoint(builder, 0, false, ignoreCase, true);
                             i = end - 1;

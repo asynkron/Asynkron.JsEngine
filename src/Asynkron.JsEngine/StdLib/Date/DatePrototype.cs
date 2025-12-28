@@ -577,7 +577,7 @@ public sealed partial class DatePrototype
 
         // Date prefers string conversion for the "default" hint.
         var preferString = hint is "string" or "default";
-        if (!preferString && hint != "number")
+        if (!preferString && !string.Equals(hint, "number", StringComparison.Ordinal))
         {
             throw ThrowTypeError("Cannot convert object to primitive value", realm: Realm);
         }

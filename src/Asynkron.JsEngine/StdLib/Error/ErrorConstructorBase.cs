@@ -109,7 +109,7 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
 
     private void LinkPrototypeChain()
     {
-        if (ErrorType == "Error")
+        if (string.Equals(ErrorType, "Error", StringComparison.Ordinal))
         {
             if (Prototype.Prototype is null && Realm.ObjectPrototype is not null)
             {

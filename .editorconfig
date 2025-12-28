@@ -35,6 +35,51 @@ dotnet_diagnostic.MA0003.severity = none
 dotnet_diagnostic.MA0007.severity = none
 dotnet_diagnostic.MA0004.severity = none
 dotnet_diagnostic.MA0049.severity = none
+
+# Disable TODO comment warnings - we use TODOs extensively for tracking work
+dotnet_diagnostic.MA0026.severity = none
+dotnet_diagnostic.MA0025.severity = none
+
+# File name doesn't need to match every type name (multiple types per file is OK)
+dotnet_diagnostic.MA0048.severity = none
+
+# Unused field/parameter warnings - we'll address these individually
+dotnet_diagnostic.CA1823.severity = suggestion
+dotnet_diagnostic.CA1801.severity = suggestion
+dotnet_diagnostic.CA1823.severity = suggestion
+dotnet_diagnostic.RCS1163.severity = suggestion
+
+# Unreachable code - some debug code is intentionally unreachable
+dotnet_diagnostic.CS0162.severity = suggestion
+
+# Unused fields - may be used for future work or debugging
+dotnet_diagnostic.CS0169.severity = suggestion
+
+# Method complexity - downgrade to suggestion, we have some complex evaluator methods
+dotnet_diagnostic.MA0061.severity = suggestion
+
+# Prefer return collection abstraction - nice to have but not critical
+dotnet_diagnostic.MA0016.severity = suggestion
+
+# Embed files as resources - not critical for this project
+dotnet_diagnostic.MA0054.severity = none
+
+# Explicit enum values - downgrade to suggestion
+dotnet_diagnostic.MA0099.severity = suggestion
+
+# Use Range/Index operators - nice to have but not critical for compatibility
+dotnet_diagnostic.MA0084.severity = suggestion
+
+# Method naming - downgrade to suggestion
+dotnet_diagnostic.MA0015.severity = suggestion
+
+# Split long methods - downgrade to suggestion for complex evaluator code
+dotnet_diagnostic.MA0051.severity = suggestion
+
+# String comparison semantics - enforce proper usage
+dotnet_diagnostic.MA0006.severity = warning
+dotnet_diagnostic.MA0074.severity = warning
+dotnet_diagnostic.MA0002.severity = warning
 # Don't use this. qualifier
 dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
@@ -509,3 +554,7 @@ trim_trailing_whitespace = false
 
 [test/**/*.cs]
 dotnet_diagnostic.CA2007.severity = silent
+
+[tests/**/*.cs]
+# Allow CS9107 in test classes (parameter captured warning in test fixtures)
+dotnet_diagnostic.CS9107.severity = silent

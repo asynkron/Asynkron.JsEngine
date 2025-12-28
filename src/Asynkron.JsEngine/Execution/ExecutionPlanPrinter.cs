@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
 
@@ -19,14 +20,14 @@ internal static class ExecutionPlanPrinter
     public static string Print(IReadOnlyList<ExecutionInstruction> instructions, int entryIndex = 0)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"=== Execution Plan ({instructions.Count} instructions, entry: {entryIndex}) ===");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"=== Execution Plan ({instructions.Count} instructions, entry: {entryIndex}) ===");
         sb.AppendLine();
 
         for (var i = 0; i < instructions.Count; i++)
         {
             var instruction = instructions[i];
             var prefix = i == entryIndex ? "→ " : "  ";
-            sb.AppendLine($"{prefix}[{i,3}] {FormatInstruction(instruction)}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{prefix}[{i,3}] {FormatInstruction(instruction)}");
         }
 
         sb.AppendLine();

@@ -55,7 +55,9 @@ public sealed partial class IteratorPrototype : JsPrototype
     {
         var iterated = GetIteratorDirect(thisValue);
         var limitArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var limit = ToIntegerOrInfinity(limitArg);
+        var evalContext = Realm?.CreateContext();
+        var limit = ToIntegerOrInfinity(limitArg, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         if (limit < 0)
         {
@@ -73,7 +75,9 @@ public sealed partial class IteratorPrototype : JsPrototype
     {
         var iterated = GetIteratorDirect(thisValue);
         var limitArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var limit = ToIntegerOrInfinity(limitArg);
+        var evalContext = Realm?.CreateContext();
+        var limit = ToIntegerOrInfinity(limitArg, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         if (limit < 0)
         {
@@ -335,9 +339,10 @@ public sealed partial class IteratorPrototype : JsPrototype
     /// <summary>
     /// Converts a value to an integer or infinity
     /// </summary>
-    private static double ToIntegerOrInfinity(JsValue value)
+    private static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context = null)
     {
-        var number = JsOps.ToNumber(value);
+        var number = JsOps.ToNumber(value, context);
+        if (context?.IsThrow == true) return double.NaN;
 
         if (double.IsNaN(number) || number == 0)
         {

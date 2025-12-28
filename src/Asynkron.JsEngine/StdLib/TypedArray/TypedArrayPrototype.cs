@@ -682,7 +682,8 @@ public sealed partial class TypedArrayPrototype
         var length = typedArray.Length;
         var value = args.GetArgument(0);
         var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], Realm.CreateContext()) : 0;
-        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], Realm.CreateContext()) : length;
+        // Per spec: if end is undefined, use length
+        var endIndex = args.Count > 2 && !args[2].IsUndefined ? ToIntegerOrInfinity(args[2], Realm.CreateContext()) : length;
 
         var start = ClampRelativeIndex(startIndex, length);
         var end = ClampRelativeIndex(endIndex, length);
@@ -712,7 +713,8 @@ public sealed partial class TypedArrayPrototype
         var length = typedArray.Length;
         var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], Realm.CreateContext()) : 0;
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], Realm.CreateContext()) : 0;
-        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2], Realm.CreateContext()) : length;
+        // Per spec: if end is undefined, use length
+        var endIndex = args.Count > 2 && !args[2].IsUndefined ? ToIntegerOrInfinity(args[2], Realm.CreateContext()) : length;
 
         var to = ClampRelativeIndex(toIndex, length);
         var from = ClampRelativeIndex(fromIndex, length);

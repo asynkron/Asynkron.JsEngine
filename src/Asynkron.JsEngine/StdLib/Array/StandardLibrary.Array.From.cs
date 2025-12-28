@@ -94,8 +94,10 @@ public static partial class StandardLibrary
         }
 
         var arrayLike = ToPropertyAccessor(items, MethodName, realm);
-        var initialLengthValue = arrayLike.TryGetProperty("length", out var initialLenVal) ? initialLenVal : 0d;
-        var initialLength = (long)ToLengthOrZero(initialLengthValue);
+        var evalContext = realm?.CreateContext();
+        var initialLengthValue = arrayLike.TryGetProperty("length", out var initialLenVal) ? initialLenVal : JsValue.FromDouble(0d);
+        var initialLength = (long)ToLengthOrZero(initialLengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         if (initialLength > MaxConcreteArrayLength)
         {
             throw ThrowRangeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
@@ -106,8 +108,9 @@ public static partial class StandardLibrary
         long k = 0;
         while (true)
         {
-            var lengthValue = arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var dynamicLength = (long)ToLengthOrZero(lengthValue);
+            var lengthValue = arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var dynamicLength = (long)ToLengthOrZero(lengthValue, evalContext);
+            if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
             if (dynamicLength > MaxConcreteArrayLength)
             {
                 throw ThrowRangeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
@@ -588,8 +591,14 @@ public static partial class StandardLibrary
         {
             while (!_settled && _arrayLike is not null)
             {
-                var lengthValue = _arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-                var dynamicLength = (long)ToLengthOrZero(lengthValue);
+                var evalContext = realm.CreateContext();
+                var lengthValue = _arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+                var dynamicLength = (long)ToLengthOrZero(lengthValue, evalContext);
+                if (evalContext.IsThrow)
+                {
+                    RejectFailureJsValue(evalContext.FlowValue);
+                    return;
+                }
                 if (dynamicLength > MaxConcreteArrayLength)
                 {
                     RejectFailureJsValue(CreateRangeError("Array.fromAsync result exceeds 2^32 - 1 elements", null, realm));

@@ -17,8 +17,9 @@ public sealed partial class ArrayPrototype
     public JsValue Join(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.join", Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var evalContext = Realm?.CreateContext();
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
         if (length == 0)
         {
@@ -64,10 +65,20 @@ public sealed partial class ArrayPrototype
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.includes", Realm);
 
         var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var fromIndexArg = args.Count > 1 ? args[1] : 0d;
-        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
-        var fromIndex = ToIntegerOrInfinity(fromIndexArg);
+        // Per spec: If len is 0, return false BEFORE calling ToIntegerOrInfinity on fromIndex
+        if (length == 0)
+        {
+            return new JsValue(false);
+        }
+
+        var fromIndexArg = args.Count > 1 ? args[1] : JsValue.FromDouble(0d);
+        var fromIndex = ToIntegerOrInfinity(fromIndexArg, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         if (double.IsPositiveInfinity(fromIndex))
         {
             return new JsValue(false);
@@ -126,14 +137,16 @@ public sealed partial class ArrayPrototype
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.indexOf", Realm);
 
-        if (args.Count == 0)
+        var searchElement = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var evalContext = Realm?.CreateContext();
+        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
+
+        // Per spec: If len is 0, return -1 BEFORE calling ToIntegerOrInfinity on fromIndex
+        if (length == 0)
         {
             return new JsValue(-1d);
         }
 
-        var searchElement = args[0];
-        var evalContext = Realm?.CreateContext();
-        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal, evalContext) : 0d;
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
         if (double.IsPositiveInfinity(fromIndex))
@@ -228,7 +241,10 @@ public sealed partial class ArrayPrototype
 
         var locales = args.Count > 0 ? args[0] : JsValue.Undefined;
         var options = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var length = accessor.TryGetProperty("length", out var lenVal) ? ToLengthOrZero(lenVal) : 0d;
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var parts = new List<string>((int)length);
 
         for (var i = 0; i < length; i++)
@@ -270,11 +286,13 @@ public sealed partial class ArrayPrototype
     public JsValue Slice(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.slice", Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
-        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
-        var endIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : length;
+        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
+        // Per spec: if end is undefined, use length
+        var endIndex = args.Count > 1 && !args[1].IsUndefined ? ToIntegerOrInfinity(args[1], evalContext) : length;
 
         var from = ClampRelativeIndex(startIndex, length);
         var to = ClampRelativeIndex(endIndex, length);
@@ -295,12 +313,14 @@ public sealed partial class ArrayPrototype
     public JsValue At(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.at", Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         var indexArg = args.GetArgument(0);
-        var numericContext = Realm?.CreateContext(pushScope: false);
-        var relativeIndex = ToIntegerOrInfinity(indexArg, numericContext);
+        var relativeIndex = ToIntegerOrInfinity(indexArg, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
         {
             return JsValue.Undefined;
@@ -320,7 +340,8 @@ public sealed partial class ArrayPrototype
     public JsValue Flat(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, "Array.prototype.flat", Realm);
-        var depthNum = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 1;
+        var evalContext = Realm?.CreateContext();
+        var depthNum = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 1;
         long depth;
         if (double.IsNegativeInfinity(depthNum) || depthNum < 0)
         {
@@ -335,8 +356,8 @@ public sealed partial class ArrayPrototype
             depth = (long)depthNum;
         }
 
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var sourceLength = (long)ToLengthOrZero(lengthValue);
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var sourceLength = (long)ToLengthOrZero(lengthValue, evalContext);
 
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, depth, null, JsValue.Null, Realm,
@@ -355,8 +376,10 @@ public sealed partial class ArrayPrototype
         }
 
         var thisArg = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var sourceLength = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var sourceLength = (long)ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
             "Array.prototype.flatMap");
@@ -368,12 +391,14 @@ public sealed partial class ArrayPrototype
     public JsValue Fill(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var target = EnsureArrayLikeReceiver(thisValue, "Array.prototype.fill", Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
         var value = args.GetArgument(0);
-        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
-        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
+        var startIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0;
+        // Per spec: if end is undefined, use length
+        var endIndex = args.Count > 2 && !args[2].IsUndefined ? ToIntegerOrInfinity(args[2], evalContext) : length;
 
         var start = ClampRelativeIndex(startIndex, length);
         var end = ClampRelativeIndex(endIndex, length);
@@ -390,12 +415,14 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.copyWithin";
         var target = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
-        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
-        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1]) : 0;
-        var endIndex = args.Count > 2 ? ToIntegerOrInfinity(args[2]) : length;
+        var toIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
+        var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0;
+        // Per spec: if end is undefined, use length
+        var endIndex = args.Count > 2 && !args[2].IsUndefined ? ToIntegerOrInfinity(args[2], evalContext) : length;
 
         var to = ClampRelativeIndex(toIndex, length);
         var from = ClampRelativeIndex(fromIndex, length);
@@ -445,8 +472,10 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.toSorted";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
         {
@@ -515,8 +544,10 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.toReversed";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         var result = CreateCopyArray(length, Realm, MethodName);
         for (long k = 0; k < length; k++)
@@ -534,10 +565,11 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.toSpliced";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
-        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
+        var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
         var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
@@ -548,7 +580,7 @@ public sealed partial class ArrayPrototype
         }
         else
         {
-            var deleteCountArg = ToIntegerOrInfinity(args[1]);
+            var deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
             if (double.IsPositiveInfinity(deleteCountArg))
             {
                 actualDeleteCount = length - actualStart;
@@ -595,15 +627,16 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.with";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
         if (args.Count == 0)
         {
             throw ThrowTypeError($"{MethodName} requires an index argument", realm: Realm);
         }
 
-        var indexNumber = ToIntegerOrInfinity(args[0]);
+        var indexNumber = ToIntegerOrInfinity(args[0], evalContext);
         var integer = (long)Math.Truncate(indexNumber);
         if (double.IsPositiveInfinity(indexNumber))
         {

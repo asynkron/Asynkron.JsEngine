@@ -585,10 +585,14 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         // When Prototype is null but _prototypeAccessor is set (e.g. HostFunction/SyncFunctionInvoker
         // prototypes like Function.prototype), we must use the full [[Set]] semantics to allow
         // inherited setters (e.g. poison-pill Function.prototype.caller/arguments) to run.
+        //
+        // Additionally, we must check if there's a setter on the prototype chain before taking
+        // the fast path. If a setter exists, we must use the full [[Set]] semantics to invoke it.
         if (receiverIsThis &&
             !name.IsPrivateSlotName() &&
             !(_state?.Descriptors.ContainsKey(name) ?? false) &&
-            !(Prototype is null && PrototypeAccessor is not null))
+            !(Prototype is null && PrototypeAccessor is not null) &&
+            GetSetter(name) is null)  // NEW: Check for setters on prototype chain
         {
             // Track if this is a new property before setting it
             var isNewProperty = _state is null || !_state.Storage.ContainsKey(name);

@@ -28,8 +28,9 @@ public sealed partial class ArrayPrototype
         try
         {
             accessor.SetProperty(ReentrancyKey, true);
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (long)ToLengthOrZero(lengthValue);
+            var evalContext = Realm?.CreateContext();
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var newLength = length + args.Count;
             if (newLength > ArrayHelper.MaxConcreteArrayLength)
             {
@@ -75,8 +76,9 @@ public sealed partial class ArrayPrototype
         {
             accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (long)ToLengthOrZero(lengthValue);
+            var evalContext = Realm?.CreateContext();
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var length = (long)ToLengthOrZero(lengthValue, evalContext);
             if (length == 0)
             {
                 accessor.SetProperty("length", 0d);
@@ -119,8 +121,9 @@ public sealed partial class ArrayPrototype
         {
             accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (long)ToLengthOrZero(lengthValue);
+            var evalContext = Realm?.CreateContext();
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var length = (long)ToLengthOrZero(lengthValue, evalContext);
             if (length == 0)
             {
                 accessor.SetProperty("length", 0d);
@@ -180,8 +183,9 @@ public sealed partial class ArrayPrototype
         {
             accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (long)ToLengthOrZero(lengthValue);
+            var evalContext = Realm?.CreateContext();
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var argCount = args.Count;
 
             if (length + argCount > ArrayHelper.MaxConcreteArrayLength)
@@ -238,10 +242,11 @@ public sealed partial class ArrayPrototype
         {
             accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (long)ToLengthOrZero(lengthValue);
+            var evalContext = Realm?.CreateContext();
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var length = (long)ToLengthOrZero(lengthValue, evalContext);
 
-            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0]) : 0;
+            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
             var actualStart = ClampRelativeIndex(startIndex, length);
 
             var insertCount = args.Count > 2 ? args.Count - 2 : 0;
@@ -253,7 +258,7 @@ public sealed partial class ArrayPrototype
             }
             else
             {
-                deleteCountArg = ToIntegerOrInfinity(args[1]);
+                deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
             }
 
             long actualDeleteCount;
@@ -366,8 +371,9 @@ public sealed partial class ArrayPrototype
         {
             accessor.SetProperty(ReentrancyKey, true);
             var objectLike = accessor as IJsObjectLike;
-            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-            var length = (long)ToLengthOrZero(lengthValue);
+            var evalContext = Realm?.CreateContext();
+            var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+            var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var middle = length / 2;
 
             for (long lower = 0; lower < middle; lower++)
@@ -494,8 +500,10 @@ public sealed partial class ArrayPrototype
             compareFn = callable;
         }
 
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-        var length = (long)ToLengthOrZero(lengthValue);
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         // Collect all values upfront - this is the "snapshot" approach required by ES spec
         // We need to materialize values before sorting because the comparator could mutate the array

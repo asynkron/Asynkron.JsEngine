@@ -14,26 +14,20 @@ public sealed partial class ArrayPrototype
     public JsValue Entries(JsValue thisValue)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.entries", Realm,
-            (accessor, _) => idx =>
-            {
-                var pair = new JsArray(Realm);
-                pair.Push((double)idx);
-                pair.Push(GetElementOrUndefinedJsValue(accessor, idx));
-                return JsValue.FromJsArray(pair);
-            }));
+            ArrayIteratorKind.Entries));
     }
 
     [JsHostMethod("keys", Length = 0d)]
     public JsValue Keys(JsValue thisValue)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.keys", Realm,
-            (_, _) => idx => new JsValue((double)idx)));
+            ArrayIteratorKind.Keys));
     }
 
     [JsHostMethod("values", Length = 0d)]
     public JsValue Values(JsValue thisValue)
     {
         return JsValue.FromObjectUnsafe(CreateArrayIterator(thisValue, "Array.prototype.values", Realm,
-            (accessor, _) => idx => GetElementOrUndefinedJsValue(accessor, idx)));
+            ArrayIteratorKind.Values));
     }
 }

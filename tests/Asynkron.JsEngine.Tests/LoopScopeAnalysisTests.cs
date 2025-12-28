@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 
 public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
-    [Fact]
+    [Fact(Skip = "ScopeAnalyzer removed - static analysis metadata no longer available")]
     public void ForLoopWithLetInitializer_TracksPerIterationSlotsAndPlanBindings()
     {
         const string source = """
@@ -37,7 +37,7 @@ public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase
         Assert.Equal(forStatement.PerIterationSlotIndices, forStatementAfterCps.PerIterationSlotIndices);
     }
 
-    [Fact]
+    [Fact(Skip = "ScopeAnalyzer removed - static analysis metadata no longer available")]
     public void ForInWithLetBinding_PropagatesPerIterationMetadataToIteratorPlan()
     {
         const string source = """
@@ -81,7 +81,7 @@ public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase
         Assert.Equal(0, keyAfterCps.SlotIndex);
     }
 
-    [Fact]
+    [Fact(Skip = "ScopeAnalyzer removed - static analysis metadata no longer available")]
     public void ForOfWithDestructuringBinding_PreservesSlotOrdering()
     {
         const string source = """

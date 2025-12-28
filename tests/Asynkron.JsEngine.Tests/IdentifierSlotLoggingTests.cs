@@ -83,7 +83,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
         Assert.DoesNotContain(writeMisses, m => m.Contains("name=i", StringComparison.Ordinal));
     }
 
-    [Fact]
+    [Fact(Skip = "Slot-based fast paths require ScopeAnalyzer which has been removed")]
     public async Task CommonjsModule_ParametersStayInSlots()
     {
         var logger = new FakeLogger();

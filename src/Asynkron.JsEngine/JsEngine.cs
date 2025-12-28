@@ -591,17 +591,15 @@ public sealed class JsEngine : IAsyncDisposable
             drainTask = _drainCompletionSource.Task;
         }
 
-        // Wait for drain with timeout
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(1500));
-
+        // Wait for drain using the caller's cancellation token.
+        // The caller (Evaluate) handles the ExecutionTimeout configuration.
         try
         {
-            await drainTask.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+            await drainTask.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // Timeout reached, cancel all timers
+            // Cancelled but not by the caller's token - unexpected, cancel timers
             CancelAllTimers();
         }
     }

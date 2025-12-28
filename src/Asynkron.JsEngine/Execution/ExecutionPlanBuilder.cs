@@ -1162,15 +1162,20 @@ internal sealed class ExecutionPlanBuilder
         // LeaveTry - normal exit from the loop
         var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
 
-        // For loops with per-iteration bindings, create PopEnvironment before LeaveTry
-        var loopExitTarget = leaveTryIndex;
+        // LoopExit - pops loop context from runtime stack, flows to LeaveTry
+        // This enables break/continue from AST-evaluated code (StatementInstruction)
+        // to resolve their jump targets using the runtime loop stack.
+        var loopExitIndex = Append(new LoopExitInstruction(leaveTryIndex));
+
+        // For loops with per-iteration bindings, create PopEnvironment before LoopExit
+        var loopExitTarget = loopExitIndex;
         if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
             !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
         {
             loopExitTarget = Append(new PopEnvironmentInstruction(
                 iteratorPlan.IterationScopeId,
                 iteratorPlan.CanReuseIterationEnvironment,
-                leaveTryIndex));
+                loopExitIndex));
         }
 
         // Now update the MoveNext break target to point to Pop (or LeaveTry if no per-iteration bindings)
@@ -1256,9 +1261,16 @@ internal sealed class ExecutionPlanBuilder
         // Wire up the MoveNext to point to the loop entry (env instruction or body)
         IteratorInstructionTemplate.Wire(iteratorInstructions, loopEntry, _instructions);
 
-        // EnterTry - wraps the loop in a try/finally
+        // LoopEnter - pushes loop context to runtime stack for break/continue from AST-evaluated code
+        var loopEnterIndex = Append(new LoopEnterInstruction(
+            iteratorInstructions.MoveNextIndex,
+            label,
+            loopExitTarget,
+            continueTarget));
+
+        // EnterTry - wraps the loop in a try/finally, points to LoopEnter
         var enterTryIndex =
-            Append(new EnterTryInstruction(iteratorInstructions.MoveNextIndex, -1, null, iteratorCloseIndex));
+            Append(new EnterTryInstruction(loopEnterIndex, -1, null, iteratorCloseIndex));
 
         // Wire IteratorInit to point to EnterTry
         _instructions[iteratorInstructions.InitIndex] =

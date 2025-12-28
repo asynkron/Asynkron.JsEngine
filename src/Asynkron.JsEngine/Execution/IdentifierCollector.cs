@@ -38,12 +38,10 @@ internal sealed class IdentifierCollector : AstVisitor
             case BranchInstruction branch:
                 Visit(branch.Condition);
                 break;
-            case SimpleVariableDeclarationInstruction varDecl:
-                // Collect the symbol being declared (it's local to the execution plan)
-                Identifiers.Add(varDecl.TargetSymbol);
-                // Also visit the initializer expression
-                if (varDecl.Initializer is not null)
-                    Visit(varDecl.Initializer);
+            case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
+                // Only visit the initializer expression, NOT the target symbol
+                // The target symbol declares a new variable and should NOT be collected
+                Visit(varDecl.Initializer);
                 break;
             case IteratorInitInstruction iterInit:
                 Visit(iterInit.IterableExpression);

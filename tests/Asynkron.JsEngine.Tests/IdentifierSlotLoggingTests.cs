@@ -1,6 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using Microsoft.Extensions.Logging.Testing;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -10,7 +9,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
     [Fact(Skip = "Slot initialization in IR path needs investigation after environment changes")]
     public async Task ForLoop_UsesSlotFastPathWithoutMisses()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
 
@@ -49,7 +48,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
     [Fact(Skip = "Slot initialization in IR path needs investigation after environment changes")]
     public async Task WhileLoop_UsesSlotFastPathWithoutMisses()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
 
@@ -86,7 +85,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTest
     [Fact(Skip = "Slot-based fast paths require ScopeAnalyzer which has been removed")]
     public async Task CommonjsModule_ParametersStayInSlots()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
         {
 

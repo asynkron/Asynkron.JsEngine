@@ -495,7 +495,7 @@ public class JsEvaluatorTests(ITestOutputHelper output) : FastPathTestBase(outpu
     public async Task ClassMethodsRemainVisibleWhenPrivateFieldsArePresent()
     {
         await using var engine = CreateEngine();
-        var fakeLogger = new Microsoft.Extensions.Logging.Testing.FakeLogger();
+        var fakeLogger = new TestLogger();
         engine.RealmState.Logger = fakeLogger;
         await engine.Evaluate("""
                               var C = class {

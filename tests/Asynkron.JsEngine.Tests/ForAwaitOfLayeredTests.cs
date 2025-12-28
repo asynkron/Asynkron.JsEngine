@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Testing;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -21,7 +20,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer1_AsyncFunction_CanBeDefinedAndCalled()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -47,7 +46,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer1_AsyncFunction_AwaitedReturnsValue()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         // Use EvaluateModule for top-level await support, then read the result
@@ -75,7 +74,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer2_AsyncIIFE_ExecutesAndCompletesWithSimpleAwait()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         await engine.Evaluate("""
@@ -101,7 +100,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer2_AsyncIIFE_ExecutesWithMultipleAwaits()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         await engine.Evaluate("""
@@ -131,7 +130,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer3_RegularAwaitInForLoop_Works()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         await engine.Evaluate("""
@@ -162,7 +161,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer3_RegularAwaitInWhileLoop_Works()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         await engine.Evaluate("""
@@ -196,7 +195,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer4_ForAwaitOf_SingleIteration_Debug()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         // Simplest possible for await...of - just one element
@@ -232,7 +231,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     [Fact(Timeout = 5000)]
     public async Task Layer4_ForAwaitOf_MultipleIterations_Debug()
     {
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         await engine.Evaluate("""
@@ -274,7 +273,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
         // This test runs the same logic with regular for vs for await...of
         // to isolate exactly where the behavior differs
 
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         // First: regular for loop with await (known working)
@@ -330,7 +329,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     public async Task Layer4c_ForAwaitOf_TopLevel_Works()
     {
         // For await...of at top level in a module DOES work
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         var result = await engine.EvaluateModule("""
@@ -359,7 +358,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     {
         // Manually implement what for await...of should do
         // to see if the issue is in iteration or async handling
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         await engine.Evaluate("""
@@ -401,7 +400,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
         // This mimics the exact benchmark pattern - single evaluation
         // where finalSum is returned before the IIFE completes.
         // This is expected to fail - it's not a bug, it's how async works!
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         // Single evaluation - finalSum is checked immediately after IIFE call
@@ -439,7 +438,7 @@ public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase
     public async Task Layer5_BenchmarkPattern_WithEvaluateAndAwait()
     {
         // Test if EvaluateAndAwait drains microtasks from fire-and-forget IIFEs
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
         await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions {  Logger = logger });
 
         var result = await engine.EvaluateAndAwait("""

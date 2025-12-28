@@ -1,5 +1,4 @@
 using Asynkron.JsEngine.Ast;
-using Microsoft.Extensions.Logging.Testing;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -286,7 +285,7 @@ public class PrivateFieldsTests(ITestOutputHelper output) : FastPathTestBase(out
     [Fact(Timeout = 2000)]
     public async Task PrivateField_ArrowFunction_DebugTest()
     {
-        var fakeLogger = new FakeLogger();
+        var fakeLogger = new TestLogger();
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = fakeLogger });
 
         // First, verify this binding works with PUBLIC field

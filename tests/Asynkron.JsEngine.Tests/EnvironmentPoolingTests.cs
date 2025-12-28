@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Testing;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -13,7 +12,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     /// <summary>
     /// Helper to count log messages matching a pattern.
     /// </summary>
-    private static int CountLogMessages(FakeLogger logger, string contains)
+    private static int CountLogMessages(TestLogger logger, string contains)
     {
         return logger.Collector.Snapshot()
             .Count(r => r.Message.Contains(contains, StringComparison.Ordinal));
@@ -25,7 +24,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         // for (let i = 0; i < 5; i++) { arr.push(() => i); }
         // With closures capturing the loop variable, environments cannot be pooled
         // because each closure needs its own captured environment.
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -65,7 +64,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // for (var i = 0; i < 5; i++) { }
         // 'var' is function-scoped, so no per-iteration environments are needed
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -100,7 +99,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         // for (const x of [1, 2, 3]) { void x; }
         // With 'const', each iteration creates a new environment for the loop variable
         // These environments CAN be pooled since no closures capture them
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -136,7 +135,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // for (var x of [1, 2, 3]) { void x; }
         // 'var' is function-scoped, so only the loop scope environment is pooled
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -170,7 +169,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // for (let k in {a: 1, b: 2}) { void k; }
         // With 'let', each iteration creates a new environment
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -204,7 +203,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // while loops don't create per-iteration environments
         // (no loop variable declaration in the header)
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -238,7 +237,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ForLoop_WithLetAndClosure_NoPooling()
     {
         // When a closure captures the loop variable, environments cannot be pooled
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -278,7 +277,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // { let x = 1; } creates a block scope environment
         // These can be pooled since no closures capture them
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -318,7 +317,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // for await (const x of asyncIterable) { void x; }
         // With 'const', each iteration creates a new environment for the loop variable
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -356,7 +355,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // for await (var x of asyncIterable) { void x; }
         // 'var' is function-scoped, no pooled environments needed
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -396,7 +395,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         // the per-iteration environment. Each closure keeps its correct captured value.
         // NOTE: Pooling still happens for the for-of head/loop scope environments,
         // but each closure holds a reference to its iteration environment.
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -435,7 +434,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ForLoop_WithNestedClosure_NoPooling()
     {
         // Nested closure that captures outer loop variable
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -475,7 +474,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
         // Loop with break executes correctly
         // Note: Traditional for loops with 'let' don't pool per-iteration environments
         // via JsEnvironmentPool - they use LoopPlan which handles them differently
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -513,7 +512,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // Loop with continue executes correctly
         // Note: Traditional for loops with 'let' use LoopPlan, not JsEnvironmentPool
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -549,7 +548,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ForOfLoop_WithThrow_EnvironmentsReturned()
     {
         // Loop with exception should still clean up environments
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -590,7 +589,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task NestedForOfLoops_IndependentPooling()
     {
         // Nested for-of loops should each pool independently
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -629,7 +628,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task AsyncFunction_WithSyncForLoop_PoolsNormally()
     {
         // Sync for loop inside async function should pool normally
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -667,7 +666,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task AsyncFunction_WithAwaitInsideLoop_PoolsNormally()
     {
         // Loop with await inside should still pool when no closures
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -707,7 +706,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ForLoop_GlobalVarAccess_NoPerIterationEnvironment()
     {
         // Accessing global vars in loop doesn't require per-iteration environments
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -743,7 +742,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // let loop accessing globals works correctly
         // Note: Traditional for loops use LoopPlan which doesn't use JsEnvironmentPool
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -778,7 +777,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task WithStatement_InsideForLoop_NoPooling()
     {
         // 'with' statement creates dynamic scope, prevents pooling
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -817,7 +816,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     {
         // Empty iterable still creates TDZ and loop scope environments (pooled)
         // Just no per-iteration environments since no iterations occur
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -849,7 +848,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ForOfLoop_SingleIteration_LoopScopeAndIterationEnvironments()
     {
         // Single iteration creates TDZ + loop scope + iteration environments
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -881,7 +880,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task LabeledLoop_WithBreak_EnvironmentsReturned()
     {
         // Labeled break should properly clean up environments
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -921,7 +920,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ForLoop_ImmediatelyInvokedFunction_NoPooling()
     {
         // IIFE inside loop creates closures, prevents pooling
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -957,7 +956,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task ClassMethod_ForOfLoop_AccessingPrivateField()
     {
         // Loop inside class method accessing private field
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -1003,7 +1002,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task Generator_ForOfLoop_YieldsPooledEnvironments()
     {
         // Generator function with for-of loop
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -1039,7 +1038,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task Generator_ForLoop_WithLet_YieldsCorrectValues()
     {
         // Generator with traditional for loop and let
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -1075,7 +1074,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task Generator_YieldStar_DelegatesIteration()
     {
         // Generator using yield* to delegate to another iterable
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -1114,7 +1113,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task Generator_WithClosure_CapturingYieldedValue()
     {
         // Generator that creates closures capturing yielded values
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -1152,7 +1151,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task Generator_EarlyReturn_CleansUpEnvironments()
     {
         // Generator that returns early (break out of iteration)
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {
@@ -1195,7 +1194,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : FastPathTestBas
     public async Task AsyncGenerator_ForAwaitOf_PoolsEnvironments()
     {
         // Async generator with for-await-of consuming promises
-        var logger = new FakeLogger();
+        var logger = new TestLogger();
 
         await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
         {

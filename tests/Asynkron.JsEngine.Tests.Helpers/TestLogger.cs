@@ -1,10 +1,11 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 // Minimal stand-in for Microsoft.Extensions.Logging.Testing.FakeLogger so we can
 // assert on captured log messages without pulling an extra package.
-namespace Microsoft.Extensions.Logging.Testing;
+namespace Asynkron.JsEngine.Tests.Helpers;
 
-public sealed class FakeLogger : ILogger
+public sealed class TestLogger : ILogger
 {
     public LogCollector Collector { get; } = new();
 
@@ -17,6 +18,7 @@ public sealed class FakeLogger : ILogger
     {
         var message = formatter(state, exception);
         Collector.Add(new LogRecord(logLevel, eventId, exception, message));
+        Console.WriteLine(message);
     }
 
     public sealed record LogRecord(LogLevel Level, EventId EventId, Exception? Exception, string Message);

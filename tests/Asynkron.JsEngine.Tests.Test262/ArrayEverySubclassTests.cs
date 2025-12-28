@@ -129,7 +129,7 @@ record;";
     public async Task TypedArrayEveryStrictCallbackGetsUndefinedThis()
     {
         await using var engine = new JsEngine();
-        var fakeLogger = new Microsoft.Extensions.Logging.Testing.FakeLogger();
+        var fakeLogger = new TestLogger();
         engine.RealmState.Logger = fakeLogger;
 
         var script = """

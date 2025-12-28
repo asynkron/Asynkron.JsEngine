@@ -98,6 +98,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "todo", "todo", "{3C93D9EB-8
 		todo-large-iteration-async-bug.md = todo-large-iteration-async-bug.md
 		todo.md = todo.md
 		todo-builtins.md = todo-builtins.md
+		todo-environment-stack.md = todo-environment-stack.md
+		todo-intl.md = todo-intl.md
+		todo-ir-loops.md = todo-ir-loops.md
+		todo-private-arrow-function.md = todo-private-arrow-function.md
+		todo-sync-ir-investigation.md = todo-sync-ir-investigation.md
 	EndProjectSection
 EndProject
 Global

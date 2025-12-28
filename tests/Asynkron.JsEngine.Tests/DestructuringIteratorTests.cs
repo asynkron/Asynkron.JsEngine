@@ -60,7 +60,7 @@ public class DestructuringIteratorTests(ITestOutputHelper output) : FastPathTest
         int expectedReturn)
     {
         await using var engine = CreateEngine();
-        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger();
+        var logger = new TestLogger();
         engine.RealmState.Logger = logger;
         var result = await engine.Evaluate($$"""
             var nextCount = 0;

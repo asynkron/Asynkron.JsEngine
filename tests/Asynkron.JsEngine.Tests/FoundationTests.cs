@@ -1948,5 +1948,150 @@ public class FoundationTests(ITestOutputHelper output) : FastPathTestBase(output
     }
 
     #endregion
+
+    #region Block Scope in Try/Catch
+
+    [Fact]
+    public async Task TryCatch_BlockScopeShadowing_CorrectlyRestored()
+    {
+        // Tests that when an exception is thrown inside a nested block scope,
+        // the catch handler sees the outer scope (parameter 'x' = 'outer')
+        // not the inner block-scoped 'x' = 'inner'.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function(x) {
+                try {
+                    let x = 'inner';
+                    throw 0;
+                } catch (e) {
+                    return x;  // Should see parameter 'outer', not let 'inner'
+                }
+            })('outer');
+            """);
+        Assert.Equal("outer", result);
+    }
+
+    [Fact]
+    public async Task TryFinally_BlockScopeShadowing_CorrectlyRestored()
+    {
+        // Tests that finally block sees the outer scope after block-scoped variable
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function(x) {
+                var finallyX;
+                try {
+                    let x = 'inner';
+                    throw 0;
+                } catch (e) {
+                    // ignore
+                } finally {
+                    finallyX = x;  // Should see parameter 'outer'
+                }
+                return finallyX;
+            })('outer');
+            """);
+        Assert.Equal("outer", result);
+    }
+
+    [Fact]
+    public async Task Generator_TryCatch_BlockScopeShadowing_CorrectlyRestored()
+    {
+        // Tests that generators correctly restore block scope in try/catch
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function() {
+                function* gen(x) {
+                    try {
+                        let x = 'inner';
+                        throw 0;
+                    } catch (e) {
+                        yield x;  // Should see parameter 'outer'
+                    }
+                }
+                let g = gen('outer');
+                return g.next().value;
+            })();
+            """);
+        Assert.Equal("outer", result);
+    }
+
+    #endregion
+
+    #region Private Fields in Arrow Functions
+
+    [Fact]
+    public async Task PrivateField_AccessibleFromArrowFunction()
+    {
+        // Tests that private fields are accessible from arrow functions inside class methods
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Counter {
+                #count = 0;
+
+                increment() {
+                    const inc = () => {
+                        this.#count++;
+                        return this.#count;
+                    };
+                    return inc();
+                }
+            }
+            const c = new Counter();
+            c.increment();
+            """);
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public async Task PrivateMethod_AccessibleFromArrowFunction()
+    {
+        // Tests that private methods are accessible from arrow functions inside class methods
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Calculator {
+                #add(a, b) {
+                    return a + b;
+                }
+
+                compute(a, b) {
+                    const fn = () => this.#add(a, b);
+                    return fn();
+                }
+            }
+            const c = new Calculator();
+            c.compute(3, 4);
+            """);
+        Assert.Equal(7d, result);
+    }
+
+    [Fact]
+    public async Task Generator_PrivateFieldAccess_FromArrowFunction()
+    {
+        // Tests that generators with arrow functions can access private fields
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Counter {
+                #count = 0;
+
+                *counter() {
+                    const inc = () => ++this.#count;
+                    yield inc();
+                    yield inc();
+                    yield inc();
+                }
+            }
+            const c = new Counter();
+            const g = c.counter();
+            [g.next().value, g.next().value, g.next().value];
+            """);
+        Assert.NotNull(result);
+        var arr = result as Asynkron.JsEngine.JsTypes.JsArray;
+        Assert.NotNull(arr);
+        Assert.Equal(1d, (double)(arr.GetIndex(0).ToObject() ?? 0d));
+        Assert.Equal(2d, (double)(arr.GetIndex(1).ToObject() ?? 0d));
+        Assert.Equal(3d, (double)(arr.GetIndex(2).ToObject() ?? 0d));
+    }
+
+    #endregion
 }
 

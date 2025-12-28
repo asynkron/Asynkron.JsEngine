@@ -1095,8 +1095,14 @@ internal sealed class ExecutionPlanBuilder
                 BreakIndex = loopExitTarget
             };
 
-        // Build the loop body
-        var perIterationBlock = CreateIteratorIterationBlock(iteratorPlan, iteratorInstructions.ValueSlot, iteratorInstructions.ValueSlotIndex);
+        // Build the loop body.
+        // IMPORTANT: Do NOT wrap the per-iteration binding in a synthetic BlockStatement with a lexical
+        // declaration. That causes TryBuildStatement(BlockStatement) to fall back to StatementInstruction
+        // (HoistPlan.NeedsEnvironment) which currently does not propagate break/continue correctly out
+        // to the IR loop machinery. Build the binding statement + user body as a straight instruction chain
+        // instead: BindValue -> Body -> (PopEnvForContinue?) -> ITER_MOVE_NEXT.
+        var bindingStatement = CreateIteratorBindingStatement(iteratorPlan, iteratorInstructions.ValueSlot,
+            iteratorInstructions.ValueSlotIndex);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
 
         // For per-iteration bindings, we need to POP the iteration environment at the END of each
@@ -1118,8 +1124,12 @@ internal sealed class ExecutionPlanBuilder
 
         var scope = new LoopScope(label, continueTarget, loopExitTarget, targetScopeId);
         _loopScopes.Push(scope);
-        var bodyBuilt = TryBuildStatement(perIterationBlock, bodyNextTarget, out var iterationEntry,
-            label);
+        var iterationEntry = -1;
+        var bodyBuilt = TryBuildStatement(iteratorPlan.Body, bodyNextTarget, out var bodyEntry, label);
+        if (bodyBuilt)
+        {
+            bodyBuilt = TryBuildStatement(bindingStatement, bodyEntry, out iterationEntry, label);
+        }
         _loopScopes.Pop();
 
         if (!bodyBuilt)
@@ -1298,7 +1308,8 @@ internal sealed class ExecutionPlanBuilder
         return Symbol.Intern(symbolName);
     }
 
-    private static StatementNode CreateIteratorIterationBlock(IteratorDriverPlan plan, Symbol valueSymbol, int valueSlotIndex)
+    private static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
+        int valueSlotIndex)
     {
         // Stamp the identifier expression with slot info for O(1) access
         // ScopeId = 0 means the function's primary scope where execution plan slots live
@@ -1322,22 +1333,7 @@ internal sealed class ExecutionPlanBuilder
                 [declarator]);
         }
 
-        ImmutableArray<StatementNode> bodyStatements;
-        var isStrict = false;
-        if (plan.Body is { } block)
-        {
-            var builder = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length + 1);
-            builder.Add(bindingStatement);
-            builder.AddRange(block.Statements);
-            bodyStatements = builder.ToImmutable();
-            isStrict = block.IsStrict;
-        }
-        else
-        {
-            bodyStatements = [bindingStatement, plan.Body];
-        }
-
-        return new BlockStatement(plan.Body.Source, bodyStatements, isStrict);
+        return bindingStatement;
     }
 
     private static bool IsSimpleForOfBinding(ForEachStatement statement)

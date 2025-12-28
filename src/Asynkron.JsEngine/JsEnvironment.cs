@@ -94,6 +94,8 @@ public sealed class JsEnvironment : IRentable
         }
     }
 
+    public string Description => _description;
+
     /// <summary>
     /// Unique ID for this scope, used to match variables to their declaring environment.
     /// -1 means not set (use fallback to dictionary lookup).

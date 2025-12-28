@@ -316,10 +316,16 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void ForEach(IJsCallable callback, JsValue thisArg)
     {
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = _cachedJsValue;
+
         foreach (var key in _insertionOrder)
         {
             var value = GetByObjectKey(key);
-            callback.Invoke([value, JsValue.FromObjectUnsafe(key), _cachedJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromObjectUnsafe(key);
+            callback.Invoke(callbackArgs, thisArg);
         }
     }
 

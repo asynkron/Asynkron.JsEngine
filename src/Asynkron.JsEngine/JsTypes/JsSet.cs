@@ -280,11 +280,17 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void ForEach(IJsCallable callback, JsValue thisArg)
     {
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = _cachedJsValue;
+
         foreach (var value in _insertionOrder)
         {
             // In Set.forEach, the value is passed as both the first and second argument
             var jsValue = JsValue.FromObjectUnsafe(value);
-            callback.Invoke([jsValue, jsValue, _cachedJsValue], thisArg);
+            callbackArgs[0] = jsValue;
+            callbackArgs[1] = jsValue;
+            callback.Invoke(callbackArgs, thisArg);
         }
     }
 

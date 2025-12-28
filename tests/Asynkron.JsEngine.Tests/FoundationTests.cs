@@ -2121,5 +2121,313 @@ public class FoundationTests(ITestOutputHelper output) : InternalTestBase(output
     }
 
     #endregion
+
+    #region Try-Catch-Finally Edge Cases
+
+    [Fact]
+    public async Task TryFinally_SimpleReturnFromFinally()
+    {
+        // Simplest case: just try-finally with return in finally
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                try {
+                } finally {
+                    return 42;
+                }
+            }
+            test();
+        ");
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact]
+    public async Task TryFinally_ReturnVariableFromFinally_Var()
+    {
+        // Return a var variable from finally
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                var x = 42;
+                try {
+                } finally {
+                    return x;
+                }
+            }
+            test();
+        ");
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact]
+    public async Task TryFinally_ReturnVariableFromFinally_Let()
+    {
+        // Return a let variable from finally
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                let x = 42;
+                try {
+                } finally {
+                    return x;
+                }
+            }
+            test();
+        ");
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact]
+    public async Task TryFinally_ReturnVariableDefinedInsideFinally()
+    {
+        // Define and return variable inside finally
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                try {
+                } finally {
+                    var y = 99;
+                    return y;
+                }
+            }
+            test();
+        ");
+        Assert.Equal(99.0, result);
+    }
+
+    [Fact]
+    public async Task TryCatchFinally_SimplestReturnFromFinally()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function test() {
+                var x = 42;
+                try {
+                    throw 'error';
+                } catch (e) {
+                    // caught
+                } finally {
+                    return x;
+                }
+            }
+            test();
+        ");
+        Assert.Equal(42.0, result);
+    }
+
+    [Fact]
+    public async Task TryCatchFinally_SwitchInsideTry_ReturnFromFinally()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function SwitchTest1(value){
+              var result = 0;
+              try{
+                switch(value) {
+                  case 1:
+                    result += 4;
+                    throw result;
+                    break;
+                  case 4:
+                    result += 64;
+                    throw 'ex';
+                }
+                return result;
+              }
+              catch(e){
+                // caught exception
+              }
+              finally{
+                return result;
+              }
+            }
+            SwitchTest1(1);
+        ");
+        Assert.Equal(4.0, result);
+    }
+
+    [Fact]
+    public async Task TryCatchFinally_ThrowFromFinally()
+    {
+        // Test that throw from finally propagates and overrides catch exception
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate(@"
+                var count = { catch: 0, finally: 0 };
+                function test() {
+                    try {
+                        throw 'try';
+                    } catch (e) {
+                        count.catch += 1;
+                        throw 'catch';
+                    } finally {
+                        count.finally += 1;
+                        throw 'finally';
+                    }
+                    return 'wat';
+                }
+                test();
+            ");
+        });
+        Assert.Equal("finally", exception.ThrownValue.ToObject()?.ToString());
+    }
+
+    [Fact]
+    public async Task TryCatchFinally_ThrowFromFinally_OverridesReturn()
+    {
+        // Test that throw from finally propagates and overrides return from catch
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate(@"
+                var count = { catch: 0, finally: 0 };
+                function test() {
+                    try {
+                        throw 'try';
+                    } catch (e) {
+                        count.catch += 1;
+                        return 'catch';
+                    } finally {
+                        count.finally += 1;
+                        throw 'finally';
+                    }
+                    return 'wat';
+                }
+                test();
+            ");
+        });
+        Assert.Equal("finally", exception.ThrownValue.ToObject()?.ToString());
+    }
+
+    [Fact]
+    public async Task TryFinally_ThrowFromFinally_OverridesReturn()
+    {
+        // Test that throw from finally propagates and overrides return from try
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate(@"
+                function test() {
+                    try {
+                        return 'try';
+                    } finally {
+                        throw 'finally';
+                    }
+                    return 'wat';
+                }
+                test();
+            ");
+        });
+        Assert.Equal("finally", exception.ThrownValue.ToObject()?.ToString());
+    }
+
+    [Fact]
+    public async Task SwitchTest3_BreakInFinallyInsideSwitch()
+    {
+        // This test has break inside finally inside switch case
+        // which is valid JavaScript - finally break overrides throw
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function SwitchTest3(value){
+              var result = 0;
+              switch(value) {
+                case 0:
+                  try{
+                    result += 2;
+                    throw 'ex';
+                  }
+                  finally{
+                    break;
+                  }
+                default:
+                  result += 32;
+                  break;
+              }
+              return result;
+            }
+            SwitchTest3(0);
+        ");
+        // When we hit case 0, we do result += 2, throw 'ex', then finally runs
+        // and break in finally overrides the throw, exiting the switch
+        // So we return 2, not 34 (2+32)
+        Assert.Equal(2.0, result);
+    }
+
+    [Fact]
+    public async Task SwitchTest2_BreakInTryInsideSwitch()
+    {
+        // This test has break inside try (with finally) inside switch case
+        // break should trigger finally then exit switch
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var c2 = 0;
+            function SwitchTest2(value){
+              var result = 0;
+              switch(value) {
+                case 0:
+                  try{
+                    result += 2;
+                    break;
+                  }
+                  finally{
+                    c2 = 1;
+                  }
+                case 1:
+                  result += 4;
+                  break;
+                default:
+                  result += 32;
+                  break;
+              }
+              return result;
+            }
+            [SwitchTest2(0), c2];
+        ");
+        // When we hit case 0, we do result += 2, then break
+        // break triggers finally (c2 = 1), then exits switch
+        // So we return 2, c2 is 1
+        var array = (JsArray)result.AsObject();
+        Assert.Equal(2.0, array.Get(0).ToObject());
+        Assert.Equal(1.0, array.Get(1).ToObject());
+    }
+
+    [Fact]
+    public async Task SwitchTest1_SwitchInsideTryWithFinallyReturn()
+    {
+        // Test from S12.14_A15.js - switch inside try with finally returning result
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function SwitchTest1(value){
+              var result = 0;
+              try{
+                switch(value) {
+                  case 1:
+                    result += 4;
+                    throw result;
+                    break;
+                  default:
+                    result += 32;
+                    break;
+                  case 4:
+                    result += 64;
+                    throw 'ex';
+                }
+                return result;
+              }
+              catch(e){
+                // catch handles the throw
+              }
+              finally{
+                return result;
+              }
+            }
+            SwitchTest1(1);
+        ");
+        // case 1: result = 4, throw 4, caught, finally returns 4
+        Assert.Equal(4.0, result);
+    }
+
+    #endregion
 }
 

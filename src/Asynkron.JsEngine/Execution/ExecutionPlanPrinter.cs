@@ -121,7 +121,8 @@ internal static class ExecutionPlanPrinter
                 $"POP_ENV (scopeId: {popEnv.ScopeId}, pool: {popEnv.AllowPooling}) → [{popEnv.Next}]",
 
             ReturnInstruction ret =>
-                $"RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : ""),
+                $"RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : "") +
+                (ret.Next >= 0 ? $" → [{ret.Next}]" : ""),
 
             ThrowInstruction thr =>
                 $"THROW {FormatExpression(thr.Expression)}",

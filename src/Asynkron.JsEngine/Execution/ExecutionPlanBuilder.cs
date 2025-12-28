@@ -72,7 +72,7 @@ internal sealed class ExecutionPlanBuilder
         //     that slot (`return yield <expr>;`), or
         //   - a delegated yield* sequence that stores the delegate's final
         //     completion value into the slot (`return yield* <expr>;`).
-        var returnIndex = Append(new ReturnInstruction(returnExpression));
+        var returnIndex = Append(new ReturnInstruction(-1, returnExpression));
         entryIndex = yieldExpression.IsDelegated
             ? AppendYieldStarSequence(yieldExpression, returnIndex, resumeSymbol)
             : AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);
@@ -112,7 +112,7 @@ internal sealed class ExecutionPlanBuilder
     private bool TryBuildInternal(FunctionExpression function, out ExecutionPlan plan)
     {
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
-        var implicitReturnIndex = Append(new ReturnInstruction(null));
+        var implicitReturnIndex = Append(new ReturnInstruction(-1, null));
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))
         {
             plan = default!;
@@ -469,7 +469,9 @@ internal sealed class ExecutionPlanBuilder
                         return false;
                     }
 
-                    entryIndex = Append(new ReturnInstruction(returnStatement.Expression));
+                    // Pass nextIndex so that if return is inside try/finally, we can
+                    // continue to EndFinallyInstruction after updating pending completion.
+                    entryIndex = Append(new ReturnInstruction(nextIndex, returnStatement.Expression));
                     return true;
 
                 case BreakStatement breakStatement:

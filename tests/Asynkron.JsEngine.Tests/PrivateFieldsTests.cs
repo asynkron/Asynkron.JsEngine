@@ -6,12 +6,6 @@ namespace Asynkron.JsEngine.Tests;
 
 public class PrivateFieldsTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
-    private JsEngine CreateEngineWithLogging()
-    {
-        var fakeLogger = new FakeLogger();
-        return new JsEngine(new JsEngineOptions { DebugMode = true, Logger = fakeLogger });
-    }
-
     [Fact(Timeout = 2000)]
     public async Task PrivateFieldBasicAccess()
     {

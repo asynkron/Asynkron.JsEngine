@@ -390,11 +390,16 @@ public static partial class TypedAstEvaluator
             // This environment uses slot-based storage with the ScopeId from scope analysis.
             var hasFunctionNameEnvironment = skipInternalNameBinding;
             if (!skipInternalNameBinding && functionExpression.Name is not null &&
-                functionExpression is { IsArrow: false, FunctionNameScopeId: >= 0 })
+                functionExpression is { IsArrow: false })
             {
                 functionNameEnvironment = new JsEnvironment(environment);
-                functionNameEnvironment.ScopeId = functionExpression.FunctionNameScopeId;
-                functionNameEnvironment.InitializeSlots(1); // Only one slot for the function name
+                // Use scope ID from analysis if available, otherwise use a fallback that still allows lookup
+                if (functionExpression.FunctionNameScopeId >= 0)
+                {
+                    functionNameEnvironment.ScopeId = functionExpression.FunctionNameScopeId;
+                    functionNameEnvironment.InitializeSlots(1); // Only one slot for the function name
+                }
+                // Without scope analysis, the function name will be looked up via dictionary
                 closureEnvironment = functionNameEnvironment;
                 hasFunctionNameEnvironment = true;
             }
@@ -459,8 +464,12 @@ public static partial class TypedAstEvaluator
             // Also register in dictionary with isImmutableBinding=true so eval'd code can detect immutability
             if (functionNameEnvironment is not null)
             {
-                functionNameEnvironment._slots![0] = JsValue.FromObjectUnsafe(callable);
-                // Register as immutable binding in dictionary for eval compatibility
+                // Store in slot if slots are initialized (with scope analysis)
+                if (functionNameEnvironment._slots is not null)
+                {
+                    functionNameEnvironment._slots[0] = JsValue.FromObjectUnsafe(callable);
+                }
+                // Register as immutable binding in dictionary for eval compatibility and fallback lookup
                 // Per ES spec 9.2.10, function name binding is immutable:
                 // - strict mode: assignment throws TypeError
                 // - non-strict mode: assignment is silently ignored

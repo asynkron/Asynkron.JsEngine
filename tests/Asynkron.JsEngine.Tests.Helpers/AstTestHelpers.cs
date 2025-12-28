@@ -25,10 +25,10 @@ public static class AstTestHelpers
         var parsed = parser.ParseProgram();
 
         var constantFolded = new TypedConstantExpressionTransformer().Transform(parsed);
-        var analyzed = new ScopeAnalyzer().Analyze(constantFolded);
 
 
-        return new AstPipelineResult(parsed, analyzed, analyzed);
+
+        return new AstPipelineResult(parsed, constantFolded, constantFolded);
     }
 
     /// <summary>

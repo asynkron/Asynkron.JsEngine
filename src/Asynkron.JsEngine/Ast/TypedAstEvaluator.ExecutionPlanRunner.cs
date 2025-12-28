@@ -1051,6 +1051,12 @@ public static partial class TypedAstEvaluator
                                 _resumedWithEnvironment = null;
 
                                 // Update environment to new env (push onto stack)
+                                _realmState.Logger?.LogInformation(
+                                    "PushEnv: old.ScopeId={OldScope} new.ScopeId={NewScope} loopScope.ScopeId={LoopScope} parent={Parent}",
+                                    environment.ScopeId,
+                                    newIterationEnv.ScopeId,
+                                    loopScope.ScopeId,
+                                    newIterationEnv.Enclosing?.ScopeId);
                                 environment = newIterationEnv;
                                 _programCounter = pushEnvInstruction.Next;
                                 continue;
@@ -1703,17 +1709,29 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     // Use JsVariable for scope-correct access (value slot is in loop scope)
+                                    _realmState.Logger?.LogInformation(
+                                        "SyncIterator StoreValue: valueVar.IsValid={Valid} currentEnv.ScopeId={CurScope} slot={Slot} value={Value}",
+                                        valueVar.IsValid,
+                                        environment.ScopeId,
+                                        iteratorMoveNextInstruction.ValueSlot.Name,
+                                        currentValue.Kind);
                                     if (valueVar.IsValid)
                                     {
                                         valueVar.Write(currentValue);
                                         // Also create binding for symbol-based identifier lookup in loop body
                                         valueVar.Environment.DefineOrAssignJsValue(
                                             iteratorMoveNextInstruction.ValueSlot, currentValue);
+                                        _realmState.Logger?.LogInformation(
+                                            "SyncIterator StoreValue: wrote to valueVar.Environment.ScopeId={Scope}",
+                                            valueVar.Environment.ScopeId);
                                     }
                                     else
                                     {
                                         StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
                                             iteratorMoveNextInstruction.ValueSlotIndex, currentValue);
+                                        _realmState.Logger?.LogInformation(
+                                            "SyncIterator StoreValue: wrote via StoreValueBySlot to env.ScopeId={Scope}",
+                                            environment.ScopeId);
                                     }
                                     _programCounter = iteratorMoveNextInstruction.Next;
                                     continue;
@@ -1999,17 +2017,29 @@ public static partial class TypedAstEvaluator
 
                                 StoreIteratorValue:
                                 // Use JsVariable for scope-correct access (value slot is in loop scope)
+                                _realmState.Logger?.LogInformation(
+                                    "StoreIteratorValue: valueVar.IsValid={Valid} slot={Slot} value={Value} envHash={Env}",
+                                    valueVar.IsValid,
+                                    iteratorMoveNextInstruction.ValueSlot.Name,
+                                    awaitedValue.Kind,
+                                    environment.GetHashCode());
                                 if (valueVar.IsValid)
                                 {
                                     valueVar.Write(awaitedValue);
                                     // Also create binding for symbol-based identifier lookup in loop body
                                     valueVar.Environment.DefineOrAssignJsValue(
                                         iteratorMoveNextInstruction.ValueSlot, awaitedValue);
+                                    _realmState.Logger?.LogInformation(
+                                        "StoreIteratorValue: wrote to valueVar.Environment={Env}",
+                                        valueVar.Environment.GetHashCode());
                                 }
                                 else
                                 {
                                     StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
                                         iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
+                                    _realmState.Logger?.LogInformation(
+                                        "StoreIteratorValue: wrote via StoreValueBySlot to env={Env}",
+                                        environment.GetHashCode());
                                 }
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;

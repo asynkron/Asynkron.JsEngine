@@ -712,13 +712,27 @@ public static partial class TypedAstEvaluator
                 if (planCache.Succeeded)
                 {
                     RealmState.ReturnContext(context);
+
+                    // For arrow functions, use lexically captured this instead of the caller's thisValue
+                    var effectiveThisValue = thisValue;
+                    if (IsArrowFunction)
+                    {
+                        var lexicalThis = _lexicalThis;
+                        if (_lexicalThisEnvironment is not null &&
+                            _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
+                        {
+                            lexicalThis = envThis;
+                        }
+                        effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+                    }
+
                     try
                     {
                         var runner = new ExecutionPlanRunner(
                             _function,
                             _closure,
                             arguments,
-                            thisValue,
+                            effectiveThisValue,
                             this,
                             RealmState,
                             _isStrict,

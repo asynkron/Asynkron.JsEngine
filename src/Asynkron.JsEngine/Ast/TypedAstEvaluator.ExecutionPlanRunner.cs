@@ -36,6 +36,7 @@ public static partial class TypedAstEvaluator
         private readonly JsValue _thisValue;
         private readonly JsValue _newTarget;
         private readonly Stack<TryFrame> _tryStack = new();
+        private readonly Stack<LoopFrame> _loopStack = new();
         private bool _asyncStepMode;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
@@ -731,6 +732,24 @@ public static partial class TypedAstEvaluator
                                     return iteratorResultObject is not null
                                         ? new JsValue(JsValueKind.Object, 0.0, iteratorResultObject)
                                         : CreateIteratorResult(yieldedSignalValue, false);
+                                }
+
+                                // Handle break/continue signals from AST-evaluated code inside loops
+                                if (context.IsBreak || context.IsContinue)
+                                {
+                                    var isBreak = context.IsBreak;
+                                    var label = (context.CurrentSignal as BreakCompletionSignal)?.Label
+                                             ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
+                                    context.Clear();
+
+                                    var target = FindLoopTarget(label, isBreak);
+                                    if (target >= 0)
+                                    {
+                                        _programCounter = target;
+                                        continue;
+                                    }
+                                    // If no target found, the signal should propagate (shouldn't happen if loop stack is correct)
+                                    throw new InvalidOperationException($"No loop target found for {(isBreak ? "break" : "continue")}{(label is not null ? $" {label.Name}" : "")}");
                                 }
 
                                 _programCounter = statementInstruction.Next;
@@ -1458,6 +1477,22 @@ public static partial class TypedAstEvaluator
 
                             case LeaveTryInstruction leaveTryInstruction:
                                 CompleteTryNormally(leaveTryInstruction.Next);
+                                continue;
+
+                            case LoopEnterInstruction loopEnterInstruction:
+                                _loopStack.Push(new LoopFrame(
+                                    loopEnterInstruction.Label,
+                                    loopEnterInstruction.BreakTarget,
+                                    loopEnterInstruction.ContinueTarget));
+                                _programCounter = loopEnterInstruction.Next;
+                                continue;
+
+                            case LoopExitInstruction loopExitInstruction:
+                                if (_loopStack.Count > 0)
+                                {
+                                    _loopStack.Pop();
+                                }
+                                _programCounter = loopExitInstruction.Next;
                                 continue;
 
                             case EndFinallyInstruction endFinallyInstruction:
@@ -2650,6 +2685,37 @@ public static partial class TypedAstEvaluator
             _tryStack.Push(frame);
         }
 
+        /// <summary>
+        /// Finds the jump target for a break or continue signal.
+        /// For unlabeled: returns the innermost loop's target.
+        /// For labeled: searches the stack for a matching label.
+        /// </summary>
+        private int FindLoopTarget(Symbol? label, bool isBreak)
+        {
+            if (_loopStack.Count == 0)
+            {
+                return -1;
+            }
+
+            if (label is null)
+            {
+                // Unlabeled: use innermost loop
+                var frame = _loopStack.Peek();
+                return isBreak ? frame.BreakTarget : frame.ContinueTarget;
+            }
+
+            // Labeled: search for matching label
+            foreach (var frame in _loopStack)
+            {
+                if (ReferenceEquals(frame.Label, label))
+                {
+                    return isBreak ? frame.BreakTarget : frame.ContinueTarget;
+                }
+            }
+
+            return -1;
+        }
+
         private void CompleteTryNormally(int resumeTarget)
         {
             if (_tryStack.Count == 0)
@@ -2923,6 +2989,12 @@ public static partial class TypedAstEvaluator
                 return new PendingCompletion(kind, value, -1);
             }
         }
+
+        /// <summary>
+        /// Tracks loop context at runtime so break/continue from AST-evaluated code
+        /// (via StatementInstruction) can resolve their jump targets.
+        /// </summary>
+        private readonly record struct LoopFrame(Symbol? Label, int BreakTarget, int ContinueTarget);
 
         private sealed class YieldStarState
         {

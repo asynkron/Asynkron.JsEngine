@@ -308,7 +308,7 @@ public static class TemporalHelper
             }
 
             var nanos = instant.EpochNanoseconds;
-            long divisor = smallestUnit switch
+            var divisor = smallestUnit switch
             {
                 "hour" => 3600_000_000_000L,
                 "minute" => 60_000_000_000L,
@@ -331,7 +331,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var epochNanoseconds = args.GetArgument(0);
 
@@ -555,7 +555,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var duration = new JsTemporalDuration(
                 GetNumberArg(args, 0),  // years
@@ -759,7 +759,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var year = (int)JsOps.ToNumber(args.GetArgument(0));
             var month = (int)JsOps.ToNumber(args.GetArgument(1));
@@ -912,7 +912,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var hour = args.Count > 0 ? (int)JsOps.ToNumber(args[0]) : 0;
             var minute = args.Count > 1 ? (int)JsOps.ToNumber(args[1]) : 0;
@@ -1130,7 +1130,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var year = (int)JsOps.ToNumber(args.GetArgument(0));
             var month = (int)JsOps.ToNumber(args.GetArgument(1));
@@ -1376,7 +1376,7 @@ public static class TemporalHelper
             return WrapZonedDateTime(newZdt, realm, prototype);
         });
 
-        AddPrototypeMethod(prototype, realm, "hoursInDay", 0, (thisValue, _) =>
+        AddPrototypeMethod(prototype, realm, "hoursInDay", 0, (_, _) =>
         {
             // For most days this is 24, but DST transitions can make it 23 or 25
             // For simplicity, we return 24 here (proper implementation would check DST)
@@ -1384,7 +1384,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var epochNanoseconds = args.GetArgument(0);
             var timeZoneArg = args.GetArgument(1);
@@ -1542,7 +1542,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var year = (int)JsOps.ToNumber(args.GetArgument(0));
             var month = (int)JsOps.ToNumber(args.GetArgument(1));
@@ -1644,7 +1644,7 @@ public static class TemporalHelper
         });
 
         // Constructor
-        var ctor = new HostFunction((thisValue, args) =>
+        var ctor = new HostFunction((_, args) =>
         {
             var month = (int)JsOps.ToNumber(args.GetArgument(0));
             var day = (int)JsOps.ToNumber(args.GetArgument(1));

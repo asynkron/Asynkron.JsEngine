@@ -700,6 +700,10 @@ internal sealed class ExecutionPlanBuilder
     {
         var instructionStart = _instructions.Count;
 
+        // Create LoopExitInstruction first (we build bottom-up)
+        // This pops the loop stack when exiting the loop (normal exit or break)
+        var loopExitIndex = Append(new LoopExitInstruction(nextIndex));
+
         var conditionJumpIndex = Append(new JumpInstruction(-1));
 
         var postIterationEntry = conditionJumpIndex;

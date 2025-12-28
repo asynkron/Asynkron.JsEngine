@@ -1,6 +1,34 @@
 using Asynkron.JsEngine;
 
 var engine = new JsEngine();
+engine.ExecutionTimeout = TimeSpan.FromSeconds(5);
+
+// Test 0: Continue in catch block (the bug we just fixed)
+Console.WriteLine("=== Test 0: Continue in Catch Block ===");
+try {
+    var result = await engine.Evaluate(@"
+        var x = 0;
+        (function(){
+            FOR : for(;;){
+                try{
+                    x++;
+                    if(x===10) return;
+                    throw 1;
+                } catch(e){
+                    continue FOR;
+                }
+            }
+        })();
+        x;
+    ").ConfigureAwait(false);
+    Console.WriteLine($"  Result: {result}");
+    Console.WriteLine($"  Expected: 10");
+    Console.WriteLine(result?.ToString() == "10" ? "  SUCCESS!" : "  FAILED!");
+} catch (OperationCanceledException) {
+    Console.WriteLine("  TIMEOUT - Test hangs!");
+} catch (Exception ex) {
+    Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
+}
 
 // Test 1: Large integer string conversion (the fix we made)
 Console.WriteLine("=== Test 1: Large Integer String Conversion ===");

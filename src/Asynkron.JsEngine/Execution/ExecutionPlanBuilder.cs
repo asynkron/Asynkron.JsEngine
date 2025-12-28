@@ -939,6 +939,17 @@ internal sealed class ExecutionPlanBuilder
                 entryIndex = -1;
                 return false;
             }
+
+            // Reject case bodies that have break/continue inside finally blocks.
+            // The switch is lowered to if statements, so break/continue in finally
+            // would have no valid target. Fall back to StatementInstruction which
+            // handles this via AST evaluation.
+            if (ContainsUnlabeledAbruptInFinally(switchCase.Body))
+            {
+                entryIndex = -1;
+                _failureReason ??= "Switch case contains break/continue in finally block.";
+                return false;
+            }
         }
 
         // Enforce at most a single default clause. JavaScript evaluates switch
@@ -1822,4 +1833,93 @@ internal sealed class ExecutionPlanBuilder
     }
 
     private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget, int TargetScopeId);
+
+    /// <summary>
+    /// Checks if a statement contains a try-finally where the finally block has
+    /// unlabeled break/continue that would target the enclosing switch/loop.
+    /// This is used to reject such cases in switch statements since the lowered
+    /// code transforms switch into if statements, making the break target invalid.
+    /// </summary>
+    private static bool ContainsUnlabeledAbruptInFinally(StatementNode statement)
+    {
+        return ContainsUnlabeledAbruptInFinallyImpl(statement, false);
+    }
+
+    private static bool ContainsUnlabeledAbruptInFinallyImpl(StatementNode statement, bool inFinally)
+    {
+        switch (statement)
+        {
+            case TryStatement tryStmt:
+                // Check the try block (not in finally yet)
+                if (ContainsUnlabeledAbruptInFinallyImpl(tryStmt.TryBlock, inFinally))
+                    return true;
+
+                // Check the catch block if present
+                if (tryStmt.Catch is not null &&
+                    ContainsUnlabeledAbruptInFinallyImpl(tryStmt.Catch.Body, inFinally))
+                    return true;
+
+                // Check the finally block - now we're in a finally context
+                if (tryStmt.Finally is not null &&
+                    ContainsUnlabeledAbruptInFinallyImpl(tryStmt.Finally, true))
+                    return true;
+
+                return false;
+
+            case BreakStatement { Label: null }:
+            case ContinueStatement { Label: null }:
+                // Unlabeled break/continue inside a finally targeting outer switch
+                return inFinally;
+
+            case BlockStatement block:
+                foreach (var stmt in block.Statements)
+                {
+                    if (ContainsUnlabeledAbruptInFinallyImpl(stmt, inFinally))
+                        return true;
+                }
+                return false;
+
+            case IfStatement ifStmt:
+                if (ContainsUnlabeledAbruptInFinallyImpl(ifStmt.Then, inFinally))
+                    return true;
+                if (ifStmt.Else is not null &&
+                    ContainsUnlabeledAbruptInFinallyImpl(ifStmt.Else, inFinally))
+                    return true;
+                return false;
+
+            case WhileStatement whileStmt:
+                // Break/continue inside a loop targets the loop, not outer switch
+                // So we reset inFinally context for the loop body
+                return ContainsUnlabeledAbruptInFinallyImpl(whileStmt.Body, false);
+
+            case DoWhileStatement doWhileStmt:
+                return ContainsUnlabeledAbruptInFinallyImpl(doWhileStmt.Body, false);
+
+            case ForStatement forStmt:
+                return ContainsUnlabeledAbruptInFinallyImpl(forStmt.Body, false);
+
+            case ForEachStatement forEachStmt:
+                return ContainsUnlabeledAbruptInFinallyImpl(forEachStmt.Body, false);
+
+            case SwitchStatement switchStmt:
+                // Break inside a nested switch targets that switch, not outer one
+                // But we still need to check for try-finally patterns
+                foreach (var switchCase in switchStmt.Cases)
+                {
+                    if (ContainsUnlabeledAbruptInFinallyImpl(switchCase.Body, false))
+                        return true;
+                }
+                return false;
+
+            case LabeledStatement labeledStmt:
+                return ContainsUnlabeledAbruptInFinallyImpl(labeledStmt.Statement, inFinally);
+
+            case WithStatement withStmt:
+                return ContainsUnlabeledAbruptInFinallyImpl(withStmt.Body, inFinally);
+
+            default:
+                // Other statements (return, throw, expression, var, etc.) don't contain nested abrupt
+                return false;
+        }
+    }
 }

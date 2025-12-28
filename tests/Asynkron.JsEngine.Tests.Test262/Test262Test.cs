@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 using Test262Harness;
 
 namespace Asynkron.JsEngine.Tests.Test262;
@@ -156,7 +157,10 @@ try {
     private static JsEngine BuildTestExecutor(Test262File file)
     {
         var engine = BaseRealmSnapshot.UseSnapshot
-            ? BaseRealmSnapshot.Instance.Value.CreateEngine()
+            ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions()
+            {
+                Logger = new TestLogger(minLogLevel: LogLevel.Critical, maxLogCount: 1_000_000)
+            })
             : new JsEngine { ExecutionTimeout = TimeSpan.FromSeconds(10) };
 
         TestEngineFactory.AttachRealmLoggerIfEnvVarSet(engine);

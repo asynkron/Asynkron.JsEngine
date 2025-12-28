@@ -21,7 +21,7 @@ public class InternalTestBase(ITestOutputHelper output)
     /// </summary>
     protected JsEngine CreateEngine()
     {
-        CurrentLogger = new TestLogger(output, maxLogCount: 1000);
+        CurrentLogger = new TestLogger(output, maxLogCount: 2000);
         return new JsEngine(new JsEngineOptions { Logger = CurrentLogger });
     }
 

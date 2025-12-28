@@ -319,12 +319,12 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
 
             // Check prototype chain if we have one
-            if (Prototype is JsObject protoObj)
+            if (Prototype is { } protoObj)
             {
                 return protoObj.TryGetProperty(name, out value);
             }
 
-            if (PrototypeAccessor is IJsPropertyAccessor protoAccessor)
+            if (PrototypeAccessor is { } protoAccessor)
             {
                 return protoAccessor.TryGetProperty(name, out value);
             }

@@ -947,7 +947,8 @@ public static partial class TypedAstEvaluator
                                 // Store result in slot if specified
                                 if (binaryOpInstruction.ResultSlot is not null)
                                 {
-                                    environment.DefineOrAssignJsValue(binaryOpInstruction.ResultSlot, binResult);
+                                    // Use AssignJsValue to walk up scope chain and find existing binding
+                                    environment.AssignJsValue(binaryOpInstruction.ResultSlot, binResult);
                                 }
 
                                 _programCounter = binaryOpInstruction.Next;
@@ -983,8 +984,8 @@ public static partial class TypedAstEvaluator
                                 var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
                                 var incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
 
-                                // Update the binding
-                                environment.DefineOrAssignJsValue(incrementInstruction.TargetSymbol, incNewJsValue);
+                                // Update the binding - use AssignJsValue to walk up scope chain
+                                environment.AssignJsValue(incrementInstruction.TargetSymbol, incNewJsValue);
 
                                 _programCounter = incrementInstruction.Next;
                                 continue;

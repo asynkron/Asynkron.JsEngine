@@ -10,7 +10,10 @@ public class ArrayLengthTest(ITestOutputHelper output) : InternalTestBase(output
     [Fact(Timeout = 60000)]
     public async Task TestStr2BinlLength()
     {
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, maxLogCount: 100_000),
+        });
         var result = await engine.Evaluate(@"
             var chrsz = 8;
             function str2binl(str) {

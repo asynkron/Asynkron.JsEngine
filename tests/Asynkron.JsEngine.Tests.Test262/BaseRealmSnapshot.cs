@@ -62,7 +62,7 @@ internal sealed class BaseRealmSnapshot
     {
         var engine = new JsEngine(options, skipStdLibInitialization: true)
         {
-            ExecutionTimeout = null
+            ExecutionTimeout = null,
         };
 
         var cloner = new RealmCloner(_templateEngine, _templateGlobal, _templateRealm, _excludedGlobals);

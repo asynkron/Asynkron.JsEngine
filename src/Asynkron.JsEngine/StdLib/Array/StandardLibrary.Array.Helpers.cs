@@ -220,6 +220,9 @@ public static partial class StandardLibrary
         var accumulatorSet = hasInitial;
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[4];
+        callbackArgs[3] = accessorJsValue;
         while (k >= 0 && k < length)
         {
             if (TryGetExistingElement(accessor, k, out var value))
@@ -232,10 +235,10 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    accumulator =
-                        callback.Invoke(
-                            [accumulator, value, new JsValue((double)k), accessorJsValue],
-                            JsValue.Undefined);
+                    callbackArgs[0] = accumulator;
+                    callbackArgs[1] = value;
+                    callbackArgs[2] = new JsValue((double)k);
+                    accumulator = callback.Invoke(callbackArgs, JsValue.Undefined);
                 }
             }
 
@@ -257,6 +260,9 @@ public static partial class StandardLibrary
             PrepareArrayIteration(thisValue, args, realm, methodName);
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (long k = 0; k < length; k++)
         {
@@ -265,7 +271,9 @@ public static partial class StandardLibrary
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var result = callback.Invoke(callbackArgs, thisArg);
             if (result.IsTruthy)
             {
                 return true;

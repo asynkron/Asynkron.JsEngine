@@ -18,6 +18,9 @@ public sealed partial class ArrayPrototype
         var result = ArraySpeciesCreate(thisValue, length, Realm);
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (long k = 0; k < length; k++)
         {
@@ -26,7 +29,9 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var mapped = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var mapped = callback.Invoke(callbackArgs, thisArg);
             result.SetProperty(ToIndexString(k), mapped);
         }
 
@@ -42,6 +47,9 @@ public sealed partial class ArrayPrototype
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
         long toIndex = 0;
 
         for (long k = 0; k < length; k++)
@@ -51,7 +59,9 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var keep = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var keep = callback.Invoke(callbackArgs, thisArg);
             if (!keep.IsTruthy)
             {
                 continue;
@@ -83,6 +93,9 @@ public sealed partial class ArrayPrototype
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.forEach");
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (long k = 0; k < length; k++)
         {
@@ -91,7 +104,9 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            callback.Invoke(callbackArgs, thisArg);
         }
 
         return JsValue.Undefined;
@@ -104,6 +119,9 @@ public sealed partial class ArrayPrototype
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.find");
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (long k = 0; k < length; k++)
         {
@@ -111,7 +129,9 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var match = callback.Invoke(callbackArgs, thisArg);
             if (match.IsTruthy)
             {
                 return value;
@@ -128,6 +148,9 @@ public sealed partial class ArrayPrototype
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findIndex");
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (long k = 0; k < length; k++)
         {
@@ -135,7 +158,9 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var match = callback.Invoke(callbackArgs, thisArg);
 
             if (match.IsTruthy)
             {
@@ -159,6 +184,9 @@ public sealed partial class ArrayPrototype
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.every");
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (long k = 0; k < length; k++)
         {
@@ -167,7 +195,9 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var result = callback.Invoke(callbackArgs, thisArg);
             if (!result.IsTruthy)
             {
                 return JsValue.False;
@@ -184,6 +214,9 @@ public sealed partial class ArrayPrototype
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findLast");
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (var k = length - 1; k >= 0; k--)
         {
@@ -191,7 +224,9 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var matches = callback.Invoke(callbackArgs, thisArg);
             if (matches.IsTruthy)
             {
                 return value;
@@ -208,6 +243,9 @@ public sealed partial class ArrayPrototype
             PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findLastIndex");
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = accessorJsValue;
 
         for (var k = length - 1; k >= 0; k--)
         {
@@ -215,7 +253,9 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = new JsValue((double)k);
+            var matches = callback.Invoke(callbackArgs, thisArg);
             if (matches.IsTruthy)
             {
                 return new JsValue((double)k);

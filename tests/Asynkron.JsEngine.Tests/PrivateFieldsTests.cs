@@ -260,4 +260,97 @@ public class PrivateFieldsTests(ITestOutputHelper output) : FastPathTestBase(out
                                        """);
         Assert.Equal(30d, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task PrivateField_AccessibleFromArrowFunction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Counter {
+                #count = 0;
+                increment() {
+                    const inc = () => {
+                        this.#count++;
+                        return this.#count;
+                    };
+                    return inc();
+                }
+            }
+            const c = new Counter();
+            c.increment();
+            """);
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task PrivateField_ArrowFunction_DebugTest()
+    {
+        await using var engine = CreateEngine();
+        // First, verify this binding works
+        var thisResult = await engine.Evaluate("""
+            class Counter1 {
+                count = 0;
+                increment() {
+                    const inc = () => {
+                        return this;
+                    };
+                    return inc();
+                }
+            }
+            const c1 = new Counter1();
+            typeof c1.increment();
+            """);
+        output.WriteLine($"typeof this in arrow: {thisResult}");
+        Assert.Equal("object", thisResult);
+
+        // Now verify private field access directly in method (no arrow function)
+        var directResult = await engine.Evaluate("""
+            class Counter2 {
+                #count = 0;
+                increment() {
+                    this.#count++;
+                    return this.#count;
+                }
+            }
+            const c2 = new Counter2();
+            c2.increment();
+            """);
+        output.WriteLine($"Direct private access: {directResult}");
+        Assert.Equal(1d, directResult);
+
+        // Case 3: Just reading private field from arrow function (no increment)
+        var arrowReadResult = await engine.Evaluate("""
+            class Counter3 {
+                #count = 42;
+                getCount() {
+                    const getIt = () => {
+                        return this.#count;
+                    };
+                    return getIt();
+                }
+            }
+            const c3 = new Counter3();
+            c3.getCount();
+            """);
+        output.WriteLine($"Arrow private read: {arrowReadResult}");
+        Assert.Equal(42d, arrowReadResult);
+
+        // Case 4: Increment private field from arrow function
+        var arrowResult = await engine.Evaluate("""
+            class Counter4 {
+                #count = 0;
+                increment() {
+                    const inc = () => {
+                        this.#count++;
+                        return this.#count;
+                    };
+                    return inc();
+                }
+            }
+            const c4 = new Counter4();
+            c4.increment();
+            """);
+        output.WriteLine($"Arrow private access: {arrowResult}");
+        Assert.Equal(1d, arrowResult);
+    }
 }

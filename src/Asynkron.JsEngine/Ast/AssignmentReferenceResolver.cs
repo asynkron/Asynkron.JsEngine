@@ -199,7 +199,25 @@ internal static class AssignmentReferenceResolver
             return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
         }
 
-        var propertyValue = evaluateExpression(member.Property, environment, context);
+        // For non-computed member access (like obj.prop or obj.#privateField),
+        // extract the property name directly rather than evaluating it as an expression.
+        // This is critical for private field access where #fieldName is not a variable.
+        JsValue propertyValue;
+        if (!member.IsComputed)
+        {
+            var propertyName = member.Property switch
+            {
+                IdentifierExpression id => id.Name.Name,
+                LiteralExpression { Value.IsString: true } lit => lit.Value.AsString()!,
+                _ => JsOps.GetRequiredPropertyName(evaluateExpression(member.Property, environment, context), context)
+            };
+            propertyValue = new JsValue(propertyName);
+        }
+        else
+        {
+            propertyValue = evaluateExpression(member.Property, environment, context);
+        }
+
         if (context.ShouldStopEvaluation)
         {
             return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });

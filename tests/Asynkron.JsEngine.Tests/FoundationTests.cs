@@ -2017,6 +2017,34 @@ public class FoundationTests(ITestOutputHelper output) : FastPathTestBase(output
 
     #endregion
 
+    #region Arrow Function This Binding
+
+    [Fact]
+    public async Task ArrowFunction_InClassMethod_AccessesThisCorrectly()
+    {
+        // Tests that arrow functions inside class methods can access `this`
+        // This uses a PUBLIC field to isolate the `this` binding issue from private field issues
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Counter {
+                count = 0;
+
+                increment() {
+                    const inc = () => {
+                        this.count++;
+                        return this.count;
+                    };
+                    return inc();
+                }
+            }
+            const c = new Counter();
+            c.increment();
+            """);
+        Assert.Equal(1d, result);
+    }
+
+    #endregion
+
     #region Private Fields in Arrow Functions
 
     [Fact]

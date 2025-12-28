@@ -1708,7 +1708,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                     _tokens[i - 3].Type is TokenType.Async)
                                 {
                                     // Check if there's 'function' between async and name
-                                    if (i > 3 && _tokens[i - 2].Lexeme == "function")
+                                    if (i > 3 && string.Equals(_tokens[i - 2].Lexeme, "function", StringComparison.Ordinal))
                                     {
                                         var isDecl = IsDeclarationContext(i - 3);
                                         return (true, isDecl);

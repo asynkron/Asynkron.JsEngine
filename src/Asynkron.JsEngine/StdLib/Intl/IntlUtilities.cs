@@ -603,7 +603,7 @@ internal static class IntlUtilities
         }
 
         var extensions = new List<string>();
-        while (i < subtags.Length && subtags[i] != "x")
+        while (i < subtags.Length && !string.Equals(subtags[i], "x", StringComparison.Ordinal))
         {
             var extensionStart = i;
             i++;
@@ -614,7 +614,7 @@ internal static class IntlUtilities
 
             var key = subtags[extensionStart];
             string extension;
-            if (key == "u")
+            if (string.Equals(key, "u", StringComparison.Ordinal))
             {
                 var j = extensionStart + 1;
                 while (j < i && subtags[j].Length > 2)
@@ -642,13 +642,13 @@ internal static class IntlUtilities
                     }
 
                     extension += "-" + attributeKey;
-                    if (!string.IsNullOrEmpty(value) && value != "true")
+                    if (!string.IsNullOrEmpty(value) && !string.Equals(value, "true", StringComparison.Ordinal))
                     {
                         extension += "-" + value;
                     }
                 }
             }
-            else if (key == "t")
+            else if (string.Equals(key, "t", StringComparison.Ordinal))
             {
                 var j = extensionStart + 1;
                 while (j < i && !TransformKeyRegex.IsMatch(subtags[j]))

@@ -97,7 +97,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     public bool Equals(JsTemporalPlainMonthDay? other)
     {
         if (other is null) return false;
-        return Month == other.Month && Day == other.Day && Calendar == other.Calendar;
+        return Month == other.Month && Day == other.Day && string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
 
     public override bool Equals(object? obj)
@@ -116,7 +116,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     public override string ToString()
     {
         var result = $"--{Month:D2}-{Day:D2}";
-        if (Calendar != "iso8601")
+        if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
             result += $"[u-ca={Calendar}]";
         }

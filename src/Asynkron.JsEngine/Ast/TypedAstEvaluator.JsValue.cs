@@ -590,7 +590,7 @@ public static partial class TypedAstEvaluator
             JsValueKind.Null => true,
             JsValueKind.Boolean => left.AsBoolean() == right.AsBoolean(),
             JsValueKind.Number => left.NumberValue == right.NumberValue,
-            JsValueKind.String => left.AsString() == right.AsString(),
+            JsValueKind.String => string.Equals(left.AsString(), right.AsString(), StringComparison.Ordinal),
             JsValueKind.BigInt => left.AsBigInt().Value == right.AsBigInt().Value,
             JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
             JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),

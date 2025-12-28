@@ -1717,7 +1717,7 @@ public static class TemporalHelper
     private static long ParseOffsetToSeconds(string offset)
     {
         // Parse offset string like "+01:00", "-05:30", or "Z"
-        if (string.IsNullOrEmpty(offset) || offset == "Z")
+        if (string.IsNullOrEmpty(offset) || string.Equals(offset, "Z", StringComparison.Ordinal))
             return 0;
 
         var sign = 1;

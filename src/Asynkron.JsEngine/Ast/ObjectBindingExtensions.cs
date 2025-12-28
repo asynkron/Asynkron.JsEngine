@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
                         assignmentTarget.Expression,
                         environment,
                         context,
-                        (e, env, ctx) => e.EvaluateExpression(env, ctx));
+                        static (e, env, ctx) => e.EvaluateExpression(env, ctx));
                     if (context.ShouldStopEvaluation)
                     {
                         return;

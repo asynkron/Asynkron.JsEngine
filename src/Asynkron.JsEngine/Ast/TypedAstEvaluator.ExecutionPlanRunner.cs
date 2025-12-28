@@ -655,10 +655,13 @@ public static partial class TypedAstEvaluator
                         var instruction = _plan.Instructions[_programCounter];
 
                         // Trace instruction execution when debug logging is enabled
-                        _realmState.Logger?.LogTrace(
-                            "[IR:{PC,3}] {Instruction}",
-                            _programCounter,
-                            ExecutionPlanPrinter.FormatInstruction(instruction));
+                        if (_realmState.Options.DebugMode)
+                        {
+                            _realmState.Logger?.LogTrace(
+                                "[IR:{PC,3}] {Instruction}",
+                                _programCounter,
+                                ExecutionPlanPrinter.FormatInstruction(instruction));
+                        }
 
                         // Detailed IR execution trace with environment depth
                         if (JsEngineConstants.TraceIrExecution)

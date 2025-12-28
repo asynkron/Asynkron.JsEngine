@@ -322,7 +322,10 @@ public static partial class TypedAstEvaluator
             for (var i = 0; i < plan.PerIterationBindings.Length; i++)
             {
                 var bindingName = plan.PerIterationBindings[i];
-                var sourceSlotIndex = iterationSlotIndices.Length > i ? iterationSlotIndices[i] : -1;
+                // Guard against uninitialized ImmutableArray when ScopeAnalyzer hasn't run
+                var sourceSlotIndex = iterationSlotIndices.IsDefaultOrEmpty || iterationSlotIndices.Length <= i
+                    ? -1
+                    : iterationSlotIndices[i];
 
                 // Fast path: direct slot read avoids scope chain traversal
                 JsValue currentValue;
@@ -478,7 +481,8 @@ public static partial class TypedAstEvaluator
                 {
                     var bindingName = bindings[i];
                     var slotIndex = -1;
-                    if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId)
+                    if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
+                        !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
                     {
                         slotIndex = plan.PerIterationSlotIndices.Length > i ? plan.PerIterationSlotIndices[i] : -1;
                         if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)

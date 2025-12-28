@@ -352,6 +352,10 @@ public sealed partial class TypedArrayPrototype
             hasAccumulator = true;
         }
 
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[4];
+        callbackArgs[3] = (JsValue)typedArray;
+
         while (k >= 0 && k < length)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -373,8 +377,10 @@ public sealed partial class TypedArrayPrototype
             }
             else
             {
-                accumulator = callback.Invoke([accumulator, value, JsValue.FromNumber((double)k), (JsValue)typedArray],
-                    JsValue.Undefined);
+                callbackArgs[0] = accumulator;
+                callbackArgs[1] = value;
+                callbackArgs[2] = JsValue.FromNumber((double)k);
+                accumulator = callback.Invoke(callbackArgs, JsValue.Undefined);
             }
 
             k += step;
@@ -405,6 +411,10 @@ public sealed partial class TypedArrayPrototype
 
         var length = typedArray.Length;
         var result = SpeciesCreate(typedArray, length);
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -418,7 +428,9 @@ public sealed partial class TypedArrayPrototype
             }
 
             var value = typedArray.GetValueForIndex(k);
-            var mapped = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var mapped = callback.Invoke(callbackArgs, thisArg);
             result.SetValue(k, mapped);
         }
 
@@ -442,6 +454,10 @@ public sealed partial class TypedArrayPrototype
 
         var length = typedArray.Length;
         var kept = new List<JsValue>();
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -455,7 +471,9 @@ public sealed partial class TypedArrayPrototype
             }
 
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var result = callback.Invoke(callbackArgs, thisArg);
             if (IsTruthy(result))
             {
                 kept.Add(value);
@@ -499,10 +517,16 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = 0; k < length; k++)
         {
             var value = typedArray.GetValueForIndex(k);
-            var result = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var result = callback.Invoke(callbackArgs, thisArg);
             if (!IsTruthy(result))
             {
                 return JsValue.False;
@@ -528,13 +552,20 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = 0; k < length; k++)
         {
-            var key = k.ToString(CultureInfo.InvariantCulture);
+            var key = JsValueCache.GetIndexString(k);
             var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
                 ? candidate
                 : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var match = callback.Invoke(callbackArgs, thisArg);
             if (IsTruthy(match))
             {
                 return value;
@@ -560,13 +591,20 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = 0; k < length; k++)
         {
-            var key = k.ToString(CultureInfo.InvariantCulture);
+            var key = JsValueCache.GetIndexString(k);
             var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
                 ? candidate
                 : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var match = callback.Invoke(callbackArgs, thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -592,13 +630,20 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = length - 1; k >= 0; k--)
         {
-            var key = k.ToString(CultureInfo.InvariantCulture);
+            var key = JsValueCache.GetIndexString(k);
             var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
                 ? candidate
                 : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var match = callback.Invoke(callbackArgs, thisArg);
             if (IsTruthy(match))
             {
                 return value;
@@ -624,13 +669,20 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = length - 1; k >= 0; k--)
         {
-            var key = k.ToString(CultureInfo.InvariantCulture);
+            var key = JsValueCache.GetIndexString(k);
             var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
                 ? candidate
                 : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            var match = callback.Invoke(callbackArgs, thisArg);
             if (IsTruthy(match))
             {
                 return (double)k;
@@ -656,6 +708,10 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
+        // Pre-allocate callback args array to avoid per-iteration allocation
+        var callbackArgs = new JsValue[3];
+        callbackArgs[2] = (JsValue)typedArray;
+
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -669,7 +725,9 @@ public sealed partial class TypedArrayPrototype
             }
 
             var value = typedArray.GetValueForIndex(k);
-            callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
+            callbackArgs[0] = value;
+            callbackArgs[1] = JsValue.FromNumber((double)k);
+            callback.Invoke(callbackArgs, thisArg);
         }
 
         return JsValue.Undefined;

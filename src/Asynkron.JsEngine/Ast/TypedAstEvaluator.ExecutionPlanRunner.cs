@@ -298,9 +298,10 @@ public static partial class TypedAstEvaluator
 
             // Initialize slots for generator-internal variables (iterator states, values, etc.)
             // This enables O(1) slot-based access instead of dictionary lookups
+            // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
             if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
             {
-                executionEnvironment.InitializeSlots(_plan.SlotCount);
+                executionEnvironment.InitializeSlots(_plan.SlotCount, scopeId: 0);
                 var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
                 for (var i = 0; i < _plan.SlotSymbols.Length; i++)
                 {

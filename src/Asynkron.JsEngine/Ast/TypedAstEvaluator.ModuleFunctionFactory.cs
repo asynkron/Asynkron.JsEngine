@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
             if (funcExpr.IsAsync)
             {
                 var asyncGen =
-                    new AsyncGeneratorFunctionCallable(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+                    new AsyncGeneratorFunctionInvoker(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     asyncGen.EnsureHasName(functionName, true);

@@ -85,7 +85,7 @@ public static partial class TypedAstEvaluator
                             generatorFactory.SetHomeObject(obj);
                             generatorFactory.DisableConstruction();
                         }
-                        else if (callable is AsyncGeneratorFunctionCallable asyncGeneratorFactory)
+                        else if (callable is AsyncGeneratorFunctionInvoker asyncGeneratorFactory)
                         {
                             asyncGeneratorFactory.SetHomeObject(obj);
                             asyncGeneratorFactory.DisableConstruction();

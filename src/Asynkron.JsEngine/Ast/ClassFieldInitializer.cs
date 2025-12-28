@@ -89,7 +89,7 @@ public static partial class TypedAstEvaluator
                 case SyncGeneratorInvoker generatorFactory:
                     generatorFactory.EnsureHasName(displayName, true);
                     break;
-                case AsyncGeneratorFunctionCallable asyncGeneratorFactory:
+                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
                     asyncGeneratorFactory.EnsureHasName(displayName, true);
                     break;
             }

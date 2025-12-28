@@ -15,9 +15,9 @@ public static partial class TypedAstEvaluator
     /// Callable for async generator functions (async function*).
     /// Returns an async iterator when invoked.
     /// </summary>
-    private sealed class AsyncGeneratorFunctionCallable : GeneratorFunctionBase
+    private sealed class AsyncGeneratorFunctionInvoker : GeneratorFunctionBase
     {
-        public AsyncGeneratorFunctionCallable(
+        public AsyncGeneratorFunctionInvoker(
             FunctionExpression function,
             JsEnvironment closure,
             RealmState realmState,

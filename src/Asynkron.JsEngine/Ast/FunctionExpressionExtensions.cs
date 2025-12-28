@@ -413,7 +413,7 @@ public static partial class TypedAstEvaluator
 
             IJsCallable callable = functionExpression.IsGenerator switch
             {
-                true when functionExpression.IsAsync => new AsyncGeneratorFunctionCallable(functionExpression,
+                true when functionExpression.IsAsync => new AsyncGeneratorFunctionInvoker(functionExpression,
                     closureEnvironment,
                     context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
                 true => new SyncGeneratorInvoker(functionExpression, closureEnvironment, context.RealmState,
@@ -441,12 +441,12 @@ public static partial class TypedAstEvaluator
                 case SyncGeneratorInvoker generatorFactory:
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case AsyncGeneratorFunctionCallable asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&
+                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&
                                                                       asyncGeneratorFactory.PrivateNameScope is null:
                     asyncGeneratorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case AsyncGeneratorFunctionCallable asyncGeneratorFactory:
+                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
                     asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
             }

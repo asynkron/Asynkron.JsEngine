@@ -35,6 +35,57 @@ internal static class ExecutionPlanPrinter
     }
 
     /// <summary>
+    /// Prints a single instruction during execution trace with environment depth indentation.
+    /// </summary>
+    public static void TraceInstruction(
+        int instructionIndex,
+        ExecutionInstruction instruction,
+        int envDepth,
+        int envScopeId,
+        int envHashCode,
+        string? extraInfo = null)
+    {
+        var indent = new string(' ', envDepth * 2);
+        var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
+        var envInfo = $"[env:{envHashCode:X8} scope:{envScopeId,2} d:{envDepth}]";
+
+        var formatted = FormatInstruction(instruction);
+        var extra = extraInfo != null ? $" // {extraInfo}" : "";
+
+        Console.WriteLine($"{indent}{depthMarker}[{instructionIndex,3}] {formatted} {envInfo}{extra}");
+    }
+
+    /// <summary>
+    /// Traces a variable definition with environment info.
+    /// </summary>
+    public static void TraceDefine(string kind, string name, string value, int envDepth, int envScopeId, int envHashCode)
+    {
+        var indent = new string(' ', envDepth * 2);
+        var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
+        Console.WriteLine($"{indent}{depthMarker}     DEFINE {kind} '{name}' = {value} [env:{envHashCode:X8} scope:{envScopeId}]");
+    }
+
+    /// <summary>
+    /// Traces a variable lookup with environment info.
+    /// </summary>
+    public static void TraceLookup(string name, bool found, int envDepth, int envScopeId, int envHashCode, string? foundIn = null)
+    {
+        var indent = new string(' ', envDepth * 2);
+        var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
+        var status = found ? $"FOUND in {foundIn}" : "NOT FOUND";
+        Console.WriteLine($"{indent}{depthMarker}     LOOKUP '{name}' -> {status} [env:{envHashCode:X8} scope:{envScopeId}]");
+    }
+
+    /// <summary>
+    /// Traces environment push/pop operations.
+    /// </summary>
+    public static void TraceEnvChange(string operation, int oldDepth, int newDepth, int oldScopeId, int newScopeId, int oldHash, int newHash)
+    {
+        var indent = new string(' ', Math.Min(oldDepth, newDepth) * 2);
+        Console.WriteLine($"{indent}>>> {operation}: depth {oldDepth}->{newDepth}, scope {oldScopeId}->{newScopeId}, env {oldHash:X8}->{newHash:X8}");
+    }
+
+    /// <summary>
     /// Pretty prints a single instruction.
     /// </summary>
     public static string FormatInstruction(ExecutionInstruction instruction)

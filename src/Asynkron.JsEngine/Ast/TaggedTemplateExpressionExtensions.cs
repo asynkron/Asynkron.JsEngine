@@ -96,9 +96,9 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                // Use InvokeWithContext for TypedFunction to ensure proper this coercion in non-strict mode.
+                // Use InvokeWithContext for SyncFunctionInvoker to ensure proper this coercion in non-strict mode.
                 // The regular Invoke() passes null context, which can skip the coercion in some paths.
-                if (callable is TypedFunction typedFunction)
+                if (callable is SyncFunctionInvoker typedFunction)
                 {
                     return typedFunction.InvokeWithContext(frozenArguments, thisValue, context);
                 }

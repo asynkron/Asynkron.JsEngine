@@ -19,7 +19,7 @@ public static partial class TypedAstEvaluator
         initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexical: true,
             blocksFunctionScopeOverride: true);
         var resultValue = expression.EvaluateExpression(initEnv, context);
-        if (resultValue.ObjectValue is TypedFunction { IsArrowFunction: true } typedFunction &&
+        if (resultValue.ObjectValue is SyncFunctionInvoker { IsArrowFunction: true } typedFunction &&
             superBinding is not null)
         {
             typedFunction.SetSuperBinding(superBinding.Constructor, superBinding.Prototype);

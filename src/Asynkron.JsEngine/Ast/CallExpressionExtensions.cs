@@ -16,12 +16,12 @@ public static partial class TypedAstEvaluator
     extension(CallExpression expression)
     {
         /// <summary>
-        /// Hot path for call expressions - handles simple TypedFunction calls without Activity overhead.
+        /// Hot path for call expressions - handles simple SyncFunctionInvoker calls without Activity overhead.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue EvaluateCall(JsEnvironment environment, EvaluationContext context)
         {
-            // Ultra-fast path for simple identifier calls to TypedFunctions (e.g., fib(n-1))
+            // Ultra-fast path for simple identifier calls to SyncFunctionInvokers (e.g., fib(n-1))
             // This is the most common case in recursive benchmarks
             if (
                 expression is { IsOptional: false, Callee: IdentifierExpression calleeId, Arguments.Length: <= 2 })
@@ -74,8 +74,8 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    // Fast path for TypedFunction only
-                    if (calleeValue.TryGetObject<TypedFunction>(out var typedFunc) && !typedFunc.IsClassConstructor)
+                    // Fast path for SyncFunctionInvoker only
+                    if (calleeValue.TryGetObject<SyncFunctionInvoker>(out var typedFunc) && !typedFunc.IsClassConstructor)
                     {
                         if (++context.CallDepth > context.MaxCallDepth)
                         {
@@ -392,7 +392,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Class constructors cannot be invoked without 'new' (except via super() call)
-            if (callable is TypedFunction { IsClassConstructor: true } && expression.Callee is not SuperExpression)
+            if (callable is SyncFunctionInvoker { IsClassConstructor: true } && expression.Callee is not SuperExpression)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",
@@ -403,7 +403,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var isAsyncCallable = callable is TypedFunction { IsAsyncLike: true };
+            var isAsyncCallable = callable is SyncFunctionInvoker { IsAsyncLike: true };
 
             IJsEnvironmentAwareCallable? envAwareHandle = null;
             if (callable is IJsEnvironmentAwareCallable envAware)
@@ -507,7 +507,7 @@ public static partial class TypedAstEvaluator
             {
                 callResult = callable switch
                 {
-                    TypedFunction typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
+                    SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
                         newTargetForCall),
                     HostFunction hostFunction => hostFunction.InvokeWithContext(frozenArguments, thisValue, context,
                         newTargetForCall),
@@ -604,7 +604,7 @@ public static partial class TypedAstEvaluator
 
                     if (thisAfterSuper is IJsObjectLike initializedThis &&
                         context.TryPopClassFieldInitializer(out var pendingInitializer) &&
-                        pendingInitializer.Constructor is TypedFunction pendingConstructor)
+                        pendingInitializer.Constructor is SyncFunctionInvoker pendingConstructor)
                     {
                         pendingConstructor.InitializeInstance(
                             initializedThis,

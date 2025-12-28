@@ -80,7 +80,7 @@ public static partial class TypedAstEvaluator
                 // Pattern match on callable to configure the function
                 switch (callable)
                 {
-                    case TypedFunction typedFunction:
+                    case SyncFunctionInvoker typedFunction:
                         typedFunction.SetPrivateNameScope(privateNameScope);
                         typedFunction.SetSuperBinding(superConstructor, superTarget);
                         if (homeObject is not null)
@@ -91,7 +91,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.DisableConstruction();
                         typedFunction.EnsureHasName(displayName, true);
                         break;
-                    case GeneratorFunctionCallable generatorFactory:
+                    case SyncGeneratorInvoker generatorFactory:
                         generatorFactory.SetPrivateNameScope(privateNameScope);
                         if (homeObject is not null)
                         {

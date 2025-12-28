@@ -113,7 +113,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(errorJs);
             }
 
-            if (constructor is TypedFunction { IsArrowFunction: true })
+            if (constructor is SyncFunctionInvoker { IsArrowFunction: true })
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null)
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(errorJs);
             }
 
-            if (constructor is TypedFunction { DisallowConstruct: true })
+            if (constructor is SyncFunctionInvoker { DisallowConstruct: true })
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null)
@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(errorJs);
             }
 
-            if (constructor is GeneratorFunctionCallable)
+            if (constructor is SyncGeneratorInvoker)
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
                     ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"],
@@ -139,7 +139,7 @@ public static partial class TypedAstEvaluator
                 throw new ThrowSignal(errorJs);
             }
 
-            var typedConstructor = constructor as TypedFunction;
+            var typedConstructor = constructor as SyncFunctionInvoker;
             var isDerivedClassCtor = typedConstructor?.IsDerivedClassConstructor == true;
             var logger = realm?.Logger;
 

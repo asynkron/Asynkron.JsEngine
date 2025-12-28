@@ -75,12 +75,12 @@ public static partial class TypedAstEvaluator
                     {
                         var callable = member.Function!.CreateFunctionValue(environment, context,
                             isConstructorFunction: false);
-                        if (callable is TypedFunction typed)
+                        if (callable is SyncFunctionInvoker typed)
                         {
                             typed.SetHomeObject(obj);
                             typed.DisableConstruction();
                         }
-                        else if (callable is GeneratorFunctionCallable generatorFactory)
+                        else if (callable is SyncGeneratorInvoker generatorFactory)
                         {
                             generatorFactory.SetHomeObject(obj);
                             generatorFactory.DisableConstruction();
@@ -112,7 +112,7 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Getter:
                     {
-                        var getter = new TypedFunction(
+                        var getter = new SyncFunctionInvoker(
                             member.Function!,
                             environment,
                             context.RealmState,
@@ -132,7 +132,7 @@ public static partial class TypedAstEvaluator
                     }
                     case ObjectMemberKind.Setter:
                     {
-                        var setter = new TypedFunction(
+                        var setter = new SyncFunctionInvoker(
                             member.Function!,
                             environment,
                             context.RealmState,

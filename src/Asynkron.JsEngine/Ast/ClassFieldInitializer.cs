@@ -83,10 +83,10 @@ public static partial class TypedAstEvaluator
         {
             switch (value.ObjectValue)
             {
-                case TypedFunction typedFunction:
+                case SyncFunctionInvoker typedFunction:
                     typedFunction.EnsureHasName(displayName, true);
                     break;
-                case GeneratorFunctionCallable generatorFactory:
+                case SyncGeneratorInvoker generatorFactory:
                     generatorFactory.EnsureHasName(displayName, true);
                     break;
                 case AsyncGeneratorFunctionCallable asyncGeneratorFactory:

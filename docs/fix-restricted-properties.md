@@ -8,9 +8,9 @@
 - `Function.prototype.caller` and `Function.prototype.arguments` are accessor properties with getter/setter that throw `TypeError`
 - Prototype chain for class constructors: `SubClass.__proto__ === BaseClass`, `BaseClass.__proto__ === Function.prototype`
 - `JsObject.SetProperty` must traverse the prototype chain to find setters on non-`JsObject` prototypes
-- `TypedFunction` instances store their prototype as `IJsObjectLike`, not always `JsObject`
+- `SyncFunctionInvoker` instances store their prototype as `IJsObjectLike`, not always `JsObject`
 - `TypedGeneratorFactory` instances created via `function* g() {}` syntax must implement `ICallerInfo` with `IsStrictFunction => true`
-- Generator functions created via `new GeneratorFunction()` constructor currently return `TypedFunction` instead of `TypedGeneratorFactory`
+- Generator functions created via `new GeneratorFunction()` constructor currently return `SyncFunctionInvoker` instead of `TypedGeneratorFactory`
 
 ## Test Status
 
@@ -31,14 +31,14 @@
 ## Why It's Still Failing
 
 - `GeneratorFunction` constructor (accessible via `Object.getPrototypeOf(function*() {}).constructor`) uses the same code path as `Function` constructor
-- When you call `new GeneratorFunction()`, it parses the source and creates a `TypedFunction`, not a `TypedGeneratorFactory`
+- When you call `new GeneratorFunction()`, it parses the source and creates a `SyncFunctionInvoker`, not a `TypedGeneratorFactory`
 - The engine doesn't have a distinct `GeneratorFunction` constructor implementation
 
 ## What We Should Try Next
 
 - Implement a proper `GeneratorFunction` constructor in `JsEngine.cs` that:
   - Parses the body as a generator function
-  - Returns a `TypedGeneratorFactory` instance (not `TypedFunction`)
+  - Returns a `TypedGeneratorFactory` instance (not `SyncFunctionInvoker`)
   - Sets up the proper prototype chain (`GeneratorFunction.prototype`)
 - Find where `GeneratorFunction` is exposed (likely in `EnsureGeneratorIntrinsics` or `JsEngine.cs`)
 - Modify the constructor callable to detect when creating a generator function and route to appropriate factory
@@ -58,7 +58,7 @@
 2. When JS accesses `Object.getPrototypeOf(function*() {}).constructor`, it falls back to `Function.prototype.constructor` (the regular `Function`)
 3. `StandardLibrary.Function.cs:FunctionConstructorBody()` at line 224:
    - Parses source as `(function anonymous(...) { ... })`
-   - Executes via `engine.ExecuteProgram()` → returns `TypedFunction`, not `TypedGeneratorFactory`
+   - Executes via `engine.ExecuteProgram()` → returns `SyncFunctionInvoker`, not `TypedGeneratorFactory`
    - There's no detection of whether the caller was `GeneratorFunction` vs `Function`
 
 ### Solution Path
@@ -102,6 +102,6 @@ The best place to add this is in `EnsureGeneratorIntrinsics()` in `TypedAstEvalu
 
 The fix ensures that when `new GeneratorFunction()` is called:
 1. The source is parsed as `function* anonymous(...)` (note the `*`)
-2. Execution returns a `TypedGeneratorFactory` (not `TypedFunction`)
+2. Execution returns a `TypedGeneratorFactory` (not `SyncFunctionInvoker`)
 3. `TypedGeneratorFactory` implements `ICallerInfo` with `IsStrictFunction => true`
 4. Accessing `.caller` or `.arguments` now correctly throws `TypeError`

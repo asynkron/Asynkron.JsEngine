@@ -213,7 +213,7 @@ JsValueArrayPool _jsValueArrayPool;
 ### JsEngine2: Limited Pooling
 ```csharp
 // JsEngine2 pools:
-private static readonly ConcurrentBag<HashSet<Symbol>> SymbolSetPool;  // TypedFunction
+private static readonly ConcurrentBag<HashSet<Symbol>> SymbolSetPool;  // SyncFunctionInvoker
 [ThreadStatic] private static PromiseAwaitState? t_cachedState;  // AwaitScheduler
 ArrayPool<IJsPropertyAccessor?>.Shared;  // Prototype traversal
 ```

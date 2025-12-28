@@ -105,7 +105,7 @@ public static class ReflectHelper
                 : newTarget switch
                 {
                     HostFunction { RealmState: { } hostRealm } => hostRealm,
-                    TypedAstEvaluator.TypedFunction { RealmState: { } tfRealm } => tfRealm,
+                    TypedAstEvaluator.SyncFunctionInvoker { RealmState: { } tfRealm } => tfRealm,
                     _ => realm
                 };
             var arrayInstance = new JsArray(instanceRealm);

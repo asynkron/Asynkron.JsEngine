@@ -100,7 +100,7 @@ The script automatically:
    Time (ms)      Calls  Function
 --------------------------------------------------------------------------------------------------------------
     38805.39      19533  Asynkron.JsEngine.Ast.TypedAstEvaluator.EvaluateExpression...
-    19769.23       9897  Asynkron.JsEngine.Ast.TypedAstEvaluator+TypedFunction.Invoke...
+    19769.23       9897  Asynkron.JsEngine.Ast.TypedAstEvaluator+SyncFunctionInvoker.Invoke...
     19753.25       9961  Asynkron.JsEngine.Ast.TypedAstEvaluator.EvaluateCall...
 
 JsEngine time: 166928.10 ms (91.8% of total)
@@ -123,7 +123,7 @@ JsArgumentsObject..ctor
   Calls: 208
   Allocated by:
     <- CreateArgumentsObject (208x, 100%)
-         <- TypedFunction.Invoke (362x)
+         <- SyncFunctionInvoker.Invoke (362x)
 ```
 
 This helps identify which code paths cause the most memory allocations.
@@ -234,7 +234,7 @@ dotnet-trace convert trace.nettrace --format Speedscope
 
 #### Round 1
 
-1. **JsEnvironment pooling** (`TypedAstEvaluator.TypedFunction.cs`)
+1. **JsEnvironment pooling** (`TypedAstEvaluator.SyncFunctionInvoker.cs`)
    - Added `ContainsInnerFunctionExpression` to `ScopeDynamicnessAnalyzer.cs` to detect functions that create closures
    - Added `_canPoolInvocationEnvironment` flag - true when function is simple AND has no inner functions
    - Modified `InvokeSimpleFast` to use `RentEnvironment`/`ReturnEnvironment` when safe
@@ -246,7 +246,7 @@ dotnet-trace convert trace.nettrace --format Speedscope
    - Switches to full Dictionary only when > 8 bindings
    - `JsEnvironment._values` now uses this instead of `Dictionary<Symbol, Binding>`
 
-3. **Cached function description string** (`TypedAstEvaluator.TypedFunction.cs`)
+3. **Cached function description string** (`TypedAstEvaluator.SyncFunctionInvoker.cs`)
    - `_functionDescription` field cached in constructor
    - Eliminates string allocation (`$"function {name.Name}"`) per function call
 

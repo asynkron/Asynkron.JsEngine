@@ -51,7 +51,7 @@ public static partial class TypedAstEvaluator
             }
 
             var frozenArguments = FreezeArguments(argsBuilder);
-            if (targetFunction is TypedFunction typedFunction)
+            if (targetFunction is SyncFunctionInvoker typedFunction)
             {
                 return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
             }
@@ -90,7 +90,7 @@ public static partial class TypedAstEvaluator
             }
 
             var frozenArguments = FreezeArguments(argsBuilder);
-            if (targetFunction is TypedFunction typedFunction)
+            if (targetFunction is SyncFunctionInvoker typedFunction)
             {
                 return typedFunction.InvokeWithContext(frozenArguments, thisArg, context);
             }

@@ -2,7 +2,7 @@
 
 **Date:** December 2024
 **Status:** DISABLED - Needs more investigation
-**Location:** `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.TypedFunction.cs` (search for "DISABLED")
+**Location:** `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs` (search for "DISABLED")
 
 ## Overview
 
@@ -25,7 +25,7 @@ This led to adding `RunSync()` method to `ExecutionPlanRunner` that runs the pla
      - Extracts the raw value from the iterator result object
      - Handles both `IteratorResultObject` (lightweight) and `JsObject` (full) cases
 
-2. **`TypedAstEvaluator.TypedFunction.cs`**
+2. **`TypedAstEvaluator.SyncFunctionInvoker.cs`**
    - Added sync IR execution path in `InvokeWithContextSlow`
    - Currently disabled with `if (false && ...)`
    - Skip conditions:
@@ -162,7 +162,7 @@ For sync execution, `_currentDriverState` is always null, so we always fall thro
 
 ## How to Re-Enable for Testing
 
-In `TypedAstEvaluator.TypedFunction.cs`, find the big "DISABLED" banner and change:
+In `TypedAstEvaluator.SyncFunctionInvoker.cs`, find the big "DISABLED" banner and change:
 ```csharp
 if (false && !_function.IsGenerator && ...
 ```

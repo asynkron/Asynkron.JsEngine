@@ -163,7 +163,7 @@ This is the most breaking change - affects all function implementations.
   ```
 - [ ] Update `IJsEnvironmentAwareCallable`
 - [ ] Update all callable implementations:
-  - [ ] TypedFunction
+  - [ ] SyncFunctionInvoker
   - [ ] Built-in functions in StdLib/
   - [ ] Host functions
   - [ ] Bound functions

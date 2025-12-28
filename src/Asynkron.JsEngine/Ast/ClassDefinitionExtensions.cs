@@ -143,7 +143,7 @@ public static partial class TypedAstEvaluator
                 prototype.SetPrototype(superPrototype);
             }
 
-            if (constructorAccessor is TypedFunction typedCtorForOrdering)
+            if (constructorAccessor is SyncFunctionInvoker typedCtorForOrdering)
             {
                 typedCtorForOrdering.SeedIntrinsicConstructorKeys();
                 typedCtorForOrdering.SetPrototypeObject(prototype);
@@ -153,7 +153,7 @@ public static partial class TypedAstEvaluator
                 ctorForOrdering.SeedIntrinsicConstructorKeys();
             }
 
-            if (constructorAccessor is TypedFunction typedFunction)
+            if (constructorAccessor is SyncFunctionInvoker typedFunction)
             {
                 typedFunction.SetSuperBinding(superConstructor, superPrototype);
                 var instanceFields = resolvedFields.Where(static field => !field.IsStatic).ToImmutableArray();
@@ -193,7 +193,7 @@ public static partial class TypedAstEvaluator
 
             prototype.SetProperty("constructor", constructorJsValue);
 
-            if (constructorAccessor is IPropertyDefinitionHost definitionHost and TypedFunction
+            if (constructorAccessor is IPropertyDefinitionHost definitionHost and SyncFunctionInvoker
                 {
                     IsClassConstructor: true
                 })

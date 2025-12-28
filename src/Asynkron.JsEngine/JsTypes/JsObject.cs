@@ -582,7 +582,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         //
         // IMPORTANT: This fast path is only valid when our prototype chain is represented
         // by JsObject instances (Prototype != null) or there is no prototype at all.
-        // When Prototype is null but _prototypeAccessor is set (e.g. HostFunction/TypedFunction
+        // When Prototype is null but _prototypeAccessor is set (e.g. HostFunction/SyncFunctionInvoker
         // prototypes like Function.prototype), we must use the full [[Set]] semantics to allow
         // inherited setters (e.g. poison-pill Function.prototype.caller/arguments) to run.
         if (receiverIsThis &&
@@ -754,7 +754,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return;
         }
 
-        // When the prototype is a non-JsObject accessor (e.g., HostFunction, TypedFunction),
+        // When the prototype is a non-JsObject accessor (e.g., HostFunction, SyncFunctionInvoker),
         // recursively traverse the prototype chain looking for a setter.
         // This is needed for class inheritance where SubClass.__proto__ === BaseClass
         // and BaseClass.__proto__ === Function.prototype (which has the restricted setter).
@@ -1547,7 +1547,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     /// <summary>
     /// Recursively searches for a setter in the prototype chain, handling
-    /// non-JsObject prototypes like TypedFunction. This is needed for
+    /// non-JsObject prototypes like SyncFunctionInvoker. This is needed for
     /// class inheritance where the prototype chain may be:
     /// SubClass -> BaseClass -> Function.prototype
     /// </summary>

@@ -111,7 +111,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         return newTarget switch
         {
             HostFunction { RealmState: { } hostRealm } => hostRealm,
-            TypedAstEvaluator.TypedFunction { RealmState: { } tfRealm } => tfRealm,
+            TypedAstEvaluator.SyncFunctionInvoker { RealmState: { } tfRealm } => tfRealm,
             _ => Realm
         };
     }

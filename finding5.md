@@ -10,7 +10,7 @@ Arrow functions defined inside class methods cannot access private fields. When 
 
 1. **`PrivateNameScope`** - An object created for each class that has private fields/members
 2. **`EvaluationContext._privateNameScopes`** - A stack tracking active private scopes during execution
-3. **`_canUseFastPathBase`** - A flag on `TypedFunction` controlling whether fast invocation paths are used
+3. **`_canUseFastPathBase`** - A flag on `SyncFunctionInvoker` controlling whether fast invocation paths are used
 4. **`EnterPrivateNameScope(scope)`** - Pushes a scope onto the context stack
 5. **`CapturePrivateNameScopes()`** - Returns all scopes currently on the stack
 
@@ -32,7 +32,7 @@ InvokeWithContext()
 
 ### Primary Issue: `InvokeSimpleFastWithExceptionHandling` Doesn't Enter Private Scopes
 
-In `TypedAstEvaluator.TypedFunction.cs` lines 2319-2457, this method:
+In `TypedAstEvaluator.SyncFunctionInvoker.cs` lines 2319-2457, this method:
 
 1. Rents a new `EvaluationContext`
 2. Sets up the environment and binds parameters
@@ -100,7 +100,7 @@ When the arrow function expression is evaluated:
 2. `capturedPrivateScopes = context.CapturePrivateNameScopes()` captures 1 scope
 3. In the switch statement:
    ```csharp
-   case TypedFunction typed when context.CurrentPrivateNameScope is not null &&
+   case SyncFunctionInvoker typed when context.CurrentPrivateNameScope is not null &&
                                  typed.PrivateNameScope is null:
        typed.SetPrivateNameScope(context.CurrentPrivateNameScope);  // Sets _canUseFastPathBase = false
        typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);   // Also sets false
@@ -123,7 +123,7 @@ When the arrow function is invoked:
 If during arrow creation `context.CurrentPrivateNameScope` returns null, the second switch case matches:
 
 ```csharp
-case TypedFunction typed:
+case SyncFunctionInvoker typed:
     typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);  // Only this is called
     break;
 ```
@@ -208,7 +208,7 @@ public JsValue InvokeWithContext(...)
 
 ## Files Involved
 
-- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.TypedFunction.cs` - Main invocation paths
+- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs` - Main invocation paths
 - `src/Asynkron.JsEngine/Ast/FunctionExpressionExtensions.cs` - Arrow function instantiation
 - `src/Asynkron.JsEngine/Ast/ClassDefinitionExtensions.cs` - Class definition and private scope creation
 - `src/Asynkron.JsEngine/Ast/ImmutableArrayClassMemberExtensions.cs` - Class member assignment

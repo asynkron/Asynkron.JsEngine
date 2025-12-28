@@ -660,6 +660,17 @@ public static partial class TypedAstEvaluator
                             _programCounter,
                             ExecutionPlanPrinter.FormatInstruction(instruction));
 
+                        // Detailed IR execution trace with environment depth
+                        if (JsEngineConstants.TraceIrExecution)
+                        {
+                            ExecutionPlanPrinter.TraceInstruction(
+                                _programCounter,
+                                instruction,
+                                environment.Depth,
+                                environment.ScopeId,
+                                environment.GetHashCode());
+                        }
+
                         switch (instruction)
                         {
                             case StatementInstruction statementInstruction:
@@ -953,6 +964,16 @@ public static partial class TypedAstEvaluator
                                     // let/const - define as lexical binding with blocksFunctionScopeOverride
                                     // to match AST evaluator behavior (see IdentifierBindingExtensions.cs)
                                     var isConst = varDeclInstruction.Kind == VariableKind.Const;
+                                    if (JsEngineConstants.TraceIrExecution)
+                                    {
+                                        ExecutionPlanPrinter.TraceDefine(
+                                            varDeclInstruction.Kind.ToString(),
+                                            varDeclInstruction.TargetSymbol.Name,
+                                            varValue.ToString() ?? "?",
+                                            environment.Depth,
+                                            environment.ScopeId,
+                                            environment.GetHashCode());
+                                    }
                                     environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
                                         isConst: isConst, isLexical: true, blocksFunctionScopeOverride: true);
                                 }
@@ -1066,7 +1087,9 @@ public static partial class TypedAstEvaluator
                                 // Pop the iteration environment when exiting a loop.
                                 // If current env matches ScopeId, pop (set to Enclosing).
                                 // If not (loop ran 0 times), this is a no-op.
-                                if (environment.ScopeId == popEnvInstruction.ScopeId)
+                                // CRITICAL: Only pop if ScopeId is valid (>= 0). When ScopeAnalyzer
+                                // hasn't run, both ScopeIds are -1, and we'd incorrectly pop.
+                                if (popEnvInstruction.ScopeId >= 0 && environment.ScopeId == popEnvInstruction.ScopeId)
                                 {
                                     var envToPop = environment;
                                     environment = environment.Enclosing!;
@@ -2456,7 +2479,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Async-aware mode: surface promise-like values as pending steps
-            // so AsyncGeneratorIterator can resume via the event queue.
+            // so AsyncGeneratorInvoker can resume via the event queue.
             // awaitedValue is already JsValue
             if (TryResolvePromiseOrYield(awaitedValue, context, out var resolved))
             {

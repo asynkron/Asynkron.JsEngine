@@ -45,7 +45,7 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                var gen = new GeneratorFunctionCallable(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+                var gen = new SyncGeneratorInvoker(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
                 if (functionName != null)
                 {
                     gen.EnsureHasName(functionName, true);
@@ -56,7 +56,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            var fn = new TypedFunction(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
+            var fn = new SyncFunctionInvoker(funcExpr, moduleEnv, realmState, isStrict, hasNameInEnvironment);
             if (functionName != null)
             {
                 fn.EnsureHasName(functionName, true);

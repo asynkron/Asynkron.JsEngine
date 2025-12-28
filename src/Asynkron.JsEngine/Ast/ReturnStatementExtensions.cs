@@ -72,9 +72,9 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        // Check if both are TypedFunctions with 1 argument (optimal case)
-        if (!leftCalleeValue.TryGetObject<TypedFunction>(out var leftFunc) ||
-            !rightCalleeValue.TryGetObject<TypedFunction>(out var rightFunc) ||
+        // Check if both are SyncFunctionInvokers with 1 argument (optimal case)
+        if (!leftCalleeValue.TryGetObject<SyncFunctionInvoker>(out var leftFunc) ||
+            !rightCalleeValue.TryGetObject<SyncFunctionInvoker>(out var rightFunc) ||
             leftFunc.IsClassConstructor || rightFunc.IsClassConstructor ||
             leftCall.Arguments.Length != 1 || rightCall.Arguments.Length != 1 ||
             leftCall.Arguments[0].IsSpread || rightCall.Arguments[0].IsSpread)
@@ -155,8 +155,8 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
-        // Check if it's a TypedFunction with 1 argument (optimal case)
-        if (!calleeValue.TryGetObject<TypedFunction>(out var func) ||
+        // Check if it's a SyncFunctionInvoker with 1 argument (optimal case)
+        if (!calleeValue.TryGetObject<SyncFunctionInvoker>(out var func) ||
             func.IsClassConstructor ||
             call.Arguments.Length != 1 ||
             call.Arguments[0].IsSpread)

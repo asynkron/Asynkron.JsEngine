@@ -416,29 +416,29 @@ public static partial class TypedAstEvaluator
                 true when functionExpression.IsAsync => new AsyncGeneratorFunctionCallable(functionExpression,
                     closureEnvironment,
                     context.RealmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
-                true => new GeneratorFunctionCallable(functionExpression, closureEnvironment, context.RealmState,
+                true => new SyncGeneratorInvoker(functionExpression, closureEnvironment, context.RealmState,
                     isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction),
-                _ => new TypedFunction(functionExpression, closureEnvironment, context.RealmState,
+                _ => new SyncFunctionInvoker(functionExpression, closureEnvironment, context.RealmState,
                     isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
             };
 
             var capturedPrivateScopes = context.CapturePrivateNameScopes();
             switch (callable)
             {
-                case TypedFunction typed when context.CurrentPrivateNameScope is not null &&
+                case SyncFunctionInvoker typed when context.CurrentPrivateNameScope is not null &&
                                               typed.PrivateNameScope is null:
                     typed.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case TypedFunction typed:
+                case SyncFunctionInvoker typed:
                     typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case GeneratorFunctionCallable generatorFactory when context.CurrentPrivateNameScope is not null &&
+                case SyncGeneratorInvoker generatorFactory when context.CurrentPrivateNameScope is not null &&
                                                                  generatorFactory.PrivateNameScope is null:
                     generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case GeneratorFunctionCallable generatorFactory:
+                case SyncGeneratorInvoker generatorFactory:
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
                 case AsyncGeneratorFunctionCallable asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&

@@ -14,4 +14,10 @@ public static class JsEngineConstants
     public const int MaxPrototypeChainDepth = 100;
 
     public const bool SyncIrLoops = true;
+
+    /// <summary>
+    /// Enable detailed IR execution tracing with environment depth indentation.
+    /// WARNING: Very verbose output - only enable for debugging specific issues.
+    /// </summary>
+    public const bool TraceIrExecution = false;
 }

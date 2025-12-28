@@ -32,6 +32,16 @@ public static partial class TypedAstEvaluator
             }
 
             // Slow path: identifier not found - create proper error
+            if (JsEngineConstants.TraceIrExecution)
+            {
+                Execution.ExecutionPlanPrinter.TraceLookup(
+                    identifier.Name.Name,
+                    false,
+                    environment.Depth,
+                    environment.ScopeId,
+                    environment.GetHashCode(),
+                    $"idScope={identifier.ScopeId} slot={identifier.SlotIndex}");
+            }
             return HandleIdentifierNotFound(identifier.Name, context);
         }
     }

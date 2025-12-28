@@ -38,8 +38,12 @@ internal sealed class IdentifierCollector : AstVisitor
             case BranchInstruction branch:
                 Visit(branch.Condition);
                 break;
-            case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
-                Visit(varDecl.Initializer);
+            case SimpleVariableDeclarationInstruction varDecl:
+                // Collect the symbol being declared (it's local to the execution plan)
+                Identifiers.Add(varDecl.TargetSymbol);
+                // Also visit the initializer expression
+                if (varDecl.Initializer is not null)
+                    Visit(varDecl.Initializer);
                 break;
             case IteratorInitInstruction iterInit:
                 Visit(iterInit.IterableExpression);
@@ -116,17 +120,24 @@ internal sealed class IdentifierCollector : AstVisitor
 
     protected override void VisitIdentifier(IdentifierExpression node)
     {
-        // Collect all identifiers referenced in the execution plan
-        // They will be assigned slots in the execution plan environment (ScopeId=0)
-        // Note: Identifiers from PushEnvironmentInstruction are NOT collected here
-        // (they belong to iteration environments with their own ScopeId/slots)
-        Identifiers.Add(node.Name);
+        // Only collect compiler-generated symbols (resume slots, iterator state, etc.)
+        // User variables from outer scopes should NOT be assigned slots in the execution plan environment
+        // Compiler-generated symbols all start with '\u0001' prefix
+        // User variables declared IN the plan are collected via SimpleVariableDeclarationInstruction
+        if (node.Name.Name.StartsWith('\u0001'))
+        {
+            Identifiers.Add(node.Name);
+        }
     }
 
     protected override void VisitAssignment(AssignmentExpression node)
     {
-        // Collect the assignment target symbol
-        Identifiers.Add(node.Target);
+        // Only collect compiler-generated assignment targets
+        // User variables declared IN the plan are collected via SimpleVariableDeclarationInstruction
+        if (node.Target.Name.StartsWith('\u0001'))
+        {
+            Identifiers.Add(node.Target);
+        }
         base.VisitAssignment(node);
     }
 }

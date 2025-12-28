@@ -53,7 +53,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
         for (var i = 0; i < _values.Length; i++)
         {
-            var name = i.ToString(CultureInfo.InvariantCulture);
+            var name = JsValueCache.GetIndexString(i);
             _indexNames[i] = name;
             var descriptor = new PropertyDescriptor
             {

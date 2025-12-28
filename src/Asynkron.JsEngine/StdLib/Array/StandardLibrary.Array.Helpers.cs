@@ -100,7 +100,7 @@ public static partial class StandardLibrary
 
     internal static string ToIndexString(long index)
     {
-        return index.ToString(CultureInfo.InvariantCulture);
+        return JsValueCache.GetIndexString(index);
     }
 
     /// <summary>

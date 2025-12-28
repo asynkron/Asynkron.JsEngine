@@ -504,7 +504,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         foreach (var index in indices)
         {
-            var propertyName = index.ToString(CultureInfo.InvariantCulture);
+            var propertyName = JsValueCache.GetIndexString((int)index);
             var descriptor = GetOwnPropertyDescriptor(propertyName);
             var enumerable = descriptor is not { HasEnumerable: true } || descriptor.Enumerable;
 

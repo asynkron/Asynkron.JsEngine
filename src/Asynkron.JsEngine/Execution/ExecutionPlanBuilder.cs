@@ -756,14 +756,14 @@ internal sealed class ExecutionPlanBuilder
         }
 
         // Create Pop instruction for loop exit BEFORE building body
-        // This ensures breaks also go through the pop
-        var loopExitTarget = nextIndex;
+        // This ensures breaks also go through the pop, then through LoopExitInstruction
+        var loopExitTarget = loopExitIndex;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty)
         {
             loopExitTarget = Append(new PopEnvironmentInstruction(
                 plan.IterationScopeId,
                 plan.AllowIterationEnvironmentPooling,
-                nextIndex));
+                loopExitIndex));
         }
 
         // TargetScopeId is the scope to pop TO when break/continue
@@ -840,7 +840,14 @@ internal sealed class ExecutionPlanBuilder
             }
         }
 
-        entryIndex = loopEntry;
+        // Wrap entry with LoopEnterInstruction to push loop context at runtime
+        // This enables break/continue from AST-evaluated code (via StatementInstruction)
+        // to resolve their jump targets using the runtime loop stack.
+        entryIndex = Append(new LoopEnterInstruction(
+            loopEntry,
+            label,
+            loopExitTarget,
+            continueTarget));
         return true;
     }
 

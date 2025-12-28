@@ -29,8 +29,8 @@ public class InternalTestBase(ITestOutputHelper output)
     /// Creates a JsEngine with the provided options factory.
     /// Note: This does not attach a TestLogger - use for custom configurations only.
     /// </summary>
-    protected JsEngine CreateEngineWithOptions(Func<bool, JsEngineOptions> optionsFactory)
+    protected JsEngine CreateEngineWithOptions(Func<JsEngineOptions> optionsFactory)
     {
-        return new JsEngine(optionsFactory(true));
+        return new JsEngine(optionsFactory());
     }
 }

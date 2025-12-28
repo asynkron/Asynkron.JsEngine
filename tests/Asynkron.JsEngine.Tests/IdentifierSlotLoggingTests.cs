@@ -10,7 +10,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : InternalTest
     public async Task ForLoop_UsesSlotFastPathWithoutMisses()
     {
         var logger = new TestLogger();
-        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -49,7 +49,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : InternalTest
     public async Task WhileLoop_UsesSlotFastPathWithoutMisses()
     {
         var logger = new TestLogger();
-        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -86,7 +86,7 @@ public class IdentifierSlotLoggingTests(ITestOutputHelper output) : InternalTest
     public async Task CommonjsModule_ParametersStayInSlots()
     {
         var logger = new TestLogger();
-        await using var engine = CreateEngineWithOptions(fp => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,

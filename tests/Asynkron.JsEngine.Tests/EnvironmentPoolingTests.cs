@@ -26,7 +26,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // because each closure needs its own captured environment.
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
             DebugMode = true,
             Logger = logger
@@ -66,7 +66,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // 'var' is function-scoped, so no per-iteration environments are needed
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -101,7 +101,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // These environments CAN be pooled since no closures capture them
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -137,7 +137,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // 'var' is function-scoped, so only the loop scope environment is pooled
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -171,7 +171,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // With 'let', each iteration creates a new environment
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -205,7 +205,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // (no loop variable declaration in the header)
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -239,7 +239,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // When a closure captures the loop variable, environments cannot be pooled
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -279,7 +279,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // These can be pooled since no closures capture them
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -319,7 +319,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // With 'const', each iteration creates a new environment for the loop variable
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -357,7 +357,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // 'var' is function-scoped, no pooled environments needed
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -397,7 +397,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // but each closure holds a reference to its iteration environment.
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -436,7 +436,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Nested closure that captures outer loop variable
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -476,7 +476,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // via JsEnvironmentPool - they use LoopPlan which handles them differently
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -514,7 +514,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Note: Traditional for loops with 'let' use LoopPlan, not JsEnvironmentPool
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -550,7 +550,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Loop with exception should still clean up environments
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -591,7 +591,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Nested for-of loops should each pool independently
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -630,7 +630,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Sync for loop inside async function should pool normally
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -668,7 +668,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Loop with await inside should still pool when no closures
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -708,7 +708,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Accessing global vars in loop doesn't require per-iteration environments
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -744,7 +744,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Note: Traditional for loops use LoopPlan which doesn't use JsEnvironmentPool
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -779,7 +779,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // 'with' statement creates dynamic scope, prevents pooling
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -818,7 +818,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Just no per-iteration environments since no iterations occur
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -850,7 +850,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Single iteration creates TDZ + loop scope + iteration environments
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -882,7 +882,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Labeled break should properly clean up environments
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -922,7 +922,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // IIFE inside loop creates closures, prevents pooling
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -958,7 +958,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Loop inside class method accessing private field
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -1004,7 +1004,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Generator function with for-of loop
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -1040,7 +1040,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Generator with traditional for loop and let
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -1075,7 +1075,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
     {
         // Generator using yield* to delegate to another iterable
         var logger = new TestLogger();
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
             DebugMode = true,
             Logger = logger
@@ -1113,7 +1113,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Generator that creates closures capturing yielded values
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -1151,7 +1151,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Generator that returns early (break out of iteration)
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,
@@ -1194,7 +1194,7 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         // Async generator with for-await-of consuming promises
         var logger = new TestLogger();
 
-        await using var engine = CreateEngineWithOptions(_ => new JsEngineOptions
+        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions
         {
 
             DebugMode = true,

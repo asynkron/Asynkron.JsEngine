@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Tests.Helpers;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -10,22 +11,23 @@ public class InternalTestBase(ITestOutputHelper output)
     protected readonly ITestOutputHelper Output = output;
 
     /// <summary>
-    /// Creates a JsEngine with fast paths enabled.
+    /// The logger attached to the most recently created engine via CreateEngine().
+    /// </summary>
+    protected TestLogger? CurrentLogger { get; private set; }
+
+    /// <summary>
+    /// Creates a JsEngine with a TestLogger attached.
+    /// The logger is accessible via the CurrentLogger property.
     /// </summary>
     protected JsEngine CreateEngine()
     {
-        return new JsEngine(new JsEngineOptions { });
-    }
-
-    protected (JsEngine, TestLogger) CreateEngineWithTestLogger()
-    {
-        var logger = new TestLogger(output);
-        var engine = new JsEngine(new JsEngineOptions { Logger = logger });
-        return (engine, logger);
+        CurrentLogger = new TestLogger(output);
+        return new JsEngine(new JsEngineOptions { Logger = CurrentLogger });
     }
 
     /// <summary>
     /// Creates a JsEngine with the provided options factory.
+    /// Note: This does not attach a TestLogger - use for custom configurations only.
     /// </summary>
     protected JsEngine CreateEngineWithOptions(Func<bool, JsEngineOptions> optionsFactory)
     {

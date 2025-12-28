@@ -15,27 +15,32 @@ public sealed class TestLogger : ILogger
     private readonly ITestOutputHelper? _xUnitOutput;
     private readonly string _name;
     private readonly int _maxLogCount;
+    private readonly LogLevel _minLogLevel;
     private readonly object _lock = new();
     private int _logCount;
 
-    public TestLogger(ITestOutputHelper? xUnitOutput = null, string name = "RealmLogger", int maxLogCount = 0)
+    public TestLogger(
+        ITestOutputHelper? xUnitOutput = null,
+        string name = "RealmLogger",
+        int maxLogCount = 0,
+        LogLevel minLogLevel = LogLevel.Information)
     {
         _xUnitOutput = xUnitOutput;
         _name = name;
         _maxLogCount = maxLogCount;
+        _minLogLevel = minLogLevel;
     }
 
     public LogCollector Collector { get; } = new();
 
     public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
-    public bool IsEnabled(LogLevel logLevel) => true;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= _minLogLevel;
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
         var message = formatter(state, exception);
-        var formattedMessage = $"[{_name}] {logLevel}: {message}";
 
         lock (_lock)
         {
@@ -46,9 +51,16 @@ public sealed class TestLogger : ILogger
                     $"TestLogger exceeded max log count ({_maxLogCount}). Likely infinite loop detected. Last message: {message}");
             }
 
+            // Always collect all logs for test inspection
             Collector.Add(new LogRecord(logLevel, eventId, exception, message));
-            Console.WriteLine(formattedMessage);
-            _xUnitOutput?.WriteLine(formattedMessage);
+
+            // Only output to console/xUnit if log level meets minimum threshold
+            if (logLevel >= _minLogLevel)
+            {
+                var formattedMessage = $"[{_name}] {logLevel}: {message}";
+                Console.WriteLine(formattedMessage);
+                _xUnitOutput?.WriteLine(formattedMessage);
+            }
         }
     }
 

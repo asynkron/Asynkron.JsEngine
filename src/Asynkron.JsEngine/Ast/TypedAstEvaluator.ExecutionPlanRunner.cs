@@ -34,6 +34,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState;
         private readonly YieldResumeContext _resumeContext = new();
         private readonly JsValue _thisValue;
+        private readonly JsValue _newTarget;
         private readonly Stack<TryFrame> _tryStack = new();
         private bool _asyncStepMode;
         private EvaluationContext? _context;
@@ -62,6 +63,12 @@ public static partial class TypedAstEvaluator
         // Other environments (from completed iterations) can still be returned.
         private JsEnvironment? _resumedWithEnvironment;
 
+        // When HandleAbruptCompletion jumps to a catch/finally handler, this field
+        // is set to the environment that was active when entering the try block.
+        // The caller should check this after HandleAbruptCompletion returns true
+        // and restore the environment if set.
+        private JsEnvironment? _restoredEnvironmentFromTry;
+
         public ExecutionPlanRunner(
             FunctionExpression function,
             JsEnvironment closure,
@@ -73,12 +80,14 @@ public static partial class TypedAstEvaluator
             bool hasFunctionNameEnvironment,
             IJsObjectLike? homeObject,
             PrivateNameScope? privateNameScope,
-            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
+            JsValue newTarget = default)
         {
             _function = function;
             _closure = closure;
             _arguments = arguments;
             _thisValue = thisValue;
+            _newTarget = newTarget;
             _callable = callable;
             _realmState = realmState;
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
@@ -325,6 +334,15 @@ public static partial class TypedAstEvaluator
             }
 
             functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+
+            // Define new.target for non-arrow functions so inner arrow functions can access it lexically
+            if (!_function.IsArrow)
+            {
+                var newTargetValue = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
+                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexical: true,
+                    blocksFunctionScopeOverride: true);
+            }
+
             functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol,
                 JsValue.FromObjectUnsafe(_resumeContext));
             functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
@@ -624,6 +642,14 @@ public static partial class TypedAstEvaluator
                 {
                     while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
                     {
+                        // Check if HandleAbruptCompletion restored the environment (e.g., jumping to catch handler)
+                        // This ensures block-scoped bindings from inside the try are no longer visible.
+                        if (_restoredEnvironmentFromTry is { } restored)
+                        {
+                            environment = restored;
+                            _restoredEnvironmentFromTry = null;
+                        }
+
                         _currentInstructionIndex = _programCounter;
                         var instruction = _plan.Instructions[_programCounter];
 
@@ -2558,7 +2584,7 @@ public static partial class TypedAstEvaluator
 
         private void PushTryFrame(EnterTryInstruction instruction, JsEnvironment environment)
         {
-            var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex);
+            var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex, environment);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);
@@ -2590,23 +2616,33 @@ public static partial class TypedAstEvaluator
 
         private bool HandleAbruptCompletion(AbruptKind kind, object? /* intentional */ value, JsEnvironment environment)
         {
+            // Clear any previous restored environment
+            _restoredEnvironmentFromTry = null;
+
             while (_tryStack.Count > 0)
             {
                 var frame = _tryStack.Peek();
                 if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
                 {
                     frame.CatchUsed = true;
+
+                    // Restore to the environment that was active when entering the try block.
+                    // This ensures that block-scoped bindings inside the try are no longer visible.
+                    var targetEnv = frame.EntryEnvironment;
+                    _restoredEnvironmentFromTry = targetEnv;
+
                     if (frame.CatchSlotSymbol is { } slot)
                     {
                         // Handle case where value is already a boxed JsValue
                         var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
-                        if (environment.HasBinding(slot))
+                        // Use the entry environment for the catch slot, not the current (nested) environment
+                        if (targetEnv.HasBinding(slot))
                         {
-                            environment.AssignJsValue(slot, valueJs);
+                            targetEnv.AssignJsValue(slot, valueJs);
                         }
                         else
                         {
-                            environment.DefineJsValue(slot, valueJs);
+                            targetEnv.DefineJsValue(slot, valueJs);
                         }
                     }
 
@@ -2620,6 +2656,11 @@ public static partial class TypedAstEvaluator
                     {
                         frame.FinallyScheduled = true;
                         frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+
+                        // Restore to the environment that was active when entering the try block.
+                        // This ensures that block-scoped bindings inside the try are no longer visible in finally.
+                        _restoredEnvironmentFromTry = frame.EntryEnvironment;
+
                         _programCounter = frame.FinallyIndex;
                         return true;
                     }
@@ -2796,11 +2837,16 @@ public static partial class TypedAstEvaluator
             Continue
         }
 
-        private sealed class TryFrame(int handlerIndex, Symbol? catchSlotSymbol, int finallyIndex)
+        private sealed class TryFrame(int handlerIndex, Symbol? catchSlotSymbol, int finallyIndex, JsEnvironment entryEnvironment)
         {
             public int HandlerIndex { get; } = handlerIndex;
             public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;
             public int FinallyIndex { get; } = finallyIndex;
+            /// <summary>
+            /// The environment that was active when entering the try block.
+            /// Used to restore scope when jumping to catch/finally handlers.
+            /// </summary>
+            public JsEnvironment EntryEnvironment { get; } = entryEnvironment;
             public bool CatchUsed { get; set; }
             public bool FinallyScheduled { get; set; }
             public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;

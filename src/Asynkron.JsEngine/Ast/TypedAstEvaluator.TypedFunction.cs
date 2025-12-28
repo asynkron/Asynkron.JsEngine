@@ -725,7 +725,8 @@ public static partial class TypedAstEvaluator
                             _hasFunctionNameEnvironment,
                             _homeObject,
                             PrivateNameScope,
-                            _capturedPrivateNameScopes);
+                            _capturedPrivateNameScopes,
+                            newTarget);
                         return runner.RunSync();
                     }
                     catch (ThrowSignal signal)

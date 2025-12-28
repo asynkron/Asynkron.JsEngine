@@ -44,11 +44,22 @@ public sealed class TestLogger(
             Collector.Add(new LogRecord(logLevel, eventId, exception, message));
 
             // Only output to console/xUnit if log level meets minimum threshold
-            if (logLevel >= minLogLevel)
+            if (logLevel < minLogLevel)
             {
-                var formattedMessage = $"[{name}] {logLevel}: {message}";
-                Console.WriteLine(formattedMessage);
-                xUnitOutput?.WriteLine(message);
+                return;
+            }
+
+            var formattedMessage = $"[{name}] {logLevel}: {message}";
+
+            Console.WriteLine(formattedMessage);
+            switch (_logCount)
+            {
+                case < 100:
+                    xUnitOutput?.WriteLine(message);
+                    break;
+                case 101:
+                    xUnitOutput?.WriteLine("... (more than 100 log messages, suppressing further output)");
+                    break;
             }
         }
     }

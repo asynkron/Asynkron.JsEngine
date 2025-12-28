@@ -10,11 +10,16 @@ using Asynkron.JsEngine.JsTypes;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-///     Builds execution plans (IR) for pauseable functions: generators, async functions, and async generators.
+///     Builds execution plans (IR) for all function types, executed by different invokers:
+///     - Synchronous functions (SyncFunctionInvoker) when JsEngineConstants.SyncIrLoops = true
+///     - Synchronous generators (SyncGeneratorInvoker)
+///     - Async functions (AsyncFunctionInvoker)
+///     - Async generators (AsyncGeneratorInvoker, AsyncGeneratorFunctionInvoker)
+///
 ///     The builder supports linear statement lists, blocks, expression statements, variable declarations,
 ///     returns, yield/yield* expressions, and control flow (if/loops/try-catch).
 ///     More complex constructs are detected and reported as unsupported so the engine can fall back to
-///     the legacy replay runner.
+///     the legacy AST-walking evaluator.
 /// </summary>
 internal sealed class ExecutionPlanBuilder
 {

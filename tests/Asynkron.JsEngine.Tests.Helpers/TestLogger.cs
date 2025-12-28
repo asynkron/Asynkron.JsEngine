@@ -59,7 +59,7 @@ public sealed class TestLogger : ILogger
             {
                 var formattedMessage = $"[{_name}] {logLevel}: {message}";
                 Console.WriteLine(formattedMessage);
-                _xUnitOutput?.WriteLine(formattedMessage);
+                _xUnitOutput?.WriteLine(message);
             }
         }
     }

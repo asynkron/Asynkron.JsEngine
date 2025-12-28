@@ -34,13 +34,19 @@ public static partial class TypedAstEvaluator
                     isStrict);
             }
 
-            var parameterSymbols = function.Parameters
-                .Where(static p => p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
-                .Select(static p => p.Name!)
-                .ToArray();
+            // Collect simple parameter symbols in a single pass (avoids LINQ allocations)
+            var parameterSymbols = new Symbol[function.Parameters.Length];
+            var symbolCount = 0;
+            foreach (var p in function.Parameters)
+            {
+                if (p is { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
+                {
+                    parameterSymbols[symbolCount++] = p.Name;
+                }
+            }
 
             var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            for (var i = Math.Min(mappedParameters.Length, parameterSymbols.Length) - 1; i >= 0; i--)
+            for (var i = Math.Min(mappedParameters.Length, symbolCount) - 1; i >= 0; i--)
             {
                 var symbol = parameterSymbols[i];
                 if (!seen.Add(symbol))

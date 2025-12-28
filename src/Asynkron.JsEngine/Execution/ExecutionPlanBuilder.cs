@@ -1098,9 +1098,8 @@ internal sealed class ExecutionPlanBuilder
         // Build the loop body.
         // IMPORTANT: Do NOT wrap the per-iteration binding in a synthetic BlockStatement with a lexical
         // declaration. That causes TryBuildStatement(BlockStatement) to fall back to StatementInstruction
-        // (HoistPlan.NeedsEnvironment) which currently does not propagate break/continue correctly out
-        // to the IR loop machinery. Build the binding statement + user body as a straight instruction chain
-        // instead: BindValue -> Body -> (PopEnvForContinue?) -> ITER_MOVE_NEXT.
+        // (HoistPlan.NeedsEnvironment) which prevents the IR loop machinery from handling break/continue
+        // correctly. Build the binding statement and the user body as a straight instruction chain instead.
         var bindingStatement = CreateIteratorBindingStatement(iteratorPlan, iteratorInstructions.ValueSlot,
             iteratorInstructions.ValueSlotIndex);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;

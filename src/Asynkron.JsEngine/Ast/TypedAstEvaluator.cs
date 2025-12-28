@@ -217,7 +217,7 @@ public static partial class TypedAstEvaluator
                 // Add all numeric indices as seen (already enumerated above)
                 for (var i = 0; i < array.Items.Count; i++)
                 {
-                    seenArrayKeys.Add(i.ToString(CultureInfo.InvariantCulture));
+                    seenArrayKeys.Add(JsValueCache.GetIndexString(i));
                 }
 
                 // Now enumerate non-index properties on the array and its prototype chain
@@ -288,7 +288,7 @@ public static partial class TypedAstEvaluator
             {
                 for (var i = 0; i < s.Length; i++)
                 {
-                    yield return JsValue.FromString(i.ToString(CultureInfo.InvariantCulture));
+                    yield return JsValue.FromString(JsValueCache.GetIndexString(i));
                 }
 
                 yield break;

@@ -196,7 +196,7 @@ internal static class AssignmentReferenceResolver
         var target = evaluateExpression(member.Target, environment, context);
         if (context.ShouldStopEvaluation)
         {
-            return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
+            return AssignmentReference.ForDelegate(static () => JsValue.Undefined, static _ => { });
         }
 
         // For non-computed member access (like obj.prop or obj.#privateField),
@@ -220,7 +220,7 @@ internal static class AssignmentReferenceResolver
 
         if (context.ShouldStopEvaluation)
         {
-            return AssignmentReference.ForDelegate(() => JsValue.Undefined, _ => { });
+            return AssignmentReference.ForDelegate(static () => JsValue.Undefined, static _ => { });
         }
 
         if (target.IsNullish)

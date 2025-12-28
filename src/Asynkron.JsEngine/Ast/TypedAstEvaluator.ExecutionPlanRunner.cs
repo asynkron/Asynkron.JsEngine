@@ -877,6 +877,118 @@ public static partial class TypedAstEvaluator
                                 _programCounter = evaluateInstruction.Next;
                                 continue;
 
+                            case BinaryOpInstruction binaryOpInstruction:
+                                // Fast path for binary operations - evaluate left and right, apply operator
+                                var binLeft = binaryOpInstruction.Left.EvaluateExpression(environment, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    if (TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
+                                    {
+                                        return pendingBinLeftResult;
+                                    }
+                                    if (context.IsThrow)
+                                    {
+                                        var binThrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
+                                        {
+                                            continue;
+                                        }
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(binThrown);
+                                    }
+                                }
+                                var binRight = binaryOpInstruction.Right.EvaluateExpression(environment, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    if (TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
+                                    {
+                                        return pendingBinRightResult;
+                                    }
+                                    if (context.IsThrow)
+                                    {
+                                        var binThrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
+                                        {
+                                            continue;
+                                        }
+                                        _tryStack.Clear();
+                                        throw new ThrowSignal(binThrown);
+                                    }
+                                }
+
+                                // Apply the operator using fast-path methods
+                                var binResult = binaryOpInstruction.Operator switch
+                                {
+                                    BinaryOperator.Add => AddValue(binLeft, binRight, context),
+                                    BinaryOperator.Subtract => SubtractValue(binLeft, binRight, context),
+                                    BinaryOperator.Multiply => MultiplyValue(binLeft, binRight, context),
+                                    BinaryOperator.Divide => DivideValue(binLeft, binRight, context),
+                                    BinaryOperator.Modulo => ModuloValue(binLeft, binRight, context),
+                                    BinaryOperator.Power => PowerValue(binLeft, binRight, context),
+                                    BinaryOperator.LessThan => LessThanValue(binLeft, binRight, context),
+                                    BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(binLeft, binRight, context),
+                                    BinaryOperator.GreaterThan => GreaterThanValue(binLeft, binRight, context),
+                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(binLeft, binRight, context),
+                                    BinaryOperator.StrictEqual => StrictEqualsValue(binLeft, binRight) ? JsValue.True : JsValue.False,
+                                    BinaryOperator.StrictNotEqual => StrictEqualsValue(binLeft, binRight) ? JsValue.False : JsValue.True,
+                                    BinaryOperator.Equal => LooseEqualsValue(binLeft, binRight, context) ? JsValue.True : JsValue.False,
+                                    BinaryOperator.NotEqual => LooseEqualsValue(binLeft, binRight, context) ? JsValue.False : JsValue.True,
+                                    BinaryOperator.BitwiseAnd => BitwiseAndValue(binLeft, binRight, context),
+                                    BinaryOperator.BitwiseOr => BitwiseOrValue(binLeft, binRight, context),
+                                    BinaryOperator.BitwiseXor => BitwiseXorValue(binLeft, binRight, context),
+                                    BinaryOperator.LeftShift => LeftShiftValue(binLeft, binRight, context),
+                                    BinaryOperator.RightShift => RightShiftValue(binLeft, binRight, context),
+                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(binLeft, binRight, context),
+                                    _ => throw new NotSupportedException($"Binary operator '{binaryOpInstruction.Operator}' not supported in BinaryOpInstruction.")
+                                };
+
+                                // Store result in slot if specified
+                                if (binaryOpInstruction.ResultSlot is not null)
+                                {
+                                    environment.DefineOrAssignJsValue(binaryOpInstruction.ResultSlot, binResult);
+                                }
+
+                                _programCounter = binaryOpInstruction.Next;
+                                continue;
+
+                            case IncrementSlotInstruction incrementInstruction:
+                                // Fast path for ++/-- on identifiers
+                                var incCurrentValue = environment.GetIdentifierJsValueDirect(incrementInstruction.TargetSymbol, context);
+                                if (context.IsThrow)
+                                {
+                                    var incThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, incThrown, environment))
+                                    {
+                                        continue;
+                                    }
+                                    _tryStack.Clear();
+                                    throw new ThrowSignal(incThrown);
+                                }
+
+                                // Convert to number if needed (fast path for already-number values)
+                                double incNumValue;
+                                if (incCurrentValue.IsNumber)
+                                {
+                                    incNumValue = incCurrentValue.NumberValue;
+                                }
+                                else
+                                {
+                                    incNumValue = incCurrentValue.ToNumber();
+                                }
+
+                                // Apply increment or decrement
+                                var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
+                                var incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
+
+                                // Update the binding
+                                environment.DefineOrAssignJsValue(incrementInstruction.TargetSymbol, incNewJsValue);
+
+                                _programCounter = incrementInstruction.Next;
+                                continue;
+
                             case FunctionDeclarationInstruction functionDeclInstruction:
                                 // Function declarations are hoisted - this is a no-op at runtime
                                 _programCounter = functionDeclInstruction.Next;

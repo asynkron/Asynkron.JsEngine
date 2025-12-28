@@ -297,6 +297,22 @@ internal sealed class ExecutionPlanBuilder
                         return true;
                     }
 
+                    // Fast path: simple increment/decrement on identifiers (e.g., i++, --j)
+                    if (expressionStatement.Expression is UnaryExpression
+                        {
+                            Operator: UnaryOperator.Increment or UnaryOperator.Decrement,
+                            Operand: IdentifierExpression identTarget
+                        } unaryExpr)
+                    {
+                        var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
+                        entryIndex = Append(new IncrementSlotInstruction(
+                            nextIndex,
+                            identTarget.Name,
+                            isIncrement,
+                            unaryExpr.IsPrefix));
+                        return true;
+                    }
+
                     // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
                     entryIndex = Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression));
                     return true;

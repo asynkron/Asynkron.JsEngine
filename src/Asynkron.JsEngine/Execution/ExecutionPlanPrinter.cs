@@ -176,6 +176,16 @@ internal static class ExecutionPlanPrinter
                 $"STORE_RESUME" + (storeResume.TargetSymbol != null ? $" → {storeResume.TargetSymbol.Name}" : "") +
                 $" → [{storeResume.Next}]",
 
+            BinaryOpInstruction binOp =>
+                $"BINOP {FormatExpression(binOp.Left)} {binOp.Operator} {FormatExpression(binOp.Right)}" +
+                (binOp.ResultSlot != null ? $" → {binOp.ResultSlot.Name}" : "") +
+                $" → [{binOp.Next}]",
+
+            IncrementSlotInstruction inc =>
+                $"{(inc.IsPrefix ? (inc.IsIncrement ? "++" : "--") : "")}{inc.TargetSymbol.Name}" +
+                $"{(inc.IsPrefix ? "" : (inc.IsIncrement ? "++" : "--"))}" +
+                $" → [{inc.Next}]",
+
             _ => instruction.ToString() ?? "<?>"
         };
     }

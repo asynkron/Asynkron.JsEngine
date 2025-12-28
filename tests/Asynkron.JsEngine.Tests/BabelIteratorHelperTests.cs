@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class BabelIteratorHelperTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class BabelIteratorHelperTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task CreateForOfIteratorHelperLoose_WorksForArrays()

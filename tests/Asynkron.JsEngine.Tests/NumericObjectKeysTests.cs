@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NumericObjectKeysTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class NumericObjectKeysTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Should_Support_Numeric_Keys_In_Object_Literals()

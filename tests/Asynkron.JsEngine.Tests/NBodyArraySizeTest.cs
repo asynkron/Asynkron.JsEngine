@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyArraySizeTest(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyArraySizeTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Theory]
     [InlineData(1)]

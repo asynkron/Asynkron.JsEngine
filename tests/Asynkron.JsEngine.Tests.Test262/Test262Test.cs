@@ -159,7 +159,7 @@ try {
             ? BaseRealmSnapshot.Instance.Value.CreateEngine()
             : new JsEngine { ExecutionTimeout = TimeSpan.FromSeconds(10) };
 
-        TestEngineFactory.AttachRealmLoggerIfEnabled(engine);
+        TestEngineFactory.AttachRealmLoggerIfEnvVarSet(engine);
 
         if (file.Flags.Contains("raw"))
         {

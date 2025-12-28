@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyStepByStepTest(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyStepByStepTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Step1_Array_With_Constructor_Calls()

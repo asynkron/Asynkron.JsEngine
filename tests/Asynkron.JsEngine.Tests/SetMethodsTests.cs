@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class SetMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class SetMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Set_Difference_ReturnsElementsInFirstSetOnly()

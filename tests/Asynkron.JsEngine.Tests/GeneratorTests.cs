@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for generator functions (function*) and the iterator protocol.
 /// </summary>
-public class GeneratorTests(ITestOutputHelper testOutputHelper) : FastPathTestBase(testOutputHelper)
+public class GeneratorTests(ITestOutputHelper testOutputHelper) : InternalTestBase(testOutputHelper)
 {
     private readonly ITestOutputHelper _testOutputHelper = testOutputHelper;
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.

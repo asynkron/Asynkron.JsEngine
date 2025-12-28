@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AdditionalBuiltinsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class AdditionalBuiltinsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Promise_WithResolvers_ReturnsObjectWithPromiseAndFunctions()

@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayResizeCoercionTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedArrayResizeCoercionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task ValueOfCoercionCanResizeBackingBuffer()

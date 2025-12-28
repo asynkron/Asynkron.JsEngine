@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// The tests use FakeLogger to trace execution and understand what's happening.
 /// </summary>
-public class ForAwaitOfLayeredTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ==================== LAYER 1: Basic Async Function ====================
 

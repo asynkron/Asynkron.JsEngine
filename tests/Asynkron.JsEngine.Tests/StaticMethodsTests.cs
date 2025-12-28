@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class StaticMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class StaticMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Object static methods tests
     [Fact(Timeout = 2000)]

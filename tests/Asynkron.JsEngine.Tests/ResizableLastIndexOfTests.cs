@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ResizableLastIndexOfTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ResizableLastIndexOfTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task ArrayPrototypeLastIndexOfUsesPreCoercionLengthWhenBufferGrows()

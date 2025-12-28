@@ -1,6 +1,7 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.Tests.Helpers;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 
@@ -112,7 +113,7 @@ public class DebugClassFieldTests
         {
             ExecutionTimeout = null
         };
-        engine.RealmState.Logger = new ConsoleLogger("DebugClassFields");
+        engine.RealmState.Logger = new TestLogger(name: "DebugClassFields");
 
         await engine.Evaluate(State.Sources["assert.js"]);
         await engine.Evaluate(State.Sources["sta.js"]);

@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Layered reproductions of test262 for-loop per-iteration scope semantics.
 /// These mirror key failing test262 cases so we can debug without the full harness.
 /// </summary>
-public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ForLoopPerIterationTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen()
@@ -35,8 +35,7 @@ public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBa
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTests),
-            new XunitLogger(Output, nameof(ForLoopPerIterationTests)));
+            new TestLogger(Output, nameof(ForLoopPerIterationTests)));
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal("outside", array.GetElement(0).ToObject());
@@ -63,8 +62,7 @@ public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBa
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTests),
-            new XunitLogger(Output, nameof(ForLoopPerIterationTests)));
+            new TestLogger(Output, nameof(ForLoopPerIterationTests)));
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(0d, array.GetElement(0).ToObject());
@@ -88,8 +86,7 @@ public class ForLoopPerIterationTests(ITestOutputHelper output) : FastPathTestBa
             """;
 
         await using var engine = TestEngineFactory.CreateDebugEngine(
-            nameof(ForLoopPerIterationTests),
-            new XunitLogger(Output, nameof(ForLoopPerIterationTests)));
+            new TestLogger(Output, nameof(ForLoopPerIterationTests)));
         var result = await engine.Evaluate(source);
         var array = Assert.IsType<JsArray>(result);
         Assert.Equal(0d, array.GetElement(0).ToObject());

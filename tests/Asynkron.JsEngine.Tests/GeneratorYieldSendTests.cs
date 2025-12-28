@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class GeneratorYieldSendTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class GeneratorYieldSendTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task YieldYieldForwardsSentValues()

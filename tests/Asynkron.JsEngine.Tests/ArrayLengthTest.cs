@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Base test class with the actual test logic.
 /// </summary>
-public class ArrayLengthTest(ITestOutputHelper output) : FastPathTestBase(output)
+public class ArrayLengthTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 60000)]
     public async Task TestStr2BinlLength()

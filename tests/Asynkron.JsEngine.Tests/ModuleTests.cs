@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ModuleTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ModuleTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ExportDefaultFunction()

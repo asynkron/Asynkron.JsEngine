@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class WeakSetTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class WeakSetTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WeakSet_Constructor_Creates_Empty_WeakSet()

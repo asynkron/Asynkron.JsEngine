@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyExactReproductionTest(ITestOutputHelper output) : FastPathTestBase(output)
+public class NBodyExactReproductionTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task NBodySystem_ConstructorLogic_Works()

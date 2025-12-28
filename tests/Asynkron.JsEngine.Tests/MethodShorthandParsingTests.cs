@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class MethodShorthandParsingTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class MethodShorthandParsingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task TestJ_ParseMethodShorthandVsRegularFunction()

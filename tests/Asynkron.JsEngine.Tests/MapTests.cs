@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class MapTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class MapTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Map_Methods_Are_Functions()

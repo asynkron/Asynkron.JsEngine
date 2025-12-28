@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for async/await functionality.
 /// </summary>
-public class AsyncAwaitTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeParsed()

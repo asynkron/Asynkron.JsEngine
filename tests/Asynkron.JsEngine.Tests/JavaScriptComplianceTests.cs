@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Hard tests for JavaScript compliance - testing edge cases, oddities, and problematic behaviors
 /// that are known to be challenging in JavaScript implementations.
 /// </summary>
-public class JavaScriptComplianceTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class JavaScriptComplianceTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================
     // Type Coercion Edge Cases

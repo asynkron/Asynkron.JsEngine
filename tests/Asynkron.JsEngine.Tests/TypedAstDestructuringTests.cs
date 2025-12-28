@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedAstDestructuringTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedAstDestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task ArrayDestructuring_WithDefaultValue_Works()

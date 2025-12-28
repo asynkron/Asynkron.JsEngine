@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class DestructuringTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class DestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Basic Array Destructuring Tests
     [Fact(Timeout = 2000)]

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Foundation tests covering basic JavaScript evaluation.
 /// These are simple sanity checks for core language features.
 /// </summary>
-public class FoundationTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class FoundationTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     #region Literals
 

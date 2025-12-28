@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class CommonjsModuleTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class CommonjsModuleTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task CreateCommonjsModule_FunctionIsCallable()

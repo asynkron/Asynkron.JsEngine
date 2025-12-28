@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IdentifierSlotLoggingTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class IdentifierSlotLoggingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Skip = "Slot initialization in IR path needs investigation after environment changes")]
     public async Task ForLoop_UsesSlotFastPathWithoutMisses()

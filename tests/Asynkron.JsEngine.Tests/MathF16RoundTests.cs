@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class MathF16RoundTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class MathF16RoundTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Math_F16round_ConvertsToFloat16Precision()

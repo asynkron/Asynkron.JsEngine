@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayShrinkTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class TypedArrayShrinkTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Theory]
     [InlineData("Int8Array", 1)]

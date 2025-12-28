@@ -16,7 +16,7 @@ namespace Asynkron.JsEngine.Tests;
 ///   node -e "let y=0; (async()=>{y=await Promise.resolve(42)})(); console.log(y)"
 ///   Output: 0 (not 42)
 /// </summary>
-public class MicrotaskDrainingTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class MicrotaskDrainingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task MicrotasksRunAfterScriptCompletion_NotDuring()
@@ -238,7 +238,7 @@ public class MicrotaskDrainingTests(ITestOutputHelper output) : FastPathTestBase
 /// doesn't complete when used inside an async IIFE.
 /// However, for await...of DOES work correctly with top-level await in ES modules.
 /// </summary>
-public class ForAwaitOfBugTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_InIIFE_DoesNotComplete()

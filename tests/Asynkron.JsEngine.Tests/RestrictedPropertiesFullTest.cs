@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class RestrictedPropertiesFullTest(ITestOutputHelper output) : FastPathTestBase(output)
+public class RestrictedPropertiesFullTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Test262_AssertThrows_Pattern()

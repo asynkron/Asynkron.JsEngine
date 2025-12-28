@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AsyncIterationTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class AsyncIterationTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task RegularForOf_WithAwaitInBody()

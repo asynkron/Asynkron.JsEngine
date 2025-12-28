@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class StaticClassFieldsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class StaticClassFieldsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Static_Field_With_Initializer()

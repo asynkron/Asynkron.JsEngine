@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ParameterShadowingTest(ITestOutputHelper output) : FastPathTestBase(output)
+public class ParameterShadowingTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Parameter_ShadowsFunctionName()

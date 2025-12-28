@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class GetPropertyNameTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class GetPropertyNameTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Get_As_Property_Name_In_Object_Literal()

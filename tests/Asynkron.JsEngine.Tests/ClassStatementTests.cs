@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for ES6 class statement features based on common Test262 class issues
 /// </summary>
-public class ClassStatementTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ClassStatementTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ClassConstructorBehavior()

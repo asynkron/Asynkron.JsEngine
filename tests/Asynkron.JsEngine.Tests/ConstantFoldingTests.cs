@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for constant expression folding transformation.
 /// </summary>
-public class ConstantFoldingTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ConstantFoldingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_ArithmeticExpression_FoldsToResult()

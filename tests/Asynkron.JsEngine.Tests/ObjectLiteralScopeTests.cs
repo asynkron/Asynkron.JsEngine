@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Test that object literal methods can access variables from enclosing scope
 /// </summary>
-public class ObjectLiteralScopeTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ObjectLiteralScopeTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task ObjectMethodCanAccessGlobalVariable()

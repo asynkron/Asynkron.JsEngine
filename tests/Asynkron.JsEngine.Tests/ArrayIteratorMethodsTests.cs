@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ArrayIteratorMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ArrayIteratorMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_Entries_ReturnsIndexValuePairs()

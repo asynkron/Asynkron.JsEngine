@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ObjectMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ObjectMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Object_Freeze_Prevents_Property_Modification()

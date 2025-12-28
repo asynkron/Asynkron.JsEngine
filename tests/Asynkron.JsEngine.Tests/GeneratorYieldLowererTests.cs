@@ -5,7 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class GeneratorYieldLowererTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class GeneratorYieldLowererTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public void Lowerer_RewritesYieldingDeclarationAssignmentAndReturn()

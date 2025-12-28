@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ConsoleTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ConsoleTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Console_Log_Should_Be_Available()

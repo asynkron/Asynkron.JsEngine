@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ScientificNotationTestsBase(ITestOutputHelper output) : FastPathTestBase(output)
+public class ScientificNotationTestsBase(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ScientificNotation_PositiveExponent_ParsesCorrectly()

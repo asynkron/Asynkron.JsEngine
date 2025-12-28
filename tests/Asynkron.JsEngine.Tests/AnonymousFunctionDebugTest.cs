@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AnonymousFunctionDebugTest(ITestOutputHelper testOutputHelper) : FastPathTestBase(testOutputHelper)
+public class AnonymousFunctionDebugTest(ITestOutputHelper testOutputHelper) : InternalTestBase(testOutputHelper)
 {
     [Fact]
     public async Task Debug_AnonymousRecursiveFunction_ShowEnvironments()

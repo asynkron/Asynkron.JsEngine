@@ -1,12 +1,30 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Xunit.Abstractions;
 
 // Minimal stand-in for Microsoft.Extensions.Logging.Testing.FakeLogger so we can
 // assert on captured log messages without pulling an extra package.
 namespace Asynkron.JsEngine.Tests.Helpers;
 
+/// <summary>
+/// ILogger implementation that captures logs and optionally writes to xUnit output.
+/// Optionally throws if too many log entries are recorded (to detect infinite loops).
+/// </summary>
 public sealed class TestLogger : ILogger
 {
+    private readonly ITestOutputHelper? _xUnitOutput;
+    private readonly string _name;
+    private readonly int _maxLogCount;
+    private readonly object _lock = new();
+    private int _logCount;
+
+    public TestLogger(ITestOutputHelper? xUnitOutput = null, string name = "RealmLogger", int maxLogCount = 0)
+    {
+        _xUnitOutput = xUnitOutput;
+        _name = name;
+        _maxLogCount = maxLogCount;
+    }
+
     public LogCollector Collector { get; } = new();
 
     public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
@@ -17,8 +35,21 @@ public sealed class TestLogger : ILogger
         Func<TState, Exception?, string> formatter)
     {
         var message = formatter(state, exception);
-        Collector.Add(new LogRecord(logLevel, eventId, exception, message));
-        Console.WriteLine(message);
+        var formattedMessage = $"[{_name}] {logLevel}: {message}";
+
+        lock (_lock)
+        {
+            _logCount++;
+            if (_maxLogCount > 0 && _logCount > _maxLogCount)
+            {
+                throw new InvalidOperationException(
+                    $"TestLogger exceeded max log count ({_maxLogCount}). Likely infinite loop detected. Last message: {message}");
+            }
+
+            Collector.Add(new LogRecord(logLevel, eventId, exception, message));
+            Console.WriteLine(formattedMessage);
+            _xUnitOutput?.WriteLine(formattedMessage);
+        }
     }
 
     public sealed record LogRecord(LogLevel Level, EventId EventId, Exception? Exception, string Message);

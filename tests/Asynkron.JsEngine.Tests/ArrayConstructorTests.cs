@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ArrayConstructorTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class ArrayConstructorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_Constructor_WithLength_CreatesArrayWithLength()

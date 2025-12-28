@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for Regular Expression support.
 /// </summary>
-public class RegExpTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class RegExpTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()

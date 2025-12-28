@@ -9,38 +9,46 @@ namespace Asynkron.JsEngine.Tests.Helpers;
 public static class TestEngineFactory
 {
     /// <summary>
-    /// Creates a JsEngine with debug mode enabled. If JSENGINE_TRACE_REALM is set, attaches a console logger.
+    /// Creates a JsEngine with debug mode enabled and the specified logger attached.
     /// </summary>
-    public static JsEngine CreateDebugEngine(string? loggerName = null, ILogger? logger = null)
+    public static JsEngine CreateDebugEngine(ILogger logger)
     {
         var options = new JsEngineOptions
         {
             DebugMode = true,
         };
         var engine = new JsEngine(options);
-        AttachRealmLoggerIfEnabled(engine, loggerName, logger);
+        engine.RealmState.Logger = logger;
+        return engine;
+    }
+
+    /// <summary>
+    /// Creates a JsEngine with debug mode enabled. If JSENGINE_TRACE_REALM is set, attaches a console logger.
+    /// </summary>
+    public static JsEngine CreateDebugEngine(string? loggerName = null)
+    {
+        var options = new JsEngineOptions
+        {
+            DebugMode = true,
+        };
+        var engine = new JsEngine(options);
+        AttachRealmLoggerIfEnvVarSet(engine, loggerName);
         return engine;
     }
 
     /// <summary>
     /// Attaches a realm logger when the JSENGINE_TRACE_REALM env var is present.
     /// </summary>
-    public static void AttachRealmLoggerIfEnabled(JsEngine engine, string? loggerName = null, ILogger? logger = null)
+    public static void AttachRealmLoggerIfEnvVarSet(JsEngine engine, string? loggerName = null)
     {
         if (engine.RealmState.Logger is not null)
         {
             return;
         }
 
-        if (logger is not null)
-        {
-            engine.RealmState.Logger = logger;
-            return;
-        }
-
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM")))
         {
-            engine.RealmState.Logger = new ConsoleLogger(loggerName ?? "RealmLogger");
+            engine.RealmState.Logger = new TestLogger(name: loggerName ?? "RealmLogger");
         }
     }
 }

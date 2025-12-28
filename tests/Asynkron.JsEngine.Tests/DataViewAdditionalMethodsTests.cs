@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class DataViewAdditionalMethodsTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class DataViewAdditionalMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task DataView_GetFloat16_ReadsHalfPrecisionFloat()

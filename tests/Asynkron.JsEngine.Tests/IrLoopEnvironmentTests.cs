@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to verify per-iteration environment behavior in IR-executed loops.
 /// These tests check that closures capture correct values in for loops with let bindings.
 /// </summary>
-public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task SyncForLoop_ClosuresCaptureCorrectValues()
@@ -202,7 +202,7 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
     {
         // This test demonstrates IR execution tracing with a logger
         // The logger outputs each instruction as it executes
-        var logger = new XunitLogger(output, "IR-Trace");
+        var logger = new TestLogger(output, "IR-Trace");
 
         await using var engine = new JsEngine(new JsEngineOptions
         {
@@ -238,7 +238,7 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
     public async Task TraceIrExecution_PASSING_SingleForWithForAwaitOf()
     {
         // PASSING CASE: 1 for loop + 1 for-await-of (sum = 6)
-        var logger = new XunitLogger(output, "PASS");
+        var logger = new TestLogger(output, "PASS");
 
         await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
 
@@ -265,7 +265,7 @@ public class IrLoopEnvironmentTests(ITestOutputHelper output) : FastPathTestBase
     public async Task TraceIrExecution_FAILING_DoubleForWithForAwaitOf()
     {
         // FAILING CASE: 2 for loops + 1 for-await-of (expected: 12, actual: 6)
-        var logger = new XunitLogger(output, "FAIL");
+        var logger = new TestLogger(output, "FAIL");
 
         await using var engine = new JsEngine(new JsEngineOptions { Logger = logger });
 

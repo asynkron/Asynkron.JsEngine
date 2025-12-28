@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for tagged template literals.
 /// </summary>
-public class TaggedTemplateTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class TaggedTemplateTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task TaggedTemplate_BasicFunction()

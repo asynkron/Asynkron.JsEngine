@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class DestructuringIteratorTests(ITestOutputHelper output) : FastPathTestBase(output)
+public class DestructuringIteratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task ArrayPatternIteratorThrowsOriginalError()

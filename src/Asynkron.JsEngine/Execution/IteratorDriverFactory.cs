@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using static Asynkron.JsEngine.Ast.TypedAstEvaluator;
 
@@ -22,6 +23,16 @@ internal static class IteratorDriverFactory
         var canReuseIterationEnvironment = !ContainsInnerFunctionExpression(rewrittenBody) &&
                                            !ContainsInnerFunctionExpression(statement.Target);
 
+        // Collect per-iteration bindings from Target if DeclarationKind is let/const
+        // (independent of ScopeAnalyzer which may not have run)
+        var perIterationBindings = statement.PerIterationBindings;
+        if (perIterationBindings.IsDefault && statement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+        {
+            var bindingNames = new List<Symbol>();
+            CollectBindingNames(statement.Target, bindingNames);
+            perIterationBindings = [..bindingNames];
+        }
+
         return new IteratorDriverPlan(
             kind,
             statement.Iterable,
@@ -32,7 +43,51 @@ internal static class IteratorDriverFactory
             statement.PerIterationParentScopeId,
             statement.PerIterationSlotCount,
             statement.PerIterationSlotIndices,
-            statement.PerIterationBindings,
+            perIterationBindings,
             canReuseIterationEnvironment);
+    }
+
+    private static void CollectBindingNames(BindingTarget target, List<Symbol> names)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    names.Add(id.Name);
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingNames(element.Target, names);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingNames(property.Target, names);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
     }
 }

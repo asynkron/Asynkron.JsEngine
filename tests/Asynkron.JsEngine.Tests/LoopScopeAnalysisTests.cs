@@ -6,8 +6,8 @@ namespace Asynkron.JsEngine.Tests;
 
 public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase(output)
 {
-    [Fact(Skip = "ScopeAnalyzer removed - static analysis metadata no longer available")]
-    public void ForLoopWithLetInitializer_TracksPerIterationSlotsAndPlanBindings()
+    [Fact]
+    public void ForLoopWithLetInitializer_TracksPerIterationBindingsInPlan()
     {
         const string source = """
             let total = 0;
@@ -21,24 +21,13 @@ public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);
         var forStatement = AstTestHelpers.FindFirst<ForStatement>(pipeline.Analyzed);
 
-        Assert.True(forStatement.PerIterationScopeId >= 0);
-        Assert.Equal(2, forStatement.PerIterationSlotCount);
-        Assert.Equal([0, 1], forStatement.PerIterationSlotIndices.ToArray());
-
+        // LoopNormalizer collects per-iteration bindings independently of ScopeAnalyzer
         var plan = ((IAstCacheable<LoopPlan>)forStatement).GetOrCreateCache();
-        Assert.Equal(forStatement.PerIterationScopeId, plan.IterationScopeId);
-        Assert.Equal(forStatement.PerIterationSlotCount, plan.IterationSlotCount);
-        Assert.Equal(forStatement.PerIterationSlotIndices, plan.PerIterationSlotIndices);
         Assert.Equal(["i", "s"], plan.PerIterationBindings.Select(b => b.Name).ToArray());
-
-        var forStatementAfterCps = AstTestHelpers.FindFirst<ForStatement>(pipeline.AfterCps);
-        Assert.Equal(forStatement.PerIterationScopeId, forStatementAfterCps.PerIterationScopeId);
-        Assert.Equal(forStatement.PerIterationSlotCount, forStatementAfterCps.PerIterationSlotCount);
-        Assert.Equal(forStatement.PerIterationSlotIndices, forStatementAfterCps.PerIterationSlotIndices);
     }
 
-    [Fact(Skip = "ScopeAnalyzer removed - static analysis metadata no longer available")]
-    public void ForInWithLetBinding_PropagatesPerIterationMetadataToIteratorPlan()
+    [Fact]
+    public void ForInWithLetBinding_PropagatesPerIterationBindingsToIteratorPlan()
     {
         const string source = """
             let obj = { a: 1, b: 2, c: 3 };
@@ -49,40 +38,17 @@ public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase
 
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);
         var forEach = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.Analyzed);
-        var keyIdentifier = AstTestHelpers.FindFirst<IdentifierExpression>(
-            pipeline.Analyzed,
-            id => string.Equals(id.Name.Name, "key", StringComparison.Ordinal));
 
         Assert.Equal(ForEachKind.In, forEach.Kind);
         Assert.Equal(VariableKind.Let, forEach.DeclarationKind);
-        Assert.True(forEach.PerIterationScopeId >= 0);
-        Assert.Equal(1, forEach.PerIterationSlotCount);
-        Assert.Equal([0], forEach.PerIterationSlotIndices.ToArray());
-        Assert.Equal(["key"], forEach.PerIterationBindings.Select(b => b.Name).ToArray());
-        Assert.Equal(forEach.PerIterationScopeId, keyIdentifier.ScopeId);
-        Assert.Equal(0, keyIdentifier.SlotIndex);
 
+        // IteratorDriverFactory collects per-iteration bindings independently of ScopeAnalyzer
         var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
-        Assert.Equal(forEach.PerIterationScopeId, plan.IterationScopeId);
-        Assert.Equal(forEach.PerIterationSlotCount, plan.IterationSlotCount);
-        Assert.Equal(forEach.PerIterationSlotIndices, plan.PerIterationSlotIndices);
-        Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), plan.PerIterationBindings.Select(b => b.Name));
-
-        var forEachAfterCps = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.AfterCps);
-        Assert.Equal(forEach.PerIterationScopeId, forEachAfterCps.PerIterationScopeId);
-        Assert.Equal(forEach.PerIterationSlotCount, forEachAfterCps.PerIterationSlotCount);
-        Assert.Equal(forEach.PerIterationSlotIndices, forEachAfterCps.PerIterationSlotIndices);
-        Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), forEachAfterCps.PerIterationBindings.Select(b => b.Name));
-
-        var keyAfterCps = AstTestHelpers.FindFirst<IdentifierExpression>(
-            pipeline.AfterCps,
-            id => string.Equals(id.Name.Name, "key", StringComparison.Ordinal));
-        Assert.Equal(forEach.PerIterationScopeId, keyAfterCps.ScopeId);
-        Assert.Equal(0, keyAfterCps.SlotIndex);
+        Assert.Equal(["key"], plan.PerIterationBindings.Select(b => b.Name).ToArray());
     }
 
-    [Fact(Skip = "ScopeAnalyzer removed - static analysis metadata no longer available")]
-    public void ForOfWithDestructuringBinding_PreservesSlotOrdering()
+    [Fact]
+    public void ForOfWithDestructuringBinding_PreservesBindingNamesInPlan()
     {
         const string source = """
             const pairs = [[1, 2], [3, 4]];
@@ -95,20 +61,10 @@ public class LoopScopeAnalysisTests(ITestOutputHelper output) : FastPathTestBase
         var forEach = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.Analyzed);
 
         Assert.Equal(ForEachKind.Of, forEach.Kind);
-        Assert.True(forEach.PerIterationScopeId >= 0);
-        Assert.Equal(2, forEach.PerIterationSlotCount);
-        Assert.Equal([0, 1], forEach.PerIterationSlotIndices.ToArray());
-        Assert.Equal(["x", "y"], forEach.PerIterationBindings.Select(b => b.Name).ToArray());
 
+        // IteratorDriverFactory collects per-iteration bindings including destructured names
         var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
-        Assert.Equal(forEach.PerIterationScopeId, plan.IterationScopeId);
-        Assert.Equal(forEach.PerIterationSlotCount, plan.IterationSlotCount);
-        Assert.Equal(forEach.PerIterationSlotIndices, plan.PerIterationSlotIndices);
-        Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), plan.PerIterationBindings.Select(b => b.Name));
-
-        var forEachAfterCps = AstTestHelpers.FindFirst<ForEachStatement>(pipeline.AfterCps);
-        Assert.Equal(forEach.PerIterationBindings.Select(b => b.Name), forEachAfterCps.PerIterationBindings.Select(b => b.Name));
-        Assert.Equal(forEach.PerIterationSlotIndices, forEachAfterCps.PerIterationSlotIndices);
+        Assert.Equal(["x", "y"], plan.PerIterationBindings.Select(b => b.Name).ToArray());
     }
 
     [Fact]

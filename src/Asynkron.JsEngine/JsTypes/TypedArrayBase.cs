@@ -378,7 +378,7 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         var length = Length;
         for (var i = 0; i < length; i++)
         {
-            keys.Add(i.ToString(CultureInfo.InvariantCulture));
+            keys.Add(JsValueCache.GetIndexString(i));
         }
 
         keys.AddRange(_properties.GetOwnPropertyNames());
@@ -396,7 +396,7 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         var length = ComputeLength();
         for (var i = 0; i < length; i++)
         {
-            keys.Add(i.ToString(CultureInfo.InvariantCulture));
+            keys.Add(JsValueCache.GetIndexString(i));
         }
 
         keys.AddRange(_properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable));
@@ -414,7 +414,7 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         var length = ComputeLength();
         for (var i = 0; i < length; i++)
         {
-            keys.Add(i.ToString(CultureInfo.InvariantCulture));
+            keys.Add(JsValueCache.GetIndexString(i));
         }
 
         keys.AddRange(_properties.GetEnumerablePropertyNames());

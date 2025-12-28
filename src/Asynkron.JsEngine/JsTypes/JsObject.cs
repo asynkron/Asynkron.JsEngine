@@ -2225,7 +2225,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         numericKeys.Sort();
         foreach (var index in numericKeys)
         {
-            yield return index.ToString(CultureInfo.InvariantCulture);
+            yield return JsValueCache.GetIndexString((int)index);
         }
 
         foreach (var key in stringKeys)

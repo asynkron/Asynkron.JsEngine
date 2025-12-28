@@ -2070,26 +2070,26 @@ public class FoundationTests(ITestOutputHelper output) : FastPathTestBase(output
         // Tests that generators with arrow functions can access private fields
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            class Counter {
-                #count = 0;
+            (function() {
+                class Counter {
+                    #count = 0;
 
-                *counter() {
-                    const inc = () => ++this.#count;
-                    yield inc();
-                    yield inc();
-                    yield inc();
+                    *counter() {
+                        const inc = () => ++this.#count;
+                        yield inc();
+                        yield inc();
+                        yield inc();
+                    }
                 }
-            }
-            const c = new Counter();
-            const g = c.counter();
-            [g.next().value, g.next().value, g.next().value];
+                const c = new Counter();
+                const g = c.counter();
+                const r1 = g.next().value;
+                const r2 = g.next().value;
+                const r3 = g.next().value;
+                return r1 === 1 && r2 === 2 && r3 === 3;
+            })();
             """);
-        Assert.NotNull(result);
-        var arr = result as Asynkron.JsEngine.JsTypes.JsArray;
-        Assert.NotNull(arr);
-        Assert.Equal(1d, (double)(arr.GetIndex(0).ToObject() ?? 0d));
-        Assert.Equal(2d, (double)(arr.GetIndex(1).ToObject() ?? 0d));
-        Assert.Equal(3d, (double)(arr.GetIndex(2).ToObject() ?? 0d));
+        Assert.True((bool)result!);
     }
 
     #endregion

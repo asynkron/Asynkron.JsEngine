@@ -146,6 +146,16 @@ internal sealed class ExecutionPlanBuilder
             switch (statement)
             {
                 case BlockStatement block:
+                    // If the block needs its own scope (has let/const declarations),
+                    // use StatementInstruction to let the AST evaluator handle scope creation.
+                    // This ensures proper block scoping when exceptions are thrown.
+                    var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+                    if (hoistPlan.NeedsEnvironment)
+                    {
+                        entryIndex = Append(new StatementInstruction(nextIndex, block));
+                        return true;
+                    }
+
                     return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
 
                 case FunctionDeclaration:

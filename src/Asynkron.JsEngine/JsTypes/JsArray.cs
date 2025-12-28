@@ -758,7 +758,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
     {
-        return TrySetArrayLength(true, value, false, true, context,
+        return TrySetArrayLength(true, JsValue.FromObjectUnsafe(value), false, true, context,
             throwOnWritableFailure);
     }
 
@@ -803,7 +803,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
-        var success = TrySetArrayLength(descriptor.HasValue, descriptor.JsValue.ToObject(), descriptor.HasWritable,
+        var success = TrySetArrayLength(descriptor.HasValue, descriptor.JsValue, descriptor.HasWritable,
             descriptor.Writable, context, throwOnWritableFailure);
         if (!success)
         {
@@ -1013,23 +1013,21 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return true;
     }
 
-    private bool TrySetArrayLength(bool hasValue, object? value, bool hasWritable, bool writableValue,
+    private bool TrySetArrayLength(bool hasValue, JsValue value, bool hasWritable, bool writableValue,
         EvaluationContext? context, bool throwOnWritableFailure)
     {
         var newLength = _length;
         double numberLen = _length;
         if (hasValue)
         {
-#pragma warning disable CS0618 // Method takes object? parameter
-            var numberForUint32 = JsOps.ToNumber(JsValue.FromObjectUnsafe(value), context);
+            var numberForUint32 = JsOps.ToNumber(value, context);
             if (context?.IsThrow == true)
             {
                 return false;
             }
 
             var coercedUint = unchecked((uint)(long)numberForUint32);
-            numberLen = JsOps.ToNumber(JsValue.FromObjectUnsafe(value), context);
-#pragma warning restore CS0618
+            numberLen = JsOps.ToNumber(value, context);
             if (context?.IsThrow == true)
             {
                 return false;

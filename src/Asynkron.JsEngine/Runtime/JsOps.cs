@@ -529,6 +529,12 @@ internal static class JsOps
 
             if (!TryInvokePropertyMethodJsValue(accessor, methodName, out var result, context))
             {
+                // Check if the method threw an exception - if so, propagate it instead of trying the next method
+                if (context?.IsThrow == true)
+                {
+                    return value;
+                }
+                // Method doesn't exist or is not callable - try the next method
                 continue;
             }
 

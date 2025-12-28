@@ -52,7 +52,9 @@ public static partial class StandardLibrary
                 lenVal = JsValue.Zero;
             }
 
-            var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lenVal), 0), uint.MaxValue);
+            var evalContext = realm?.CreateContext();
+            var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lenVal, evalContext), 0), uint.MaxValue);
+            if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
             if (index < length)
             {
                 // Projector now returns JsValue directly - no boxing

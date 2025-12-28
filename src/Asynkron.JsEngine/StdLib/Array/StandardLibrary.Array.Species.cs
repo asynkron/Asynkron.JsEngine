@@ -402,8 +402,10 @@ public static partial class StandardLibrary
             if (spreadable && mappedAccessor is not null)
             {
                 var newDepth = depth == double.PositiveInfinity ? depth : depth - 1;
-                var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : 0d;
-                var elementLength = (long)ToLengthOrZero(elementLengthValue);
+                var evalContext = realm?.CreateContext();
+                var elementLengthValue = mappedAccessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+                var elementLength = (long)ToLengthOrZero(elementLengthValue, evalContext);
+                if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
                 var nextMapper = mapper is not null ? null : mapper;
                 var nextThisArg = mapper is not null ? JsValue.Undefined : thisArg;
                 targetIndex = FlattenIntoArray(target, mappedAccessor, elementLength, targetIndex, newDepth,

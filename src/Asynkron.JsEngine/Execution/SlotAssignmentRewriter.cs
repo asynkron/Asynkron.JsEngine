@@ -83,6 +83,7 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
             return node with
             {
                 ScopeDepth = 0,
+                ScopeId = targetInfo.scopeId,
                 SlotIndex = targetInfo.slotIndex,
                 Value = RewriteExpression(node.Value)
             };

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -40,31 +41,33 @@ internal static class ExecutionPlanPrinter
     /// Prints a single instruction during execution trace with environment depth indentation.
     /// </summary>
     public static void TraceInstruction(
+        ILogger logger,
         int instructionIndex,
         ExecutionInstruction instruction,
         int envDepth,
         int envScopeId,
         int envHashCode,
-        string? extraInfo = null)
+        string? extraInfo = null
+        )
     {
         var indent = new string(' ', envDepth * 2);
-        var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
+
         var envInfo = $"[env:{envHashCode:X8} scope:{envScopeId,2} d:{envDepth}]";
 
         var formatted = FormatInstruction(instruction);
         var extra = extraInfo != null ? $" // {extraInfo}" : "";
 
-        Console.WriteLine($"{indent}{depthMarker}[{instructionIndex,3}] {formatted} {envInfo}{extra}");
+        logger?.LogDebug("{Indent}[{InstructionIndex}] {Formatted} {EnvInfo}{Extra}",indent, instructionIndex, formatted, envInfo, extra);
     }
 
     /// <summary>
     /// Traces a variable definition with environment info.
     /// </summary>
-    public static void TraceDefine(string kind, string name, string value, int envDepth, int envScopeId, int envHashCode)
+    public static void TraceDefine(ILogger logger, string kind, string name, string value, int envDepth, int envScopeId, int envHashCode)
     {
         var indent = new string(' ', envDepth * 2);
         var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
-        Console.WriteLine($"{indent}{depthMarker}     DEFINE {kind} '{name}' = {value} [env:{envHashCode:X8} scope:{envScopeId}]");
+        logger.LogDebug("{Indent}{DepthMarker}     DEFINE {Kind} '{Name}' = {Value} [env:{EnvHashCode:X8} scope:{EnvScopeId}]", indent, depthMarker, kind, name, value, envHashCode, envScopeId);
     }
 
     /// <summary>

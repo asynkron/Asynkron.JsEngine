@@ -561,14 +561,16 @@ public static partial class TypedAstEvaluator
 
                         // Detailed IR execution trace with environment depth
 #pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
-                        if (JsEngineConstants.TraceIrExecution)
+                        if (JsEngineConstants.TraceIrExecution && _realmState.Logger is not null)
                         {
                             ExecutionPlanPrinter.TraceInstruction(
+                                _realmState.Logger,
                                 _programCounter,
                                 instruction,
                                 environment.Depth,
                                 environment.ScopeId,
-                                environment.GetHashCode());
+                                environment.GetHashCode()
+                                );
                         }
 #pragma warning restore CS0162
 
@@ -1016,9 +1018,10 @@ public static partial class TypedAstEvaluator
                                     // to match AST evaluator behavior (see IdentifierBindingExtensions.cs)
                                     var isConst = varDeclInstruction.VarKind == VariableKind.Const;
 #pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
-                                    if (JsEngineConstants.TraceIrExecution)
+                                    if (JsEngineConstants.TraceIrExecution && _realmState.Logger is not null)
                                     {
                                         ExecutionPlanPrinter.TraceDefine(
+                                            _realmState.Logger,
                                             varDeclInstruction.VarKind.ToString(),
                                             varDeclInstruction.TargetSymbol.Name,
                                             varValue.ToString() ?? "?",

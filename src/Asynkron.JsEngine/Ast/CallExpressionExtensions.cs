@@ -599,7 +599,7 @@ public static partial class TypedAstEvaluator
                                 JsValue.FromObjectUnsafe(thisAfterSuper), true)));
                     }
 
-                    context.MarkThisInitialized();
+                    context!.MarkThisInitialized();
                     targetEnvironment.SetThisInitializationStatus(context.IsThisInitialized);
 
                     if (thisAfterSuper is IJsObjectLike initializedThis &&

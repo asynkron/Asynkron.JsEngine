@@ -22,7 +22,7 @@ namespace Asynkron.JsEngine.Execution;
 ///     More complex constructs are detected and reported as unsupported so the engine can fall back to
 ///     the legacy AST-walking evaluator.
 /// </summary>
-internal sealed class ExecutionPlanBuilder
+internal sealed partial class ExecutionPlanBuilder
 {
     private const string ResumeSlotPrefix = "\u0001_resume";
     private const string CatchSlotPrefix = "\u0001_catch";
@@ -54,29 +54,7 @@ internal sealed class ExecutionPlanBuilder
     private bool TryBuildReturnWithYield(YieldExpression yieldExpression,
         out int entryIndex)
     {
-        // Only handle simple `yield` / `yield*` used directly as the return
-        // expression, and reject nested `yield` inside the yielded expression
-        // for now.
-        if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var resumeSymbol = CreateResumeSlotSymbol();
-        var returnExpression = new IdentifierExpression(yieldExpression.Source, resumeSymbol);
-
-        // Build a return that uses the resume slot value, then prefix it with
-        // either:
-        //   - a simple yield sequence that captures the resume payload into
-        //     that slot (`return yield <expr>;`), or
-        //   - a delegated yield* sequence that stores the delegate's final
-        //     completion value into the slot (`return yield* <expr>;`).
-        var returnIndex = Append(new ReturnInstruction(-1, returnExpression));
-        entryIndex = yieldExpression.IsDelegated
-            ? AppendYieldStarSequence(yieldExpression, returnIndex, resumeSymbol)
-            : AppendYieldSequence(yieldExpression.Expression, returnIndex, resumeSymbol);
-        return true;
+        return Emitters.YieldEmitter.TryEmitReturnWithYield(GetEmitContext(), yieldExpression, out entryIndex);
     }
 
     public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
@@ -225,39 +203,21 @@ internal sealed class ExecutionPlanBuilder
                     return true;
 
                 case ExpressionStatement { Expression: YieldExpression yieldExpression }:
-                    if (yieldExpression.IsDelegated)
-                    {
-                        if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
-                        {
-                            entryIndex = -1;
-                            return false;
-                        }
-
-                        entryIndex = AppendYieldStarSequence(yieldExpression, nextIndex, null);
-                        return true;
-                    }
-
-                    if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
-                    {
-                        entryIndex = -1;
-                        return false;
-                    }
-
-                    entryIndex = AppendYieldSequence(yieldExpression.Expression, nextIndex, null);
-                    return true;
+                    return Emitters.YieldEmitter.TryEmitYieldExpressionStatement(
+                        GetEmitContext(), yieldExpression, nextIndex, out entryIndex);
 
                 case ExpressionStatement expressionStatement:
                     if (expressionStatement.Expression is AssignmentExpression
                         {
                             Target: { } targetSymbol, Value: YieldExpression yieldAssignment
                         } &&
-                        IsLowererTemp(targetSymbol) &&
-                        !AstShapeAnalyzer.ContainsYield(yieldAssignment.Expression))
+                        IsLowererTemp(targetSymbol))
                     {
-                        entryIndex = yieldAssignment.IsDelegated
-                            ? AppendYieldStarSequence(yieldAssignment, nextIndex, targetSymbol)
-                            : AppendYieldSequence(yieldAssignment.Expression, nextIndex, targetSymbol);
-                        return true;
+                        if (Emitters.YieldEmitter.TryEmitYieldAssignment(
+                            GetEmitContext(), targetSymbol, yieldAssignment, nextIndex, out entryIndex))
+                        {
+                            return true;
+                        }
                     }
 
                     // Check for destructuring assignment expressions with yields that cannot be safely
@@ -500,40 +460,12 @@ internal sealed class ExecutionPlanBuilder
                     return true;
 
                 case ClassDeclaration classDeclaration:
-                    // Check for yields in places that are evaluated in the generator context:
-                    // - extends expression
-                    // - computed property names of members and fields
-                    if (ClassDefinitionContainsYield(classDeclaration.Definition))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??=
-                            "Class declaration contains yield in computed property names or extends clause.";
-                        return false;
-                    }
-
-                    // For async generators, awaits need proper handling via StatementInstruction
-                    if (ClassDefinitionContainsAwait(classDeclaration.Definition))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, classDeclaration));
-                        return true;
-                    }
-
-                    // Use native ClassDeclarationInstruction for clean cases
-                    entryIndex = Append(new ClassDeclarationInstruction(nextIndex, classDeclaration));
-                    return true;
+                    return Emitters.DeclarationEmitter.TryEmitClassDeclaration(
+                        GetEmitContext(), classDeclaration, nextIndex, out entryIndex);
 
                 case ThrowStatement throwStatement:
-                    if (throwStatement.Expression is not null &&
-                        AstShapeAnalyzer.ContainsYield(throwStatement.Expression))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "Throw expression contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    // Use native ThrowInstruction - it evaluates the expression and throws
-                    entryIndex = Append(new ThrowInstruction(throwStatement.Expression!));
-                    return true;
+                    return Emitters.DeclarationEmitter.TryEmitThrow(
+                        GetEmitContext(), throwStatement, out entryIndex);
 
                 case LabeledStatement labeled:
                     // For loop-like statements, pass the label through - they handle it internally
@@ -569,16 +501,13 @@ internal sealed class ExecutionPlanBuilder
             return false;
         }
 
-        if (!IsLowererTemp(targetSymbol) ||
-            AstShapeAnalyzer.ContainsYield(yieldInitializer.Expression))
+        if (!IsLowererTemp(targetSymbol))
         {
             return false;
         }
 
-        entryIndex = yieldInitializer.IsDelegated
-            ? AppendYieldStarSequence(yieldInitializer, nextIndex, targetSymbol)
-            : AppendYieldSequence(yieldInitializer.Expression, nextIndex, targetSymbol);
-        return true;
+        return Emitters.YieldEmitter.TryEmitVariableWithYieldInitializer(
+            GetEmitContext(), targetSymbol, yieldInitializer, nextIndex, out entryIndex);
     }
 
     /// <summary>
@@ -725,209 +654,12 @@ internal sealed class ExecutionPlanBuilder
 
     private bool TryBuildLoopPlan(LoopPlan plan, int nextIndex, out int entryIndex, Symbol? label)
     {
-        var instructionStart = _instructions.Count;
-
-        // Create LoopExitInstruction first (we build bottom-up)
-        // This pops the loop stack when exiting the loop (normal exit or break)
-        var loopExitIndex = Append(new LoopExitInstruction(nextIndex));
-
-        var conditionJumpIndex = Append(new JumpInstruction(-1));
-
-        var postIterationEntry = conditionJumpIndex;
-        if (!plan.PostIteration.IsDefaultOrEmpty)
-        {
-            if (!TryBuildStatementList(plan.PostIteration, conditionJumpIndex, out postIterationEntry))
-            {
-                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        // For lexical declarations (let/const), emit PushEnvironmentInstruction
-        // AFTER the body but BEFORE the increment (PostIteration).
-        // This matches the ECMAScript spec (ForBodyEvaluation):
-        //   1. Evaluate condition
-        //   2. Evaluate body (closures capture current environment)
-        //   3. CreatePerIterationEnvironment (create new env, copy values)
-        //   4. Evaluate increment (modifies new env, not the captured one)
-        //
-        // This ensures closures capture the pre-increment value of loop variables.
-        var continueTarget = postIterationEntry;
-        int createEnvIndex = -1;
-        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
-        {
-            // Build slot map from per-iteration bindings and slot indices
-            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-            var bindings = plan.PerIterationBindings;
-            var slotIndices = plan.PerIterationSlotIndices;
-            var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
-            for (var i = 0; i < count; i++)
-            {
-                if (slotIndices[i] >= 0)
-                {
-                    slotMapBuilder[bindings[i]] = slotIndices[i];
-                }
-            }
-
-            // CreateEnv flows to PostIteration (increment)
-            createEnvIndex = Append(new PushEnvironmentInstruction(
-                postIterationEntry,
-                plan.PerIterationBindings,
-                plan.IterationScopeId,
-                plan.IterationSlotCount,
-                slotMapBuilder.ToImmutable(),
-                plan.AllowIterationEnvironmentPooling));
-            // Continue should go through CreateEnv before increment
-            continueTarget = createEnvIndex;
-        }
-
-        // Create Pop instruction for loop exit BEFORE building body
-        // This ensures breaks also go through the pop, then through LoopExitInstruction
-        var loopExitTarget = loopExitIndex;
-        if (!plan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            loopExitTarget = Append(new PopEnvironmentInstruction(
-                plan.IterationScopeId,
-                plan.AllowIterationEnvironmentPooling,
-                loopExitIndex));
-        }
-
-        // TargetScopeId is the scope to pop TO when break/continue
-        // For loops with per-iteration bindings, we pop to the iteration scope's parent
-        var targetScopeId = plan.IterationScopeId >= 0 ? plan.IterationScopeId : -1;
-        var scope = new LoopScope(label, continueTarget, loopExitTarget, targetScopeId);
-        _loopScopes.Push(scope);
-
-        // Body flows to CreateEnv (if present) or PostIteration (increment)
-        var bodyNextTarget = createEnvIndex >= 0 ? createEnvIndex : postIterationEntry;
-        if (!TryBuildStatement(plan.Body, bodyNextTarget, out var bodyEntry, label))
-        {
-            _loopScopes.Pop();
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        _loopScopes.Pop();
-
-        // For non-For loops (while, do-while), create environment before body (original behavior)
-        var iterationBodyEntry = bodyEntry;
-        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind != LoopKind.For)
-        {
-            // Build slot map from per-iteration bindings and slot indices
-            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-            var bindings = plan.PerIterationBindings;
-            var slotIndices = plan.PerIterationSlotIndices;
-            var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
-            for (var i = 0; i < count; i++)
-            {
-                if (slotIndices[i] >= 0)
-                {
-                    slotMapBuilder[bindings[i]] = slotIndices[i];
-                }
-            }
-
-            var createEnvBeforeBody = Append(new PushEnvironmentInstruction(
-                bodyEntry,
-                plan.PerIterationBindings,
-                plan.IterationScopeId,
-                plan.IterationSlotCount,
-                slotMapBuilder.ToImmutable(),
-                plan.AllowIterationEnvironmentPooling));
-            iterationBodyEntry = createEnvBeforeBody;
-        }
-
-        // Branch flows to body directly (for For loops) or CreateEnv (for others)
-        // loopExitTarget (with Pop if needed) was created earlier for LoopScope break target
-        var branchIndex = Append(new BranchInstruction(plan.Condition, iterationBodyEntry, loopExitTarget));
-
-        var conditionEntry = branchIndex;
-        if (!plan.ConditionPrologue.IsDefaultOrEmpty)
-        {
-            if (!TryBuildStatementList(plan.ConditionPrologue, branchIndex, out conditionEntry))
-            {
-                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        _instructions[conditionJumpIndex] = new JumpInstruction(conditionEntry);
-
-        var loopEntry = plan.ConditionAfterBody ? iterationBodyEntry : conditionJumpIndex;
-
-        if (!plan.LeadingStatements.IsDefaultOrEmpty)
-        {
-            if (!TryBuildStatementList(plan.LeadingStatements, loopEntry, out loopEntry))
-            {
-                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        // Wrap entry with LoopEnterInstruction to push loop context at runtime
-        // This enables break/continue from AST-evaluated code (via StatementInstruction)
-        // to resolve their jump targets using the runtime loop stack.
-        entryIndex = Append(new LoopEnterInstruction(
-            loopEntry,
-            label,
-            loopExitTarget,
-            continueTarget));
-        return true;
+        return Emitters.LoopEmitter.TryEmitLoopPlan(GetEmitContext(), plan, nextIndex, label, out entryIndex);
     }
 
     private bool TryBuildTryStatement(TryStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
     {
-        var hasCatch = statement.Catch is not null;
-        var hasFinally = statement.Finally is not null;
-        if (!hasCatch && !hasFinally)
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-
-        var finallyEntry = -1;
-        if (hasFinally && statement.Finally is not null)
-        {
-            var endFinallyIndex = Append(new EndFinallyInstruction(nextIndex));
-            if (!TryBuildStatement(statement.Finally, endFinallyIndex, out finallyEntry, activeLabel))
-            {
-                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
-
-        var catchEntry = -1;
-        Symbol? catchSlotSymbol = null;
-        if (hasCatch && statement.Catch is not null)
-        {
-            catchSlotSymbol = CreateCatchSlotSymbol();
-            var catchBlock = BuildCatchBlock(statement.Catch, catchSlotSymbol);
-            if (!TryBuildStatement(catchBlock, leaveTryIndex, out catchEntry, activeLabel))
-            {
-                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        if (!TryBuildStatement(statement.TryBlock, leaveTryIndex, out var tryEntry, activeLabel))
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        var enterTryIndex = Append(new EnterTryInstruction(tryEntry, catchEntry, catchSlotSymbol, finallyEntry));
-        entryIndex = enterTryIndex;
-        return true;
+        return Emitters.TryEmitter.TryEmitTry(GetEmitContext(), statement, nextIndex, activeLabel, out entryIndex);
     }
 
     /// <summary>
@@ -936,446 +668,34 @@ internal sealed class ExecutionPlanBuilder
     /// </summary>
     private bool TryBuildLabeledNonLoopStatement(LabeledStatement labeled, int nextIndex, out int entryIndex)
     {
-        var instructionStart = _instructions.Count;
-
-        // Create LoopExitInstruction first (we build bottom-up)
-        // This pops the loop stack when exiting the labeled statement
-        var loopExitIndex = Append(new LoopExitInstruction(nextIndex));
-
-        // Push scope so that labeled break can be resolved during IR building.
-        // ContinueTarget is -1 because continue is not valid for non-loop labeled statements.
-        var scope = new LoopScope(labeled.Label, -1, loopExitIndex, -1);
-        _loopScopes.Push(scope);
-
-        var bodyBuilt = TryBuildStatement(labeled.Statement, loopExitIndex, out var bodyEntry, null);
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        // Wrap entry with LoopEnterInstruction to push loop context at runtime
-        // This enables labeled break statements from AST-evaluated code to resolve their jump targets.
-        entryIndex = Append(new LoopEnterInstruction(
-            bodyEntry,
-            labeled.Label,
-            loopExitIndex,
-            -1));
-
-        return true;
+        return Emitters.ControlFlowEmitter.TryEmitLabeledNonLoop(GetEmitContext(), labeled, nextIndex, out entryIndex);
     }
 
     private bool TryBuildSwitchStatement(SwitchStatement statement, int nextIndex, out int entryIndex,
         Symbol? activeLabel)
     {
-        // For now we support switch statements whose discriminant and case
-        // tests are yield-free, and whose case bodies only contain at most a
-        // single trailing unlabeled `break;` at top level. More complex break
-        // shapes (including non-trailing `break`) continue to be rejected.
-        if (AstShapeAnalyzer.ContainsYield(statement.Discriminant))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        foreach (var switchCase in statement.Cases)
-        {
-            if (switchCase.Test is not null && AstShapeAnalyzer.ContainsYield(switchCase.Test))
-            {
-                entryIndex = -1;
-                return false;
-            }
-
-            // Reject case bodies that have break/continue inside finally blocks.
-            // The switch is lowered to if statements, so break/continue in finally
-            // would have no valid target. Fall back to StatementInstruction which
-            // handles this via AST evaluation.
-            if (ContainsUnlabeledAbruptInFinally(switchCase.Body))
-            {
-                entryIndex = -1;
-                _failureReason ??= "Switch case contains break/continue in finally block.";
-                return false;
-            }
-        }
-
-        // Enforce at most a single default clause. JavaScript evaluates switch
-        // by first selecting the matching case clause (preferring explicit case
-        // tests and only using default if no case matches) and then executing
-        // the case body with fallthrough. The default clause can appear in any
-        // position; execution begins at the selected clause and falls through
-        // to later clauses until a break is hit or the switch ends.
-        var defaultIndex = -1;
-        for (var i = 0; i < statement.Cases.Length; i++)
-        {
-            if (statement.Cases[i].Test is null)
-            {
-                if (defaultIndex != -1)
-                {
-                    entryIndex = -1;
-                    _failureReason ??= "Switch statement contains multiple default clauses.";
-                    return false;
-                }
-
-                defaultIndex = i;
-            }
-        }
-
-        var instructionStart = _instructions.Count;
-        var discriminantSymbol = Symbol.Intern($"__switch_disc_{instructionStart}");
-        var matchIndexSymbol = Symbol.Intern($"__switch_match_{instructionStart}");
-        var doneSymbol = Symbol.Intern($"__switch_done_{instructionStart}");
-
-        var statements = ImmutableArray.CreateBuilder<StatementNode>();
-
-        // const __discN = <discriminant>;
-        var discBinding = new IdentifierBinding(statement.Source, discriminantSymbol);
-        var discDeclarator = new VariableDeclarator(statement.Source, discBinding, statement.Discriminant);
-        var discDeclaration = new VariableDeclaration(statement.Source, VariableKind.Const, [discDeclarator]);
-        statements.Add(discDeclaration);
-
-        // let __matchN = -1;
-        var matchBinding = new IdentifierBinding(statement.Source, matchIndexSymbol);
-        var matchInitializer = new LiteralExpression(statement.Source, -1);
-        var matchDeclarator = new VariableDeclarator(statement.Source, matchBinding, matchInitializer);
-        var matchDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [matchDeclarator]);
-        statements.Add(matchDeclaration);
-
-        // let __doneN = false;
-        var doneBinding = new IdentifierBinding(statement.Source, doneSymbol);
-        var doneInitializer = new LiteralExpression(statement.Source, false);
-        var doneDeclarator = new VariableDeclarator(statement.Source, doneBinding, doneInitializer);
-        var doneDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [doneDeclarator]);
-        statements.Add(doneDeclaration);
-
-        // Matching phase: set __matchN to the first matching case index.
-        for (var i = 0; i < statement.Cases.Length; i++)
-        {
-            var switchCase = statement.Cases[i];
-            if (switchCase.Test is null)
-            {
-                continue;
-            }
-
-            var matchUnset = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
-                new IdentifierExpression(statement.Source, matchIndexSymbol),
-                new LiteralExpression(statement.Source, -1));
-            var discIdentifier = new IdentifierExpression(statement.Source, discriminantSymbol);
-            var equalTest = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
-                discIdentifier, switchCase.Test);
-            var combinedTest = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchUnset, equalTest);
-
-            var setMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
-                new LiteralExpression(statement.Source, i));
-            var setMatchStatement = new ExpressionStatement(statement.Source, setMatch);
-            statements.Add(new IfStatement(statement.Source, combinedTest,
-                new BlockStatement(statement.Source, [setMatchStatement], statement.Cases[0].Body.IsStrict),
-                null));
-        }
-
-        // If still unmatched, fall back to default (if any).
-        if (defaultIndex != -1)
-        {
-            var stillUnmatched = new BinaryExpression(statement.Source, BinaryOperator.StrictEqual,
-                new IdentifierExpression(statement.Source, matchIndexSymbol),
-                new LiteralExpression(statement.Source, -1));
-            var setDefaultMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
-                new LiteralExpression(statement.Source, defaultIndex));
-            var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch);
-            statements.Add(new IfStatement(statement.Source, stillUnmatched,
-                new BlockStatement(statement.Source, [setDefaultStatement], statement.Cases[0].Body.IsStrict),
-                null));
-        }
-
-        for (var caseIndex = 0; caseIndex < statement.Cases.Length; caseIndex++)
-        {
-            var switchCase = statement.Cases[caseIndex];
-            var body = switchCase.Body;
-            var bodyStatements = body.Statements;
-
-            var breakIndex = -1;
-            for (var i = 0; i < bodyStatements.Length; i++)
-            {
-                if (bodyStatements[i] is BreakStatement breakStatement)
-                {
-                    if (breakStatement.Label is not null &&
-                        (activeLabel is null || !ReferenceEquals(activeLabel, breakStatement.Label)))
-                    {
-                        _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                        entryIndex = -1;
-                        return false;
-                    }
-
-                    breakIndex = breakIndex == -1 ? i : breakIndex;
-                }
-            }
-
-            // Execution guard: if (!__done && __matchN != -1 && __matchN <= caseIndex) { ...body... }
-            var notDoneExec = new UnaryExpression(statement.Source, UnaryOperator.LogicalNot,
-                new IdentifierExpression(statement.Source, doneSymbol), true);
-            var matchSet = new BinaryExpression(statement.Source, BinaryOperator.StrictNotEqual,
-                new IdentifierExpression(statement.Source, matchIndexSymbol),
-                new LiteralExpression(statement.Source, -1));
-            var matchReached = new BinaryExpression(statement.Source, BinaryOperator.LessThanOrEqual,
-                new IdentifierExpression(statement.Source, matchIndexSymbol),
-                new LiteralExpression(statement.Source, caseIndex));
-            var matchGuard = new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, matchSet, matchReached);
-            var execCondition =
-                new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, notDoneExec, matchGuard);
-
-            var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
-            var copyCount = breakIndex == -1 ? bodyStatements.Length : breakIndex;
-            for (var i = 0; i < copyCount; i++)
-            {
-                execBuilder.Add(bodyStatements[i]);
-            }
-
-            if (breakIndex != -1)
-            {
-                var setDoneAssignment = new AssignmentExpression(statement.Source, doneSymbol,
-                    new LiteralExpression(statement.Source, true));
-                execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment));
-            }
-
-            var execBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);
-            statements.Add(new IfStatement(statement.Source, execCondition, execBlock, null));
-        }
-
-        var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
-        var lowered = new BlockStatement(statement.Source, statements.ToImmutable(), isStrict);
-
-        // Create LoopExitInstruction first (we build bottom-up)
-        // This pops the loop stack when exiting the switch (normal exit or break)
-        var loopExitIndex = Append(new LoopExitInstruction(nextIndex));
-
-        if (!TryBuildStatement(lowered, loopExitIndex, out var switchBodyEntry, activeLabel))
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        // Wrap entry with LoopEnterInstruction to push loop context at runtime
-        // This enables break statements from AST-evaluated code (via StatementInstruction)
-        // to resolve their jump targets using the runtime loop stack.
-        // ContinueTarget is -1 because switch statements do not support continue.
-        entryIndex = Append(new LoopEnterInstruction(
-            switchBodyEntry,
-            activeLabel,
-            loopExitIndex,
-            -1));
-
-        return true;
+        return Emitters.SwitchEmitter.TryEmitSwitch(GetEmitContext(), statement, nextIndex, activeLabel, out entryIndex);
     }
 
     private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)
     {
-        return TryBuildIteratorPlan(statement, nextIndex, out entryIndex, label);
+        return Emitters.ForOfEmitter.TryEmitForOf(GetEmitContext(), statement, nextIndex, label, out entryIndex);
     }
 
     private bool TryBuildForAwaitStatement(ForEachStatement statement, int nextIndex, out int entryIndex,
         Symbol? label)
     {
-        return TryBuildIteratorPlan(statement, nextIndex, out entryIndex, label);
-    }
-
-    private bool TryBuildIteratorPlan(ForEachStatement statement, int nextIndex, out int entryIndex,
-        Symbol? label)
-    {
-        if (AstShapeAnalyzer.ContainsYield(statement.Iterable))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        var planBody = statement.Body is BlockStatement blockBody
-            ? blockBody
-            : new BlockStatement(statement.Source, [statement.Body], IsStrictBlock(statement.Body));
-        var iteratorPlan = IteratorDriverFactory.CreatePlan(statement, planBody);
-
-        var instructionStart = _instructions.Count;
-
-        // Build the structure bottom-up:
-        // 1. EndFinally -> nextIndex
-        // 2. IteratorClose -> EndFinally
-        // 3. LeaveTry -> nextIndex
-        // 4. Body -> MoveNext
-        // 5. MoveNext -> Body, BreakIndex -> LeaveTry
-        // 6. EnterTry -> MoveNext, finally -> IteratorClose
-        // 7. IteratorInit -> EnterTry
-
-        // Pre-create symbols and allocate slots for O(1) access
-        var iteratorSymbol = Symbol.Intern(iteratorPlan.Kind == IteratorDriverKind.Await
-            ? $"__forAwait_iter_{instructionStart}"
-            : $"__forOf_iter_{instructionStart}");
-        var valueSymbol = Symbol.Intern(iteratorPlan.Kind == IteratorDriverKind.Await
-            ? $"__forAwait_value_{instructionStart}"
-            : $"__forOf_value_{instructionStart}");
-
-        var iteratorSlotIndex = AllocateSlot(iteratorSymbol);
-        var valueSlotIndex = AllocateSlot(valueSymbol);
-
-        // First, create the iterator instructions with pre-allocated slots
-        var iteratorInstructions =
-            IteratorInstructionTemplate.AppendInstructions(_instructions, iteratorPlan,
-                -1, // breakIndex will be LeaveTry
-                iteratorSymbol,
-                valueSymbol,
-                iteratorSlotIndex,
-                valueSlotIndex);
-
-        // EndFinally - this is the end of the finally block
-        var endFinallyIndex = Append(new EndFinallyInstruction(nextIndex));
-
-        // IteratorClose - the finally block content
-        var iteratorCloseIndex =
-            Append(new IteratorCloseInstruction(iteratorInstructions.IteratorSlot, endFinallyIndex));
-
-        // LeaveTry - normal exit from the loop
-        var leaveTryIndex = Append(new LeaveTryInstruction(nextIndex));
-
-        // LoopExit - pops loop context from runtime stack, flows to LeaveTry
-        // This enables break/continue from AST-evaluated code (StatementInstruction)
-        // to resolve their jump targets using the runtime loop stack.
-        var loopExitIndex = Append(new LoopExitInstruction(leaveTryIndex));
-
-        // For loops with per-iteration bindings, create PopEnvironment before LoopExit
-        var loopExitTarget = loopExitIndex;
-        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            loopExitTarget = Append(new PopEnvironmentInstruction(
-                iteratorPlan.IterationScopeId,
-                iteratorPlan.CanReuseIterationEnvironment,
-                loopExitIndex));
-        }
-
-        // Now update the MoveNext break target to point to Pop (or LeaveTry if no per-iteration bindings)
-        _instructions[iteratorInstructions.MoveNextIndex] =
-            (IteratorMoveNextInstruction)_instructions[iteratorInstructions.MoveNextIndex] with
-            {
-                BreakIndex = loopExitTarget
-            };
-
-        // Build the loop body.
-        // IMPORTANT: Do NOT wrap the per-iteration binding in a synthetic BlockStatement with a lexical
-        // declaration. That causes TryBuildStatement(BlockStatement) to fall back to StatementInstruction
-        // (HoistPlan.NeedsEnvironment) which prevents the IR loop machinery from handling break/continue
-        // correctly. Build the binding statement and the user body as a straight instruction chain instead.
-        var bindingStatement = CreateIteratorBindingStatement(iteratorPlan, iteratorInstructions.ValueSlot,
-            iteratorInstructions.ValueSlotIndex);
-        var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
-
-        // For per-iteration bindings, we need to POP the iteration environment at the END of each
-        // iteration body, BEFORE going back to ITER_MOVE_NEXT. This ensures the environment stack
-        // stays balanced and we return to the correct scope for the next iteration.
-        var bodyNextTarget = iteratorInstructions.MoveNextIndex;
-        var continueTarget = iteratorInstructions.MoveNextIndex;
-        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            // Create POP_ENV that goes to ITER_MOVE_NEXT - body will flow to this
-            var popEnvForContinue = Append(new PopEnvironmentInstruction(
-                iteratorPlan.IterationScopeId,
-                iteratorPlan.CanReuseIterationEnvironment,
-                iteratorInstructions.MoveNextIndex));
-            bodyNextTarget = popEnvForContinue;
-            continueTarget = popEnvForContinue;
-        }
-
-        var scope = new LoopScope(label, continueTarget, loopExitTarget, targetScopeId);
-        _loopScopes.Push(scope);
-        var iterationEntry = -1;
-        var bodyBuilt = TryBuildStatement(iteratorPlan.Body, bodyNextTarget, out var bodyEntry, label);
-        if (bodyBuilt)
-        {
-            bodyBuilt = TryBuildStatement(bindingStatement, bodyEntry, out iterationEntry, label);
-        }
-        _loopScopes.Pop();
-
-        if (!bodyBuilt)
-        {
-            _instructions.RemoveRange(instructionStart,
-                _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        // For lexical declarations (let/const), emit PushEnvironmentInstruction
-        // to create fresh per-iteration bindings. This ensures closures capture separate values.
-        var loopEntry = iterationEntry;
-        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            // Build slot map from per-iteration bindings and slot indices
-            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-            var bindings = iteratorPlan.PerIterationBindings;
-            var slotIndices = iteratorPlan.PerIterationSlotIndices;
-            var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
-            for (var i = 0; i < count; i++)
-            {
-                if (slotIndices[i] >= 0)
-                {
-                    slotMapBuilder[bindings[i]] = slotIndices[i];
-                }
-            }
-
-            var createEnvIndex = Append(new PushEnvironmentInstruction(
-                iterationEntry,
-                iteratorPlan.PerIterationBindings,
-                iteratorPlan.IterationScopeId,
-                iteratorPlan.IterationSlotCount,
-                slotMapBuilder.ToImmutable(),
-                iteratorPlan.CanReuseIterationEnvironment));
-            loopEntry = createEnvIndex;
-        }
-
-        // Wire up the MoveNext to point to the loop entry (env instruction or body)
-        IteratorInstructionTemplate.Wire(iteratorInstructions, loopEntry, _instructions);
-
-        // LoopEnter - pushes loop context to runtime stack for break/continue from AST-evaluated code
-        var loopEnterIndex = Append(new LoopEnterInstruction(
-            iteratorInstructions.MoveNextIndex,
-            label,
-            loopExitTarget,
-            continueTarget));
-
-        // EnterTry - wraps the loop in a try/finally, points to LoopEnter
-        var enterTryIndex =
-            Append(new EnterTryInstruction(loopEnterIndex, -1, null, iteratorCloseIndex));
-
-        // Wire IteratorInit to point to EnterTry
-        _instructions[iteratorInstructions.InitIndex] =
-            (IteratorInitInstruction)_instructions[iteratorInstructions.InitIndex] with { Next = enterTryIndex };
-
-        entryIndex = iteratorInstructions.InitIndex;
-        return true;
+        return Emitters.ForOfEmitter.TryEmitForAwaitOf(GetEmitContext(), statement, nextIndex, label, out entryIndex);
     }
 
     private bool TryBuildBreak(BreakStatement statement, out int entryIndex)
     {
-        if (!TryResolveBreakTarget(statement.Label, out var target, out var targetScopeId))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        entryIndex = Append(new BreakInstruction(target, targetScopeId));
-        return true;
+        return Emitters.ControlFlowEmitter.TryEmitBreak(GetEmitContext(), statement, out entryIndex);
     }
 
     private bool TryBuildContinue(ContinueStatement statement, out int entryIndex)
     {
-        if (!TryResolveContinueTarget(statement.Label, out var target, out var targetScopeId))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        entryIndex = Append(new ContinueInstruction(target, targetScopeId));
-        return true;
+        return Emitters.ControlFlowEmitter.TryEmitContinue(GetEmitContext(), statement, out entryIndex);
     }
 
     private static bool DeclarationContainsYield(VariableDeclaration declaration)
@@ -1397,79 +717,6 @@ internal sealed class ExecutionPlanBuilder
         return declaration.Declarators.Any(static d =>
             BindingTargetContainsYieldInDefaultValue(d.Target) ||
             (d.Initializer is not null && ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
-    }
-
-    /// <summary>
-    ///     Checks if a class definition contains yield expressions in places that are
-    ///     evaluated in the generator context (extends clause, computed property names).
-    ///     Method bodies and field initializers are NOT checked because they create their
-    ///     own scope and aren't evaluated during class definition.
-    /// </summary>
-    private static bool ClassDefinitionContainsYield(ClassDefinition definition)
-    {
-        // Check extends clause
-        if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
-        {
-            return true;
-        }
-
-        // Check computed property names in members (methods, getters, setters)
-        foreach (var member in definition.Members)
-        {
-            if (member is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsYield(member.ComputedName))
-            {
-                return true;
-            }
-        }
-
-        // Check computed property names in fields
-        foreach (var field in definition.Fields)
-        {
-            if (field is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsYield(field.ComputedName))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    ///     Checks if a class definition contains await expressions in places that are
-    ///     evaluated in the generator context (extends clause, computed property names).
-    ///     Used to fall back to StatementInstruction for async generators.
-    /// </summary>
-    private static bool ClassDefinitionContainsAwait(ClassDefinition definition)
-    {
-        // Check extends clause
-        if (definition.Extends is not null && AstShapeAnalyzer.ContainsAwait(definition.Extends))
-        {
-            return true;
-        }
-
-        // Check computed property names in members (methods, getters, setters)
-        foreach (var member in definition.Members)
-        {
-            if (member is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsAwait(member.ComputedName))
-            {
-                return true;
-            }
-        }
-
-        // Check computed property names in fields
-        foreach (var field in definition.Fields)
-        {
-            if (field is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsAwait(field.ComputedName))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private Symbol CreateResumeSlotSymbol()
@@ -1760,23 +1007,7 @@ internal sealed class ExecutionPlanBuilder
 
     private bool TryBuildWithStatement(WithStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
     {
-        var instructionStart = _instructions.Count;
-        var withScopeSlot = CreateWithScopeSlotSymbol();
-
-        // Build the leave with instruction first (it comes after the body)
-        var leaveWithIndex = Append(new LeaveWithInstruction(withScopeSlot, nextIndex));
-
-        // Build the body (jumps to the leave with instruction when done)
-        if (!TryBuildStatement(statement.Body, leaveWithIndex, out var bodyEntry, activeLabel))
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        // Build the enter with instruction (comes before the body)
-        entryIndex = Append(new EnterWithInstruction(statement.Object, withScopeSlot, bodyEntry));
-        return true;
+        return Emitters.WithEmitter.TryEmitWith(GetEmitContext(), statement, nextIndex, activeLabel, out entryIndex);
     }
 
     private static bool IsStrictBlock(StatementNode statement)
@@ -1824,78 +1055,12 @@ internal sealed class ExecutionPlanBuilder
         return clause.Body with { Statements = builder.ToImmutableArray() };
     }
 
-    private bool TryResolveBreakTarget(Symbol? label, out int target, out int targetScopeId)
-    {
-        if (_loopScopes.Count == 0)
-        {
-            target = -1;
-            targetScopeId = -1;
-            return false;
-        }
-
-        if (label is null)
-        {
-            var scope = _loopScopes.Peek();
-            target = scope.BreakTarget;
-            targetScopeId = scope.TargetScopeId;
-            return true;
-        }
-
-        foreach (var scope in _loopScopes)
-        {
-            if (scope.Label is not null && ReferenceEquals(scope.Label, label))
-            {
-                target = scope.BreakTarget;
-                targetScopeId = scope.TargetScopeId;
-                return true;
-            }
-        }
-
-        target = -1;
-        targetScopeId = -1;
-        return false;
-    }
-
-    private bool TryResolveContinueTarget(Symbol? label, out int target, out int targetScopeId)
-    {
-        if (_loopScopes.Count == 0)
-        {
-            target = -1;
-            targetScopeId = -1;
-            return false;
-        }
-
-        if (label is null)
-        {
-            var scope = _loopScopes.Peek();
-            target = scope.ContinueTarget;
-            targetScopeId = scope.TargetScopeId;
-            return true;
-        }
-
-        foreach (var scope in _loopScopes)
-        {
-            if (scope.Label is not null && ReferenceEquals(scope.Label, label))
-            {
-                target = scope.ContinueTarget;
-                targetScopeId = scope.TargetScopeId;
-                return true;
-            }
-        }
-
-        target = -1;
-        targetScopeId = -1;
-        return false;
-    }
-
     private int Append(ExecutionInstruction instruction)
     {
         var index = _instructions.Count;
         _instructions.Add(instruction);
         return index;
     }
-
-    private readonly record struct LoopScope(Symbol? Label, int ContinueTarget, int BreakTarget, int TargetScopeId);
 
     /// <summary>
     /// Checks if a statement contains a try-finally where the finally block has

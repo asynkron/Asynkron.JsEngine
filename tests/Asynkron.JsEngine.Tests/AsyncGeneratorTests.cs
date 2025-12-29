@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -138,7 +139,10 @@ public class AsyncGeneratorTests(ITestOutputHelper output) : InternalTestBase(ou
     [Fact(Timeout = 2000)]
     public async Task AsyncGenerator_SwitchInBody()
     {
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngine(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+        });
 
         await engine.Evaluate("""
             let log = [];

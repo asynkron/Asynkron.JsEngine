@@ -14,7 +14,10 @@ public class CpsTransformDebugTests(ITestOutputHelper output) : InternalTestBase
     public async Task SimpleForOf_WithAwait_Debug()
     {
         // Simplest possible test case - single iteration
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngine(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+        });
 
         await engine.Evaluate("""
 

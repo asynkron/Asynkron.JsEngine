@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -9,9 +10,9 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for generator functions (function*) and the iterator protocol.
 /// </summary>
-public class GeneratorTests(ITestOutputHelper testOutputHelper) : InternalTestBase(testOutputHelper)
+public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    private readonly ITestOutputHelper _testOutputHelper = testOutputHelper;
+    private readonly ITestOutputHelper _output = output;
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 
@@ -3113,7 +3114,10 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : InternalTestBa
     public async Task Generator_ForAwaitPromiseValuesAreAwaitedIr()
     {
         ExecutionPlanDiagnostics.Reset();
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngine(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+        });
 
         await engine.Evaluate("""
                                      let result = "";
@@ -3157,14 +3161,14 @@ public class GeneratorTests(ITestOutputHelper testOutputHelper) : InternalTestBa
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            _testOutputHelper.WriteLine($"LOG: {message}");
+            _output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
-            _testOutputHelper.WriteLine("LOG: Error caught!");
+            _output.WriteLine("LOG: Error caught!");
             return JsValue.Null;
         });
 

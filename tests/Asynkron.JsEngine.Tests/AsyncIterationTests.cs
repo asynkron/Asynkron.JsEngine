@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -10,7 +11,10 @@ public class AsyncIterationTests(ITestOutputHelper output) : InternalTestBase(ou
     public async Task RegularForOf_WithAwaitInBody()
     {
         // Test that regular for-of with await in body works
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngine(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+        });
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 
@@ -255,7 +259,10 @@ public class AsyncIterationTests(ITestOutputHelper output) : InternalTestBase(ou
         // NOTE: This test demonstrates a limitation - for-await-of with promises
         // in arrays requires CPS transformation support.
         // Currently, promises in arrays are treated as objects, not awaited.
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngine(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+        });
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
 

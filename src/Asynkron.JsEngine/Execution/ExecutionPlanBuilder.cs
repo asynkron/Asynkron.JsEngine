@@ -372,40 +372,6 @@ internal sealed partial class ExecutionPlanBuilder
         }
     }
 
-    private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
-    {
-        if (AstShapeAnalyzer.ContainsYield(statement.Condition))
-        {
-            entryIndex = -1;
-            _failureReason ??= "If condition contains unsupported yield shape.";
-            return false;
-        }
-
-        var instructionStart = _instructions.Count;
-
-        var elseEntry = nextIndex;
-        if (statement.Else is not null)
-        {
-            if (!TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel))
-            {
-                _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        if (!TryBuildStatement(statement.Then, nextIndex, out var thenEntry, activeLabel))
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        var branchIndex = Append(new BranchInstruction(statement.Condition, thenEntry, elseEntry));
-        entryIndex = branchIndex;
-        return true;
-    }
-
     private Symbol CreateResumeSlotSymbol()
     {
         var symbolName = $"{ResumeSlotPrefix}{_resumeSlotCounter++}";

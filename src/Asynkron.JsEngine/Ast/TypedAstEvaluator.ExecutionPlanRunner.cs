@@ -41,20 +41,14 @@ public static partial class TypedAstEvaluator
         private GeneratorState _state = GeneratorState.Start;
 
         // Lazy state objects - only allocated when needed
-        private AsyncState? _asyncState;
-        private YieldState? _yieldState;
-        private IteratorState? _iteratorState;
-        private TryCatchState? _tryCatchState;
-        private LoopState? _loopState;
-        private WithState? _withState;
 
         // Lazy accessors
-        private AsyncState AsyncStateRef => _asyncState ??= new AsyncState();
-        private YieldState YieldStateRef => _yieldState ??= new YieldState();
-        private IteratorState IteratorStateRef => _iteratorState ??= new IteratorState();
-        private TryCatchState TryCatchStateRef => _tryCatchState ??= new TryCatchState();
-        private LoopState LoopStateRef => _loopState ??= new LoopState();
-        private WithState WithStateRef => _withState ??= new WithState();
+        private AsyncState AsyncStateRef => field ??= new AsyncState();
+        private YieldState YieldStateRef => field ??= new YieldState();
+        private IteratorState IteratorStateRef => field ??= new IteratorState();
+        private TryCatchState TryCatchStateRef => field ??= new TryCatchState();
+        private LoopState LoopStateRef => field ??= new LoopState();
+        private WithState WithStateRef => field ??= new WithState();
 
         public ExecutionPlanRunner(
             FunctionExpression function,

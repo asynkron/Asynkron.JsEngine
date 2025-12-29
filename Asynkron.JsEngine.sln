@@ -27,6 +27,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		spec.md = spec.md
 		benchmark-jint.md = benchmark-jint.md
 		MISSING_BUILTINS.md = MISSING_BUILTINS.md
+		.claude\settings.local.json = .claude\settings.local.json
+		.claude\agents\deep-thinker.md = .claude\agents\deep-thinker.md
+		.claude\agents\faang-debugger.md = .claude\agents\faang-debugger.md
+		.claude\agents\coordinator.md = .claude\agents\coordinator.md
+		.claude\agents\test-failure-analyzer.md = .claude\agents\test-failure-analyzer.md
+		.claude\commands\codex.md = .claude\commands\codex.md
+		.claude\commands\wt.md = .claude\commands\wt.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"

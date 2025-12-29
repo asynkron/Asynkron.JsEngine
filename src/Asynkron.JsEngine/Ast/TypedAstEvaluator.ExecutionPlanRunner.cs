@@ -15,15 +15,13 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private sealed class ExecutionPlanRunner
+    private sealed partial class ExecutionPlanRunner
     {
-        // Track active with-scope slots for restoration after yield/resume
-        private readonly Stack<Symbol> _activeWithScopes = new();
+        // Core fields - always needed
         private readonly bool _allowIdentifierCache;
         private readonly IReadOnlyList<JsValue> _arguments;
         private readonly IJsCallable _callable;
         private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
-
         private readonly JsEnvironment _closure;
         private readonly FunctionExpression _function;
         private readonly bool _hasFunctionNameEnvironment;
@@ -32,43 +30,31 @@ public static partial class TypedAstEvaluator
         private readonly ExecutionPlan? _plan;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly RealmState _realmState;
-        private readonly YieldResumeContext _resumeContext = new();
         private readonly JsValue _thisValue;
         private readonly JsValue _newTarget;
-        private readonly Stack<TryFrame> _tryStack = new();
-        private readonly Stack<LoopFrame> _loopStack = new();
-        private bool _asyncStepMode;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
         private bool _done;
         private JsEnvironment? _executionEnvironment;
-        private int _lastYieldIndex = -1;
-        private int _lastYieldSourceStart = -1;
-        private int _lastYieldSourceEnd = -1;
-
-        private Symbol? _pendingAwaitKey;
-        private JsValue _pendingPromise;
-        private ResumePayloadKind _pendingResumeKind;
-        private JsValue _pendingResumeValue = JsValue.Undefined;
         private bool _privateScopesApplied;
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
 
-        // Caches the current iterator driver state for scope-correct access in CreateIterationEnvironmentInstruction.
-        // The driverState.IteratorVariable holds the loop scope environment reference.
-        private IteratorDriverState? _currentDriverState;
+        // Lazy state objects - only allocated when needed
+        private AsyncState? _asyncState;
+        private YieldState? _yieldState;
+        private IteratorState? _iteratorState;
+        private TryCatchState? _tryCatchState;
+        private LoopState? _loopState;
+        private WithState? _withState;
 
-        // Tracks the specific environment we resumed with after a suspend (await/yield).
-        // We should NOT return this specific environment to the pool because
-        // it might still be in progress (we suspended mid-iteration).
-        // Other environments (from completed iterations) can still be returned.
-        private JsEnvironment? _resumedWithEnvironment;
-
-        // When HandleAbruptCompletion jumps to a catch/finally handler, this field
-        // is set to the environment that was active when entering the try block.
-        // The caller should check this after HandleAbruptCompletion returns true
-        // and restore the environment if set.
-        private JsEnvironment? _restoredEnvironmentFromTry;
+        // Lazy accessors
+        private AsyncState AsyncStateRef => _asyncState ??= new AsyncState();
+        private YieldState YieldStateRef => _yieldState ??= new YieldState();
+        private IteratorState IteratorStateRef => _iteratorState ??= new IteratorState();
+        private TryCatchState TryCatchStateRef => _tryCatchState ??= new TryCatchState();
+        private LoopState LoopStateRef => _loopState ??= new LoopState();
+        private WithState WithStateRef => _withState ??= new WithState();
 
         public ExecutionPlanRunner(
             FunctionExpression function,
@@ -200,18 +186,18 @@ public static partial class TypedAstEvaluator
             // generators can consume without throwing. This entrypoint also
             // marks the executor as async-aware so future steps can surface
             // pending Promises instead of blocking.
-            var previousAsyncStepMode = _asyncStepMode;
-            _asyncStepMode = true;
-            _pendingPromise = JsValue.Undefined;
+            var previousAsyncStepMode = AsyncStateRef.AsyncStepMode;
+            AsyncStateRef.AsyncStepMode = true;
+            AsyncStateRef.PendingPromise = JsValue.Undefined;
 
             try
             {
                 var result = ExecutePlan(mode, resumeValue);
 
-                if (_pendingPromise.TryGetPropertyAccessor(out _))
+                if (AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                 {
                     return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
-                        _pendingPromise);
+                        AsyncStateRef.PendingPromise);
                 }
 
                 if (result.TryGetObject<IJsPropertyAccessor>(out var obj) &&
@@ -232,8 +218,8 @@ public static partial class TypedAstEvaluator
             }
             finally
             {
-                _asyncStepMode = previousAsyncStepMode;
-                _pendingPromise = JsValue.Undefined;
+                AsyncStateRef.AsyncStepMode = previousAsyncStepMode;
+                AsyncStateRef.PendingPromise = JsValue.Undefined;
             }
         }
 
@@ -297,6 +283,9 @@ public static partial class TypedAstEvaluator
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
+            // Store YieldResumeContext reference in the environment for yield expressions
+            var yieldState = YieldStateRef;
+
             // Initialize slots for generator-internal variables (iterator states, values, etc.)
             // This enables O(1) slot-based access instead of dictionary lookups
             // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
@@ -346,7 +335,7 @@ public static partial class TypedAstEvaluator
             }
 
             functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol,
-                JsValue.FromObjectUnsafe(_resumeContext));
+                JsValue.FromObjectUnsafe(yieldState.ResumeContext));
             functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
 
             var superPrototype = _homeObject?.Prototype;
@@ -529,8 +518,8 @@ public static partial class TypedAstEvaluator
                 _state = GeneratorState.Completed;
                 _done = true;
                 _programCounter = -1;
-                _tryStack.Clear();
-                _resumeContext.Clear();
+                TryCatchStateRef.TryStack.Clear();
+                YieldStateRef.ResumeContext.Clear();
                 var throwContext = _context ??= _realmState.CreateContext(
                     ScopeKind.Function,
                     DetermineGeneratorScopeMode());
@@ -558,43 +547,43 @@ public static partial class TypedAstEvaluator
 
             // Track the environment we resumed with (if resuming from suspend).
             // This prevents returning it to the pool while we're still using it.
-            _resumedWithEnvironment = wasStart ? null : environment;
+            IteratorStateRef.ResumedWithEnvironment = wasStart ? null : environment;
             var context = EnsureEvaluationContext();
 
             // If we're resuming from a yield that happened during AST evaluation
             // (via StatementInstruction), handle based on the resume mode.
             _realmState.Logger?.LogInformation(
-                "ExecutePlan resume check: wasStart={WasStart} mode={Mode} _lastYieldSourceStart={Start}",
-                wasStart, mode, _lastYieldSourceStart);
+                "ExecutePlan resume check: wasStart={WasStart} mode={Mode} YieldStateRef.LastYieldSourceStart={Start}",
+                wasStart, mode, YieldStateRef.LastYieldSourceStart);
 
-            if (!wasStart && _lastYieldSourceStart >= 0)
+            if (!wasStart && YieldStateRef.LastYieldSourceStart >= 0)
             {
                 switch (mode)
                 {
                     case ResumeMode.Next:
                         // For next(), set up resume state so the yield expression returns the resume value
-                        SetYieldResumeValue(environment, resumeValue, _lastYieldSourceStart, _lastYieldSourceEnd);
+                        SetYieldResumeValue(environment, resumeValue, YieldStateRef.LastYieldSourceStart, YieldStateRef.LastYieldSourceEnd);
                         break;
                     case ResumeMode.Return:
                         // For return(), close any active iterators and complete the generator.
                         // Don't re-evaluate the statement - just close and return.
                         _realmState.Logger?.LogInformation("ExecutePlan: early CompleteReturn for Return mode");
-                        _lastYieldSourceStart = -1;
-                        _lastYieldSourceEnd = -1;
+                        YieldStateRef.LastYieldSourceStart = -1;
+                        YieldStateRef.LastYieldSourceEnd = -1;
                         return CompleteReturn(resumeValue);
                 }
-                // For Throw mode, we'll let the normal flow handle it via _pendingResumeKind
+                // For Throw mode, we'll let the normal flow handle it via AsyncStateRef.PendingResumeKind
 
-                _lastYieldSourceStart = -1;
-                _lastYieldSourceEnd = -1;
+                YieldStateRef.LastYieldSourceStart = -1;
+                YieldStateRef.LastYieldSourceEnd = -1;
             }
 
             // Restore active with-scopes when resuming
             // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
             // We need to restore environments from bottom to top
-            if (_activeWithScopes.Count > 0)
+            if (WithStateRef.ActiveWithScopes.Count > 0)
             {
-                var scopesToRestore = _activeWithScopes.ToArray();
+                var scopesToRestore = WithStateRef.ActiveWithScopes.ToArray();
                 // The array is in stack order (top first), so reverse to get bottom-to-top order
                 for (var i = scopesToRestore.Length - 1; i >= 0; i--)
                 {
@@ -611,7 +600,7 @@ public static partial class TypedAstEvaluator
             // value into the per-site await state so subsequent evaluations
             // of the AwaitExpression see the fulfilled value instead of the
             // original promise object.
-            if (_pendingAwaitKey is { } awaitKey)
+            if (AsyncStateRef.PendingAwaitKey is { } awaitKey)
             {
                 var (kind, value) = ConsumeResumeValue();
                 var isThrow = kind == ResumePayloadKind.Throw;
@@ -641,7 +630,7 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                _pendingAwaitKey = null;
+                AsyncStateRef.PendingAwaitKey = null;
             }
 
             bool continueAfterCatch;
@@ -654,10 +643,10 @@ public static partial class TypedAstEvaluator
                     {
                         // Check if HandleAbruptCompletion restored the environment (e.g., jumping to catch handler)
                         // This ensures block-scoped bindings from inside the try are no longer visible.
-                        if (_restoredEnvironmentFromTry is { } restored)
+                        if (TryCatchStateRef.RestoredEnvironmentFromTry is { } restored)
                         {
                             environment = restored;
-                            _restoredEnvironmentFromTry = null;
+                            TryCatchStateRef.RestoredEnvironmentFromTry = null;
                         }
 
                         _currentInstructionIndex = _programCounter;
@@ -706,7 +695,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(thrown);
                                 }
 
@@ -786,9 +775,9 @@ public static partial class TypedAstEvaluator
 
                                         // PC didn't change - we're inside a finally and updated pending.
                                         // The finally ends abruptly, pop frame and re-propagate.
-                                        if (_tryStack.Count > 0)
+                                        if (TryCatchStateRef.TryStack.Count > 0)
                                         {
-                                            _tryStack.Pop();
+                                            TryCatchStateRef.TryStack.Pop();
                                             if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
                                             {
                                                 continue;
@@ -796,7 +785,7 @@ public static partial class TypedAstEvaluator
                                         }
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(existingThrown);
                                 }
 
@@ -811,9 +800,9 @@ public static partial class TypedAstEvaluator
 
                                     // PC didn't change - we're inside a finally and updated pending.
                                     // The finally ends abruptly, pop frame and re-propagate.
-                                    if (_tryStack.Count > 0)
+                                    if (TryCatchStateRef.TryStack.Count > 0)
                                     {
-                                        _tryStack.Pop();
+                                        TryCatchStateRef.TryStack.Pop();
                                         if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
                                         {
                                             continue;
@@ -821,7 +810,7 @@ public static partial class TypedAstEvaluator
                                     }
                                 }
 
-                                _tryStack.Clear();
+                                TryCatchStateRef.TryStack.Clear();
                                 throw new ThrowSignal(throwValue);
 
                             case EvaluateAndDiscardInstruction evaluateInstruction:
@@ -846,7 +835,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(evalThrown);
                                 }
 
@@ -902,7 +891,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(binThrown);
                                     }
                                 }
@@ -921,7 +910,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(binThrown);
                                     }
                                 }
@@ -973,7 +962,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         continue;
                                     }
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(incThrown);
                                 }
 
@@ -1022,7 +1011,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(classThrown);
                                 }
 
@@ -1058,7 +1047,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(varThrown);
                                 }
 
@@ -1202,7 +1191,7 @@ public static partial class TypedAstEvaluator
                                     }
 
                                     // Return previous iteration env to pool (if pooled and not resumed-with)
-                                    if (allowPooling && !ReferenceEquals(previousIterEnv, _resumedWithEnvironment))
+                                    if (allowPooling && !ReferenceEquals(previousIterEnv, IteratorStateRef.ResumedWithEnvironment))
                                     {
                                         JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
                                     }
@@ -1219,7 +1208,7 @@ public static partial class TypedAstEvaluator
                                     }
                                 }
 
-                                _resumedWithEnvironment = null;
+                                IteratorStateRef.ResumedWithEnvironment = null;
 
                                 // Update environment to new env (push onto stack)
                                 _realmState.Logger?.LogInformation(
@@ -1273,7 +1262,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(thrown);
                                     }
 
@@ -1310,7 +1299,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 if (yieldStarState.PendingAbrupt != AbruptKind.None &&
-                                    _pendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
+                                    AsyncStateRef.PendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
                                 {
                                     var pendingKind = yieldStarState.PendingAbrupt;
                                     // PendingValue is now JsValue, no boxing/unboxing needed
@@ -1327,7 +1316,7 @@ public static partial class TypedAstEvaluator
                                             when HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment):
                                             continue;
                                         case AbruptKind.Throw:
-                                            _tryStack.Clear();
+                                            TryCatchStateRef.TryStack.Clear();
                                             // pendingValue is already JsValue
                                             throw new ThrowSignal(pendingValue);
                                         case AbruptKind.Return when HandleAbruptCompletion(AbruptKind.Return,
@@ -1362,7 +1351,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(thrown);
                                     }
 
@@ -1378,7 +1367,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(thrown);
                                     }
 
@@ -1447,7 +1436,7 @@ public static partial class TypedAstEvaluator
                                             break;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(thrown);
                                     }
 
@@ -1485,7 +1474,7 @@ public static partial class TypedAstEvaluator
                                                 break;
                                             }
 
-                                            _tryStack.Clear();
+                                            TryCatchStateRef.TryStack.Clear();
                                             throw new ThrowSignal(abruptValue);
                                         }
 
@@ -1572,7 +1561,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(thrownPayload);
                                 }
 
@@ -1607,7 +1596,7 @@ public static partial class TypedAstEvaluator
                                 continue;
 
                             case LoopEnterInstruction loopEnterInstruction:
-                                _loopStack.Push(new LoopFrame(
+                                LoopStateRef.LoopStack.Push(new LoopFrame(
                                     loopEnterInstruction.Label,
                                     loopEnterInstruction.BreakTarget,
                                     loopEnterInstruction.ContinueTarget));
@@ -1615,21 +1604,21 @@ public static partial class TypedAstEvaluator
                                 continue;
 
                             case LoopExitInstruction loopExitInstruction:
-                                if (_loopStack.Count > 0)
+                                if (LoopStateRef.LoopStack.Count > 0)
                                 {
-                                    _loopStack.Pop();
+                                    LoopStateRef.LoopStack.Pop();
                                 }
                                 _programCounter = loopExitInstruction.Next;
                                 continue;
 
                             case EndFinallyInstruction endFinallyInstruction:
-                                if (_tryStack.Count == 0)
+                                if (TryCatchStateRef.TryStack.Count == 0)
                                 {
                                     _programCounter = endFinallyInstruction.Next;
                                     continue;
                                 }
 
-                                var completedFrame = _tryStack.Pop();
+                                var completedFrame = TryCatchStateRef.TryStack.Pop();
                                 var pending = completedFrame.PendingCompletion;
                                 if (pending.Kind == AbruptKind.None)
                                 {
@@ -1670,7 +1659,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                _tryStack.Clear();
+                                TryCatchStateRef.TryStack.Clear();
                                 // Handle case where pending.Value is already a boxed JsValue
                                 var throwJs = pending.Value is JsValue tjs
                                     ? tjs
@@ -1694,7 +1683,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(initThrown);
                                 }
 
@@ -1742,7 +1731,7 @@ public static partial class TypedAstEvaluator
                                 iteratorState.LoopScopeEnvironment = environment;
 
                                 // Cache driver state for scope-correct access from child scopes
-                                _currentDriverState = iteratorState;
+                                IteratorStateRef.CurrentDriverState = iteratorState;
 
                                 // Use slot-based storage for O(1) access
                                 StoreValueBySlot(iteratorEnv, iteratorInitInstruction.IteratorSlot,
@@ -1757,7 +1746,7 @@ public static partial class TypedAstEvaluator
 
                                 // Use cached driver state for scope-correct access from child scopes
                                 // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
-                                var driverState = _currentDriverState;
+                                var driverState = IteratorStateRef.CurrentDriverState;
 
                                 if (driverState is null)
                                 {
@@ -1798,7 +1787,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _currentDriverState = driverState;
+                                    IteratorStateRef.CurrentDriverState = driverState;
                                 }
 
                                 // Get JsVariables directly from driverState (O(1) access, no dictionary lookup)
@@ -1841,7 +1830,7 @@ public static partial class TypedAstEvaluator
                                                 continue;
                                             }
 
-                                            _tryStack.Clear();
+                                            TryCatchStateRef.TryStack.Clear();
                                             throw new ThrowSignal(typeError);
                                         }
 
@@ -1859,7 +1848,7 @@ public static partial class TypedAstEvaluator
                                             }
                                             // Clear driver state to prevent outer loop's CreateIterationEnv from
                                             // incorrectly updating this driver's CurrentIterationEnvironment.
-                                            _currentDriverState = null;
+                                            IteratorStateRef.CurrentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1878,7 +1867,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv2;
                                             }
-                                            _currentDriverState = null;
+                                            IteratorStateRef.CurrentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -1892,7 +1881,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv3;
                                         }
-                                        _currentDriverState = null;
+                                        IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -1961,7 +1950,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(forAwaitResumePayload);
                                     }
 
@@ -1998,7 +1987,7 @@ public static partial class TypedAstEvaluator
                                             callingEnvironment: environment);
                                         if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
                                         {
-                                            if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
+                                            if (AsyncStateRef.AsyncStepMode && AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                                             {
                                                 driverState.AwaitingNextResult = true;
                                                 // Use JsVariable for scope-correct access
@@ -2028,7 +2017,7 @@ public static partial class TypedAstEvaluator
                                                     continue;
                                                 }
 
-                                                _tryStack.Clear();
+                                                TryCatchStateRef.TryStack.Clear();
                                                 throw new ThrowSignal(thrownAwait);
                                             }
 
@@ -2037,7 +2026,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv4;
                                             }
-                                            _currentDriverState = null;
+                                            IteratorStateRef.CurrentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
                                         }
@@ -2055,7 +2044,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(typeError);
                                     }
 
@@ -2068,7 +2057,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv5;
                                         }
-                                        _currentDriverState = null;
+                                        IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -2078,7 +2067,7 @@ public static partial class TypedAstEvaluator
                                         : JsValue.Undefined;
                                     if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
                                     {
-                                        if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
+                                        if (AsyncStateRef.AsyncStepMode && AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
@@ -2108,7 +2097,7 @@ public static partial class TypedAstEvaluator
                                                 continue;
                                             }
 
-                                            _tryStack.Clear();
+                                            TryCatchStateRef.TryStack.Clear();
                                             throw new ThrowSignal(thrownAwaitValue);
                                         }
 
@@ -2117,7 +2106,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv6;
                                         }
-                                        _currentDriverState = null;
+                                        IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -2137,7 +2126,7 @@ public static partial class TypedAstEvaluator
                                         // Clear the driver state since this iterator loop is done.
                                         // This prevents outer loop's CreateIterationEnv from incorrectly
                                         // updating this driver's CurrentIterationEnvironment.
-                                        _currentDriverState = null;
+                                        IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -2146,7 +2135,7 @@ public static partial class TypedAstEvaluator
                                     var enumerated = awaitEnumerator.Current;
                                     if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
                                     {
-                                        if (_asyncStepMode && _pendingPromise.TryGetPropertyAccessor(out _))
+                                        if (AsyncStateRef.AsyncStepMode && AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
@@ -2176,7 +2165,7 @@ public static partial class TypedAstEvaluator
                                                 continue;
                                             }
 
-                                            _tryStack.Clear();
+                                            TryCatchStateRef.TryStack.Clear();
                                             throw new ThrowSignal(thrownAwaitEnum);
                                         }
 
@@ -2185,7 +2174,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv8;
                                         }
-                                        _currentDriverState = null;
+                                        IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
@@ -2199,7 +2188,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         environment = enclosingEnv9;
                                     }
-                                    _currentDriverState = null;
+                                    IteratorStateRef.CurrentDriverState = null;
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
                                 }
@@ -2253,7 +2242,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(thrownBranch);
                                 }
 
@@ -2328,7 +2317,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(pendingThrow);
                                 }
 
@@ -2352,7 +2341,7 @@ public static partial class TypedAstEvaluator
                                 _programCounter = -1;
                                 _state = GeneratorState.Completed;
                                 _done = true;
-                                _tryStack.Clear();
+                                TryCatchStateRef.TryStack.Clear();
                                 return CreateIteratorResult(returnValue, true);
 
                             case EnterWithInstruction enterWithInstruction:
@@ -2373,7 +2362,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    _tryStack.Clear();
+                                    TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(thrownWith);
                                 }
 
@@ -2387,7 +2376,7 @@ public static partial class TypedAstEvaluator
                                     StoreSymbolValue(_executionEnvironment!, enterWithInstruction.WithScopeSlot,
                                         withEnv);
                                     // Track this with-scope as active
-                                    _activeWithScopes.Push(enterWithInstruction.WithScopeSlot);
+                                    WithStateRef.ActiveWithScopes.Push(enterWithInstruction.WithScopeSlot);
                                     // Update the local environment reference to use the with-environment
                                     environment = withEnv;
                                 }
@@ -2400,10 +2389,10 @@ public static partial class TypedAstEvaluator
                             case LeaveWithInstruction leaveWithInstruction:
                             {
                                 // Remove this with-scope from active tracking
-                                if (_activeWithScopes.Count > 0 &&
-                                    ReferenceEquals(_activeWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
+                                if (WithStateRef.ActiveWithScopes.Count > 0 &&
+                                    ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
                                 {
-                                    _activeWithScopes.Pop();
+                                    WithStateRef.ActiveWithScopes.Pop();
                                 }
 
                                 // Restore the previous environment by getting it from the enclosing scope of the stored with-env
@@ -2449,7 +2438,7 @@ public static partial class TypedAstEvaluator
                                             continue;
                                         }
 
-                                        _tryStack.Clear();
+                                        TryCatchStateRef.TryStack.Clear();
                                         throw;
                                     }
                                 }
@@ -2495,8 +2484,8 @@ public static partial class TypedAstEvaluator
                     _state = GeneratorState.Completed;
                     _done = true;
                     _programCounter = -1;
-                    _tryStack.Clear();
-                    _resumeContext.Clear();
+                    TryCatchStateRef.TryStack.Clear();
+                    YieldStateRef.ResumeContext.Clear();
                     throw;
                 }
                 catch
@@ -2504,15 +2493,15 @@ public static partial class TypedAstEvaluator
                     _state = GeneratorState.Completed;
                     _done = true;
                     _programCounter = -1;
-                    _tryStack.Clear();
-                    _resumeContext.Clear();
+                    TryCatchStateRef.TryStack.Clear();
+                    YieldStateRef.ResumeContext.Clear();
                     throw;
                 }
             } while (continueAfterCatch);
 
             _state = GeneratorState.Completed;
             _done = true;
-            _tryStack.Clear();
+            TryCatchStateRef.TryStack.Clear();
             return CreateIteratorResult(JsValue.Undefined, true);
         }
 
@@ -2579,7 +2568,7 @@ public static partial class TypedAstEvaluator
         {
             // When not executing under async-aware stepping, fall back to the
             // legacy blocking helper so synchronous generators remain usable.
-            if (!_asyncStepMode)
+            if (!AsyncStateRef.AsyncStepMode)
             {
                 // Keep as JsValue to avoid boxing round trips
                 var awaitedValueSync = expression.Expression.EvaluateExpression(environment, context);
@@ -2610,7 +2599,7 @@ public static partial class TypedAstEvaluator
                 var result = state.Result;
                 var isThrow = state.IsThrow;
                 environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(new AwaitState()));
-                _pendingAwaitKey = null;
+                AsyncStateRef.PendingAwaitKey = null;
 
                 // If the await was rejected, throw at this point so the
                 // generator's try-catch can handle it.
@@ -2651,14 +2640,14 @@ public static partial class TypedAstEvaluator
                 return resolved;
             }
 
-            if (!_pendingPromise.TryGetPropertyAccessor(out _) || awaitKey is null)
+            if (!AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _) || awaitKey is null)
             {
                 return resolved;
             }
 
             // Remember which await site is pending so we can stash the
             // resolved value on resume.
-            _pendingAwaitKey = awaitKey;
+            AsyncStateRef.PendingAwaitKey = awaitKey;
             _state = GeneratorState.Suspended;
             _programCounter = _currentInstructionIndex;
             context.SetPendingAwait();
@@ -2670,10 +2659,10 @@ public static partial class TypedAstEvaluator
 
         private bool TryResolvePromiseOrYield(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
         {
-            var pendingPromise = _pendingPromise;
-            var result = AwaitScheduler.TryResolvePromiseOrYield(candidate, _asyncStepMode, ref pendingPromise,
+            var pendingPromise = AsyncStateRef.PendingPromise;
+            var result = AwaitScheduler.TryResolvePromiseOrYield(candidate, AsyncStateRef.AsyncStepMode, ref pendingPromise,
                 context, out var resolvedObj);
-            _pendingPromise = pendingPromise;
+            AsyncStateRef.PendingPromise = pendingPromise;
             // resolvedObj is already JsValue from the scheduler
             resolvedValue = resolvedObj;
             return result;
@@ -2700,7 +2689,7 @@ public static partial class TypedAstEvaluator
 
             // In async-step mode, surface the pending promise directly to the
             // caller without allocating an iterator result object.
-            result = _asyncStepMode
+            result = AsyncStateRef.AsyncStepMode
                 ? JsValue.Undefined
                 : CreateIteratorResult(JsValue.Undefined, false);
             return true;
@@ -2710,16 +2699,16 @@ public static partial class TypedAstEvaluator
         {
             // Remember the active yield slot so the next resume value is applied to the
             // right YieldExpression (ECMA-262 GeneratorResume, step threading of sent values).
-            _lastYieldIndex = context.LastYieldIndex;
+            YieldStateRef.LastYieldIndex = context.LastYieldIndex;
 
             // Also save source positions for yields from StatementInstruction (AST-evaluated yields).
             // These are used to set up resume state so the yield expression returns the resume value.
-            _lastYieldSourceStart = context.LastYieldSourceStart;
-            _lastYieldSourceEnd = context.LastYieldSourceEnd;
+            YieldStateRef.LastYieldSourceStart = context.LastYieldSourceStart;
+            YieldStateRef.LastYieldSourceEnd = context.LastYieldSourceEnd;
 
             _realmState.Logger?.LogInformation(
                 "RecordYield: yieldIndex={YieldIndex} sourceStart={Start} sourceEnd={End}",
-                _lastYieldIndex, _lastYieldSourceStart, _lastYieldSourceEnd);
+                YieldStateRef.LastYieldIndex, YieldStateRef.LastYieldSourceStart, YieldStateRef.LastYieldSourceEnd);
 
             // Save the current environment so that when the generator resumes, it uses
             // the correct per-iteration environment (for loops with let bindings).
@@ -2742,56 +2731,56 @@ public static partial class TypedAstEvaluator
                 // Per ES spec: The first next() argument is ignored when starting a generator.
                 // This applies to both regular yield and yield* - the first call to inner iterator's
                 // next() receives undefined, not the outer generator's first next() argument.
-                _pendingResumeKind = ResumePayloadKind.None;
-                _pendingResumeValue = JsValue.Undefined;
+                AsyncStateRef.PendingResumeKind = ResumePayloadKind.None;
+                AsyncStateRef.PendingResumeValue = JsValue.Undefined;
                 return;
             }
 
-            _pendingResumeKind = mode switch
+            AsyncStateRef.PendingResumeKind = mode switch
             {
                 ResumeMode.Throw => ResumePayloadKind.Throw,
                 ResumeMode.Return => ResumePayloadKind.Return,
                 _ => ResumePayloadKind.Value
             };
 
-            _pendingResumeValue = resumeValue;
+            AsyncStateRef.PendingResumeValue = resumeValue;
 
             if (_realmState.Logger?.IsEnabled(LogLevel.Information) == true)
             {
                 var resumeType = resumeValue.ObjectValue?.GetType().Name ?? resumeValue.Kind.ToString();
                 _realmState.Logger.LogInformation(
                     "PrepareResume yieldIndex={YieldIndex} kind={Kind} valueType={Type}",
-                    _lastYieldIndex,
-                    _pendingResumeKind,
+                    YieldStateRef.LastYieldIndex,
+                    AsyncStateRef.PendingResumeKind,
                     resumeType);
             }
 
-            if (_lastYieldIndex < 0)
+            if (YieldStateRef.LastYieldIndex < 0)
             {
                 return;
             }
 
-            var resumeSlotIndex = _lastYieldIndex;
-            switch (_pendingResumeKind)
+            var resumeSlotIndex = YieldStateRef.LastYieldIndex;
+            switch (AsyncStateRef.PendingResumeKind)
             {
                 case ResumePayloadKind.Throw:
-                    _resumeContext.SetException(resumeSlotIndex, resumeValue);
+                    YieldStateRef.ResumeContext.SetException(resumeSlotIndex, resumeValue);
                     break;
                 case ResumePayloadKind.Return:
-                    _resumeContext.SetReturn(resumeSlotIndex, resumeValue);
+                    YieldStateRef.ResumeContext.SetReturn(resumeSlotIndex, resumeValue);
                     break;
                 default:
-                    _resumeContext.SetValue(resumeSlotIndex, resumeValue);
+                    YieldStateRef.ResumeContext.SetValue(resumeSlotIndex, resumeValue);
                     break;
             }
         }
 
         private (ResumePayloadKind Kind, JsValue Value) ConsumeResumeValue()
         {
-            var kind = _pendingResumeKind;
-            var value = _pendingResumeValue;
-            _pendingResumeKind = ResumePayloadKind.None;
-            _pendingResumeValue = JsValue.Undefined;
+            var kind = AsyncStateRef.PendingResumeKind;
+            var value = AsyncStateRef.PendingResumeValue;
+            AsyncStateRef.PendingResumeKind = ResumePayloadKind.None;
+            AsyncStateRef.PendingResumeValue = JsValue.Undefined;
 
             if (kind == ResumePayloadKind.None)
             {
@@ -2809,7 +2798,7 @@ public static partial class TypedAstEvaluator
                 environment.DefineJsValue(slot, JsValue.Undefined);
             }
 
-            _tryStack.Push(frame);
+            TryCatchStateRef.TryStack.Push(frame);
         }
 
         /// <summary>
@@ -2819,7 +2808,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private int FindLoopTarget(Symbol? label, bool isBreak)
         {
-            if (_loopStack.Count == 0)
+            if (LoopStateRef.LoopStack.Count == 0)
             {
                 return -1;
             }
@@ -2827,12 +2816,12 @@ public static partial class TypedAstEvaluator
             if (label is null)
             {
                 // Unlabeled: use innermost loop
-                var frame = _loopStack.Peek();
+                var frame = LoopStateRef.LoopStack.Peek();
                 return isBreak ? frame.BreakTarget : frame.ContinueTarget;
             }
 
             // Labeled: search for matching label
-            foreach (var frame in _loopStack)
+            foreach (var frame in LoopStateRef.LoopStack)
             {
                 if (ReferenceEquals(frame.Label, label))
                 {
@@ -2845,13 +2834,13 @@ public static partial class TypedAstEvaluator
 
         private void CompleteTryNormally(int resumeTarget)
         {
-            if (_tryStack.Count == 0)
+            if (TryCatchStateRef.TryStack.Count == 0)
             {
                 _programCounter = resumeTarget;
                 return;
             }
 
-            var frame = _tryStack.Peek();
+            var frame = TryCatchStateRef.TryStack.Peek();
             if (frame is { FinallyIndex: >= 0, FinallyScheduled: false })
             {
                 frame.FinallyScheduled = true;
@@ -2860,18 +2849,18 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            _tryStack.Pop();
+            TryCatchStateRef.TryStack.Pop();
             _programCounter = resumeTarget;
         }
 
         private bool HandleAbruptCompletion(AbruptKind kind, object? /* intentional */ value, JsEnvironment environment)
         {
             // Clear any previous restored environment
-            _restoredEnvironmentFromTry = null;
+            TryCatchStateRef.RestoredEnvironmentFromTry = null;
 
-            while (_tryStack.Count > 0)
+            while (TryCatchStateRef.TryStack.Count > 0)
             {
-                var frame = _tryStack.Peek();
+                var frame = TryCatchStateRef.TryStack.Peek();
                 if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
                 {
                     frame.CatchUsed = true;
@@ -2879,7 +2868,7 @@ public static partial class TypedAstEvaluator
                     // Restore to the environment that was active when entering the try block.
                     // This ensures that block-scoped bindings inside the try are no longer visible.
                     var targetEnv = frame.EntryEnvironment;
-                    _restoredEnvironmentFromTry = targetEnv;
+                    TryCatchStateRef.RestoredEnvironmentFromTry = targetEnv;
 
                     if (frame.CatchSlotSymbol is { } slot)
                     {
@@ -2909,7 +2898,7 @@ public static partial class TypedAstEvaluator
 
                         // Restore to the environment that was active when entering the try block.
                         // This ensures that block-scoped bindings inside the try are no longer visible in finally.
-                        _restoredEnvironmentFromTry = frame.EntryEnvironment;
+                        TryCatchStateRef.RestoredEnvironmentFromTry = frame.EntryEnvironment;
 
                         _programCounter = frame.FinallyIndex;
                         return true;
@@ -2924,7 +2913,7 @@ public static partial class TypedAstEvaluator
                     return true;
                 }
 
-                _tryStack.Pop();
+                TryCatchStateRef.TryStack.Pop();
             }
 
             return false;
@@ -2949,7 +2938,7 @@ public static partial class TypedAstEvaluator
             _programCounter = -1;
             _state = GeneratorState.Completed;
             _done = true;
-            _tryStack.Clear();
+            TryCatchStateRef.TryStack.Clear();
             return CreateIteratorResult(value, true);
         }
 

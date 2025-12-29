@@ -6,13 +6,14 @@ namespace Asynkron.JsEngine.Tests.PerfTests;
 public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
-    public async Task RunForLoop()
+    public async Task RunForLoop1()
     {
         var script = """
-                     'use strict';
+                     'use strict'
+
                      function run() {
                          let s = 0;
-                         for (let i = 0; i < 10_000; i++) {
+                         for (let i = 0; i < 500; i++) {
                              s += i;
                          }
                          return s;
@@ -23,7 +24,47 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
         var engine = CreateEngineWithOptions(() => new JsEngineOptions());
         var result = await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
-
     }
 
+    [Fact]
+    public async Task RunForLoop2()
+    {
+        var script = """
+                     'use strict'
+
+                     function run() {
+                         let s = 0;
+                         for (let i = 0; i < 9999; i++) {
+                             s += i;
+                         }
+                         return s;
+                     }
+                     run();
+                     """;
+        var sw = Stopwatch.StartNew();
+        var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        var result = await engine.Evaluate(script);
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public async Task RunForLoop3()
+    {
+        var script = """
+                     'use strict'
+
+                     function run() {
+                         let s = 0;
+                         for (let i = 0; i < 10000; i++) {
+                             s += i;
+                         }
+                         return s;
+                     }
+                     run();
+                     """;
+        var sw = Stopwatch.StartNew();
+        var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        var result = await engine.Evaluate(script);
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
+    }
 }

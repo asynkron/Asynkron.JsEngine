@@ -84,22 +84,36 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
 
     #region Wrappers
 
-    private static string WrapInFunction(string statements, string returnExpr) =>
+    private static string Strict(bool strict) => strict ? "'use strict'; " : "";
+
+    // Function wrappers (can be strict or sloppy)
+    private static string WrapInFunction(string statements, string returnExpr, bool strict = false) =>
         statements.Length > 0
-            ? $"(function() {{ {statements} return {returnExpr}; }})()"
-            : $"(function() {{ return {returnExpr}; }})()";
+            ? $"(function() {{ {Strict(strict)}{statements} return {returnExpr}; }})()"
+            : $"(function() {{ {Strict(strict)}return {returnExpr}; }})()";
 
-    private static string WrapInArrowFunction(string statements, string returnExpr) =>
+    private static string WrapInArrowFunction(string statements, string returnExpr, bool strict = false) =>
         statements.Length > 0
-            ? $"(() => {{ {statements} return {returnExpr}; }})()"
-            : $"(() => {{ return {returnExpr}; }})()";
+            ? $"(() => {{ {Strict(strict)}{statements} return {returnExpr}; }})()"
+            : $"(() => {{ {Strict(strict)}return {returnExpr}; }})()";
 
-    private static string WrapInTryBlock(string statements, string returnExpr) =>
-        $"(function() {{ let __r; try {{ {statements} __r = {returnExpr}; }} catch(e) {{ throw e; }} return __r; }})()";
+    private static string WrapInTryBlock(string statements, string returnExpr, bool strict = false) =>
+        $"(function() {{ {Strict(strict)}let __r; try {{ {statements} __r = {returnExpr}; }} catch(e) {{ throw e; }} return __r; }})()";
 
-    private static string WrapInFinallyBlock(string statements, string returnExpr) =>
-        $"(function() {{ let __r; try {{ }} finally {{ {statements} __r = {returnExpr}; }} return __r; }})()";
+    private static string WrapInFinallyBlock(string statements, string returnExpr, bool strict = false) =>
+        $"(function() {{ {Strict(strict)}let __r; try {{ }} finally {{ {statements} __r = {returnExpr}; }} return __r; }})()";
 
+    private static string WrapInGenerator(string statements, string returnExpr, bool strict = false) =>
+        statements.Length > 0
+            ? $"(function* () {{ {Strict(strict)}{statements} yield {returnExpr}; }})().next().value"
+            : $"(function* () {{ {Strict(strict)}yield {returnExpr}; }})().next().value";
+
+    private static string WrapInNestedFunctions(string statements, string returnExpr, bool strict = false) =>
+        statements.Length > 0
+            ? $"(function() {{ {Strict(strict)}return (function() {{ {statements} return {returnExpr}; }})(); }})()"
+            : $"(function() {{ {Strict(strict)}return (function() {{ return {returnExpr}; }})(); }})()";
+
+    // Class wrappers (always strict by spec)
     private static string WrapInClassMethod(string statements, string returnExpr) =>
         statements.Length > 0
             ? $"class __T {{ run() {{ {statements} return {returnExpr}; }} }} new __T().run()"
@@ -110,16 +124,6 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
             ? $"class __T {{ static run() {{ {statements} return {returnExpr}; }} }} __T.run()"
             : $"class __T {{ static run() {{ return {returnExpr}; }} }} __T.run()";
 
-    private static string WrapInGenerator(string statements, string returnExpr) =>
-        statements.Length > 0
-            ? $"(function* () {{ {statements} yield {returnExpr}; }})().next().value"
-            : $"(function* () {{ yield {returnExpr}; }})().next().value";
-
-    private static string WrapInNestedFunctions(string statements, string returnExpr) =>
-        statements.Length > 0
-            ? $"(function() {{ return (function() {{ {statements} return {returnExpr}; }})(); }})()"
-            : $"(function() {{ return (function() {{ return {returnExpr}; }})(); }})()";
-
     #endregion
 
     #region Tests - Function Wrappers
@@ -129,7 +133,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InFunction(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInFunction(statements, returnExpr));
+        var script = WrapInFunction(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -138,7 +145,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InArrowFunction(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInArrowFunction(statements, returnExpr));
+        var script = WrapInArrowFunction(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -147,7 +157,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InNestedFunctions(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInNestedFunctions(statements, returnExpr));
+        var script = WrapInNestedFunctions(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -160,7 +173,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InTryBlock(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInTryBlock(statements, returnExpr));
+        var script = WrapInTryBlock(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -169,7 +185,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InFinallyBlock(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInFinallyBlock(statements, returnExpr));
+        var script = WrapInFinallyBlock(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -182,7 +201,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InClassMethod(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInClassMethod(statements, returnExpr));
+        var script = WrapInClassMethod(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -191,7 +213,10 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InStaticClassMethod(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInStaticClassMethod(statements, returnExpr));
+        var script = WrapInStaticClassMethod(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 
@@ -204,7 +229,86 @@ public class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase
     public async Task InGenerator(string statements, string returnExpr, object? expected)
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(WrapInGenerator(statements, returnExpr));
+        var script = WrapInGenerator(statements, returnExpr);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
+        Assert.Equal(expected, result);
+    }
+
+    #endregion
+
+    #region Tests - Strict Mode (function-based wrappers only, classes are always strict)
+
+    [Theory]
+    [MemberData(nameof(CoreSnippets))]
+    public async Task InFunction_Strict(string statements, string returnExpr, object? expected)
+    {
+        await using var engine = CreateEngine();
+        var script = WrapInFunction(statements, returnExpr, strict: true);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(CoreSnippets))]
+    public async Task InArrowFunction_Strict(string statements, string returnExpr, object? expected)
+    {
+        await using var engine = CreateEngine();
+        var script = WrapInArrowFunction(statements, returnExpr, strict: true);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(CoreSnippets))]
+    public async Task InTryBlock_Strict(string statements, string returnExpr, object? expected)
+    {
+        await using var engine = CreateEngine();
+        var script = WrapInTryBlock(statements, returnExpr, strict: true);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(CoreSnippets))]
+    public async Task InFinallyBlock_Strict(string statements, string returnExpr, object? expected)
+    {
+        await using var engine = CreateEngine();
+        var script = WrapInFinallyBlock(statements, returnExpr, strict: true);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(CoreSnippets))]
+    public async Task InGenerator_Strict(string statements, string returnExpr, object? expected)
+    {
+        await using var engine = CreateEngine();
+        var script = WrapInGenerator(statements, returnExpr, strict: true);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(CoreSnippets))]
+    public async Task InNestedFunctions_Strict(string statements, string returnExpr, object? expected)
+    {
+        await using var engine = CreateEngine();
+        var script = WrapInNestedFunctions(statements, returnExpr, strict: true);
+        Output.WriteLine($"Script: {script}");
+        var result = await engine.Evaluate(script);
+        Output.WriteLine($"Expected: {expected} | Actual: {result}");
         Assert.Equal(expected, result);
     }
 

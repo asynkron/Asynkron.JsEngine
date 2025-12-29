@@ -73,12 +73,12 @@ internal static class ExecutionPlanPrinter
     /// <summary>
     /// Traces a variable lookup with environment info.
     /// </summary>
-    public static void TraceLookup(string name, bool found, int envDepth, int envScopeId, int envHashCode, string? foundIn = null)
+    public static void TraceLookup(ILogger logger, string name, bool found, int envDepth, int envScopeId,
+        int envHashCode, string? foundIn = null)
     {
         var indent = new string(' ', envDepth * 2);
-        var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
         var status = found ? $"FOUND in {foundIn}" : "NOT FOUND";
-        Console.WriteLine($"{indent}{depthMarker}     LOOKUP '{name}' -> {status} [env:{envHashCode:X8} scope:{envScopeId}]");
+        logger.LogDebug("{Indent}     LOOKUP '{Name}' -> {Status} [env:{EnvHashCode:X8} scope:{EnvScopeId}]", indent, name, status, envHashCode, envScopeId);
     }
 
     /// <summary>

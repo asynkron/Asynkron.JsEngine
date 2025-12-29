@@ -33,9 +33,10 @@ public static partial class TypedAstEvaluator
 
             // Slow path: identifier not found - create proper error
 #pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
-            if (JsEngineConstants.TraceIrExecution)
+            if (JsEngineConstants.TraceIrExecution && context.RealmState.Logger is not null)
             {
                 Execution.ExecutionPlanPrinter.TraceLookup(
+                    context.RealmState.Logger,
                     identifier.Name.Name,
                     false,
                     environment.Depth,

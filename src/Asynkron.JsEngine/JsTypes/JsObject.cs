@@ -212,7 +212,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         if (!ReferenceEquals(previous, candidate))
         {
-            RealmState?.Logger?.LogDebug(
+            RealmState?.Logger?.LogTrace(
                 "Prototype reassigned on {ObjectId}: {OldPrototype} -> {NewPrototype}",
                 RuntimeHelpers.GetHashCode(this),
                 DescribePrototype(previous),

@@ -15,38 +15,46 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     {
         var wellKnownTypes = context.CompilationProvider.Select(static (compilation, _) => WellKnownTypes.From(compilation));
 
-        var candidates = context.SyntaxProvider
-            .CreateSyntaxProvider(IsCandidateClass, static (ctx, _) => GetTypeSymbol(ctx))
-            .Where(static symbol => symbol is not null)
-            .Select(static (symbol, _) => symbol!);
+        var prototypeCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute",
+            static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
+            static (ctx, _) => new PrototypeTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0]));
 
-        var combined = candidates.Combine(wellKnownTypes);
+        var constructorCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute",
+            static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
+            static (ctx, _) => new ConstructorTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0]));
 
-        var prototypes = combined
+        var prototypes = prototypeCandidates
+            .Combine(wellKnownTypes)
             .Select(static (data, _) => TransformPrototype(data.Left, data.Right))
             .Where(static info => info is not null)
-            .Select(static (info, _) => info!);
+            .Select(static (info, _) => info!)
+            .WithComparer(PrototypeCacheKeyComparer.Instance);
 
-        var constructors = combined
+        var constructors = constructorCandidates
+            .Combine(wellKnownTypes)
             .Select(static (data, _) => TransformConstructor(data.Left, data.Right))
             .Where(static info => info is not null)
-            .Select(static (info, _) => info!);
+            .Select(static (info, _) => info!)
+            .WithComparer(ConstructorCacheKeyComparer.Instance);
 
-        context.RegisterSourceOutput(prototypes, static (spc, info) => Emit(spc, info));
-        context.RegisterSourceOutput(constructors, static (spc, info) => EmitConstructor(spc, info));
+        var orderedPrototypes = prototypes
+            .Collect()
+            .SelectMany(static (items, _) => items.OrderBy(static p => p.CacheKey, StringComparer.Ordinal));
+
+        var orderedConstructors = constructors
+            .Collect()
+            .SelectMany(static (items, _) => items.OrderBy(static c => c.CacheKey, StringComparer.Ordinal));
+
+        context.RegisterSourceOutput(orderedPrototypes, static (spc, info) => Emit(spc, info));
+        context.RegisterSourceOutput(orderedConstructors, static (spc, info) => EmitConstructor(spc, info));
     }
 
-    private static bool IsCandidateClass(SyntaxNode node, CancellationToken _)
-        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
-
-    private static INamedTypeSymbol? GetTypeSymbol(GeneratorSyntaxContext context)
-        => context.Node is ClassDeclarationSyntax classDecl
-            ? context.SemanticModel.GetDeclaredSymbol(classDecl) as INamedTypeSymbol
-            : null;
-
-    private static PrototypeInfo? TransformPrototype(INamedTypeSymbol typeSymbol, WellKnownTypes wellKnown)
+    private static PrototypeInfo? TransformPrototype(PrototypeTarget target, WellKnownTypes wellKnown)
     {
-        var prototypeAttr = GetAttribute(typeSymbol, "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute");
+        var typeSymbol = target.TypeSymbol;
+        var prototypeAttr = target.Attribute;
         if (prototypeAttr is null)
         {
             return null;
@@ -229,28 +237,42 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             intrinsicName = GetNamedValue(prototypeAttr, "IntrinsicName") ?? instanceTypeSimpleName;
         }
 
+        var orderedGetters = OrderGetters(getters.ToImmutable());
+        var orderedSetters = OrderSetters(setters.ToImmutable());
+        var orderedMethods = OrderMethods(methods.ToImmutable());
+        var orderedSymbolMethods = OrderSymbolMethods(symbolMethods.ToImmutable());
+        var orderedSymbolGetters = OrderSymbolGetters(symbolGetters.ToImmutable());
+        var orderedSymbolAliases = OrderSymbolAliases(symbolAliases.ToImmutable());
+        var orderedMethodAliases = OrderMethodAliases(methodAliases.ToImmutable());
+
+        var cacheKey = BuildPrototypeCacheKey(className, namespaceName, orderedGetters, orderedSetters, orderedMethods,
+            orderedSymbolMethods, orderedSymbolGetters, orderedSymbolAliases, orderedMethodAliases, toStringTag,
+            useArrayInstance, useFunctionInstance, instanceTypeName, intrinsicName, tryGetMethod);
+
         return new PrototypeInfo(
             className,
             namespaceName,
-            getters.ToImmutable(),
-            setters.ToImmutable(),
-            methods.ToImmutable(),
-            symbolMethods.ToImmutable(),
-            symbolGetters.ToImmutable(),
-            symbolAliases.ToImmutable(),
-            methodAliases.ToImmutable(),
+            orderedGetters,
+            orderedSetters,
+            orderedMethods,
+            orderedSymbolMethods,
+            orderedSymbolGetters,
+            orderedSymbolAliases,
+            orderedMethodAliases,
             toStringTag,
             useArrayInstance,
             useFunctionInstance,
             instanceTypeName,
             instanceTypeSimpleName,
             intrinsicName,
-            tryGetMethod);
+            tryGetMethod,
+            cacheKey);
     }
 
-    private static ConstructorInfo? TransformConstructor(INamedTypeSymbol typeSymbol, WellKnownTypes wellKnown)
+    private static ConstructorInfo? TransformConstructor(ConstructorTarget target, WellKnownTypes wellKnown)
     {
-        var constructorAttr = GetAttribute(typeSymbol, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute");
+        var typeSymbol = target.TypeSymbol;
+        var constructorAttr = target.Attribute;
         if (constructorAttr is null)
         {
             return null;
@@ -324,7 +346,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             : typeSymbol.ContainingNamespace.ToDisplayString();
         var prototypeTypeName = prototypeTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, staticMethods.ToImmutable());
+        var orderedStaticMethods = OrderConstructorMethods(staticMethods.ToImmutable());
+        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods);
+
+        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods, cacheKey);
     }
 
     private static ConstructorMethodSignature GetConstructorMethodSignature(
@@ -765,6 +790,217 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         context.AddSource($"{info.ClassName}.Constructor.g.cs", source.ToString());
     }
 
+    private static ImmutableArray<GetterInfo> OrderGetters(ImmutableArray<GetterInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static g => g.PropertyName, StringComparer.Ordinal)
+                .ThenBy(static g => g.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<SetterInfo> OrderSetters(ImmutableArray<SetterInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static s => s.PropertyName, StringComparer.Ordinal)
+                .ThenBy(static s => s.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<MethodInfo> OrderMethods(ImmutableArray<MethodInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static m => m.PropertyName, StringComparer.Ordinal)
+                .ThenBy(static m => m.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<SymbolMethodInfo> OrderSymbolMethods(ImmutableArray<SymbolMethodInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static m => m.SymbolName, StringComparer.Ordinal)
+                .ThenBy(static m => m.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<SymbolGetterInfo> OrderSymbolGetters(ImmutableArray<SymbolGetterInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static g => g.SymbolName, StringComparer.Ordinal)
+                .ThenBy(static g => g.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<SymbolAliasInfo> OrderSymbolAliases(ImmutableArray<SymbolAliasInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static s => s.SymbolName, StringComparer.Ordinal)
+                .ThenBy(static s => s.TargetPropertyName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<MethodAliasInfo> OrderMethodAliases(ImmutableArray<MethodAliasInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static m => m.AliasName, StringComparer.Ordinal)
+                .ThenBy(static m => m.TargetPropertyName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<ConstructorMethodInfo> OrderConstructorMethods(ImmutableArray<ConstructorMethodInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static m => m.PropertyName, StringComparer.Ordinal)
+                .ThenBy(static m => m.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static string BuildPrototypeCacheKey(
+        string className,
+        string? namespaceName,
+        ImmutableArray<GetterInfo> getters,
+        ImmutableArray<SetterInfo> setters,
+        ImmutableArray<MethodInfo> methods,
+        ImmutableArray<SymbolMethodInfo> symbolMethods,
+        ImmutableArray<SymbolGetterInfo> symbolGetters,
+        ImmutableArray<SymbolAliasInfo> symbolAliases,
+        ImmutableArray<MethodAliasInfo> methodAliases,
+        string? toStringTag,
+        bool useArrayInstance,
+        bool useFunctionInstance,
+        string? instanceTypeName,
+        string? intrinsicName,
+        string? tryGetMethod)
+    {
+        var builder = new StringBuilder();
+        AppendWithLength(builder, namespaceName ?? string.Empty);
+        AppendWithLength(builder, className);
+        AppendBool(builder, useArrayInstance);
+        AppendBool(builder, useFunctionInstance);
+        AppendWithLength(builder, instanceTypeName ?? string.Empty);
+        AppendWithLength(builder, intrinsicName ?? string.Empty);
+        AppendWithLength(builder, tryGetMethod ?? string.Empty);
+        AppendWithLength(builder, toStringTag ?? string.Empty);
+
+        AppendWithLength(builder, getters.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var getter in getters)
+        {
+            AppendWithLength(builder, getter.PropertyName);
+            AppendWithLength(builder, getter.MethodName);
+            AppendWithLength(builder, getter.DisplayName);
+            AppendBool(builder, getter.Enumerable);
+            AppendBool(builder, getter.Configurable);
+            AppendBool(builder, getter.IsStatic);
+        }
+
+        AppendWithLength(builder, setters.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var setter in setters)
+        {
+            AppendWithLength(builder, setter.PropertyName);
+            AppendWithLength(builder, setter.MethodName);
+            AppendWithLength(builder, setter.DisplayName);
+            AppendBool(builder, setter.Enumerable);
+            AppendBool(builder, setter.Configurable);
+            AppendBool(builder, setter.IsStatic);
+        }
+
+        AppendWithLength(builder, methods.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var method in methods)
+        {
+            AppendWithLength(builder, method.PropertyName);
+            AppendWithLength(builder, method.MethodName);
+            AppendWithLength(builder, method.DisplayName);
+            AppendWithLength(builder, method.LengthLiteral);
+            AppendBool(builder, method.Enumerable);
+            AppendBool(builder, method.Configurable);
+            AppendBool(builder, method.Writable);
+            AppendWithLength(builder, ((int)method.Signature).ToString(CultureInfo.InvariantCulture));
+            AppendBool(builder, method.IsStatic);
+        }
+
+        AppendWithLength(builder, symbolMethods.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var method in symbolMethods)
+        {
+            AppendWithLength(builder, method.SymbolName);
+            AppendWithLength(builder, method.MethodName);
+            AppendWithLength(builder, method.DisplayName);
+            AppendWithLength(builder, method.LengthLiteral);
+            AppendBool(builder, method.Enumerable);
+            AppendBool(builder, method.Configurable);
+            AppendBool(builder, method.Writable);
+            AppendWithLength(builder, ((int)method.Signature).ToString(CultureInfo.InvariantCulture));
+            AppendBool(builder, method.IsStatic);
+        }
+
+        AppendWithLength(builder, symbolGetters.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var getter in symbolGetters)
+        {
+            AppendWithLength(builder, getter.SymbolName);
+            AppendWithLength(builder, getter.MethodName);
+            AppendWithLength(builder, getter.DisplayName);
+            AppendBool(builder, getter.Enumerable);
+            AppendBool(builder, getter.Configurable);
+            AppendBool(builder, getter.IsStatic);
+        }
+
+        AppendWithLength(builder, symbolAliases.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var alias in symbolAliases)
+        {
+            AppendWithLength(builder, alias.SymbolName);
+            AppendWithLength(builder, alias.TargetPropertyName);
+            AppendBool(builder, alias.Enumerable);
+            AppendBool(builder, alias.Writable);
+            AppendBool(builder, alias.Configurable);
+        }
+
+        AppendWithLength(builder, methodAliases.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var alias in methodAliases)
+        {
+            AppendWithLength(builder, alias.AliasName);
+            AppendWithLength(builder, alias.TargetPropertyName);
+            AppendBool(builder, alias.Enumerable);
+            AppendBool(builder, alias.Writable);
+            AppendBool(builder, alias.Configurable);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string BuildConstructorCacheKey(
+        string className,
+        string? namespaceName,
+        string prototypeTypeName,
+        string lengthLiteral,
+        string displayName,
+        ImmutableArray<ConstructorMethodInfo> staticMethods)
+    {
+        var builder = new StringBuilder();
+        AppendWithLength(builder, namespaceName ?? string.Empty);
+        AppendWithLength(builder, className);
+        AppendWithLength(builder, prototypeTypeName);
+        AppendWithLength(builder, lengthLiteral);
+        AppendWithLength(builder, displayName);
+        AppendWithLength(builder, staticMethods.Length.ToString(CultureInfo.InvariantCulture));
+
+        foreach (var method in staticMethods)
+        {
+            AppendWithLength(builder, method.PropertyName);
+            AppendWithLength(builder, method.MethodName);
+            AppendWithLength(builder, method.DisplayName);
+            AppendWithLength(builder, method.LengthLiteral);
+            AppendBool(builder, method.Enumerable);
+            AppendBool(builder, method.Configurable);
+            AppendBool(builder, method.Writable);
+            AppendWithLength(builder, ((int)method.Signature).ToString(CultureInfo.InvariantCulture));
+            AppendBool(builder, method.ReturnsJsValue);
+        }
+
+        return builder.ToString();
+    }
+
+    private static void AppendWithLength(StringBuilder builder, string value)
+    {
+        builder.Append(value.Length.ToString(CultureInfo.InvariantCulture))
+            .Append(':')
+            .Append(value);
+    }
+
+    private static void AppendBool(StringBuilder builder, bool value)
+    {
+        builder.Append(value ? '1' : '0').Append(';');
+    }
+
     private static string Sanitize(string value)
     {
         var builder = new StringBuilder(value.Length);
@@ -844,6 +1080,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return false;
     }
 
+    private sealed record PrototypeTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute);
+
+    private sealed record ConstructorTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute);
+
     // All info records now use only primitive/string types for proper incremental caching
     private sealed record PrototypeInfo(
         string ClassName,
@@ -861,7 +1101,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         string? InstanceTypeName,
         string? InstanceTypeSimpleName,
         string? IntrinsicName,
-        string? TryGetMethod);
+        string? TryGetMethod,
+        string CacheKey);
 
     private sealed record GetterInfo(string MethodName, string PropertyName, string DisplayName, bool Enumerable,
         bool Configurable, bool IsStatic);
@@ -885,10 +1126,56 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool Enumerable, bool Writable, bool Configurable);
 
     private sealed record ConstructorInfo(string ClassName, string? Namespace, string PrototypeTypeName, string LengthLiteral,
-        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods);
+        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods, string CacheKey);
 
     private sealed record ConstructorMethodInfo(string MethodName, string PropertyName, string DisplayName,
         string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature, bool ReturnsJsValue);
+
+    private sealed class PrototypeCacheKeyComparer : IEqualityComparer<PrototypeInfo>
+    {
+        public static readonly PrototypeCacheKeyComparer Instance = new();
+
+        public bool Equals(PrototypeInfo? x, PrototypeInfo? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return true;
+            }
+
+            if (x is null || y is null)
+            {
+                return false;
+            }
+
+            return string.Equals(x.CacheKey, y.CacheKey, StringComparison.Ordinal);
+        }
+
+        public int GetHashCode(PrototypeInfo obj)
+            => StringComparer.Ordinal.GetHashCode(obj.CacheKey);
+    }
+
+    private sealed class ConstructorCacheKeyComparer : IEqualityComparer<ConstructorInfo>
+    {
+        public static readonly ConstructorCacheKeyComparer Instance = new();
+
+        public bool Equals(ConstructorInfo? x, ConstructorInfo? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return true;
+            }
+
+            if (x is null || y is null)
+            {
+                return false;
+            }
+
+            return string.Equals(x.CacheKey, y.CacheKey, StringComparison.Ordinal);
+        }
+
+        public int GetHashCode(ConstructorInfo obj)
+            => StringComparer.Ordinal.GetHashCode(obj.CacheKey);
+    }
 
     private enum ConstructorMethodSignature
     {
@@ -996,10 +1283,6 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return namedType.TypeArguments.Length == 1 &&
                SymbolEqualityComparer.Default.Equals(namedType.TypeArguments[0], jsValueType);
     }
-
-    private static AttributeData? GetAttribute(INamedTypeSymbol typeSymbol, string attributeDisplayName)
-        => typeSymbol.GetAttributes()
-            .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), attributeDisplayName, StringComparison.Ordinal));
 
     private sealed record WellKnownTypes(
         INamedTypeSymbol? JsValueType,

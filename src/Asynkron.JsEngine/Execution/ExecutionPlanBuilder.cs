@@ -536,9 +536,18 @@ internal sealed class ExecutionPlanBuilder
                     return true;
 
                 case LabeledStatement labeled:
-                    statement = labeled.Statement;
-                    activeLabel = labeled.Label;
-                    continue;
+                    // For loop-like statements, pass the label through - they handle it internally
+                    if (labeled.Statement is WhileStatement or DoWhileStatement or ForStatement
+                        or ForEachStatement or SwitchStatement)
+                    {
+                        statement = labeled.Statement;
+                        activeLabel = labeled.Label;
+                        continue;
+                    }
+
+                    // For non-loop statements (like blocks), wrap with LoopEnter/LoopExit
+                    // to provide break targets for labeled break statements
+                    return TryBuildLabeledNonLoopStatement(labeled, nextIndex, out entryIndex);
 
                 default:
                     entryIndex = -1;
@@ -918,6 +927,44 @@ internal sealed class ExecutionPlanBuilder
 
         var enterTryIndex = Append(new EnterTryInstruction(tryEntry, catchEntry, catchSlotSymbol, finallyEntry));
         entryIndex = enterTryIndex;
+        return true;
+    }
+
+    /// <summary>
+    ///     Builds a labeled non-loop statement by wrapping it with LoopEnter/LoopExit instructions.
+    ///     This enables labeled break statements within the statement body (e.g., <c>label: { break label; }</c>).
+    /// </summary>
+    private bool TryBuildLabeledNonLoopStatement(LabeledStatement labeled, int nextIndex, out int entryIndex)
+    {
+        var instructionStart = _instructions.Count;
+
+        // Create LoopExitInstruction first (we build bottom-up)
+        // This pops the loop stack when exiting the labeled statement
+        var loopExitIndex = Append(new LoopExitInstruction(nextIndex));
+
+        // Push scope so that labeled break can be resolved during IR building.
+        // ContinueTarget is -1 because continue is not valid for non-loop labeled statements.
+        var scope = new LoopScope(labeled.Label, -1, loopExitIndex, -1);
+        _loopScopes.Push(scope);
+
+        var bodyBuilt = TryBuildStatement(labeled.Statement, loopExitIndex, out var bodyEntry, null);
+        _loopScopes.Pop();
+
+        if (!bodyBuilt)
+        {
+            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        // Wrap entry with LoopEnterInstruction to push loop context at runtime
+        // This enables labeled break statements from AST-evaluated code to resolve their jump targets.
+        entryIndex = Append(new LoopEnterInstruction(
+            bodyEntry,
+            labeled.Label,
+            loopExitIndex,
+            -1));
+
         return true;
     }
 

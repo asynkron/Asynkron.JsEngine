@@ -65,7 +65,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output): InternalTestBase(
             });
         ");
 
-        await Task.Delay(2000);
+        // await Task.Delay(2000);
         output.WriteLine("=== TEST COMPLETE ===");
     }
 
@@ -156,7 +156,7 @@ public class AsyncIterableDebugTest(ITestOutputHelper output): InternalTestBase(
             });
         ");
 
-        await Task.Delay(2000);
+        // await Task.Delay(2000);
         output.WriteLine("=== TEST COMPLETE ===");
     }
 }

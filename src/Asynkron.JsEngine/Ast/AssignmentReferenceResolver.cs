@@ -19,9 +19,9 @@ internal static class AssignmentReferenceResolver
         JsEnvironment environment,
         EvaluationContext context)
     {
+        // Use reference equality since Symbols are interned - much faster than string comparison
         var isStrictTarget = context.CurrentScope.IsStrict &&
-                             (string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
-                              string.Equals(name.Name, "arguments", StringComparison.Ordinal));
+                             (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments));
 
         if (environment.TryResolveWithBinding(name, context, out var withBinding))
         {

@@ -292,7 +292,7 @@ internal readonly struct AssignmentReference
 
     private static bool IsStrictRestrictedName(Symbol name)
     {
-        return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
-               string.Equals(name.Name, "arguments", StringComparison.Ordinal);
+        // Use reference equality since Symbols are interned
+        return ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments);
     }
 }

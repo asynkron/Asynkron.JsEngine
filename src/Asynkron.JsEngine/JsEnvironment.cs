@@ -35,6 +35,7 @@ public sealed class JsEnvironment : IRentable
     internal bool _hasThisValue;
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
     private bool _inheritStrictness;
+    private bool _isStrictEffective;
 
     private bool _isDefaultDerivedConstructor;
     private HashSet<Symbol>? _simpleCatchParameters;
@@ -82,6 +83,8 @@ public sealed class JsEnvironment : IRentable
         IsBodyEnvironment = isBodyEnvironment;
         _treatAsGlobalFunctionScope = treatAsGlobalFunctionScope;
         _inheritStrictness = inheritStrictness;
+        // Cache effective strictness to avoid O(n) chain traversal on each access
+        _isStrictEffective = isStrict || (inheritStrictness && (enclosing?.IsStrict ?? false));
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
@@ -125,8 +128,9 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     ///     Returns true if this environment or any enclosing environment is in strict mode.
+    ///     Cached at creation time to avoid O(n) chain traversal.
     /// </summary>
-    public bool IsStrict => IsStrictLocal || (_inheritStrictness && (Enclosing?.IsStrict ?? false));
+    public bool IsStrict => _isStrictEffective;
 
     internal bool IsObjectEnvironment => _withObject is not null;
 
@@ -215,6 +219,8 @@ public sealed class JsEnvironment : IRentable
         IsArrowFunctionEnvironment = false;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
+        // Cache effective strictness - inheritStrictness is always true in Reset
+        _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
@@ -276,6 +282,8 @@ public sealed class JsEnvironment : IRentable
         IsBodyEnvironment = false;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
+        // Cache effective strictness - inheritStrictness is always true in ResetForReuse
+        _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
         _slotMap = EmptySlotMap;
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
@@ -1362,8 +1370,8 @@ public sealed class JsEnvironment : IRentable
 
     private static bool IsStrictRestrictedName(Symbol name)
     {
-        return string.Equals(name.Name, "eval", StringComparison.Ordinal) ||
-               string.Equals(name.Name, "arguments", StringComparison.Ordinal);
+        // Use reference equality since Symbols are interned
+        return ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments);
     }
 
     private bool TryGetCachedDeclarativeBinding(

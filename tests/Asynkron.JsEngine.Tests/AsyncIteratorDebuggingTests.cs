@@ -73,7 +73,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             test().then(r => log('Promise resolved: ' + JSON.stringify(r)));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if async function context affects iterator call");
     }
 
@@ -112,7 +112,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             test().then(r => log('Final result: ' + JSON.stringify(r)));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if Promise executor context affects iterator call");
     }
 
@@ -156,7 +156,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             test().then(r => log('Final: ' + JSON.stringify(r))).catch(e => log('ERROR: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if nested Promise chain affects iterator call");
     }
 
@@ -207,7 +207,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             test().then(r => log('Done: ' + JSON.stringify(r)));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if closure variables in iterator work from Promise chain");
     }
 
@@ -274,7 +274,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('Test failed: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test using actual helper functions");
     }
 
@@ -322,7 +322,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             test();
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
 
         // Test GLOBAL scope
         var engine2 = CreateDebugEngine();
@@ -360,7 +360,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             test();
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
 
         output.WriteLine("");
         output.WriteLine("=== COMPARISON ===");
@@ -421,7 +421,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('FAILED: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Instrumented test complete - check logs for exact failure point");
     }
 
@@ -474,7 +474,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('Error: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if Symbol.iterator() creates valid iterator from global object");
     }
 
@@ -530,7 +530,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('Error: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if __getAsyncIterator wrapper causes issues");
     }
 
@@ -594,7 +594,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('Error: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Test if recursive Promise pattern (like CPS loop) works");
     }
 
@@ -674,7 +674,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('Error: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Compare if different iterator creation methods behave differently");
     }
 
@@ -732,7 +732,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 .catch(e => log('Failed: ' + e));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
         output.WriteLine("Check if exceptions are being thrown and caught");
     }
 
@@ -797,7 +797,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
                 });
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
 
         output.WriteLine("");
         output.WriteLine($"=== REJECTIONS CAUGHT: {rejectionsCaught.Count} ===");
@@ -899,7 +899,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             testAsync().then(r => log('Async result: ' + r));
         ");
 
-        await Task.Delay(1000);
+        // await Task.Delay(1000);
 
         // Check exceptions
         var exceptions = new List<ExceptionInfo>();

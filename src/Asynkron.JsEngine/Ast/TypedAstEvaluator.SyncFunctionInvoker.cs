@@ -2098,7 +2098,7 @@ public static partial class TypedAstEvaluator
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
-            // Bind single parameter directly - no array allocation
+            // Bind first parameter directly - no array allocation
             var slots = functionEnvironment._slots;
             if (slots is not null && _parameterNames.Length > 0)
             {
@@ -2107,11 +2107,25 @@ public static partial class TypedAstEvaluator
                 {
                     functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
                 }
+                // Bind remaining parameters to undefined (when function has more params than args)
+                for (var i = 1; i < _parameterNames.Length; i++)
+                {
+                    slots[i] = JsValue.Undefined;
+                    if (_function.HasClosures)
+                    {
+                        functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                    }
+                }
             }
             else if (_parameterNames.Length > 0)
             {
                 // Fallback when slots not available
                 functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                // Bind remaining parameters to undefined
+                for (var i = 1; i < _parameterNames.Length; i++)
+                {
+                    functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                }
             }
 
             _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
@@ -2175,7 +2189,7 @@ public static partial class TypedAstEvaluator
             reuseEnvironment._thisValue = boundThisValue;
             reuseEnvironment._hasThisValue = true;
 
-            // Bind single parameter directly - no array allocation, no Array.Fill needed
+            // Bind first parameter directly - no array allocation, no Array.Fill needed
             var slots = reuseEnvironment._slots;
             if (slots is not null && _parameterNames.Length > 0)
             {
@@ -2184,11 +2198,25 @@ public static partial class TypedAstEvaluator
                 {
                     reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
                 }
+                // Bind remaining parameters to undefined (when function has more params than args)
+                for (var i = 1; i < _parameterNames.Length; i++)
+                {
+                    slots[i] = JsValue.Undefined;
+                    if (_function.HasClosures)
+                    {
+                        reuseEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                    }
+                }
             }
             else if (_parameterNames.Length > 0)
             {
                 // Fallback when slots not available
                 reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
+                // Bind remaining parameters to undefined
+                for (var i = 1; i < _parameterNames.Length; i++)
+                {
+                    reuseEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                }
             }
 
             _ = _function.Body.EvaluateBlockJsValue(reuseEnvironment, callingContext);
@@ -2253,7 +2281,7 @@ public static partial class TypedAstEvaluator
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
-            // Bind both parameters directly - no array allocation
+            // Bind first two parameters directly - no array allocation
             var slots = functionEnvironment._slots;
             if (slots is not null)
             {
@@ -2274,6 +2302,16 @@ public static partial class TypedAstEvaluator
                         functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
                     }
                 }
+
+                // Bind remaining parameters to undefined (when function has more params than args)
+                for (var i = 2; i < _parameterNames.Length; i++)
+                {
+                    slots[i] = JsValue.Undefined;
+                    if (_function.HasClosures)
+                    {
+                        functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                    }
+                }
             }
             else
             {
@@ -2286,6 +2324,12 @@ public static partial class TypedAstEvaluator
                 if (_parameterNames.Length > 1)
                 {
                     functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
+                }
+
+                // Bind remaining parameters to undefined
+                for (var i = 2; i < _parameterNames.Length; i++)
+                {
+                    functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
                 }
             }
 

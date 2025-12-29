@@ -271,7 +271,7 @@ public class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestBase(out
         // Use engine without TestLogger - this test generates many log messages
         // Note: Originally used 5000 iterations, but there's a known limitation at ~996 iterations
         // (approximately 10000 total await points). Reduced to 500 iterations for now.
-        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        await using var engine = CreateEngine(() => new JsEngineOptions());
 
         var result = await engine.EvaluateAndAwait("""
                                                    'use strict'
@@ -369,7 +369,7 @@ public class ForAwaitOfBugTests(ITestOutputHelper output) : InternalTestBase(out
     {
         // Test with 100 outer iterations
         // Use engine without TestLogger - this test generates many log messages
-        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        await using var engine = CreateEngine(() => new JsEngineOptions());
 
         var result = await engine.EvaluateAndAwait("""
             let sum = 0;

@@ -10,7 +10,7 @@ public class ArrayLengthTest(ITestOutputHelper output) : InternalTestBase(output
     [Fact(Timeout = 60000)]
     public async Task TestStr2BinlLength()
     {
-        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions()
+        await using var engine = CreateEngine(() => new JsEngineOptions()
         {
             Logger = new TestLogger(output, maxLogCount: 100_000),
         });

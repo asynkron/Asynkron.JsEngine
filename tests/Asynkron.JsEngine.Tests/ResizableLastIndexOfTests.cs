@@ -146,7 +146,7 @@ public class ResizableLastIndexOfTests(ITestOutputHelper output) : InternalTestB
     public async Task ArrayPrototypeLastIndexOfResizableGrowthMatchesTest262Ctors()
     {
         // Use engine without TestLogger - this test generates many log messages
-        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        await using var engine = CreateEngine(() => new JsEngineOptions());
 
         var result = await engine.Evaluate("""
             (function() {
@@ -211,7 +211,7 @@ public class ResizableLastIndexOfTests(ITestOutputHelper output) : InternalTestB
     public async Task TypedArrayLastIndexOfResizableGrowthMatchesTest262Ctors()
     {
         // Use engine without TestLogger - this test generates many log messages
-        await using var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        await using var engine = CreateEngine(() => new JsEngineOptions());
 
         var result = await engine.Evaluate("""
             (function() {

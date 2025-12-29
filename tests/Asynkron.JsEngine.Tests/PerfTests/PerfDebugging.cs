@@ -22,7 +22,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      run();
                      """;
         var sw = Stopwatch.StartNew();
-        var engine = CreateEngineWithOptions(() => new JsEngineOptions()
+        var engine = CreateEngine(() => new JsEngineOptions()
         {
             Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput:output)
         });
@@ -46,7 +46,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      run();
                      """;
         var sw = Stopwatch.StartNew();
-        var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        var engine = CreateEngine(() => new JsEngineOptions());
         var result = await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
@@ -67,7 +67,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      run();
                      """;
         var sw = Stopwatch.StartNew();
-        var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        var engine = CreateEngine(() => new JsEngineOptions());
         var result = await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
@@ -88,7 +88,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      run();
                      """;
         var sw = Stopwatch.StartNew();
-        var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        var engine = CreateEngine(() => new JsEngineOptions());
         var result = await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }

@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -95,7 +96,10 @@ public class CpsTransformDebugTests(ITestOutputHelper output) : InternalTestBase
     public async Task ForOf_WithConsoleLog_Debug()
     {
         // Add logging to see if loop executes at all
-        await using var engine = CreateEngine();
+        await using var engine = CreateEngine(() => new JsEngineOptions()
+        {
+            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+        });
         var logMessages = new List<string>();
 
         engine.SetGlobalFunction("log", args =>

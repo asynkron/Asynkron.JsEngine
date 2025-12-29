@@ -1564,8 +1564,19 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(throwJs);
 
                             case IteratorInitInstruction iteratorInitInstruction:
+                                // For let/const declarations, create TDZ environment before evaluating iterable.
+                                // This ensures `for (const x of [x])` throws ReferenceError for accessing x before initialization.
+                                var iterableEnv = environment;
+                                if (!iteratorInitInstruction.TdzBindings.IsDefaultOrEmpty)
+                                {
+                                    iterableEnv = new JsEnvironment(environment, false, false, iteratorInitInstruction.IterableExpression.Source, "for-of-head-tdz");
+                                    foreach (var tdzSymbol in iteratorInitInstruction.TdzBindings)
+                                    {
+                                        iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized, iteratorInitInstruction.TdzIsConst, isLexical: true, blocksFunctionScopeOverride: true);
+                                    }
+                                }
                                 var iterableValue =
-                                    iteratorInitInstruction.IterableExpression.EvaluateExpression(environment, context);
+                                    iteratorInitInstruction.IterableExpression.EvaluateExpression(iterableEnv, context);
                                 if (TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
                                 {
                                     return pendingIteratorResult;

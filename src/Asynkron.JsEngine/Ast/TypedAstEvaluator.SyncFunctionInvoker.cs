@@ -681,36 +681,19 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // ╔══════════════════════════════════════════════════════════════════════════════╗
-            // ║                                                                              ║
-            // ║   ██████╗ ██╗███████╗ █████╗ ██████╗ ██╗     ███████╗██████╗                 ║
-            // ║   ██╔══██╗██║██╔════╝██╔══██╗██╔══██╗██║     ██╔════╝██╔══██╗                ║
-            // ║   ██║  ██║██║███████╗███████║██████╔╝██║     █████╗  ██║  ██║                ║
-            // ║   ██║  ██║██║╚════██║██╔══██║██╔══██╗██║     ██╔══╝  ██║  ██║                ║
-            // ║   ██████╔╝██║███████║██║  ██║██████╔╝███████╗███████╗██████╔╝                ║
-            // ║   ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚══════╝╚═════╝                 ║
-            // ║                                                                              ║
-            // ║   SYNC IR EXECUTION PATH - TEMPORARILY DISABLED                              ║
-            // ║                                                                              ║
-            // ║   See: /todo-sync-ir-investigation.md for full investigation notes           ║
-            // ║                                                                              ║
-            // ║   Known issues when enabled:                                                 ║
-            // ║   1. Flatten_FlattensNestedArrays - HANGS (nested loops with conditionals)   ║
-            // ║   2. ForLoop_UsesSlotFastPathWithoutMisses - slot resolution broken          ║
-            // ║   3. WhileLoop_UsesSlotFastPathWithoutMisses - slot resolution broken        ║
-            // ║   4. ClassFieldInitializerCanAccessSuper - eval+super edge case              ║
-            // ║   5. ManualCpsLoop - environment tracking issues                             ║
-            // ║                                                                              ║
-            // ║   To re-enable: change "false &&" to "true &&" below                         ║
-            // ║                                                                              ║
-            // ╚══════════════════════════════════════════════════════════════════════════════╝
-            //
             // ┌──────────────────────────────────────────────────────────────────────────────┐
-            // │ IMPORTANT: ALL FUNCTIONS NOW USE IR (ExecutionPlanRunner)                   │
-            // │                                                                              │
-            // │ This includes SYNC functions, not just async/generators!                    │
-            // │ The IR path unifies execution and avoids mixed-mode environment bugs.       │
-            // │ If you're debugging function execution, look at ExecutionPlanRunner.cs      │
+            // │ SYNC FUNCTION EXECUTION PATHS                                                 │
+            // │                                                                               │
+            // │ 1. FAST PATH (InvokeSimpleFast) - Direct AST evaluation, no IR               │
+            // │    Used for simple functions: no async, no defaults, no destructuring,       │
+            // │    no hoistable declarations, simple identifier params only.                 │
+            // │    This is the hot path for recursive functions like fibonacci().            │
+            // │                                                                               │
+            // │ 2. SLOW PATH (below) - Attempts IR via ExecutionPlanRunner                   │
+            // │    Used for complex sync functions that don't qualify for fast path.         │
+            // │    If IR plan generation fails, falls back to direct AST interpretation.     │
+            // │                                                                               │
+            // │ Async functions and generators ALWAYS use IR (required for pause/resume).    │
             // └──────────────────────────────────────────────────────────────────────────────┘
             //
             // Skip IR for:

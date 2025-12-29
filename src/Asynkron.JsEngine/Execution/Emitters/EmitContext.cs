@@ -153,7 +153,7 @@ internal sealed class EmitContext
     /// <summary>
     /// Build a catch block with the given symbol.
     /// </summary>
-    public BlockStatement BuildCatchBlock(CatchClause catchClause, Symbol catchSlotSymbol)
+    public static BlockStatement BuildCatchBlock(CatchClause catchClause, Symbol catchSlotSymbol)
     {
         return ExecutionPlanBuilder.BuildCatchBlockInternal(catchClause, catchSlotSymbol);
     }
@@ -174,7 +174,7 @@ internal sealed class EmitContext
     /// <summary>
     /// Create iterator binding statement.
     /// </summary>
-    public StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol, int valueSlotIndex)
+    public static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol, int valueSlotIndex)
     {
         return ExecutionPlanBuilder.CreateIteratorBindingStatementInternal(plan, valueSymbol, valueSlotIndex);
     }

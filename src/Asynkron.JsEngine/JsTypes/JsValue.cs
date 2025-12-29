@@ -618,7 +618,7 @@ public readonly struct JsValue : IEquatable<JsValue>
     /// Converts this JsValue to a boxed object representation.
     /// Used for interop with existing code that uses object?.
     /// </summary>
-    [Obsolete("Do not use!, make API accept JsValue")]
+   // [Obsolete("Do not use!, make API accept JsValue")]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public object? ToObject()
     {

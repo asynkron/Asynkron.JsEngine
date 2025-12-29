@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -14,8 +11,6 @@ namespace Asynkron.JsEngine.Generators;
 [Generator]
 public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 {
-    private static readonly ConcurrentDictionary<string, string> SourceHashes = new(StringComparer.Ordinal);
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var wellKnownTypes = context.CompilationProvider.Select(static (compilation, _) => WellKnownTypes.From(compilation));
@@ -672,7 +667,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         source.AppendLine("}");
 
-        AddSourceIfChanged(context, $"{info.ClassName}.Prototype.g.cs", source.ToString());
+        context.AddSource($"{info.ClassName}.Prototype.g.cs", source.ToString());
     }
 
     private static void EmitConstructor(SourceProductionContext context, ConstructorInfo info)
@@ -767,7 +762,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine("    }");
         source.AppendLine("}");
 
-        AddSourceIfChanged(context, $"{info.ClassName}.Constructor.g.cs", source.ToString());
+        context.AddSource($"{info.ClassName}.Constructor.g.cs", source.ToString());
     }
 
     private static string Sanitize(string value)
@@ -1005,34 +1000,6 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
     private static AttributeData? GetAttribute(INamedTypeSymbol typeSymbol, string attributeDisplayName)
         => typeSymbol.GetAttributes()
             .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), attributeDisplayName, StringComparison.Ordinal));
-
-    private static bool AddSourceIfChanged(SourceProductionContext context, string hintName, string source)
-    {
-        var hash = ComputeHash(source);
-        if (SourceHashes.TryGetValue(hintName, out var cached) &&
-            string.Equals(cached, hash, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        SourceHashes[hintName] = hash;
-        context.AddSource(hintName, source);
-        return true;
-    }
-
-    private static string ComputeHash(string content)
-    {
-        var bytes = Encoding.UTF8.GetBytes(content);
-#if NET6_0_OR_GREATER
-        Span<byte> hash = stackalloc byte[32];
-        SHA256.HashData(bytes, hash);
-        return Convert.ToHexString(hash);
-#else
-        using var sha = SHA256.Create();
-        var hash = sha.ComputeHash(bytes);
-        return BitConverter.ToString(hash).Replace("-", string.Empty);
-#endif
-    }
 
     private sealed record WellKnownTypes(
         INamedTypeSymbol? JsValueType,

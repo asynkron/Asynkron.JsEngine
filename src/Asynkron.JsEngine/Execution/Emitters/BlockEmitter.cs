@@ -84,10 +84,13 @@ internal static class BlockEmitter
         }
 
         // 3. Push environment (enter the block scope)
-        // For blocks, PerIterationBindings is empty (no loop iteration semantics)
+        // For blocks, PerIterationBindings MUST be empty (no loop iteration semantics).
+        // This is critical: the ExecutionPlanRunner uses PerIterationBindings to detect
+        // whether a PUSH_ENV is for a loop iteration (non-empty) vs a regular block (empty).
+        // Passing LexicalTemplate here would incorrectly mark this as a loop iteration scope.
         entryIndex = ctx.Append(new PushEnvironmentInstruction(
             bodyEntry,
-            hoistPlan.LexicalTemplate,
+            ImmutableArray<Symbol>.Empty,
             scopeId,
             slotCount,
             slotMap,

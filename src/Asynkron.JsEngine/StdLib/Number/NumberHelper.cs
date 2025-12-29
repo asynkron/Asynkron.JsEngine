@@ -248,7 +248,37 @@ public static partial class NumberHelper
         return isNegative ? "-" + result : result;
     }
 
+    /// <summary>
+    ///     Converts a JsValue to a valid array index (int).
+    ///     Throws RangeError if the index exceeds int.MaxValue.
+    /// </summary>
     internal static int ToIndex(JsValue value, RealmState? realm = null)
+    {
+        var (index, context) = ToIndexCore(value, realm);
+
+        if (index > int.MaxValue)
+        {
+            throw ThrowRangeError("Index is too large", context, realm);
+        }
+
+        return (int)index;
+    }
+
+    /// <summary>
+    ///     Converts a JsValue to a valid array index (long).
+    ///     Allows indices up to 2^53 - 1 (JavaScript's MAX_SAFE_INTEGER).
+    /// </summary>
+    internal static long ToIndexAsLong(JsValue value, RealmState? realm = null)
+    {
+        var (index, _) = ToIndexCore(value, realm);
+        return index;
+    }
+
+    /// <summary>
+    ///     Core implementation for ToIndex conversion. Returns the validated index as long
+    ///     along with the evaluation context for error reporting.
+    /// </summary>
+    private static (long index, EvaluationContext? context) ToIndexCore(JsValue value, RealmState? realm)
     {
         const double MaxLength = 9007199254740991d; // 2^53 - 1
         var context = realm?.CreateContext();
@@ -256,7 +286,7 @@ public static partial class NumberHelper
         // Fast path for numbers
         if (value.Kind == JsValueKind.Number)
         {
-            return ToIndexFromNumber(value.NumberValue, MaxLength, context, realm);
+            return (ToIndexFromNumberCore(value.NumberValue, MaxLength, context, realm), context);
         }
 
         // Handle other types via ToNumeric
@@ -267,74 +297,22 @@ public static partial class NumberHelper
         }
 
         // BigInt and Symbol are not valid indices
-        if (numeric.Kind == JsValueKind.BigInt || numeric.TryGetObject<Symbol>(out _) ||
+        if (numeric.Kind == JsValueKind.BigInt ||
+            numeric.TryGetObject<Symbol>(out _) ||
             numeric.TryGetObject<TypedAstSymbol>(out _))
         {
             throw ThrowTypeError("Index must be a non-negative integer", context, realm);
         }
 
-        var numberValue = JsOps.ToNumber(numeric);
-        return ToIndexFromNumber(numberValue, MaxLength, context, realm);
+        // Fast path: avoid ToNumber call if already a number
+        var numberValue = numeric.Kind == JsValueKind.Number ? numeric.NumberValue : JsOps.ToNumber(numeric);
+        return (ToIndexFromNumberCore(numberValue, MaxLength, context, realm), context);
     }
 
-    private static int ToIndexFromNumber(double numberValue, double maxLength, EvaluationContext? context,
-        RealmState? realm)
-    {
-        var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon
-            ? 0d
-            : double.IsInfinity(numberValue)
-                ? numberValue > 0 ? double.PositiveInfinity : double.NegativeInfinity
-                : Math.Truncate(numberValue);
-
-        if (double.IsPositiveInfinity(integerIndex) || integerIndex < 0)
-        {
-            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
-        }
-
-        var index = integerIndex > maxLength ? maxLength : integerIndex;
-        var sameValueZero = integerIndex == index || (integerIndex == 0 && index == 0);
-        if (!sameValueZero)
-        {
-            throw ThrowRangeError("Index must be a non-negative integer", context, realm);
-        }
-
-        if (index > int.MaxValue)
-        {
-            throw ThrowRangeError("Index is too large", context, realm);
-        }
-
-        return (int)index;
-    }
-
-    internal static long ToIndexAsLong(JsValue value, RealmState? realm = null)
-    {
-        const double MaxLength = 9007199254740991d; // 2^53 - 1
-        var context = realm?.CreateContext();
-
-        // Fast path for numbers
-        if (value.Kind == JsValueKind.Number)
-        {
-            return ToIndexAsLongFromNumber(value.NumberValue, MaxLength, context, realm);
-        }
-
-        var numericJs = JsOps.ToNumericAsJsValue(in value, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (numericJs.Kind == JsValueKind.BigInt ||
-            numericJs.TryGetObject<Symbol>(out _) ||
-            numericJs.TryGetObject<TypedAstSymbol>(out _))
-        {
-            throw ThrowTypeError("Index must be a non-negative integer", context, realm);
-        }
-
-        var numberValue = numericJs.Kind == JsValueKind.Number ? numericJs.NumberValue : JsOps.ToNumber(numericJs);
-        return ToIndexAsLongFromNumber(numberValue, MaxLength, context, realm);
-    }
-
-    private static long ToIndexAsLongFromNumber(double numberValue, double maxLength, EvaluationContext? context,
+    /// <summary>
+    ///     Validates and converts a number to a valid index per ECMAScript ToIndex specification.
+    /// </summary>
+    private static long ToIndexFromNumberCore(double numberValue, double maxLength, EvaluationContext? context,
         RealmState? realm)
     {
         var integerIndex = double.IsNaN(numberValue) || Math.Abs(numberValue) < double.Epsilon

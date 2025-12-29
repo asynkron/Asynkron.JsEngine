@@ -808,6 +808,14 @@ public sealed class JsEnvironment : IRentable
                 passedFunctionBoundary = true;
             }
 
+            // ES2019: Skip catch parameters - var declarations should hoist to function scope
+            // Per ECMAScript, catch parameters should NOT block var declarations from reaching function scope
+            if (current.IsSimpleCatchParameter(name))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
             if (current._values is not null)
             {
                 ref var binding = ref current._values.GetValueRefOrNullRef(name);
@@ -852,6 +860,14 @@ public sealed class JsEnvironment : IRentable
                 }
 
                 passedFunctionBoundary = true;
+            }
+
+            // ES2019: Skip catch parameters - var declarations should hoist to function scope
+            // Per ECMAScript, catch parameters should NOT block var declarations from reaching function scope
+            if (current.IsSimpleCatchParameter(name))
+            {
+                current = current.Enclosing;
+                continue;
             }
 
             if (current._values is not null)
@@ -1242,6 +1258,17 @@ public sealed class JsEnvironment : IRentable
 
                         return true;
                     }
+                }
+
+                // TDZ check for slot-only path: if the slot is uninitialized, this is a TDZ violation.
+                // This happens when trying to write to a let/const variable before its declaration.
+                var currentSlotValue = slots[slotIndex];
+                if (currentSlotValue.IsUninitialized)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        context,
+                        context.RealmState));
                 }
 
                 slots[slotIndex] = value;

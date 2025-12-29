@@ -191,7 +191,7 @@ internal sealed record EndFinallyInstruction(int Next)
 /// <summary>
 ///     Initializes the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
-/// <param name="Kind">Whether this is a sync or async iterator.</param>
+/// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
 /// <param name="IterableExpression">Expression that produces the iterable.</param>
 /// <param name="IteratorSlot">Symbol for the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
@@ -215,7 +215,7 @@ internal sealed record IteratorInitInstruction(
 /// <summary>
 ///     Advances the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
-/// <param name="Kind">Whether this is a sync or async iterator.</param>
+/// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
 /// <param name="IteratorSlot">Symbol for the iterator state.</param>
 /// <param name="ValueSlot">Symbol for the current iteration value.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>

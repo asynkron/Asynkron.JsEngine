@@ -572,9 +572,11 @@ public static partial class TypedAstEvaluator
                         }
 #pragma warning restore CS0162
 
-                        switch (instruction)
+                        switch (instruction.Kind)
                         {
-                            case StatementInstruction statementInstruction:
+                            case InstructionKind.Statement:
+                            {
+                                var statementInstruction = Unsafe.As<StatementInstruction>(instruction);
                                 _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingResult, environment))
                                 {
@@ -651,8 +653,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = statementInstruction.Next;
                                 continue;
+                            }
 
-                            case ThrowInstruction throwInstruction:
+                            case InstructionKind.Throw:
+                            {
+                                var throwInstruction = Unsafe.As<ThrowInstruction>(instruction);
                                 // Evaluate the throw expression and throw it
                                 var throwValue = throwInstruction.Expression.EvaluateExpression(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingThrowResult, environment))
@@ -712,8 +717,11 @@ public static partial class TypedAstEvaluator
 
                                 TryCatchStateRef.TryStack.Clear();
                                 throw new ThrowSignal(throwValue);
+                            }
 
-                            case EvaluateAndDiscardInstruction evaluateInstruction:
+                            case InstructionKind.EvaluateAndDiscard:
+                            {
+                                var evaluateInstruction = Unsafe.As<EvaluateAndDiscardInstruction>(instruction);
                                 // Evaluate the expression and discard the result
                                 _ = evaluateInstruction.Expression.EvaluateExpression(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingEvalResult, environment))
@@ -773,8 +781,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = evaluateInstruction.Next;
                                 continue;
+                            }
 
-                            case BinaryOpInstruction binaryOpInstruction:
+                            case InstructionKind.BinaryOp:
+                            {
+                                var binaryOpInstruction = Unsafe.As<BinaryOpInstruction>(instruction);
                                 // Fast path for binary operations - evaluate left and right, apply operator
                                 var binLeft = binaryOpInstruction.Left.EvaluateExpression(environment, context);
                                 if (context.ShouldStopEvaluation)
@@ -850,8 +861,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = binaryOpInstruction.Next;
                                 continue;
+                            }
 
-                            case IncrementSlotInstruction incrementInstruction:
+                            case InstructionKind.IncrementSlot:
+                            {
+                                var incrementInstruction = Unsafe.As<IncrementSlotInstruction>(instruction);
                                 // Fast path for ++/-- on identifiers
                                 var incCurrentValue = environment.GetIdentifierJsValueDirect(incrementInstruction.TargetSymbol, context);
                                 if (context.IsThrow)
@@ -867,15 +881,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Convert to number if needed (fast path for already-number values)
-                                double incNumValue;
-                                if (incCurrentValue.IsNumber)
-                                {
-                                    incNumValue = incCurrentValue.NumberValue;
-                                }
-                                else
-                                {
-                                    incNumValue = incCurrentValue.ToNumber();
-                                }
+                                var incNumValue = incCurrentValue.IsNumber ? incCurrentValue.NumberValue : incCurrentValue.ToNumber();
 
                                 // Apply increment or decrement
                                 var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
@@ -886,13 +892,19 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = incrementInstruction.Next;
                                 continue;
+                            }
 
-                            case FunctionDeclarationInstruction functionDeclInstruction:
+                            case InstructionKind.FunctionDeclaration:
+                            {
+                                var functionDeclInstruction = Unsafe.As<FunctionDeclarationInstruction>(instruction);
                                 // Function declarations are hoisted - this is a no-op at runtime
                                 _programCounter = functionDeclInstruction.Next;
                                 continue;
+                            }
 
-                            case ClassDeclarationInstruction classDeclInstruction:
+                            case InstructionKind.ClassDeclaration:
+                            {
+                                var classDeclInstruction = Unsafe.As<ClassDeclarationInstruction>(instruction);
                                 // Create the class value and bind it to the class name
                                 var classValue = classDeclInstruction.Declaration.Definition.CreateClassValue(
                                     environment, context, classDeclInstruction.Declaration.Name);
@@ -921,12 +933,13 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = classDeclInstruction.Next;
                                 continue;
+                            }
 
-                            case SimpleVariableDeclarationInstruction varDeclInstruction:
+                            case InstructionKind.SimpleVariableDeclaration:
+                            {
+                                var varDeclInstruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instruction);
                                 // Evaluate initializer if present
-                                var varValue = varDeclInstruction.Initializer is null
-                                    ? JsValue.Undefined
-                                    : varDeclInstruction.Initializer.EvaluateExpression(environment, context);
+                                var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
 
                                 if (TryHandlePendingAwait(context, out var pendingVarResult, environment))
                                 {
@@ -1020,8 +1033,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = varDeclInstruction.Next;
                                 continue;
+                            }
 
-                            case PushEnvironmentInstruction pushEnvInstruction:
+                            case InstructionKind.PushEnvironment:
+                            {
+                                var pushEnvInstruction = Unsafe.As<PushEnvironmentInstruction>(instruction);
                                 // Stack-based environment model for per-iteration bindings:
                                 // - If current env has same ScopeId as instruction → we're in a previous iteration
                                 //   Parent is current.Enclosing (the loop scope), current is previous iter env
@@ -1052,7 +1068,7 @@ public static partial class TypedAstEvaluator
                                     : new JsEnvironment(loopScope, false, false, null, "scope");
 
                                 // Initialize slots for O(1) identifier lookups
-                                if (pushEnvInstruction.SlotCount > 0 && pushEnvInstruction.ScopeId >= 0)
+                                if (pushEnvInstruction is { SlotCount: > 0, ScopeId: >= 0 })
                                 {
                                     newIterationEnv.InitializeSlots(pushEnvInstruction.SlotCount,
                                         pushEnvInstruction.ScopeId);
@@ -1122,8 +1138,11 @@ public static partial class TypedAstEvaluator
                                 environment = newIterationEnv;
                                 _programCounter = pushEnvInstruction.Next;
                                 continue;
+                            }
 
-                            case PopEnvironmentInstruction popEnvInstruction:
+                            case InstructionKind.PopEnvironment:
+                            {
+                                var popEnvInstruction = Unsafe.As<PopEnvironmentInstruction>(instruction);
                                 // Pop the iteration environment when exiting a loop.
                                 // If current env matches ScopeId, pop (set to Enclosing).
                                 // If not (loop ran 0 times), this is a no-op.
@@ -1143,8 +1162,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = popEnvInstruction.Next;
                                 continue;
+                            }
 
-                            case YieldInstruction yieldInstruction:
+                            case InstructionKind.Yield:
+                            {
+                                var yieldInstruction = Unsafe.As<YieldInstruction>(instruction);
                                 var yieldedValue = JsValue.Undefined;
                                 if (yieldInstruction.YieldExpression is not null)
                                 {
@@ -1188,9 +1210,11 @@ public static partial class TypedAstEvaluator
                                 RecordYield(context, environment);
                                 _state = GeneratorState.Suspended;
                                 return CreateIteratorResult(yieldedValue, false);
+                            }
 
-                            case YieldStarInstruction yieldStarInstruction:
+                            case InstructionKind.YieldStar:
                             {
+                                var yieldStarInstruction = Unsafe.As<YieldStarInstruction>(instruction);
                                 var currentIndex = _programCounter;
                                 if (!TryGetSymbolValueJsValue(environment, yieldStarInstruction.StateSlotSymbol,
                                         out var stateValue) ||
@@ -1434,7 +1458,9 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
-                            case StoreResumeValueInstruction storeResumeValueInstruction:
+                            case InstructionKind.StoreResumeValue:
+                            {
+                                var storeResumeValueInstruction = Unsafe.As<StoreResumeValueInstruction>(instruction);
                                 var (resumeKind, resumePayload) = ConsumeResumeValue();
                                 if (resumeKind == ResumePayloadKind.Throw)
                                 {
@@ -1487,33 +1513,48 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = storeResumeValueInstruction.Next;
                                 continue;
+                            }
 
-                            case EnterTryInstruction enterTryInstruction:
+                            case InstructionKind.EnterTry:
+                            {
+                                var enterTryInstruction = Unsafe.As<EnterTryInstruction>(instruction);
                                 PushTryFrame(enterTryInstruction, environment);
                                 _programCounter = enterTryInstruction.Next;
                                 continue;
+                            }
 
-                            case LeaveTryInstruction leaveTryInstruction:
+                            case InstructionKind.LeaveTry:
+                            {
+                                var leaveTryInstruction = Unsafe.As<LeaveTryInstruction>(instruction);
                                 CompleteTryNormally(leaveTryInstruction.Next);
                                 continue;
+                            }
 
-                            case LoopEnterInstruction loopEnterInstruction:
+                            case InstructionKind.LoopEnter:
+                            {
+                                var loopEnterInstruction = Unsafe.As<LoopEnterInstruction>(instruction);
                                 LoopStateRef.LoopStack.Push(new LoopFrame(
                                     loopEnterInstruction.Label,
                                     loopEnterInstruction.BreakTarget,
                                     loopEnterInstruction.ContinueTarget));
                                 _programCounter = loopEnterInstruction.Next;
                                 continue;
+                            }
 
-                            case LoopExitInstruction loopExitInstruction:
+                            case InstructionKind.LoopExit:
+                            {
+                                var loopExitInstruction = Unsafe.As<LoopExitInstruction>(instruction);
                                 if (LoopStateRef.LoopStack.Count > 0)
                                 {
                                     LoopStateRef.LoopStack.Pop();
                                 }
                                 _programCounter = loopExitInstruction.Next;
                                 continue;
+                            }
 
-                            case EndFinallyInstruction endFinallyInstruction:
+                            case InstructionKind.EndFinally:
+                            {
+                                var endFinallyInstruction = Unsafe.As<EndFinallyInstruction>(instruction);
                                 if (TryCatchStateRef.TryStack.Count == 0)
                                 {
                                     _programCounter = endFinallyInstruction.Next;
@@ -1567,8 +1608,11 @@ public static partial class TypedAstEvaluator
                                     ? tjs
                                     : JsValue.FromObjectUnsafe(pending.Value);
                                 throw new ThrowSignal(throwJs);
+                            }
 
-                            case IteratorInitInstruction iteratorInitInstruction:
+                            case InstructionKind.IteratorInit:
+                            {
+                                var iteratorInitInstruction = Unsafe.As<IteratorInitInstruction>(instruction);
                                 // For let/const declarations, create TDZ environment before evaluating iterable.
                                 // This ensures `for (const x of [x])` throws ReferenceError for accessing x before initialization.
                                 var iterableEnv = environment;
@@ -1653,8 +1697,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = iteratorInitInstruction.Next;
                                 continue;
+                            }
 
-                            case IteratorMoveNextInstruction iteratorMoveNextInstruction:
+                            case InstructionKind.IteratorMoveNext:
+                            {
+                                var iteratorMoveNextInstruction = Unsafe.As<IteratorMoveNextInstruction>(instruction);
                                 var iteratorIndex = _programCounter;
 
                                 // Use cached driver state for scope-correct access from child scopes
@@ -1694,7 +1741,7 @@ public static partial class TypedAstEvaluator
                                         continue;
                                     }
 
-                                    if (!iteratorStateValue.TryGetObject<IteratorDriverState>(out driverState))
+                                    if (!iteratorStateValue.TryGetObject(out driverState))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -1729,7 +1776,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
                                         var nextResult = iteratorObj.InvokeIteratorNext(
-                                            driverState.NextMethod!,
+                                            driverState.NextMethod,
                                             context: context,
                                             callingEnvironment: environment);
                                         // Handle case where nextResult is already a boxed JsValue
@@ -1895,7 +1942,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
                                         var nextResult = awaitIteratorObj.InvokeIteratorNext(
-                                            driverState.NextMethod!,
+                                            driverState.NextMethod,
                                             context: context,
                                             callingEnvironment: environment);
                                         if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
@@ -2134,12 +2181,18 @@ public static partial class TypedAstEvaluator
                                 }
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
+                            }
 
-                            case JumpInstruction jumpInstruction:
+                            case InstructionKind.Jump:
+                            {
+                                var jumpInstruction = Unsafe.As<JumpInstruction>(instruction);
                                 _programCounter = jumpInstruction.TargetIndex;
                                 continue;
+                            }
 
-                            case BranchInstruction branchInstruction:
+                            case InstructionKind.Branch:
+                            {
+                                var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
                                 var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingBranchResult, environment))
                                 {
@@ -2163,8 +2216,11 @@ public static partial class TypedAstEvaluator
                                     ? branchInstruction.ConsequentIndex
                                     : branchInstruction.AlternateIndex;
                                 continue;
+                            }
 
-                            case BreakInstruction breakInstruction:
+                            case InstructionKind.Break:
+                            {
+                                var breakInstruction = Unsafe.As<BreakInstruction>(instruction);
                                 if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
                                 {
                                     continue;
@@ -2176,7 +2232,6 @@ public static partial class TypedAstEvaluator
                                     while (environment.ScopeId != breakInstruction.TargetScopeId &&
                                            environment.Enclosing != null)
                                     {
-                                        var popped = environment;
                                         environment = environment.Enclosing;
                                         // Note: we don't return to pool here as we don't track pooling per-env
                                     }
@@ -2184,8 +2239,11 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = breakInstruction.TargetIndex;
                                 continue;
+                            }
 
-                            case ContinueInstruction continueInstruction:
+                            case InstructionKind.Continue:
+                            {
+                                var continueInstruction = Unsafe.As<ContinueInstruction>(instruction);
                                 if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
                                         environment))
                                 {
@@ -2198,7 +2256,6 @@ public static partial class TypedAstEvaluator
                                     while (environment.ScopeId != continueInstruction.TargetScopeId &&
                                            environment.Enclosing != null)
                                     {
-                                        var popped = environment;
                                         environment = environment.Enclosing;
                                         // Note: we don't return to pool here as we don't track pooling per-env
                                     }
@@ -2206,11 +2263,12 @@ public static partial class TypedAstEvaluator
 
                                 _programCounter = continueInstruction.TargetIndex;
                                 continue;
+                            }
 
-                            case ReturnInstruction returnInstruction:
-                                var returnValue = returnInstruction.ReturnExpression is null
-                                    ? JsValue.Undefined
-                                    : returnInstruction.ReturnExpression.EvaluateExpression(environment, context);
+                            case InstructionKind.Return:
+                            {
+                                var returnInstruction = Unsafe.As<ReturnInstruction>(instruction);
+                                var returnValue = returnInstruction.ReturnExpression?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
                                 if (TryHandlePendingAwait(context, out var pendingReturnResult, environment))
                                 {
                                     return pendingReturnResult;
@@ -2256,9 +2314,11 @@ public static partial class TypedAstEvaluator
                                 _done = true;
                                 TryCatchStateRef.TryStack.Clear();
                                 return CreateIteratorResult(returnValue, true);
+                            }
 
-                            case EnterWithInstruction enterWithInstruction:
+                            case InstructionKind.EnterWith:
                             {
+                                var enterWithInstruction = Unsafe.As<EnterWithInstruction>(instruction);
                                 var objValueJs =
                                     enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context);
                                 if (TryHandlePendingAwait(context, out var pendingWithResult, environment))
@@ -2299,8 +2359,9 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
-                            case LeaveWithInstruction leaveWithInstruction:
+                            case InstructionKind.LeaveWith:
                             {
+                                var leaveWithInstruction = Unsafe.As<LeaveWithInstruction>(instruction);
                                 // Remove this with-scope from active tracking
                                 if (WithStateRef.ActiveWithScopes.Count > 0 &&
                                     ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
@@ -2321,8 +2382,9 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
-                            case IteratorCloseInstruction iteratorCloseInstruction:
+                            case InstructionKind.IteratorClose:
                             {
+                                var iteratorCloseInstruction = Unsafe.As<IteratorCloseInstruction>(instruction);
                                 // Get the iterator state from the slot
                                 if (TryGetSymbolValueJsValue(environment, iteratorCloseInstruction.IteratorSlot,
                                         out var iterStateValue) &&
@@ -2362,7 +2424,7 @@ public static partial class TypedAstEvaluator
 
                             default:
                                 throw new InvalidOperationException(
-                                    $"Unsupported generator instruction {instruction.GetType().Name}");
+                                    $"Unsupported generator instruction kind {instruction.Kind}");
                         }
                     }
                 }

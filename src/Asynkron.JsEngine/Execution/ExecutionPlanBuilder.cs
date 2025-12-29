@@ -140,10 +140,11 @@ internal sealed partial class ExecutionPlanBuilder
 
     private bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)
     {
+        var ctx = GetEmitContext();
         var currentNext = nextIndex;
         for (var i = statements.Length - 1; i >= 0; i--)
         {
-            if (!TryBuildStatement(statements[i], currentNext, out currentNext))
+            if (!ctx.TryBuildStatement(statements[i], currentNext, out currentNext))
             {
                 entryIndex = -1;
                 _failureReason ??= $"Unsupported statement '{statements[i].GetType().Name}'.";
@@ -153,223 +154,6 @@ internal sealed partial class ExecutionPlanBuilder
 
         entryIndex = currentNext;
         return true;
-    }
-
-    private bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex,
-        Symbol? activeLabel = null)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case BlockStatement block:
-                    return Emitters.BlockEmitter.TryEmitBlock(GetEmitContext(), block, nextIndex, out entryIndex);
-
-                case FunctionDeclaration:
-                    // Function declarations are hoisted - this is a no-op at runtime
-                    entryIndex = Append(new FunctionDeclarationInstruction(nextIndex));
-                    return true;
-
-                case IfStatement ifStatement:
-                    return Emitters.ControlFlowEmitter.TryEmitIf(
-                        GetEmitContext(), ifStatement, nextIndex, activeLabel, out entryIndex);
-
-                case EmptyStatement:
-                    entryIndex = nextIndex;
-                    return true;
-
-                case ExpressionStatement { Expression: YieldExpression yieldExpression }:
-                    return Emitters.YieldEmitter.TryEmitYieldExpressionStatement(
-                        GetEmitContext(), yieldExpression, nextIndex, out entryIndex);
-
-                case ExpressionStatement expressionStatement:
-                    return Emitters.ExpressionStatementEmitter.TryEmitExpressionStatement(
-                        GetEmitContext(), expressionStatement, nextIndex, out entryIndex);
-
-                case VariableDeclaration declaration:
-                    return Emitters.DeclarationEmitter.TryEmitVariableDeclaration(
-                        GetEmitContext(), declaration, nextIndex, out entryIndex);
-
-                case WhileStatement whileStatement:
-                    if (AstShapeAnalyzer.ContainsYield(whileStatement.Condition))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "While condition contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    var whileStrict = IsStrictBlock(whileStatement.Body);
-                    if (!LoopNormalizer.TryNormalize(whileStatement, whileStrict, out var whilePlan,
-                            out var whileFailure))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= whileFailure ?? "Failed to normalize while loop.";
-                        return false;
-                    }
-
-                    return Emitters.LoopEmitter.TryEmitLoopPlan(
-                        GetEmitContext(), whilePlan, nextIndex, activeLabel, out entryIndex);
-
-                case DoWhileStatement doWhileStatement:
-                    if (AstShapeAnalyzer.ContainsYield(doWhileStatement.Condition))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "Do/while condition contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    var doStrict = IsStrictBlock(doWhileStatement.Body);
-                    if (!LoopNormalizer.TryNormalize(doWhileStatement, doStrict,
-                            out var doWhilePlan, out var doFailure))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= doFailure ?? "Failed to normalize do/while loop.";
-                        return false;
-                    }
-
-                    return Emitters.LoopEmitter.TryEmitLoopPlan(
-                        GetEmitContext(), doWhilePlan, nextIndex, activeLabel, out entryIndex);
-
-                case ForStatement forStatement:
-                    if (forStatement.Condition is not null && AstShapeAnalyzer.ContainsYield(forStatement.Condition))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "For condition contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    if (forStatement.Increment is not null && AstShapeAnalyzer.ContainsYield(forStatement.Increment))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "For increment contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    var forStrict = IsStrictBlock(forStatement.Body);
-                    if (!LoopNormalizer.TryNormalize(forStatement, forStrict, out var forPlan,
-                            out var forFailure))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= forFailure ?? "Failed to normalize for loop.";
-                        return false;
-                    }
-
-                    return Emitters.LoopEmitter.TryEmitLoopPlan(
-                        GetEmitContext(), forPlan, nextIndex, activeLabel, out entryIndex);
-
-                case SwitchStatement switchStatement:
-                    if (Emitters.SwitchEmitter.TryEmitSwitch(
-                        GetEmitContext(), switchStatement, nextIndex, activeLabel, out entryIndex))
-                    {
-                        return true;
-                    }
-
-                    entryIndex = -1;
-                    _failureReason ??= "Unsupported statement 'SwitchStatement'.";
-                    return false;
-
-                case TryStatement tryStatement:
-                    return Emitters.TryEmitter.TryEmitTry(
-                        GetEmitContext(), tryStatement, nextIndex, activeLabel, out entryIndex);
-
-                case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
-                    when IsSimpleForOfBinding(forEachStatement):
-                    // If binding target has yields anywhere (defaults or assignment target expressions),
-                    // wrap as StatementInstruction. The AST evaluator handles yield state-saving correctly.
-                    // This handles patterns like: for ([ {}[ yield ] ] of iterable) { }
-                    if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
-                        !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
-                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
-                        return true;
-                    }
-
-                    return Emitters.ForOfEmitter.TryEmitForOf(
-                        GetEmitContext(), forEachStatement, nextIndex, activeLabel, out entryIndex);
-
-                case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
-                    when IsSimpleForOfBinding(forEachStatement):
-                    // If binding target has yields anywhere (defaults or assignment target expressions),
-                    // wrap as StatementInstruction. Same reasoning as for regular for-of loops above.
-                    if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
-                        !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
-                        !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, forEachStatement));
-                        return true;
-                    }
-
-                    return Emitters.ForOfEmitter.TryEmitForAwaitOf(
-                        GetEmitContext(), forEachStatement, nextIndex, activeLabel, out entryIndex);
-
-                case ReturnStatement returnStatement:
-                    // First check for yield return
-                    if (returnStatement.Expression is YieldExpression yieldReturn &&
-                        Emitters.YieldEmitter.TryEmitReturnWithYield(GetEmitContext(), yieldReturn, out entryIndex))
-                    {
-                        return true;
-                    }
-                    return Emitters.DeclarationEmitter.TryEmitReturn(
-                        GetEmitContext(), returnStatement, nextIndex, out entryIndex);
-
-                case BreakStatement breakStatement:
-                    return Emitters.ControlFlowEmitter.TryEmitBreak(
-                        GetEmitContext(), breakStatement, out entryIndex);
-
-                case ContinueStatement continueStatement:
-                    return Emitters.ControlFlowEmitter.TryEmitContinue(
-                        GetEmitContext(), continueStatement, out entryIndex);
-
-                case WithStatement withStatement:
-                    // Yield is not allowed in the object expression
-                    if (AstShapeAnalyzer.ContainsYield(withStatement.Object))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "With statement object expression contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    // If the body contains yield, we need to use EnterWith/LeaveWith instructions
-                    if (AstShapeAnalyzer.StatementContainsYield(withStatement.Body))
-                    {
-                        return Emitters.WithEmitter.TryEmitWith(
-                            GetEmitContext(), withStatement, nextIndex, activeLabel, out entryIndex);
-                    }
-
-                    // If no yield in body, emit as a simple statement instruction
-                    entryIndex = Append(new StatementInstruction(nextIndex, withStatement));
-                    return true;
-
-                case ClassDeclaration classDeclaration:
-                    return Emitters.DeclarationEmitter.TryEmitClassDeclaration(
-                        GetEmitContext(), classDeclaration, nextIndex, out entryIndex);
-
-                case ThrowStatement throwStatement:
-                    return Emitters.DeclarationEmitter.TryEmitThrow(
-                        GetEmitContext(), throwStatement, out entryIndex);
-
-                case LabeledStatement labeled:
-                    // For loop-like statements, pass the label through - they handle it internally
-                    if (labeled.Statement is WhileStatement or DoWhileStatement or ForStatement
-                        or ForEachStatement or SwitchStatement)
-                    {
-                        statement = labeled.Statement;
-                        activeLabel = labeled.Label;
-                        continue;
-                    }
-
-                    // For non-loop statements (like blocks), wrap with LoopEnter/LoopExit
-                    // to provide break targets for labeled break statements
-                    return Emitters.ControlFlowEmitter.TryEmitLabeledNonLoop(
-                        GetEmitContext(), labeled, nextIndex, out entryIndex);
-
-                default:
-                    entryIndex = -1;
-                    _failureReason ??= $"Unsupported statement '{statement.GetType().Name}'.";
-                    return false;
-            }
-        }
     }
 
     private Symbol CreateResumeSlotSymbol()
@@ -406,12 +190,6 @@ internal sealed partial class ExecutionPlanBuilder
         return bindingStatement;
     }
 
-    private static bool IsSimpleForOfBinding(ForEachStatement statement)
-    {
-        // We now allow identifier or destructuring targets for all declaration kinds.
-        return statement.Target is not null;
-    }
-
     private static ExpressionNode CreateAssignmentExpression(BindingTarget target, ExpressionNode valueExpression)
     {
         return target switch
@@ -435,79 +213,6 @@ internal sealed partial class ExecutionPlanBuilder
                     member.IsComputed);
             default:
                 throw new NotSupportedException($"Unsupported for-of assignment target '{lhs.GetType().Name}'.");
-        }
-    }
-
-    /// <summary>
-    /// Checks if a binding target contains yields anywhere - either in default values
-    /// or in assignment target expressions (like [ {}[ yield ] ]).
-    /// This is used to determine when to wrap declarations in StatementInstruction.
-    /// </summary>
-    private static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
-    {
-        switch (target)
-        {
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    // Check for yields in default values
-                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    // Recursively check nested bindings
-                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    // Check for yields in default values
-                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    // Check for yields in computed property names
-                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
-                    {
-                        return true;
-                    }
-
-                    // Recursively check nested bindings
-                    if (BindingTargetContainsYieldAnywhere(prop.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case AssignmentTargetBinding assignmentTarget:
-                // Check if the assignment target expression contains a yield
-                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
-
-            default:
-                // IdentifierBinding doesn't have expressions or default values
-                return false;
         }
     }
 

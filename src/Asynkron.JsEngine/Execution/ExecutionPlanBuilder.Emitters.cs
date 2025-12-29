@@ -30,14 +30,6 @@ internal sealed partial class ExecutionPlanBuilder
     }
 
     /// <summary>
-    /// Internal method for EmitContext to build a single statement.
-    /// </summary>
-    internal bool TryBuildStatementInternal(StatementNode statement, int nextIndex, out int entryIndex, Symbol? activeLabel = null)
-    {
-        return TryBuildStatement(statement, nextIndex, out entryIndex, activeLabel);
-    }
-
-    /// <summary>
     /// Internal method for EmitContext to set failure reason.
     /// </summary>
     internal void SetFailureReasonInternal(string reason)

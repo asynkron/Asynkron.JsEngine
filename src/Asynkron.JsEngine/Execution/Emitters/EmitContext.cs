@@ -127,11 +127,11 @@ internal sealed class EmitContext
     }
 
     /// <summary>
-    /// Build a single statement, delegating to the builder.
+    /// Build a single statement by dispatching to the StatementEmitter.
     /// </summary>
     public bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex, Symbol? activeLabel = null)
     {
-        return _builder.TryBuildStatementInternal(statement, nextIndex, out entryIndex, activeLabel);
+        return StatementEmitter.TryEmitStatement(this, statement, nextIndex, out entryIndex, activeLabel);
     }
 
     /// <summary>

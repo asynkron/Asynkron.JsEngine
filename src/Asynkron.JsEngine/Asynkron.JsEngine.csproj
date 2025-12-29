@@ -21,8 +21,4 @@
     <EmbeddedResource Include="StdLib/Intl/IntlWeekData.json"/>
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="generated\Asynkron.JsEngine.Generators\Asynkron.JsEngine.Generators.PrototypeSourceGenerator\" />
-  </ItemGroup>
-
 </Project>

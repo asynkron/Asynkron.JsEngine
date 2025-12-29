@@ -53,3 +53,25 @@ try {
 } catch (Exception ex) {
     Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
 }
+
+// Test 3: Arrow function this binding in strict mode
+Console.WriteLine("\n=== Test 3: Arrow function this in strict mode ===");
+try {
+    var result = await engine.Evaluate(@"
+        'use strict';
+        var context = 'INITIAL';
+        var fnThis = 'NOT SET';
+        var fn = function() {
+          fnThis = this;  // Capture what 'this' is inside fn
+          return () => { context = this; };
+        };
+        fn()();
+        'fnThis=' + (fnThis === undefined ? 'undefined' : typeof fnThis) +
+        ', context=' + (context === undefined ? 'undefined' : typeof context + ': ' + context);
+    ").ConfigureAwait(false);
+    Console.WriteLine($"  Result: {result}");
+    Console.WriteLine($"  Expected: fnThis=undefined, context=undefined");
+    Console.WriteLine(result?.ToString() == "fnThis=undefined, context=undefined" ? "  SUCCESS!" : "  FAILED!");
+} catch (Exception ex) {
+    Console.WriteLine($"  Exception: {ex.GetType().Name}: {ex.Message}");
+}

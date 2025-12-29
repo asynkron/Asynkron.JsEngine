@@ -2330,8 +2330,20 @@ public static partial class TypedAstEvaluator
                                     returnValue = pendingReturn;
                                 }
 
+                                // Check if we're inside a scheduled finally BEFORE calling HandleAbruptCompletion.
+                                // If so, the return statement should terminate the finally block immediately,
+                                // not execute code after the return (which is unreachable code).
+                                var wasInsideScheduledFinally = IsInsideScheduledFinally();
+
                                 if (HandleAbruptCompletionJsValue(AbruptKind.Return, returnValue, environment))
                                 {
+                                    // If we were inside a scheduled finally, the pending completion was updated.
+                                    // Now complete the function with that value instead of advancing to unreachable code.
+                                    if (wasInsideScheduledFinally)
+                                    {
+                                        return CompleteReturn(returnValue);
+                                    }
+
                                     if (_programCounter == _currentInstructionIndex)
                                     {
                                         _programCounter = returnInstruction.Next;
@@ -2340,11 +2352,7 @@ public static partial class TypedAstEvaluator
                                     continue;
                                 }
 
-                                _programCounter = -1;
-                                _state = GeneratorState.Completed;
-                                _done = true;
-                                TryCatchStateRef.TryStack.Clear();
-                                return CreateIteratorResult(returnValue, true);
+                                return CompleteReturn(returnValue);
                             }
 
                             case InstructionKind.EnterWith:

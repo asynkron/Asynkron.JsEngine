@@ -991,7 +991,11 @@ public static partial class TypedAstEvaluator
                 }
 
                 functionEnvironment.SetThisInitializationStatus(initialThisInitialized);
-                functionEnvironment.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(initialThisValue));
+                // In strict mode, `this` can be undefined - handle Symbol.Undefined marker correctly
+                var thisJsValue = ReferenceEquals(initialThisValue, Symbol.Undefined)
+                    ? JsValue.Undefined
+                    : JsValue.FromObjectUnsafe(initialThisValue);
+                functionEnvironment.DefineJsValue(Symbol.This, thisJsValue);
 
                 if (IsClassConstructor && initialThisValue is JsObject ctorThis)
                 {

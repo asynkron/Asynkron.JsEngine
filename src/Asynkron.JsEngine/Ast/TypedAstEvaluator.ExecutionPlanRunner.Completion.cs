@@ -222,11 +222,11 @@ public static partial class TypedAstEvaluator
                         return true;
                     }
 
-                    // Per ES spec: when an abrupt completion occurs inside a finally block,
-                    // the new completion replaces the pending one. For most callers
-                    // (like StoreResumeValueInstruction for generator resumption),
-                    // we update the pending and let them advance PC. For throw/return
-                    // statements that end the finally abruptly, the caller handles it.
+                    // Already inside a finally block. Per ES spec: when an abrupt completion occurs
+                    // inside a finally block, the new completion replaces the pending one.
+                    // The caller decides how to proceed based on the instruction type:
+                    // - StoreResumeValue (generator resumption): continues executing finally
+                    // - Return/Throw statement: should terminate finally immediately
                     frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
                     return true;
                 }
@@ -246,6 +246,17 @@ public static partial class TypedAstEvaluator
             // 1. It preserves the JsValue type information
             // 2. Downstream code can detect "is JsValue" and unbox efficiently
             return HandleAbruptCompletion(kind, value, environment);
+        }
+
+        /// <summary>
+        /// Checks if the current try frame is inside a finally block (FinallyScheduled is true).
+        /// Used by Return/Throw instruction handlers to determine if they should terminate
+        /// the finally block immediately rather than executing code after the statement.
+        /// </summary>
+        private bool IsInsideScheduledFinally()
+        {
+            return TryCatchStateRef.TryStack.Count > 0 &&
+                   TryCatchStateRef.TryStack.Peek().FinallyScheduled;
         }
 
         private JsValue CompleteReturn(JsValue value)

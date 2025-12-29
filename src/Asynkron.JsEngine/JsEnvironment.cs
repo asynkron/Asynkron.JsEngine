@@ -2051,6 +2051,14 @@ public sealed class JsEnvironment : IRentable
 
         while (current is not null && hops++ < maxLookupDepth)
         {
+            // Fast path for 'this' stored via _hasThisValue (used by InvokeSimpleFast)
+            if (ReferenceEquals(name, Symbol.This) && current._hasThisValue)
+            {
+                environment = current;
+                value = current._thisValue;
+                return true;
+            }
+
             if (current._values is not null && current._values.TryGetValue(name, out var binding))
             {
                 if (binding.IsUninitialized && !allowUninitialized)

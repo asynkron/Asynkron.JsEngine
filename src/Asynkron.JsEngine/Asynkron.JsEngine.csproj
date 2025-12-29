@@ -14,8 +14,8 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Update="Meziantou.Analyzer" Version="2.0.264" />
     <PackageReference Update="Roslynator.Analyzers" Version="4.15.0" />
+    <PackageReference Remove="Meziantou.Analyzer" />
   </ItemGroup>
 
   <ItemGroup>

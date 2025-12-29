@@ -689,9 +689,9 @@ public static partial class TypedAstEvaluator
             // │    no hoistable declarations, simple identifier params only.                 │
             // │    This is the hot path for recursive functions like fibonacci().            │
             // │                                                                               │
-            // │ 2. SLOW PATH (below) - Attempts IR via ExecutionPlanRunner                   │
+            // │ 2. SLOW PATH (below) - Uses IR via ExecutionPlanRunner                        │
             // │    Used for complex sync functions that don't qualify for fast path.         │
-            // │    If IR plan generation fails, falls back to direct AST interpretation.     │
+            // │    If IR plan generation fails, throws NotSupportedException to surface it.  │
             // │                                                                               │
             // │ Async functions and generators ALWAYS use IR (required for pause/resume).    │
             // └──────────────────────────────────────────────────────────────────────────────┘
@@ -738,19 +738,17 @@ public static partial class TypedAstEvaluator
                             _lexicalThisEnvironment);
                         return runner.RunSync();
                     }
-                    catch (ThrowSignal signal)
+                    catch (ThrowSignal signal) when (callingContext is not null)
                     {
-                        if (callingContext is null)
-                        {
-                            throw;
-                        }
-
                         callingContext.SetThrow(signal.ThrownValue);
                         return signal.ThrownValue;
-
                     }
                 }
-                // If plan building failed, fall through to AST interpretation
+
+                // IR plan generation failed - throw to surface the limitation clearly
+                RealmState.ReturnContext(context);
+                throw new NotSupportedException(
+                    $"IR plan generation failed for function: {planCache.FailureReason}");
             }
 
             var lexicalNames = RentSymbolSet(_lexicalTemplate);

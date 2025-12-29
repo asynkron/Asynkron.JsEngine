@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -8,34 +7,23 @@ namespace Asynkron.JsEngine.Execution.Emitters;
 /// Provides context for IR emitters, encapsulating access to the instruction list,
 /// loop scope stack, and helper methods for building execution plans.
 /// </summary>
-internal sealed class EmitContext
+internal sealed class EmitContext(
+    ExecutionPlanBuilder builder,
+    List<ExecutionInstruction> instructions,
+    Stack<ExecutionPlanBuilder.LoopScope> loopScopes)
 {
-    private readonly ExecutionPlanBuilder _builder;
-    private readonly List<ExecutionInstruction> _instructions;
-    private readonly Stack<ExecutionPlanBuilder.LoopScope> _loopScopes;
-
-    public EmitContext(
-        ExecutionPlanBuilder builder,
-        List<ExecutionInstruction> instructions,
-        Stack<ExecutionPlanBuilder.LoopScope> loopScopes)
-    {
-        _builder = builder;
-        _instructions = instructions;
-        _loopScopes = loopScopes;
-    }
-
     /// <summary>
     /// Current number of instructions (used for rollback on failure).
     /// </summary>
-    public int InstructionCount => _instructions.Count;
+    public int InstructionCount => instructions.Count;
 
     /// <summary>
     /// Append an instruction and return its index.
     /// </summary>
     public int Append(ExecutionInstruction instruction)
     {
-        var index = _instructions.Count;
-        _instructions.Add(instruction);
+        var index = instructions.Count;
+        instructions.Add(instruction);
         return index;
     }
 
@@ -44,7 +32,7 @@ internal sealed class EmitContext
     /// </summary>
     public void Patch(int index, ExecutionInstruction instruction)
     {
-        _instructions[index] = instruction;
+        instructions[index] = instruction;
     }
 
     /// <summary>
@@ -53,7 +41,7 @@ internal sealed class EmitContext
     /// </summary>
     public void Rollback(int startIndex)
     {
-        _instructions.RemoveRange(startIndex, _instructions.Count - startIndex);
+        instructions.RemoveRange(startIndex, instructions.Count - startIndex);
     }
 
     /// <summary>
@@ -61,7 +49,7 @@ internal sealed class EmitContext
     /// </summary>
     public void PushLoopScope(Symbol? label, int continueTarget, int breakTarget, int targetScopeId)
     {
-        _loopScopes.Push(new ExecutionPlanBuilder.LoopScope(label, continueTarget, breakTarget, targetScopeId));
+        loopScopes.Push(new ExecutionPlanBuilder.LoopScope(label, continueTarget, breakTarget, targetScopeId));
     }
 
     /// <summary>
@@ -69,7 +57,7 @@ internal sealed class EmitContext
     /// </summary>
     public void PopLoopScope()
     {
-        _loopScopes.Pop();
+        loopScopes.Pop();
     }
 
     /// <summary>
@@ -77,7 +65,7 @@ internal sealed class EmitContext
     /// </summary>
     public bool TryFindBreakTarget(Symbol? label, out int target, out int scopeId)
     {
-        foreach (var scope in _loopScopes)
+        foreach (var scope in loopScopes)
         {
             if (label is null || ReferenceEquals(scope.Label, label))
             {
@@ -97,7 +85,7 @@ internal sealed class EmitContext
     /// </summary>
     public bool TryFindContinueTarget(Symbol? label, out int target, out int scopeId)
     {
-        foreach (var scope in _loopScopes)
+        foreach (var scope in loopScopes)
         {
             if (label is null || ReferenceEquals(scope.Label, label))
             {
@@ -123,7 +111,7 @@ internal sealed class EmitContext
     /// </summary>
     public bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)
     {
-        return _builder.TryBuildStatementListInternal(statements, nextIndex, out entryIndex);
+        return builder.TryBuildStatementListInternal(statements, nextIndex, out entryIndex);
     }
 
     /// <summary>
@@ -139,7 +127,7 @@ internal sealed class EmitContext
     /// </summary>
     public void SetFailureReason(string reason)
     {
-        _builder.SetFailureReasonInternal(reason);
+        builder.SetFailureReasonInternal(reason);
     }
 
     /// <summary>
@@ -147,7 +135,7 @@ internal sealed class EmitContext
     /// </summary>
     public Symbol CreateCatchSlotSymbol()
     {
-        return _builder.CreateCatchSlotSymbolInternal();
+        return builder.CreateCatchSlotSymbolInternal();
     }
 
     /// <summary>
@@ -163,13 +151,13 @@ internal sealed class EmitContext
     /// </summary>
     public int AllocateSlot(Symbol symbol)
     {
-        return _builder.AllocateSlotInternal(symbol);
+        return builder.AllocateSlotInternal(symbol);
     }
 
     /// <summary>
     /// Get the instruction list (for IteratorInstructionTemplate).
     /// </summary>
-    public List<ExecutionInstruction> Instructions => _builder.InstructionsInternal;
+    public List<ExecutionInstruction> Instructions => builder.InstructionsInternal;
 
     /// <summary>
     /// Create iterator binding statement.
@@ -200,7 +188,7 @@ internal sealed class EmitContext
     /// </summary>
     public Symbol CreateWithScopeSlotSymbol()
     {
-        return _builder.CreateWithScopeSlotSymbolInternal();
+        return builder.CreateWithScopeSlotSymbolInternal();
     }
 
     /// <summary>
@@ -208,7 +196,7 @@ internal sealed class EmitContext
     /// </summary>
     public Symbol CreateResumeSlotSymbol()
     {
-        return _builder.CreateResumeSlotSymbolInternal();
+        return builder.CreateResumeSlotSymbolInternal();
     }
 
     /// <summary>
@@ -216,7 +204,7 @@ internal sealed class EmitContext
     /// </summary>
     public int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
     {
-        return _builder.AppendYieldSequenceInternal(expression, continuationIndex, resumeSlot);
+        return builder.AppendYieldSequenceInternal(expression, continuationIndex, resumeSlot);
     }
 
     /// <summary>
@@ -224,6 +212,6 @@ internal sealed class EmitContext
     /// </summary>
     public int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
     {
-        return _builder.AppendYieldStarSequenceInternal(expression, continuationIndex, resultSlot);
+        return builder.AppendYieldStarSequenceInternal(expression, continuationIndex, resultSlot);
     }
 }

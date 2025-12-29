@@ -171,7 +171,8 @@ internal sealed partial class ExecutionPlanBuilder
                     return true;
 
                 case IfStatement ifStatement:
-                    return TryBuildIfStatement(ifStatement, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.ControlFlowEmitter.TryEmitIf(
+                        GetEmitContext(), ifStatement, nextIndex, activeLabel, out entryIndex);
 
                 case EmptyStatement:
                     entryIndex = nextIndex;
@@ -206,7 +207,8 @@ internal sealed partial class ExecutionPlanBuilder
                         return false;
                     }
 
-                    return TryBuildLoopPlan(whilePlan, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.LoopEmitter.TryEmitLoopPlan(
+                        GetEmitContext(), whilePlan, nextIndex, activeLabel, out entryIndex);
 
                 case DoWhileStatement doWhileStatement:
                     if (AstShapeAnalyzer.ContainsYield(doWhileStatement.Condition))
@@ -225,7 +227,8 @@ internal sealed partial class ExecutionPlanBuilder
                         return false;
                     }
 
-                    return TryBuildLoopPlan(doWhilePlan, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.LoopEmitter.TryEmitLoopPlan(
+                        GetEmitContext(), doWhilePlan, nextIndex, activeLabel, out entryIndex);
 
                 case ForStatement forStatement:
                     if (forStatement.Condition is not null && AstShapeAnalyzer.ContainsYield(forStatement.Condition))
@@ -251,10 +254,12 @@ internal sealed partial class ExecutionPlanBuilder
                         return false;
                     }
 
-                    return TryBuildLoopPlan(forPlan, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.LoopEmitter.TryEmitLoopPlan(
+                        GetEmitContext(), forPlan, nextIndex, activeLabel, out entryIndex);
 
                 case SwitchStatement switchStatement:
-                    if (TryBuildSwitchStatement(switchStatement, nextIndex, out entryIndex, activeLabel))
+                    if (Emitters.SwitchEmitter.TryEmitSwitch(
+                        GetEmitContext(), switchStatement, nextIndex, activeLabel, out entryIndex))
                     {
                         return true;
                     }
@@ -264,7 +269,8 @@ internal sealed partial class ExecutionPlanBuilder
                     return false;
 
                 case TryStatement tryStatement:
-                    return TryBuildTryStatement(tryStatement, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.TryEmitter.TryEmitTry(
+                        GetEmitContext(), tryStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
@@ -279,7 +285,8 @@ internal sealed partial class ExecutionPlanBuilder
                         return true;
                     }
 
-                    return TryBuildForOfStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.ForOfEmitter.TryEmitForOf(
+                        GetEmitContext(), forEachStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
@@ -293,7 +300,8 @@ internal sealed partial class ExecutionPlanBuilder
                         return true;
                     }
 
-                    return TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
+                    return Emitters.ForOfEmitter.TryEmitForAwaitOf(
+                        GetEmitContext(), forEachStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ReturnStatement returnStatement:
                     // First check for yield return
@@ -306,10 +314,12 @@ internal sealed partial class ExecutionPlanBuilder
                         GetEmitContext(), returnStatement, nextIndex, out entryIndex);
 
                 case BreakStatement breakStatement:
-                    return TryBuildBreak(breakStatement, out entryIndex);
+                    return Emitters.ControlFlowEmitter.TryEmitBreak(
+                        GetEmitContext(), breakStatement, out entryIndex);
 
                 case ContinueStatement continueStatement:
-                    return TryBuildContinue(continueStatement, out entryIndex);
+                    return Emitters.ControlFlowEmitter.TryEmitContinue(
+                        GetEmitContext(), continueStatement, out entryIndex);
 
                 case WithStatement withStatement:
                     // Yield is not allowed in the object expression
@@ -323,7 +333,8 @@ internal sealed partial class ExecutionPlanBuilder
                     // If the body contains yield, we need to use EnterWith/LeaveWith instructions
                     if (AstShapeAnalyzer.StatementContainsYield(withStatement.Body))
                     {
-                        return TryBuildWithStatement(withStatement, nextIndex, out entryIndex, activeLabel);
+                        return Emitters.WithEmitter.TryEmitWith(
+                            GetEmitContext(), withStatement, nextIndex, activeLabel, out entryIndex);
                     }
 
                     // If no yield in body, emit as a simple statement instruction
@@ -350,7 +361,8 @@ internal sealed partial class ExecutionPlanBuilder
 
                     // For non-loop statements (like blocks), wrap with LoopEnter/LoopExit
                     // to provide break targets for labeled break statements
-                    return TryBuildLabeledNonLoopStatement(labeled, nextIndex, out entryIndex);
+                    return Emitters.ControlFlowEmitter.TryEmitLabeledNonLoop(
+                        GetEmitContext(), labeled, nextIndex, out entryIndex);
 
                 default:
                     entryIndex = -1;
@@ -392,52 +404,6 @@ internal sealed partial class ExecutionPlanBuilder
         var branchIndex = Append(new BranchInstruction(statement.Condition, thenEntry, elseEntry));
         entryIndex = branchIndex;
         return true;
-    }
-
-    private bool TryBuildLoopPlan(LoopPlan plan, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        return Emitters.LoopEmitter.TryEmitLoopPlan(GetEmitContext(), plan, nextIndex, label, out entryIndex);
-    }
-
-    private bool TryBuildTryStatement(TryStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
-    {
-        return Emitters.TryEmitter.TryEmitTry(GetEmitContext(), statement, nextIndex, activeLabel, out entryIndex);
-    }
-
-    /// <summary>
-    ///     Builds a labeled non-loop statement by wrapping it with LoopEnter/LoopExit instructions.
-    ///     This enables labeled break statements within the statement body (e.g., <c>label: { break label; }</c>).
-    /// </summary>
-    private bool TryBuildLabeledNonLoopStatement(LabeledStatement labeled, int nextIndex, out int entryIndex)
-    {
-        return Emitters.ControlFlowEmitter.TryEmitLabeledNonLoop(GetEmitContext(), labeled, nextIndex, out entryIndex);
-    }
-
-    private bool TryBuildSwitchStatement(SwitchStatement statement, int nextIndex, out int entryIndex,
-        Symbol? activeLabel)
-    {
-        return Emitters.SwitchEmitter.TryEmitSwitch(GetEmitContext(), statement, nextIndex, activeLabel, out entryIndex);
-    }
-
-    private bool TryBuildForOfStatement(ForEachStatement statement, int nextIndex, out int entryIndex, Symbol? label)
-    {
-        return Emitters.ForOfEmitter.TryEmitForOf(GetEmitContext(), statement, nextIndex, label, out entryIndex);
-    }
-
-    private bool TryBuildForAwaitStatement(ForEachStatement statement, int nextIndex, out int entryIndex,
-        Symbol? label)
-    {
-        return Emitters.ForOfEmitter.TryEmitForAwaitOf(GetEmitContext(), statement, nextIndex, label, out entryIndex);
-    }
-
-    private bool TryBuildBreak(BreakStatement statement, out int entryIndex)
-    {
-        return Emitters.ControlFlowEmitter.TryEmitBreak(GetEmitContext(), statement, out entryIndex);
-    }
-
-    private bool TryBuildContinue(ContinueStatement statement, out int entryIndex)
-    {
-        return Emitters.ControlFlowEmitter.TryEmitContinue(GetEmitContext(), statement, out entryIndex);
     }
 
     private Symbol CreateResumeSlotSymbol()
@@ -595,11 +561,6 @@ internal sealed partial class ExecutionPlanBuilder
     {
         var symbolName = $"{WithScopeSlotPrefix}{_withScopeSlotCounter++}";
         return Symbol.Intern(symbolName);
-    }
-
-    private bool TryBuildWithStatement(WithStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
-    {
-        return Emitters.WithEmitter.TryEmitWith(GetEmitContext(), statement, nextIndex, activeLabel, out entryIndex);
     }
 
     private static bool IsStrictBlock(StatementNode statement)

@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
@@ -18,6 +19,14 @@ internal static class ControlFlowEmitter
         Symbol? activeLabel,
         out int entryIndex)
     {
+        // Check for yield in condition
+        if (AstShapeAnalyzer.ContainsYield(statement.Condition))
+        {
+            ctx.SetFailureReason("If condition contains unsupported yield shape.");
+            entryIndex = -1;
+            return false;
+        }
+
         var instructionStart = ctx.InstructionCount;
 
         // Build else branch first (bottom-up building)

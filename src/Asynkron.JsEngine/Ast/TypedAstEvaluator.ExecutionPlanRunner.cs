@@ -32,6 +32,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState;
         private readonly JsValue _thisValue;
         private readonly JsValue _newTarget;
+        private readonly JsEnvironment? _lexicalThisEnvironment;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
         private bool _done;
@@ -62,7 +63,8 @@ public static partial class TypedAstEvaluator
             IJsObjectLike? homeObject,
             PrivateNameScope? privateNameScope,
             ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
-            JsValue newTarget = default)
+            JsValue newTarget = default,
+            JsEnvironment? lexicalThisEnvironment = null)
         {
             _function = function;
             _closure = closure;
@@ -75,6 +77,7 @@ public static partial class TypedAstEvaluator
             _homeObject = homeObject;
             _privateNameScope = privateNameScope;
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
+            _lexicalThisEnvironment = lexicalThisEnvironment;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _allowIdentifierCache = AllowsIdentifierCaching(function);
 
@@ -319,6 +322,14 @@ public static partial class TypedAstEvaluator
             }
 
             functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+
+            // For arrow functions with captured lexical this environment, define LexicalThisEnvironment
+            // so super() calls can update the correct this binding in the original constructor
+            if (_function.IsArrow && _lexicalThisEnvironment is not null)
+            {
+                functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
+                    JsValue.FromObjectUnsafe(_lexicalThisEnvironment));
+            }
 
             // Define new.target for non-arrow functions so inner arrow functions can access it lexically
             if (!_function.IsArrow)

@@ -139,17 +139,28 @@ public static partial class TypedAstEvaluator
 
             if (IsArrowFunction)
             {
-                try
+                // Use TryFindBindingJsValue with allowUninitialized=true to:
+                // 1. Avoid throwing exceptions for uninitialized `this` in derived constructors
+                // 2. Capture the environment that OWNS the `this` binding for super() calls
+                if (_closure.TryFindBindingJsValue(Symbol.This, true, out var owningEnv, out var capturedThis))
                 {
-                    _lexicalThis = _closure.TryGetJsValue(Symbol.This, out var capturedThis)
-                        ? capturedThis
-                        : JsValue.Undefined;
+                    if (capturedThis.IsUninitialized)
+                    {
+                        // `this` exists but is uninitialized (derived constructor before super())
+                        // Store the owning environment so super() can update the correct binding
+                        _lexicalThis = JsValue.Uninitialized;
+                        _lexicalThisEnvironment = owningEnv;
+                    }
+                    else
+                    {
+                        // `this` is initialized - capture its value
+                        _lexicalThis = capturedThis;
+                    }
                 }
-                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                               StringComparison.Ordinal))
+                else
                 {
-                    _lexicalThis = JsValue.Uninitialized;
-                    _lexicalThisEnvironment = _closure;
+                    // No `this` binding in the environment chain
+                    _lexicalThis = JsValue.Undefined;
                 }
             }
 
@@ -740,7 +751,8 @@ public static partial class TypedAstEvaluator
                             _homeObject,
                             PrivateNameScope,
                             _capturedPrivateNameScopes,
-                            newTarget);
+                            newTarget,
+                            _lexicalThisEnvironment);
                         return runner.RunSync();
                     }
                     catch (ThrowSignal signal)

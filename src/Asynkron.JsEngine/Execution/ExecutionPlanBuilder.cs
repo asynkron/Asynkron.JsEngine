@@ -276,7 +276,11 @@ internal sealed partial class ExecutionPlanBuilder
 
         builder.AddRange(clause.Body.Statements);
 
-        return clause.Body with { Statements = builder.ToImmutableArray() };
+        // IMPORTANT: Create a new BlockStatement instead of using 'with' expression.
+        // Using 'with' copies mutable cache fields (_cachedHoistPlan) from the original block,
+        // which doesn't include our added 'let' declaration. This causes the block to not
+        // create its own scope, and the catch parameter binding overwrites the outer var binding.
+        return new BlockStatement(clause.Body.Source, builder.ToImmutableArray(), clause.Body.IsStrict);
     }
 
     private int Append(ExecutionInstruction instruction)

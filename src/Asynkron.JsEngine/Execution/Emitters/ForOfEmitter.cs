@@ -13,35 +13,9 @@ namespace Asynkron.JsEngine.Execution.Emitters;
 internal static class ForOfEmitter
 {
     /// <summary>
-    /// Emit IR for a for-of statement.
+    /// Emit IR for a for-of or for-await-of statement.
     /// </summary>
-    public static bool TryEmitForOf(
-        EmitContext ctx,
-        ForEachStatement statement,
-        int nextIndex,
-        Symbol? label,
-        out int entryIndex)
-    {
-        return TryEmitIteratorPlan(ctx, statement, nextIndex, label, out entryIndex);
-    }
-
-    /// <summary>
-    /// Emit IR for a for-await-of statement.
-    /// </summary>
-    public static bool TryEmitForAwaitOf(
-        EmitContext ctx,
-        ForEachStatement statement,
-        int nextIndex,
-        Symbol? label,
-        out int entryIndex)
-    {
-        return TryEmitIteratorPlan(ctx, statement, nextIndex, label, out entryIndex);
-    }
-
-    /// <summary>
-    /// Emit IR for an iterator-based loop (for-of or for-await-of).
-    /// </summary>
-    private static bool TryEmitIteratorPlan(
+    public static bool TryEmit(
         EmitContext ctx,
         ForEachStatement statement,
         int nextIndex,

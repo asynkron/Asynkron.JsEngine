@@ -41,7 +41,7 @@ internal sealed partial class ExecutionPlanBuilder
     /// <summary>
     /// Allocates a new slot index for a generator-internal symbol.
     /// </summary>
-    private int AllocateSlot(Symbol symbol)
+    internal int AllocateSlot(Symbol symbol)
     {
         var index = _slotSymbols.Count;
         _slotSymbols.Add(symbol);
@@ -139,7 +139,7 @@ internal sealed partial class ExecutionPlanBuilder
         }
     }
 
-    private bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)
+    internal bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)
     {
         var ctx = GetEmitContext();
         var currentNext = nextIndex;
@@ -157,13 +157,13 @@ internal sealed partial class ExecutionPlanBuilder
         return true;
     }
 
-    private Symbol CreateResumeSlotSymbol()
+    internal Symbol CreateResumeSlotSymbol()
     {
         var symbolName = $"{ResumeSlotPrefix}{_resumeSlotCounter++}";
         return Symbol.Intern(symbolName);
     }
 
-    private static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
+    internal static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
         int valueSlotIndex)
     {
         // Stamp the identifier expression with slot info for O(1) access
@@ -217,7 +217,7 @@ internal sealed partial class ExecutionPlanBuilder
         }
     }
 
-    private Symbol CreateCatchSlotSymbol()
+    internal Symbol CreateCatchSlotSymbol()
     {
         var symbolName = $"{CatchSlotPrefix}{_catchSlotCounter++}";
         return Symbol.Intern(symbolName);
@@ -229,24 +229,24 @@ internal sealed partial class ExecutionPlanBuilder
         return Symbol.Intern(symbolName);
     }
 
-    private Symbol CreateWithScopeSlotSymbol()
+    internal Symbol CreateWithScopeSlotSymbol()
     {
         var symbolName = $"{WithScopeSlotPrefix}{_withScopeSlotCounter++}";
         return Symbol.Intern(symbolName);
     }
 
-    private static bool IsStrictBlock(StatementNode statement)
+    internal static bool IsStrictBlock(StatementNode statement)
     {
         return statement is BlockStatement { IsStrict: true };
     }
 
-    private int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
+    internal int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
     {
         var storeIndex = Append(new StoreResumeValueInstruction(continuationIndex, resumeSlot));
         return Append(new YieldInstruction(storeIndex, expression));
     }
 
-    private int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
+    internal int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
     {
         if (expression.Expression is null)
         {
@@ -257,7 +257,7 @@ internal sealed partial class ExecutionPlanBuilder
         return Append(new YieldStarInstruction(continuationIndex, expression.Expression, stateSymbol, resultSlot));
     }
 
-    private static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)
+    internal static BlockStatement BuildCatchBlock(CatchClause clause, Symbol catchSlotSymbol)
     {
         var builder = ImmutableArray.CreateBuilder<StatementNode>();
 
@@ -298,7 +298,7 @@ internal sealed partial class ExecutionPlanBuilder
     /// This is used to reject such cases in switch statements since the lowered
     /// code transforms switch into if statements, making the break target invalid.
     /// </summary>
-    private static bool ContainsUnlabeledAbruptInFinally(StatementNode statement)
+    internal static bool ContainsUnlabeledAbruptInFinally(StatementNode statement)
     {
         return ContainsUnlabeledAbruptInFinallyImpl(statement, false);
     }

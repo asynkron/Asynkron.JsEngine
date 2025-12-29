@@ -76,46 +76,25 @@ internal static class YieldEmitter
     }
 
     /// <summary>
-    /// Try to emit IR for a yield assignment expression (lowerer temp assignment).
+    /// Try to emit IR for a yield assignment/initializer expression (lowerer temp).
+    /// Used for both assignment expressions and variable declarations.
     /// </summary>
-    public static bool TryEmitYieldAssignment(
+    public static bool TryEmitYieldToSymbol(
         EmitContext ctx,
         Symbol targetSymbol,
-        YieldExpression yieldAssignment,
+        YieldExpression yieldExpression,
         int nextIndex,
         out int entryIndex)
     {
-        if (AstShapeAnalyzer.ContainsYield(yieldAssignment.Expression))
+        if (AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
         {
             entryIndex = -1;
             return false;
         }
 
-        entryIndex = yieldAssignment.IsDelegated
-            ? ctx.AppendYieldStarSequence(yieldAssignment, nextIndex, targetSymbol)
-            : ctx.AppendYieldSequence(yieldAssignment.Expression, nextIndex, targetSymbol);
-        return true;
-    }
-
-    /// <summary>
-    /// Try to emit IR for a variable declaration with yield initializer (lowerer temp).
-    /// </summary>
-    public static bool TryEmitVariableWithYieldInitializer(
-        EmitContext ctx,
-        Symbol targetSymbol,
-        YieldExpression yieldInitializer,
-        int nextIndex,
-        out int entryIndex)
-    {
-        if (AstShapeAnalyzer.ContainsYield(yieldInitializer.Expression))
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        entryIndex = yieldInitializer.IsDelegated
-            ? ctx.AppendYieldStarSequence(yieldInitializer, nextIndex, targetSymbol)
-            : ctx.AppendYieldSequence(yieldInitializer.Expression, nextIndex, targetSymbol);
+        entryIndex = yieldExpression.IsDelegated
+            ? ctx.AppendYieldStarSequence(yieldExpression, nextIndex, targetSymbol)
+            : ctx.AppendYieldSequence(yieldExpression.Expression, nextIndex, targetSymbol);
         return true;
     }
 }

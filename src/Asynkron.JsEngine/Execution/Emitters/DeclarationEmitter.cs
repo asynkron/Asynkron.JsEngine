@@ -108,18 +108,13 @@ internal static class DeclarationEmitter
             return false;
         }
 
-        if (!IsLowererTemp(targetSymbol))
+        if (!EmitContext.IsLowererTemp(targetSymbol))
         {
             return false;
         }
 
-        return YieldEmitter.TryEmitVariableWithYieldInitializer(
+        return YieldEmitter.TryEmitYieldToSymbol(
             ctx, targetSymbol, yieldInitializer, nextIndex, out entryIndex);
-    }
-
-    private static bool IsLowererTemp(Symbol symbol)
-    {
-        return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
     }
 
     private static bool DeclarationContainsYield(VariableDeclaration declaration)
@@ -127,20 +122,14 @@ internal static class DeclarationEmitter
         return declaration.Declarators.Any(static d =>
             d.Initializer is not null &&
             AstShapeAnalyzer.ContainsYield(d.Initializer) &&
-            !IsLowererTemp(d.Target));
-    }
-
-    private static bool IsLowererTemp(BindingTarget target)
-    {
-        return target is IdentifierBinding { Name.Name: not null } identifier &&
-               identifier.Name.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
+            !EmitContext.IsLowererTemp(d.Target));
     }
 
     private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
     {
         return declaration.Declarators.Any(static d =>
             BindingTargetContainsYieldInDefaultValue(d.Target) ||
-            (d.Initializer is not null && ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
+            (d.Initializer is not null && EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
     }
 
     private static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
@@ -170,78 +159,6 @@ internal static class DeclarationEmitter
                 }
                 if (objectBinding.RestElement is not null &&
                     BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
-                    return true;
-                return false;
-
-            case AssignmentTargetBinding assignmentTarget:
-                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
-
-            default:
-                return false;
-        }
-    }
-
-    private static bool ExpressionContainsDestructuringWithYieldAnywhere(ExpressionNode expression)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case DestructuringAssignmentExpression destructuringExpr:
-                    if (BindingTargetContainsYieldAnywhere(destructuringExpr.Target))
-                        return true;
-                    expression = destructuringExpr.Value;
-                    continue;
-                case AssignmentExpression assignmentExpr:
-                    expression = assignmentExpr.Value;
-                    continue;
-                case PropertyAssignmentExpression propAssignExpr:
-                    expression = propAssignExpr.Value;
-                    continue;
-                case IndexAssignmentExpression indexAssignExpr:
-                    expression = indexAssignExpr.Value;
-                    continue;
-                case ConditionalExpression conditionalExpr:
-                    return ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Consequent) ||
-                           ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Alternate);
-                case SequenceExpression seqExpr:
-                    return ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Left) ||
-                           ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Right);
-                default:
-                    return false;
-            }
-        }
-    }
-
-    private static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
-    {
-        switch (target)
-        {
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                        return true;
-                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
-                        return true;
-                }
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
-                    return true;
-                return false;
-
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                        return true;
-                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
-                        return true;
-                    if (BindingTargetContainsYieldAnywhere(prop.Target))
-                        return true;
-                }
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
                     return true;
                 return false;
 
@@ -363,10 +280,16 @@ internal static class DeclarationEmitter
     // Helper Methods
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static bool ClassDefinitionContainsYield(ClassDefinition definition)
+    private static bool ClassDefinitionContainsYield(ClassDefinition definition) =>
+        ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsYield(e));
+
+    private static bool ClassDefinitionContainsAwait(ClassDefinition definition) =>
+        ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsAwait(e));
+
+    private static bool ClassDefinitionContains(ClassDefinition definition, Func<ExpressionNode, bool> predicate)
     {
         // Check extends clause
-        if (definition.Extends is not null && AstShapeAnalyzer.ContainsYield(definition.Extends))
+        if (definition.Extends is not null && predicate(definition.Extends))
         {
             return true;
         }
@@ -375,7 +298,7 @@ internal static class DeclarationEmitter
         foreach (var member in definition.Members)
         {
             if (member is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsYield(member.ComputedName))
+                predicate(member.ComputedName))
             {
                 return true;
             }
@@ -385,38 +308,7 @@ internal static class DeclarationEmitter
         foreach (var field in definition.Fields)
         {
             if (field is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsYield(field.ComputedName))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool ClassDefinitionContainsAwait(ClassDefinition definition)
-    {
-        // Check extends clause
-        if (definition.Extends is not null && AstShapeAnalyzer.ContainsAwait(definition.Extends))
-        {
-            return true;
-        }
-
-        // Check computed property names in members (methods, getters, setters)
-        foreach (var member in definition.Members)
-        {
-            if (member is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsAwait(member.ComputedName))
-            {
-                return true;
-            }
-        }
-
-        // Check computed property names in fields
-        foreach (var field in definition.Fields)
-        {
-            if (field is { IsComputed: true, ComputedName: not null } &&
-                AstShapeAnalyzer.ContainsAwait(field.ComputedName))
+                predicate(field.ComputedName))
             {
                 return true;
             }

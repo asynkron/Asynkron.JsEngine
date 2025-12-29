@@ -40,6 +40,14 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     public bool IteratorClosed { get; set; }
 
     /// <summary>
+    /// When true, at least one successful next() call has completed and we have entered the loop body.
+    /// Per ES spec 13.6.4.13 step 5.d, if IteratorStep (calling next()) throws before
+    /// we enter the loop body, we should NOT call IteratorClose.
+    /// IteratorClose is only called when the loop body throws, or break/return is executed.
+    /// </summary>
+    public bool HasEnteredLoop { get; set; }
+
+    /// <summary>
     /// Pre-resolved JsVariable for fast iterator state access (avoids dictionary lookups per iteration).
     /// </summary>
     public JsVariable IteratorVariable { get; set; }
@@ -90,6 +98,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         CurrentIterationEnvironment = null;
         LoopScopeEnvironment = null;
         IteratorClosed = false;
+        HasEnteredLoop = false;
     }
 
     /// <inheritdoc />

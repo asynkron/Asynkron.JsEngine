@@ -1833,6 +1833,11 @@ public static partial class TypedAstEvaluator
                                         currentValue = resultObj.TryGetProperty("value", out var yielded)
                                             ? yielded
                                             : JsValue.Undefined;
+
+                                        // Mark that we've successfully entered the loop (next() succeeded).
+                                        // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
+                                        // if we've entered the loop body, not if next() itself throws.
+                                        driverState.HasEnteredLoop = true;
                                     }
                                     else if (driverState.Enumerator is { } enumerator)
                                     {
@@ -1849,6 +1854,9 @@ public static partial class TypedAstEvaluator
                                         }
 
                                         currentValue = enumerator.Current;
+
+                                        // Mark that we've successfully entered the loop (enumerator succeeded).
+                                        driverState.HasEnteredLoop = true;
                                     }
                                     else
                                     {
@@ -2170,6 +2178,11 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 StoreIteratorValue:
+                                // Mark that we've successfully entered the loop (next() succeeded for async iterator).
+                                // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
+                                // if we've entered the loop body, not if next() itself throws.
+                                driverState.HasEnteredLoop = true;
+
                                 // Use JsVariable for scope-correct access (value slot is in loop scope)
                                 _realmState.Logger?.LogInformation(
                                     "StoreIteratorValue: valueVar.IsValid={Valid} slot={Slot} value={Value} envHash={Env}",
@@ -2407,19 +2420,53 @@ public static partial class TypedAstEvaluator
                                     iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
                                     iterState.IteratorObject is JsObject iteratorObj)
                                 {
+                                    // Per ES spec 13.6.4.13 step 5.d: If IteratorStep (calling next()) returns
+                                    // an abrupt completion, we return that completion WITHOUT calling IteratorClose.
+                                    // Only call IteratorClose if we've successfully entered the loop body
+                                    // (i.e., at least one successful next() call completed).
+                                    if (!iterState.HasEnteredLoop)
+                                    {
+                                        // Mark as closed anyway to prevent any future close attempts
+                                        iterState.MarkIteratorClosed();
+                                        _programCounter = iteratorCloseInstruction.Next;
+                                        continue;
+                                    }
+
                                     // Mark as closed before attempting close to prevent double-close
                                     iterState.MarkIteratorClosed();
 
+                                    // Check if we're closing due to a throw completion.
+                                    // Per ES spec 7.4.7 IteratorClose steps 6-7:
+                                    // - Step 6: If completion.[[Type]] is throw, return Completion(completion).
+                                    // - Step 7: If innerResult.[[Type]] is throw, return Completion(innerResult).
+                                    // This means if the original completion was a throw, we PRESERVE IT regardless
+                                    // of what happens during IteratorClose (GetMethod or Call errors are suppressed).
+                                    var hasPendingThrow = false;
+                                    if (TryCatchStateRef.TryStack.Count > 0)
+                                    {
+                                        var topFrame = TryCatchStateRef.TryStack.Peek();
+                                        hasPendingThrow = topFrame.PendingCompletion.Kind == AbruptKind.Throw;
+                                    }
+
                                     try
                                     {
-                                        // Call IteratorClose - we don't preserve existing throws because
-                                        // if IteratorClose throws, that error should replace any pending completion
-                                        iteratorObj.IteratorClose(context);
+                                        // Call IteratorClose with preserveExistingThrow if we have a pending throw.
+                                        // This ensures the original throw is preserved per ES spec 7.4.7 step 6.
+                                        iteratorObj.IteratorClose(context, preserveExistingThrow: hasPendingThrow);
                                     }
                                     catch (ThrowSignal closeThrown)
                                     {
-                                        // IteratorClose threw - this should replace any pending return/throw
-                                        // per ES spec: if IteratorClose throws, return that throw completion
+                                        // IteratorClose threw - per ES spec 7.4.7:
+                                        // If the original completion was a throw, we already returned it (step 6).
+                                        // If not, we return the IteratorClose throw (step 7).
+                                        if (hasPendingThrow)
+                                        {
+                                            // Original throw preserved - continue to EndFinally which will re-throw it
+                                            _programCounter = iteratorCloseInstruction.Next;
+                                            continue;
+                                        }
+
+                                        // No pending throw - propagate the IteratorClose error
                                         if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue,
                                                 environment))
                                         {

@@ -1049,8 +1049,15 @@ public static partial class TypedAstEvaluator
                                 JsEnvironment loopScope;
                                 JsEnvironment? previousIterEnv = null;
 
-                                if (pushEnvInstruction.ScopeId >= 0 &&
-                                    environment.ScopeId == pushEnvInstruction.ScopeId)
+                                // Detect if we're in a subsequent iteration:
+                                // 1. If ScopeId is valid, use ScopeId matching
+                                // 2. If ScopeId is -1 (scope analysis not run), check if environment
+                                //    is an iteration env we created (description="scope" and has Enclosing)
+                                var isSubsequentIteration =
+                                    (pushEnvInstruction.ScopeId >= 0 && environment.ScopeId == pushEnvInstruction.ScopeId) ||
+                                    (pushEnvInstruction.ScopeId < 0 && environment.Description == "scope" && environment.Enclosing != null);
+
+                                if (isSubsequentIteration)
                                 {
                                     // In a previous iteration - parent is Enclosing, current is previous iter
                                     previousIterEnv = environment;

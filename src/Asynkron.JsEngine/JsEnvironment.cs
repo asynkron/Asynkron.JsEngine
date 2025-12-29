@@ -89,7 +89,7 @@ public sealed class JsEnvironment : IRentable
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
 
-        Depth = (Enclosing?.Depth ?? -1) + 1;
+        Depth = (Enclosing?.Depth ?? 0) + 1;
         if (Depth > MaxDepth)
         {
             throw new InvalidOperationException(
@@ -288,7 +288,7 @@ public sealed class JsEnvironment : IRentable
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
-        Depth = (enclosing?.Depth ?? -1) + 1;
+        Depth = (enclosing?.Depth ?? 0) + 1;
         // Keep _slots for reuse - InitializeSlots will reuse if same size
         _thisValue = default;
         _hasThisValue = false;

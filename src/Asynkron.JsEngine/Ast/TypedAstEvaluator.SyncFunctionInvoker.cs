@@ -34,6 +34,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasParameterExpressions;
         private readonly bool _isStrict;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
+        private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
         private readonly JsValue _lexicalThis;
         private readonly JsEnvironment? _lexicalThisEnvironment;
         private readonly ImmutableArray<Symbol> _parameterNames;
@@ -120,6 +121,7 @@ public static partial class TypedAstEvaluator
                 .ParameterNames;
             _parameterNames = parameterNames;
             _lexicalTemplate = hoistPlan.LexicalTemplate;
+            _lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
             _catchParameterTemplate = hoistPlan.CatchParameterTemplate;
             _simpleCatchParameterTemplate = hoistPlan.SimpleCatchParameterTemplate;
             _bodyLexicalTemplate = hoistPlan.BodyLexicalTemplate;
@@ -1147,6 +1149,20 @@ public static partial class TypedAstEvaluator
                     {
                         functionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false,
                             context: context);
+                    }
+
+                    // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
+                    // Create TDZ bindings for lexical declarations (let/const) in the function environment.
+                    // This must happen BEFORE the body is evaluated so that closures that reference these
+                    // variables will find them in TDZ state and throw ReferenceError if accessed before initialization.
+                    foreach (var lexicalName in bodyLexicalNames)
+                    {
+                        if (!executionEnvironment.HasBinding(lexicalName))
+                        {
+                            var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                            executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                                blocksFunctionScopeOverride: true, isConst: isConst);
+                        }
                     }
 
                     _ = _function.Body.EvaluateBlockJsValue(executionEnvironment,

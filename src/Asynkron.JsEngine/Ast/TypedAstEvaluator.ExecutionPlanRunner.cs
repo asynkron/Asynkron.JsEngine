@@ -1115,11 +1115,12 @@ public static partial class TypedAstEvaluator
                                     }
                                     else
                                     {
+                                        // Preserve const flag to ensure TypeError is thrown on reassignment
                                         foreach (var binding in pushEnvInstruction.PerIterationBindings)
                                         {
-                                            if (previousIterEnv.TryGetJsValue(binding, out var value))
+                                            if (previousIterEnv.TryGetJsValueWithConst(binding, out var value, out var isConst))
                                             {
-                                                newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
+                                                newIterationEnv.DefineJsValue(binding, value, isConst: isConst, isLexical: true);
                                             }
                                         }
                                     }
@@ -1133,11 +1134,12 @@ public static partial class TypedAstEvaluator
                                 else if (!pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
                                 {
                                     // First iteration - copy from loopScope where binding was defined
+                                    // Preserve const flag to ensure TypeError is thrown on reassignment
                                     foreach (var binding in pushEnvInstruction.PerIterationBindings)
                                     {
-                                        if (loopScope.TryGetJsValue(binding, out var value))
+                                        if (loopScope.TryGetJsValueWithConst(binding, out var value, out var isConst))
                                         {
-                                            newIterationEnv.DefineJsValue(binding, value, isConst: false, isLexical: true);
+                                            newIterationEnv.DefineJsValue(binding, value, isConst: isConst, isLexical: true);
                                         }
                                     }
                                 }

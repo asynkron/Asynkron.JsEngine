@@ -1483,10 +1483,12 @@ public sealed class JsEnvironment : IRentable
         var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
 
         // Check IsUninitialized before reading
+        // TDZ (Temporal Dead Zone) violation - must be catchable by JavaScript try/catch
         if (binding is { IsUninitialized: true, IsLexical: true } &&
             !Equals(name, Symbol.This))
         {
-            throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null, realm);
+            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization", null, realm));
         }
 
         if (binding.IsConst)
@@ -1986,6 +1988,38 @@ public sealed class JsEnvironment : IRentable
         }
 
         value = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get a binding's value and its const status.
+    /// Used when copying bindings to preserve const semantics (e.g., per-iteration loop environments).
+    /// </summary>
+    internal bool TryGetJsValueWithConst(Symbol name, out JsValue value, out bool isConst)
+    {
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            {
+                if (binding.IsUninitialized)
+                {
+                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                }
+
+                value = binding.JsValue;
+                isConst = binding.IsConst;
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        value = default;
+        isConst = false;
         return false;
     }
 

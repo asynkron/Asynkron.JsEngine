@@ -6,7 +6,13 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet run:*)",
       "Bash(git stash:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__rider__list_directory_tree",
+      "mcp__rider__get_project_modules",
+      "mcp__rider__find_files_by_glob",
+      "mcp__rider__search_in_files_by_text",
+      "mcp__rider__find_files_by_name_keyword",
+      "Bash(git worktree add:*)"
     ],
     "deny": [],
     "ask": []

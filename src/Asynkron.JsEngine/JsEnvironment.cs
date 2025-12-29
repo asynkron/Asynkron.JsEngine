@@ -224,7 +224,7 @@ public sealed class JsEnvironment : IRentable
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
-        Depth = (enclosing?.Depth ?? -1) + 1;
+        Depth = (enclosing?.Depth ?? 0) + 1;
         // Reset slot-based state - return slots array to pool
         JsValueArrayPool.Return(_slots);
         _slots = null;
@@ -293,6 +293,11 @@ public sealed class JsEnvironment : IRentable
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
+
+        if (Depth > 5000)
+        {
+            throw new NotSupportedException("Recursion depth exceeded maximum of 5000");
+        }
     }
 
     /// <summary>
@@ -376,11 +381,13 @@ public sealed class JsEnvironment : IRentable
         if (!Unsafe.IsNullRef(ref binding))
         {
             // Binding exists - update it (unless it's const)
-            if (!binding.IsConst && !binding.IsGlobalConstant)
+            if (binding is not { IsConst: false, IsGlobalConstant: false })
             {
-                binding.JsValue = value;
-                TrySetSlot(name, value);
+                return;
             }
+
+            binding.JsValue = value;
+            TrySetSlot(name, value);
         }
         else
         {

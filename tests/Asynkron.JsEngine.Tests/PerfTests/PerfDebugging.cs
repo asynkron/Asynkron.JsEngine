@@ -67,4 +67,25 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
         var result = await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
+
+    [Fact]
+    public async Task RunForLoop4()
+    {
+        var script = """
+                     'use strict'
+
+                     function run() {
+                         let s = 0;
+                         for (let i = 100; i < 10000; i++) {
+                             s += i;
+                         }
+                         return s;
+                     }
+                     run();
+                     """;
+        var sw = Stopwatch.StartNew();
+        var engine = CreateEngineWithOptions(() => new JsEngineOptions());
+        var result = await engine.Evaluate(script);
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
+    }
 }

@@ -168,9 +168,9 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         return _id;
     }
 
-    internal static bool TryGetByInternalKey(string propertyName, out TypedAstSymbol symbol)
+    internal static bool TryGetByInternalKey(string propertyName, out TypedAstSymbol? symbol)
     {
-        symbol = null!;
+        symbol = null;
         if (!propertyName.StartsWith("@@symbol:", StringComparison.Ordinal))
         {
             return false;

@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Emitters;

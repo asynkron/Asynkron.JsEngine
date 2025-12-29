@@ -32,6 +32,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Slow path: identifier not found - create proper error
+#pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
             if (JsEngineConstants.TraceIrExecution)
             {
                 Execution.ExecutionPlanPrinter.TraceLookup(
@@ -42,6 +43,7 @@ public static partial class TypedAstEvaluator
                     environment.GetHashCode(),
                     $"idScope={identifier.ScopeId} slot={identifier.SlotIndex}");
             }
+#pragma warning restore CS0162
             return HandleIdentifierNotFound(identifier.Name, context);
         }
     }

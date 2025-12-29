@@ -327,7 +327,7 @@ public sealed class JsPromise : IMicrotask
     {
         // If the result is a promise (JsObject with "then" method), chain it
         if (result.IsObject &&
-            result.AsObject().TryGetProperty("then", out var thenMethod) &&
+            result.AsObject()!.TryGetProperty("then", out var thenMethod) &&
             thenMethod.TryGetObject<IJsCallable>(out var thenCallable))
         {
             // Use lightweight callback objects directly - no HostFunction wrapper needed

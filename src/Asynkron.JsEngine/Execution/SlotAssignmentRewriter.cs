@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Execution;
 

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Emitters;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution;

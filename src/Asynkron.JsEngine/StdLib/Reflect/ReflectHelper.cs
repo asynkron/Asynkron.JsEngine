@@ -260,7 +260,7 @@ public static class ReflectHelper
             return JsValue.Null;
         }
 
-        return (JsValue)target.Prototype;
+        return target.Prototype is null ? JsValue.Null : (JsValue)target.Prototype;
     }
 
     internal static JsValue ReflectHas(JsValue _, IReadOnlyList<JsValue> args, RealmState? realm)

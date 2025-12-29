@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -559,6 +560,7 @@ public static partial class TypedAstEvaluator
                         }
 
                         // Detailed IR execution trace with environment depth
+#pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
                         if (JsEngineConstants.TraceIrExecution)
                         {
                             ExecutionPlanPrinter.TraceInstruction(
@@ -568,6 +570,7 @@ public static partial class TypedAstEvaluator
                                 environment.ScopeId,
                                 environment.GetHashCode());
                         }
+#pragma warning restore CS0162
 
                         switch (instruction)
                         {
@@ -980,7 +983,7 @@ public static partial class TypedAstEvaluator
 
                                 // For var declarations, ensure the binding exists in function scope
                                 // Only assign if there's an initializer - var without initializer preserves hoisted value
-                                if (varDeclInstruction.Kind == VariableKind.Var)
+                                if (varDeclInstruction.VarKind == VariableKind.Var)
                                 {
                                     environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol, context);
                                     // Only assign if there's an initializer
@@ -998,17 +1001,19 @@ public static partial class TypedAstEvaluator
                                 {
                                     // let/const - define as lexical binding with blocksFunctionScopeOverride
                                     // to match AST evaluator behavior (see IdentifierBindingExtensions.cs)
-                                    var isConst = varDeclInstruction.Kind == VariableKind.Const;
+                                    var isConst = varDeclInstruction.VarKind == VariableKind.Const;
+#pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
                                     if (JsEngineConstants.TraceIrExecution)
                                     {
                                         ExecutionPlanPrinter.TraceDefine(
-                                            varDeclInstruction.Kind.ToString(),
+                                            varDeclInstruction.VarKind.ToString(),
                                             varDeclInstruction.TargetSymbol.Name,
                                             varValue.ToString() ?? "?",
                                             environment.Depth,
                                             environment.ScopeId,
                                             environment.GetHashCode());
                                     }
+#pragma warning restore CS0162
                                     environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
                                         isConst: isConst, isLexical: true, blocksFunctionScopeOverride: true);
                                 }
@@ -1596,7 +1601,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var iteratorState =
-                                    CreateIteratorDriverState(iterableValue, iteratorInitInstruction.Kind, context);
+                                    CreateIteratorDriverState(iterableValue, iteratorInitInstruction.IteratorKind, context);
 
                                 // Find the correct environment for storing iterator state.
                                 // When a for-await-of loop is nested inside another loop with

@@ -992,7 +992,7 @@ public sealed class JsEngine : IAsyncDisposable
                 if (!string.IsNullOrEmpty(sourcePath))
                 {
                     moduleKey = NormalizeModulePath(sourcePath!, null);
-                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry))
+                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
                     {
                         entry = CreateModuleEntry(EnsureStrictProgram(program),
                             CreateModuleEnvironment(moduleKey),
@@ -2783,7 +2783,7 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 if (cachedEntry.IsAsync || cachedEntry.HasAsyncDependency)
                 {
-                    EnsureModuleEvaluatedAsync(cachedEntry, false);
+                    _ = EnsureModuleEvaluatedAsync(cachedEntry, false);
                 }
                 else
                 {
@@ -3338,7 +3338,7 @@ public sealed class JsEngine : IAsyncDisposable
                 $"SyntaxError: The requested module '{importedModule.Path}' does not provide an export named '{importedName.Name}'");
         }
 
-        moduleEnv.DefineImportBinding(localName, resolved.Module!.Environment, resolved.BindingName);
+        moduleEnv.DefineImportBinding(localName, resolved.Module!.Environment, resolved.BindingName!);
     }
 
     private static Symbol GetDefaultExportBindingName(ExportDefaultStatement exportDefault)
@@ -3523,7 +3523,7 @@ public sealed class JsEngine : IAsyncDisposable
 
     private static object CreateLiveBinding(ExportResolution resolution)
     {
-        return new LiveExportBinding(() => resolution.Module!.Environment.GetJsValue(resolution.BindingName));
+        return new LiveExportBinding(() => resolution.Module!.Environment.GetJsValue(resolution.BindingName!));
     }
 
     /// <summary>
@@ -4131,7 +4131,7 @@ public sealed class JsEngine : IAsyncDisposable
 
             if (shouldPreserveMicrotasks)
             {
-                preservedMicrotasks = engine.DetachMicrotasks();
+                preservedMicrotasks = engine!.DetachMicrotasks();
             }
 
             if (!importStatement.IsDeferred)
@@ -4461,10 +4461,10 @@ public sealed class JsEngine : IAsyncDisposable
         Ambiguous
     }
 
-    private readonly record struct ExportResolution(ExportResolutionKind Kind, ModuleEntry? Module, Symbol BindingName)
+    private readonly record struct ExportResolution(ExportResolutionKind Kind, ModuleEntry? Module, Symbol? BindingName)
     {
-        public static readonly ExportResolution NotFound = new(ExportResolutionKind.NotFound, null, default);
-        public static readonly ExportResolution Ambiguous = new(ExportResolutionKind.Ambiguous, null, default);
+        public static readonly ExportResolution NotFound = new(ExportResolutionKind.NotFound, null, null);
+        public static readonly ExportResolution Ambiguous = new(ExportResolutionKind.Ambiguous, null, null);
 
         public ExportResolution(ModuleEntry module, Symbol bindingName) : this(ExportResolutionKind.Resolved, module,
             bindingName)

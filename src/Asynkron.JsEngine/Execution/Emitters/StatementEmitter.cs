@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
@@ -59,13 +60,7 @@ internal static class StatementEmitter
                     return TryEmitFor(ctx, forStatement, nextIndex, activeLabel, out entryIndex);
 
                 case SwitchStatement switchStatement:
-                    if (SwitchEmitter.TryEmitSwitch(ctx, switchStatement, nextIndex, activeLabel, out entryIndex))
-                    {
-                        return true;
-                    }
-                    ctx.SetFailureReason("Unsupported statement 'SwitchStatement'.");
-                    entryIndex = -1;
-                    return false;
+                    return SwitchEmitter.TryEmitSwitch(ctx, switchStatement, nextIndex, activeLabel, out entryIndex);
 
                 case TryStatement tryStatement:
                     return TryEmitter.TryEmitTry(ctx, tryStatement, nextIndex, activeLabel, out entryIndex);

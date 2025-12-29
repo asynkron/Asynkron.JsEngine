@@ -639,7 +639,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
             {
-                symbols.Push(symbol);
+                symbols.Push(symbol!);
             }
         }
 

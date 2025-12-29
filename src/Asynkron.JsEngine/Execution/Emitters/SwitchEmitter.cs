@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
@@ -35,17 +36,6 @@ internal static class SwitchEmitter
         {
             if (switchCase.Test is not null && AstShapeAnalyzer.ContainsYield(switchCase.Test))
             {
-                entryIndex = -1;
-                return false;
-            }
-
-            // Reject case bodies that have break/continue inside finally blocks.
-            // The switch is lowered to if statements, so break/continue in finally
-            // would have no valid target. Fall back to StatementInstruction which
-            // handles this via AST evaluation.
-            if (EmitContext.ContainsUnlabeledAbruptInFinally(switchCase.Body))
-            {
-                ctx.SetFailureReason("Switch case contains break/continue in finally block.");
                 entryIndex = -1;
                 return false;
             }

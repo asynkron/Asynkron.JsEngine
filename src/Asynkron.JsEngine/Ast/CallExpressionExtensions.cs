@@ -528,7 +528,7 @@ public static partial class TypedAstEvaluator
                         context.LastConstructedThis = thisAfterSuper;
                     }
 
-                    context.RealmState?.Logger?.LogInformation(
+                    context?.RealmState?.Logger?.LogInformation(
                         "Super call produced this type={Type}",
                         thisAfterSuper?.GetType().Name ?? "null");
 
@@ -542,7 +542,7 @@ public static partial class TypedAstEvaluator
 
                         if (!alreadyInitialized.IsUndefined)
                         {
-                            context.RealmState?.Logger?.LogInformation(
+                            context?.RealmState?.Logger?.LogInformation(
                                 "Super call pre-check thisInit env={Env} value={Value}",
                                 thisInitializationEnvironment.GetHashCode(),
                                 alreadyInitialized.Kind == JsValueKind.Object
@@ -551,7 +551,7 @@ public static partial class TypedAstEvaluator
                             if (JsOps.ToBoolean(alreadyInitialized))
                             {
                                 throw StandardLibrary.ThrowReferenceError(
-                                    "Super constructor may only be called once.", context, context.RealmState);
+                                    "Super constructor may only be called once.", context, context?.RealmState);
                             }
                         }
                     }
@@ -571,7 +571,7 @@ public static partial class TypedAstEvaluator
                         beforeType = ex.GetType().Name;
                     }
 
-                    context.RealmState?.Logger?.LogInformation(
+                    context?.RealmState?.Logger?.LogInformation(
                         "Super assigning this (hasBinding={HasBinding}, beforeType={BeforeType})",
                         hasThisBinding,
                         beforeType);
@@ -579,14 +579,14 @@ public static partial class TypedAstEvaluator
                     try
                     {
                         targetEnvironment.TryGetJsValue(Symbol.This, out var afterThis);
-                        context.RealmState?.Logger?.LogInformation("Super assigned this now type={Type}",
+                        context?.RealmState?.Logger?.LogInformation("Super assigned this now type={Type}",
                             afterThis.Kind == JsValueKind.Object
                                 ? afterThis.ObjectValue?.GetType().Name ?? "null"
                                 : afterThis.Kind.ToString());
                     }
                     catch (Exception ex)
                     {
-                        context.RealmState?.Logger?.LogInformation("Super assigned this lookup failed {ErrorType}",
+                        context?.RealmState?.Logger?.LogInformation("Super assigned this lookup failed {ErrorType}",
                             ex.GetType().Name);
                     }
 

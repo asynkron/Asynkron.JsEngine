@@ -453,7 +453,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private static object DecodePropertyKey(string propertyName)
     {
         return TypedAstSymbol.TryGetByInternalKey(propertyName, out var symbol)
-            ? symbol
+            ? symbol!
             : propertyName;
     }
 

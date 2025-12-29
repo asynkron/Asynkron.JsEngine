@@ -1679,13 +1679,13 @@ internal static class GeneratorYieldLowerer
             if (conditionHasYield && conditionYield is not null)
             {
                 statements.Add(new VariableDeclaration(conditionYield.Source, VariableKind.Let,
-                    [new VariableDeclarator(conditionYield.Source, conditionResumeIdentifier, null)]));
+                    [new VariableDeclarator(conditionYield.Source, conditionResumeIdentifier!, null)]));
             }
 
             if (incrementHasYield && incrementYield is not null)
             {
                 statements.Add(new VariableDeclaration(incrementYield.Source, VariableKind.Let,
-                    [new VariableDeclarator(incrementYield.Source, incrementResumeIdentifier, null)]));
+                    [new VariableDeclarator(incrementYield.Source, incrementResumeIdentifier!, null)]));
             }
             else if (incrementHasTwoYields && incrementYieldLeft is not null && incrementYieldRight is not null)
             {

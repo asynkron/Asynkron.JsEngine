@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
 

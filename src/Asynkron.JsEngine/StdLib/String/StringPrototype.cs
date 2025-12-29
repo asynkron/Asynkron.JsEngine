@@ -647,7 +647,8 @@ public sealed partial class StringPrototype
         }
 
         var regex = ToRegExpValue(searchValue, string.Empty, false);
-        return JsValue.FromObjectUnsafe(regex.Global ? regex.MatchAll(value) : regex.Exec(value));
+        var execResult = regex.Global ? (IAsJsValue?)regex.MatchAll(value) : regex.Exec(value);
+        return execResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(execResult);
     }
 
     [JsHostMethod("search", Length = 1d)]
@@ -1433,7 +1434,7 @@ public sealed partial class StringPrototype
     private static bool IsRegExp(JsValue argument)
     {
         // Per spec: 7.2.8 IsRegExp ( argument )
-        if (!argument.TryGetObject(out var obj))
+        if (!argument.IsObject)
         {
             return false;
         }
@@ -1445,7 +1446,7 @@ public sealed partial class StringPrototype
         }
 
         // Otherwise check if it's a RegExp object
-        return obj is JsRegExp;
+        return argument.TryGetObject<JsRegExp>(out _);
     }
 
     private static bool TryResolveRegExp(JsValue candidate, out JsRegExp regex)

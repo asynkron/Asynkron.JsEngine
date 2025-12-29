@@ -102,7 +102,7 @@ public static class DateHelper
             throw ThrowTypeError("Date method called on incompatible receiver", realm: realm);
         }
 
-        var candidate = thisVal.AsObject();
+        var candidate = thisVal.AsObject()!;
         if (candidate.GetOwnPropertyDescriptor("_internalDate") is not { JsValue: var jsValue } ||
             !jsValue.TryGetDouble(out var timeValue))
         {

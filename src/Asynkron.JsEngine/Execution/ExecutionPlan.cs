@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution.Instructions;
 
 #endregion
 

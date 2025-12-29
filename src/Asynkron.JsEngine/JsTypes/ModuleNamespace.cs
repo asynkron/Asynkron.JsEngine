@@ -202,7 +202,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         var isToStringTag =
             string.Equals(name, ToStringTagKey, StringComparison.Ordinal) ||
             (TypedAstSymbol.TryGetByInternalKey(name, out var symbol) &&
-             string.Equals(symbol.Description, "Symbol.toStringTag", StringComparison.Ordinal));
+             string.Equals(symbol!.Description, "Symbol.toStringTag", StringComparison.Ordinal));
 
         // Handle Symbol.toStringTag property
         if (isToStringTag)

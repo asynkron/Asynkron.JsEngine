@@ -235,7 +235,7 @@ public static partial class TypedAstEvaluator
         {
             if (TypedAstSymbol.TryGetByInternalKey(propertyName, out var symbol))
             {
-                return symbol.Description is null ? string.Empty : $"[{symbol.Description}]";
+                return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
             }
 
             return propertyName;

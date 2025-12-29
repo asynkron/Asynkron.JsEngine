@@ -196,7 +196,7 @@ public static partial class TypedAstEvaluator
             instance?.BeginConstruction();
             try
             {
-                var receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance;
+                var receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance!;
                 if (typedConstructor is not null)
                 {
                     result = typedConstructor.InvokeWithContext(args, receiver, context,

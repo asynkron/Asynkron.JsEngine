@@ -342,7 +342,7 @@ public sealed partial class DatePrototype
         var newDt = JsOps.ToNumber(args.GetArgument(0), evalContext);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var day = MakeDay(YearFromTime(time), MonthFromTime(time), newDt);
-        var clipped = ApplyTimeClip(day, time, Realm, false);
+        var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -355,7 +355,7 @@ public sealed partial class DatePrototype
         var newDt = JsOps.ToNumber(args.GetArgument(0), evalContext);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var day = MakeDay(YearFromTime(timeValue), MonthFromTime(timeValue), newDt);
-        var clipped = ApplyTimeClip(day, timeValue, Realm, true);
+        var clipped = ApplyTimeClip(day, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -371,7 +371,7 @@ public sealed partial class DatePrototype
         var dt = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : DateFromTime(time);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var day = MakeDay(YearFromTime(time), month, dt);
-        var clipped = ApplyTimeClip(day, time, Realm, false);
+        var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -386,7 +386,7 @@ public sealed partial class DatePrototype
         var dt = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : DateFromTime(timeValue);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var day = MakeDay(YearFromTime(timeValue), month, dt);
-        var clipped = ApplyTimeClip(day, timeValue, Realm, true);
+        var clipped = ApplyTimeClip(day, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -403,7 +403,7 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var date = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : DateFromTime(time);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
-        var clipped = DateHelper.SetFullYear(year, month, date, time, Realm, false);
+        var clipped = DateHelper.SetFullYear(year, month, date, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -419,7 +419,7 @@ public sealed partial class DatePrototype
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
         var date = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : DateFromTime(timeValue);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
-        var clipped = DateHelper.SetFullYear(year, month, date, timeValue, Realm, true);
+        var clipped = DateHelper.SetFullYear(year, month, date, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -534,10 +534,10 @@ public sealed partial class DatePrototype
         }
 
         var fullYear = MakeFullYear(y);
-        var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, Realm);
+        var tLocal = double.IsNaN(timeValue) ? 0d : LocalTimeMs(timeValue, Realm!);
         var day = MakeDay(fullYear, MonthFromTime(tLocal), DateFromTime(tLocal));
         var newDate = MakeDate(day, TimeWithinDay(tLocal));
-        var utc = UtcTimeFromLocal(newDate, Realm);
+        var utc = UtcTimeFromLocal(newDate, Realm!);
         var clipped = TimeClip(utc);
 
         StoreInternalDateValue(obj, clipped);

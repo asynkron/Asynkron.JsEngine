@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 

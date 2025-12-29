@@ -1,7 +1,11 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -10,39 +14,44 @@ namespace Asynkron.JsEngine.Generators;
 [Generator]
 public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 {
+    private static readonly ConcurrentDictionary<string, string> SourceHashes = new(StringComparer.Ordinal);
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var prototypes = context.SyntaxProvider
-            .CreateSyntaxProvider(static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
-                static (ctx, _) => Transform(ctx))
+        var wellKnownTypes = context.CompilationProvider.Select(static (compilation, _) => WellKnownTypes.From(compilation));
+
+        var candidates = context.SyntaxProvider
+            .CreateSyntaxProvider(IsCandidateClass, static (ctx, _) => GetTypeSymbol(ctx))
+            .Where(static symbol => symbol is not null)
+            .Select(static (symbol, _) => symbol!);
+
+        var combined = candidates.Combine(wellKnownTypes);
+
+        var prototypes = combined
+            .Select(static (data, _) => TransformPrototype(data.Left, data.Right))
+            .Where(static info => info is not null)
+            .Select(static (info, _) => info!);
+
+        var constructors = combined
+            .Select(static (data, _) => TransformConstructor(data.Left, data.Right))
             .Where(static info => info is not null)
             .Select(static (info, _) => info!);
 
         context.RegisterSourceOutput(prototypes, static (spc, info) => Emit(spc, info));
-
-        var constructors = context.SyntaxProvider
-            .CreateSyntaxProvider(static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
-                static (ctx, _) => TransformConstructor(ctx))
-            .Where(static info => info is not null)
-            .Select(static (info, _) => info!);
-
         context.RegisterSourceOutput(constructors, static (spc, info) => EmitConstructor(spc, info));
     }
 
-    private static PrototypeInfo? Transform(GeneratorSyntaxContext context)
+    private static bool IsCandidateClass(SyntaxNode node, CancellationToken _)
+        => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 };
+
+    private static INamedTypeSymbol? GetTypeSymbol(GeneratorSyntaxContext context)
+        => context.Node is ClassDeclarationSyntax classDecl
+            ? context.SemanticModel.GetDeclaredSymbol(classDecl) as INamedTypeSymbol
+            : null;
+
+    private static PrototypeInfo? TransformPrototype(INamedTypeSymbol typeSymbol, WellKnownTypes wellKnown)
     {
-        if (context.Node is not ClassDeclarationSyntax classDecl)
-        {
-            return null;
-        }
-
-        if (context.SemanticModel.GetDeclaredSymbol(classDecl) is not INamedTypeSymbol typeSymbol)
-        {
-            return null;
-        }
-
-        var prototypeAttr = typeSymbol.GetAttributes()
-            .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute", StringComparison.Ordinal));
+        var prototypeAttr = GetAttribute(typeSymbol, "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute");
         if (prototypeAttr is null)
         {
             return null;
@@ -55,8 +64,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var symbolGetters = ImmutableArray.CreateBuilder<SymbolGetterInfo>();
         var symbolAliases = ImmutableArray.CreateBuilder<SymbolAliasInfo>();
         var methodAliases = ImmutableArray.CreateBuilder<MethodAliasInfo>();
-        var jsValueType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
-        var readOnlyListType = context.SemanticModel.Compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
+        var jsValueType = wellKnown.JsValueType;
+        var readOnlyListType = wellKnown.ReadOnlyListType;
 
         // Collect class-level symbol aliases and method aliases
         foreach (var attr in typeSymbol.GetAttributes())
@@ -244,20 +253,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             tryGetMethod);
     }
 
-    private static ConstructorInfo? TransformConstructor(GeneratorSyntaxContext context)
+    private static ConstructorInfo? TransformConstructor(INamedTypeSymbol typeSymbol, WellKnownTypes wellKnown)
     {
-        if (context.Node is not ClassDeclarationSyntax classDecl)
-        {
-            return null;
-        }
-
-        if (context.SemanticModel.GetDeclaredSymbol(classDecl) is not INamedTypeSymbol typeSymbol)
-        {
-            return null;
-        }
-
-        var constructorAttr = typeSymbol.GetAttributes()
-            .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute", StringComparison.Ordinal));
+        var constructorAttr = GetAttribute(typeSymbol, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute");
         if (constructorAttr is null)
         {
             return null;
@@ -284,9 +282,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         // Scan for static methods with JsConstructorMethodAttribute
         var staticMethods = ImmutableArray.CreateBuilder<ConstructorMethodInfo>();
-        var jsValueType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
-        var readOnlyListType = context.SemanticModel.Compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
-        var realmStateType = context.SemanticModel.Compilation.GetTypeByMetadataName("Asynkron.JsEngine.Runtime.RealmState");
+        var jsValueType = wellKnown.JsValueType;
+        var readOnlyListType = wellKnown.ReadOnlyListType;
+        var realmStateType = wellKnown.RealmStateType;
 
         foreach (var member in typeSymbol.GetMembers().OfType<IMethodSymbol>())
         {
@@ -674,7 +672,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         source.AppendLine("}");
 
-        context.AddSource($"{info.ClassName}.Prototype.g.cs", source.ToString());
+        AddSourceIfChanged(context, $"{info.ClassName}.Prototype.g.cs", source.ToString());
     }
 
     private static void EmitConstructor(SourceProductionContext context, ConstructorInfo info)
@@ -769,7 +767,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         source.AppendLine("    }");
         source.AppendLine("}");
 
-        context.AddSource($"{info.ClassName}.Constructor.g.cs", source.ToString());
+        AddSourceIfChanged(context, $"{info.ClassName}.Constructor.g.cs", source.ToString());
     }
 
     private static string Sanitize(string value)
@@ -1002,5 +1000,51 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         return namedType.TypeArguments.Length == 1 &&
                SymbolEqualityComparer.Default.Equals(namedType.TypeArguments[0], jsValueType);
+    }
+
+    private static AttributeData? GetAttribute(INamedTypeSymbol typeSymbol, string attributeDisplayName)
+        => typeSymbol.GetAttributes()
+            .FirstOrDefault(attr => string.Equals(attr.AttributeClass?.ToDisplayString(), attributeDisplayName, StringComparison.Ordinal));
+
+    private static bool AddSourceIfChanged(SourceProductionContext context, string hintName, string source)
+    {
+        var hash = ComputeHash(source);
+        if (SourceHashes.TryGetValue(hintName, out var cached) &&
+            string.Equals(cached, hash, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        SourceHashes[hintName] = hash;
+        context.AddSource(hintName, source);
+        return true;
+    }
+
+    private static string ComputeHash(string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+#if NET6_0_OR_GREATER
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(bytes, hash);
+        return Convert.ToHexString(hash);
+#else
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(bytes);
+        return BitConverter.ToString(hash).Replace("-", string.Empty);
+#endif
+    }
+
+    private sealed record WellKnownTypes(
+        INamedTypeSymbol? JsValueType,
+        INamedTypeSymbol? ReadOnlyListType,
+        INamedTypeSymbol? RealmStateType)
+    {
+        public static WellKnownTypes From(Compilation compilation)
+        {
+            var jsValueType = compilation.GetTypeByMetadataName("Asynkron.JsEngine.JsTypes.JsValue");
+            var readOnlyListType = compilation.GetTypeByMetadataName("System.Collections.Generic.IReadOnlyList`1");
+            var realmStateType = compilation.GetTypeByMetadataName("Asynkron.JsEngine.Runtime.RealmState");
+            return new WellKnownTypes(jsValueType, readOnlyListType, realmStateType);
+        }
     }
 }

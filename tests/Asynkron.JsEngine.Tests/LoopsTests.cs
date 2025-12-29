@@ -2,6 +2,29 @@ namespace Asynkron.JsEngine.Tests;
 
 public class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(fixture)
 {
+    // Const assignment error tests
+    [Fact(Timeout = 2000)]
+    public async Task ForLoop_ConstIncrement_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var caught = false;
+            var errorType = null;
+            var errorMsg = null;
+            try {
+                for (const i = 0; i < 1; i++) {}
+            } catch (e) {
+                caught = true;
+                errorType = e.constructor ? e.constructor.name : typeof e;
+                errorMsg = e.message || String(e);
+            }
+            JSON.stringify({ caught: caught, errorType: errorType, errorMsg: errorMsg });
+            """);
+        var json = result?.ToString() ?? "";
+        Assert.Contains("\"caught\":true", json);
+        Assert.Contains("\"errorType\":\"TypeError\"", json);
+    }
+
     // Traditional for loop tests with comma expressions
     [Fact(Timeout = 2000)]
     public async Task ForLoopWithCommaInInitializer()

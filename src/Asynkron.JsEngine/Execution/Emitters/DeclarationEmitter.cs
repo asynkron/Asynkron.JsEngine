@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -48,9 +49,213 @@ internal static class DeclarationEmitter
     }
 
     /// <summary>
+    /// Try to emit IR for a variable declaration.
+    /// Handles yield initializers, binding target defaults, and falls back to StatementInstruction when needed.
+    /// </summary>
+    public static bool TryEmitVariableDeclaration(
+        EmitContext ctx,
+        VariableDeclaration declaration,
+        int nextIndex,
+        out int entryIndex)
+    {
+        // First try yield initializer handling (lowerer temps)
+        if (TryEmitYieldInitializer(ctx, declaration, nextIndex, out entryIndex))
+        {
+            return true;
+        }
+
+        // Check for variable declarations with yields in binding target default values.
+        // These cannot be safely lowered because defaults are only evaluated when
+        // the value is undefined. Wrap them as StatementInstruction.
+        if (DeclarationContainsYieldInBindingTargetDefaults(declaration))
+        {
+            entryIndex = ctx.Append(new StatementInstruction(nextIndex, declaration));
+            return true;
+        }
+
+        if (DeclarationContainsYield(declaration))
+        {
+            ctx.SetFailureReason("Variable declaration contains unsupported yield shape.");
+            entryIndex = -1;
+            return false;
+        }
+
+        // Try to use native SimpleVariableDeclarationInstruction for simple cases
+        if (TryEmitSimpleVariableDeclaration(ctx, declaration, nextIndex, out entryIndex))
+        {
+            return true;
+        }
+
+        // Fall back to StatementInstruction for complex declarations
+        entryIndex = ctx.Append(new StatementInstruction(nextIndex, declaration));
+        return true;
+    }
+
+    private static bool TryEmitYieldInitializer(
+        EmitContext ctx,
+        VariableDeclaration declaration,
+        int nextIndex,
+        out int entryIndex)
+    {
+        entryIndex = -1;
+
+        if (declaration.Declarators.Length != 1 ||
+            declaration.Declarators[0] is not { } declarator ||
+            declarator.Target is not IdentifierBinding { Name: { } targetSymbol } ||
+            declarator.Initializer is not YieldExpression yieldInitializer)
+        {
+            return false;
+        }
+
+        if (!IsLowererTemp(targetSymbol))
+        {
+            return false;
+        }
+
+        return YieldEmitter.TryEmitVariableWithYieldInitializer(
+            ctx, targetSymbol, yieldInitializer, nextIndex, out entryIndex);
+    }
+
+    private static bool IsLowererTemp(Symbol symbol)
+    {
+        return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
+    }
+
+    private static bool DeclarationContainsYield(VariableDeclaration declaration)
+    {
+        return declaration.Declarators.Any(static d =>
+            d.Initializer is not null &&
+            AstShapeAnalyzer.ContainsYield(d.Initializer) &&
+            !IsLowererTemp(d.Target));
+    }
+
+    private static bool IsLowererTemp(BindingTarget target)
+    {
+        return target is IdentifierBinding { Name.Name: not null } identifier &&
+               identifier.Name.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
+    }
+
+    private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
+    {
+        return declaration.Declarators.Any(static d =>
+            BindingTargetContainsYieldInDefaultValue(d.Target) ||
+            (d.Initializer is not null && ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
+    }
+
+    private static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                        return true;
+                    if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
+                        return true;
+                }
+                if (arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
+                    return true;
+                return false;
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                        return true;
+                    if (BindingTargetContainsYieldInDefaultValue(prop.Target))
+                        return true;
+                }
+                if (objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
+                    return true;
+                return false;
+
+            case AssignmentTargetBinding assignmentTarget:
+                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool ExpressionContainsDestructuringWithYieldAnywhere(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case DestructuringAssignmentExpression destructuringExpr:
+                    if (BindingTargetContainsYieldAnywhere(destructuringExpr.Target))
+                        return true;
+                    expression = destructuringExpr.Value;
+                    continue;
+                case AssignmentExpression assignmentExpr:
+                    expression = assignmentExpr.Value;
+                    continue;
+                case PropertyAssignmentExpression propAssignExpr:
+                    expression = propAssignExpr.Value;
+                    continue;
+                case IndexAssignmentExpression indexAssignExpr:
+                    expression = indexAssignExpr.Value;
+                    continue;
+                case ConditionalExpression conditionalExpr:
+                    return ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Consequent) ||
+                           ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Alternate);
+                case SequenceExpression seqExpr:
+                    return ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Left) ||
+                           ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Right);
+                default:
+                    return false;
+            }
+        }
+    }
+
+    private static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                        return true;
+                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
+                        return true;
+                }
+                if (arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
+                    return true;
+                return false;
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                        return true;
+                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
+                        return true;
+                    if (BindingTargetContainsYieldAnywhere(prop.Target))
+                        return true;
+                }
+                if (objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
+                    return true;
+                return false;
+
+            case AssignmentTargetBinding assignmentTarget:
+                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
     /// Try to emit IR for a simple variable declaration (identifier bindings only, no destructuring).
     /// </summary>
-    public static bool TryEmitSimpleVariableDeclaration(
+    private static bool TryEmitSimpleVariableDeclaration(
         EmitContext ctx,
         VariableDeclaration declaration,
         int nextIndex,

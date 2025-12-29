@@ -51,12 +51,6 @@ internal sealed partial class ExecutionPlanBuilder
     {
     }
 
-    private bool TryBuildReturnWithYield(YieldExpression yieldExpression,
-        out int entryIndex)
-    {
-        return Emitters.YieldEmitter.TryEmitReturnWithYield(GetEmitContext(), yieldExpression, out entryIndex);
-    }
-
     public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
         bool reportDiagnostics = true)
     {
@@ -169,26 +163,7 @@ internal sealed partial class ExecutionPlanBuilder
             switch (statement)
             {
                 case BlockStatement block:
-                    // If the block needs its own scope (has let/const declarations),
-                    // we need to create an environment for it.
-                    var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
-                    if (hoistPlan.NeedsEnvironment)
-                    {
-                        // If the block contains yield or await, we must NOT use StatementInstruction
-                        // because that causes duplicate execution on resume. Instead, emit
-                        // PushEnvironment + individual statements + PopEnvironment.
-                        if (AstShapeAnalyzer.StatementContainsYield(block) ||
-                            AstShapeAnalyzer.StatementContainsAwait(block))
-                        {
-                            return TryBuildBlockWithEnvironment(block, hoistPlan, nextIndex, out entryIndex);
-                        }
-
-                        // For blocks without yield/await, StatementInstruction is fine
-                        entryIndex = Append(new StatementInstruction(nextIndex, block));
-                        return true;
-                    }
-
-                    return TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
+                    return Emitters.BlockEmitter.TryEmitBlock(GetEmitContext(), block, nextIndex, out entryIndex);
 
                 case FunctionDeclaration:
                     // Function declarations are hoisted - this is a no-op at runtime
@@ -207,106 +182,12 @@ internal sealed partial class ExecutionPlanBuilder
                         GetEmitContext(), yieldExpression, nextIndex, out entryIndex);
 
                 case ExpressionStatement expressionStatement:
-                    if (expressionStatement.Expression is AssignmentExpression
-                        {
-                            Target: { } targetSymbol, Value: YieldExpression yieldAssignment
-                        } &&
-                        IsLowererTemp(targetSymbol))
-                    {
-                        if (Emitters.YieldEmitter.TryEmitYieldAssignment(
-                            GetEmitContext(), targetSymbol, yieldAssignment, nextIndex, out entryIndex))
-                        {
-                            return true;
-                        }
-                    }
-
-                    // Check for destructuring assignment expressions with yields that cannot be safely
-                    // extracted. This includes:
-                    // - Yields in default values (only evaluated when element is undefined)
-                    // - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
-                    // Wrap them as StatementInstruction to use AST evaluation's state-saving.
-                    if (ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
-                        return true;
-                    }
-
-                    var expressionShape = AstShapeAnalyzer.AnalyzeExpression(expressionStatement.Expression);
-                    if (expressionShape.DelegatedYieldCount > 0 ||
-                        expressionShape.YieldOperandContainsYield)
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "Expression statement contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    // After lowering, no yields should remain in expression statements.
-                    // If we still have yields here, the lowerer missed a pattern.
-                    if (expressionShape.YieldCount > 0)
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "Expression statement contains unlowered yield - this should have been handled by GeneratorYieldLowerer.";
-                        return false;
-                    }
-
-                    // For async generators, await expressions are lowered to yield points.
-                    // Don't use native instruction if there are awaits - fall back to StatementInstruction.
-                    if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, expressionStatement));
-                        return true;
-                    }
-
-                    // Fast path: simple increment/decrement on identifiers (e.g., i++, --j)
-                    if (expressionStatement.Expression is UnaryExpression
-                        {
-                            Operator: UnaryOperator.Increment or UnaryOperator.Decrement,
-                            Operand: IdentifierExpression identTarget
-                        } unaryExpr)
-                    {
-                        var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
-                        entryIndex = Append(new IncrementSlotInstruction(
-                            nextIndex,
-                            identTarget.Name,
-                            isIncrement,
-                            unaryExpr.IsPrefix));
-                        return true;
-                    }
-
-                    // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
-                    entryIndex = Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression));
-                    return true;
+                    return Emitters.ExpressionStatementEmitter.TryEmitExpressionStatement(
+                        GetEmitContext(), expressionStatement, nextIndex, out entryIndex);
 
                 case VariableDeclaration declaration:
-                    if (TryBuildVariableDeclaration(declaration, nextIndex, out entryIndex))
-                    {
-                        return true;
-                    }
-
-                    // Check for variable declarations with yields in binding target default values.
-                    // These cannot be safely lowered because defaults are only evaluated when
-                    // the value is undefined. Wrap them as StatementInstruction.
-                    if (DeclarationContainsYieldInBindingTargetDefaults(declaration))
-                    {
-                        entryIndex = Append(new StatementInstruction(nextIndex, declaration));
-                        return true;
-                    }
-
-                    if (DeclarationContainsYield(declaration))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "Variable declaration contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    // Try to use native SimpleVariableDeclarationInstruction for simple cases
-                    if (TryBuildSimpleVariableDeclaration(declaration, nextIndex, out entryIndex))
-                    {
-                        return true;
-                    }
-
-                    entryIndex = Append(new StatementInstruction(nextIndex, declaration));
-                    return true;
+                    return Emitters.DeclarationEmitter.TryEmitVariableDeclaration(
+                        GetEmitContext(), declaration, nextIndex, out entryIndex);
 
                 case WhileStatement whileStatement:
                     if (AstShapeAnalyzer.ContainsYield(whileStatement.Condition))
@@ -415,24 +296,14 @@ internal sealed partial class ExecutionPlanBuilder
                     return TryBuildForAwaitStatement(forEachStatement, nextIndex, out entryIndex, activeLabel);
 
                 case ReturnStatement returnStatement:
+                    // First check for yield return
                     if (returnStatement.Expression is YieldExpression yieldReturn &&
-                        TryBuildReturnWithYield(yieldReturn, out entryIndex))
+                        Emitters.YieldEmitter.TryEmitReturnWithYield(GetEmitContext(), yieldReturn, out entryIndex))
                     {
                         return true;
                     }
-
-                    if (returnStatement.Expression is not null &&
-                        AstShapeAnalyzer.ContainsYield(returnStatement.Expression))
-                    {
-                        entryIndex = -1;
-                        _failureReason ??= "Return expression contains unsupported yield shape.";
-                        return false;
-                    }
-
-                    // Pass nextIndex so that if return is inside try/finally, we can
-                    // continue to EndFinallyInstruction after updating pending completion.
-                    entryIndex = Append(new ReturnInstruction(nextIndex, returnStatement.Expression));
-                    return true;
+                    return Emitters.DeclarationEmitter.TryEmitReturn(
+                        GetEmitContext(), returnStatement, nextIndex, out entryIndex);
 
                 case BreakStatement breakStatement:
                     return TryBuildBreak(breakStatement, out entryIndex);
@@ -487,135 +358,6 @@ internal sealed partial class ExecutionPlanBuilder
                     return false;
             }
         }
-    }
-
-    private bool TryBuildVariableDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
-    {
-        entryIndex = -1;
-
-        if (declaration.Declarators.Length != 1 ||
-            declaration.Declarators[0] is not { } declarator ||
-            declarator.Target is not IdentifierBinding { Name: { } targetSymbol } ||
-            declarator.Initializer is not YieldExpression yieldInitializer)
-        {
-            return false;
-        }
-
-        if (!IsLowererTemp(targetSymbol))
-        {
-            return false;
-        }
-
-        return Emitters.YieldEmitter.TryEmitVariableWithYieldInitializer(
-            GetEmitContext(), targetSymbol, yieldInitializer, nextIndex, out entryIndex);
-    }
-
-    /// <summary>
-    ///     Attempts to build native SimpleVariableDeclarationInstructions for simple declarations.
-    ///     Handles single or multiple declarators with identifier bindings (no destructuring).
-    ///     For multiple declarators like <c>let a = 1, b = 2;</c>, creates a chain of instructions.
-    /// </summary>
-    private bool TryBuildSimpleVariableDeclaration(VariableDeclaration declaration, int nextIndex, out int entryIndex)
-    {
-        // Don't handle using/await using for now - they have complex disposal semantics
-        if (declaration.Kind is VariableKind.Using or VariableKind.AwaitUsing)
-        {
-            entryIndex = -1;
-            return false;
-        }
-
-        // First, verify ALL declarators are simple (identifier binding, no yields/awaits)
-        foreach (var declarator in declaration.Declarators)
-        {
-            // Only handle simple identifier binding (no destructuring)
-            if (declarator.Target is not IdentifierBinding)
-            {
-                entryIndex = -1;
-                return false;
-            }
-
-            // Ensure no yields or awaits in initializer
-            if (declarator.Initializer is not null &&
-                (AstShapeAnalyzer.ContainsYield(declarator.Initializer) ||
-                 AstShapeAnalyzer.ContainsAwait(declarator.Initializer)))
-            {
-                entryIndex = -1;
-                return false;
-            }
-        }
-
-        // All declarators are simple - build a chain of instructions
-        // Work backwards from the last declarator to properly chain next pointers
-        var currentNext = nextIndex;
-        entryIndex = -1;
-
-        for (var i = declaration.Declarators.Length - 1; i >= 0; i--)
-        {
-            var declarator = declaration.Declarators[i];
-            var targetSymbol = ((IdentifierBinding)declarator.Target).Name;
-
-            var instructionIndex = Append(new SimpleVariableDeclarationInstruction(
-                currentNext,
-                declaration.Kind,
-                targetSymbol!,
-                declarator.Initializer));
-
-            currentNext = instructionIndex;
-            if (i == 0)
-            {
-                entryIndex = instructionIndex;
-            }
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Builds a block that needs its own environment AND contains yield/await.
-    /// Instead of using StatementInstruction (which causes duplicate execution on resume),
-    /// we emit PushEnvironment + individual statements + PopEnvironment.
-    /// </summary>
-    private bool TryBuildBlockWithEnvironment(BlockStatement block, HoistPlan hoistPlan, int nextIndex, out int entryIndex)
-    {
-        var instructionStart = _instructions.Count;
-
-        // Check if we can pool the environment (no closures or dynamic scope)
-        var allowPooling = !ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
-
-        // Get scope info from the block (stamped by scope analysis)
-        var scopeId = block.ScopeId >= 0 ? block.ScopeId : -1;
-        var slotCount = block.SlotCount >= 0 ? block.SlotCount : 0;
-        var slotMap = block.SlotMap.IsEmpty
-            ? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance)
-            : block.SlotMap;
-
-        // Build instructions bottom-up (reverse order):
-        // 1. PopEnvironmentInstruction pointing to nextIndex
-        // 2. Body statements pointing to PopEnvironment
-        // 3. PushEnvironmentInstruction pointing to body entry
-
-        // 1. Pop environment (exit the block scope)
-        var popEnvIndex = Append(new PopEnvironmentInstruction(scopeId, allowPooling, nextIndex));
-
-        // 2. Build the body statements, they flow to PopEnvironment
-        if (!TryBuildStatementList(block.Statements, popEnvIndex, out var bodyEntry))
-        {
-            _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
-            entryIndex = -1;
-            return false;
-        }
-
-        // 3. Push environment (enter the block scope)
-        // For blocks, PerIterationBindings is empty (no loop iteration semantics)
-        entryIndex = Append(new PushEnvironmentInstruction(
-            bodyEntry,
-            hoistPlan.LexicalTemplate,
-            scopeId,
-            slotCount,
-            slotMap,
-            allowPooling));
-
-        return true;
     }
 
     private bool TryBuildIfStatement(IfStatement statement, int nextIndex, out int entryIndex, Symbol? activeLabel)
@@ -698,27 +440,6 @@ internal sealed partial class ExecutionPlanBuilder
         return Emitters.ControlFlowEmitter.TryEmitContinue(GetEmitContext(), statement, out entryIndex);
     }
 
-    private static bool DeclarationContainsYield(VariableDeclaration declaration)
-    {
-        return declaration.Declarators.Any(static d =>
-            d.Initializer is not null &&
-            AstShapeAnalyzer.ContainsYield(d.Initializer) &&
-            !IsLowererTemp(d.Target));
-    }
-
-    /// <summary>
-    /// Checks if a variable declaration contains yields in binding targets that cannot be
-    /// safely extracted. This includes:
-    /// - Yields in default values (only evaluated when value is undefined)
-    /// - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
-    /// </summary>
-    private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
-    {
-        return declaration.Declarators.Any(static d =>
-            BindingTargetContainsYieldInDefaultValue(d.Target) ||
-            (d.Initializer is not null && ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
-    }
-
     private Symbol CreateResumeSlotSymbol()
     {
         var symbolName = $"{ResumeSlotPrefix}{_resumeSlotCounter++}";
@@ -782,88 +503,6 @@ internal sealed partial class ExecutionPlanBuilder
                     member.IsComputed);
             default:
                 throw new NotSupportedException($"Unsupported for-of assignment target '{lhs.GetType().Name}'.");
-        }
-    }
-
-    private static bool IsLowererTemp(BindingTarget target)
-    {
-        return target is IdentifierBinding { Name.Name: not null } identifier &&
-               identifier.Name.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
-    }
-
-    private static bool IsLowererTemp(Symbol symbol)
-    {
-        return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
-    }
-
-    /// <summary>
-    /// Checks if the binding target contains yields specifically in default value expressions.
-    /// Yields in default values cannot be safely extracted because defaults are only evaluated
-    /// when the element is undefined - extracting them would change evaluation order.
-    /// </summary>
-    private static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
-    {
-        switch (target)
-        {
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    // Check for yields specifically in default values
-                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    // Recursively check nested bindings for yields in their defaults
-                    if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    // Check for yields specifically in default values
-                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    // Note: yields in computed property names (NameExpression) CAN be safely extracted
-                    // because they're always evaluated, so we don't check them here
-
-                    // Recursively check nested bindings for yields in their defaults
-                    if (BindingTargetContainsYieldInDefaultValue(prop.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case AssignmentTargetBinding assignmentTarget:
-                // Check if the assignment target expression contains a yield
-                // e.g., [ {}[ yield ] ] has a yield in the MemberExpression
-                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
-
-            default:
-                // IdentifierBinding doesn't have expressions or default values
-                return false;
         }
     }
 
@@ -937,53 +576,6 @@ internal sealed partial class ExecutionPlanBuilder
             default:
                 // IdentifierBinding doesn't have expressions or default values
                 return false;
-        }
-    }
-
-    /// <summary>
-    /// Checks if an expression contains a destructuring assignment with yields anywhere in
-    /// the binding target - either in default values or in assignment target expressions.
-    /// This handles patterns like: result = [ {}[ yield ] ] = vals;
-    /// </summary>
-    private static bool ExpressionContainsDestructuringWithYieldAnywhere(ExpressionNode expression)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case DestructuringAssignmentExpression destructuringExpr:
-                    // Direct destructuring assignment
-                    if (BindingTargetContainsYieldAnywhere(destructuringExpr.Target))
-                    {
-                        return true;
-                    }
-
-                    // Also check the value expression for nested destructurings
-                    expression = destructuringExpr.Value;
-                    continue;
-
-                case AssignmentExpression assignmentExpr:
-                    // Check the value side of the assignment for destructuring
-                    expression = assignmentExpr.Value;
-                    continue;
-
-                case PropertyAssignmentExpression propAssignExpr:
-                    expression = propAssignExpr.Value;
-                    continue;
-
-                case IndexAssignmentExpression indexAssignExpr:
-                    expression = indexAssignExpr.Value;
-                    continue;
-
-                case ConditionalExpression conditionalExpr:
-                    return ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Consequent) || ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Alternate);
-
-                case SequenceExpression seqExpr:
-                    return ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Left) || ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Right);
-
-                default:
-                    return false;
-            }
         }
     }
 

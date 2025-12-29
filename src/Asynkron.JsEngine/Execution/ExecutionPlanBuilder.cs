@@ -1099,12 +1099,26 @@ internal sealed class ExecutionPlanBuilder
         var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
         var lowered = new BlockStatement(statement.Source, statements.ToImmutable(), isStrict);
 
-        if (!TryBuildStatement(lowered, nextIndex, out entryIndex, activeLabel))
+        // Create LoopExitInstruction first (we build bottom-up)
+        // This pops the loop stack when exiting the switch (normal exit or break)
+        var loopExitIndex = Append(new LoopExitInstruction(nextIndex));
+
+        if (!TryBuildStatement(lowered, loopExitIndex, out var switchBodyEntry, activeLabel))
         {
             _instructions.RemoveRange(instructionStart, _instructions.Count - instructionStart);
             entryIndex = -1;
             return false;
         }
+
+        // Wrap entry with LoopEnterInstruction to push loop context at runtime
+        // This enables break statements from AST-evaluated code (via StatementInstruction)
+        // to resolve their jump targets using the runtime loop stack.
+        // ContinueTarget is -1 because switch statements do not support continue.
+        entryIndex = Append(new LoopEnterInstruction(
+            switchBodyEntry,
+            activeLabel,
+            loopExitIndex,
+            -1));
 
         return true;
     }

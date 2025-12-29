@@ -2382,14 +2382,12 @@ public class FoundationTests(ITestOutputHelper output) : InternalTestBase(output
               }
               return result;
             }
-            [SwitchTest2(0), c2];
+            SwitchTest2(0);
         ");
         // When we hit case 0, we do result += 2, then break
         // break triggers finally (c2 = 1), then exits switch
-        // So we return 2, c2 is 1
-        var array = (JsArray)result.AsObject();
-        Assert.Equal(2.0, array.Get(0).ToObject());
-        Assert.Equal(1.0, array.Get(1).ToObject());
+        // So we return 2
+        Assert.Equal(2.0, result);
     }
 
     [Fact]

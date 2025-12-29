@@ -17,5 +17,5 @@ public static class JsEngineConstants
     /// Enable detailed IR execution tracing with environment depth indentation.
     /// WARNING: Very verbose output - only enable for debugging specific issues.
     /// </summary>
-    public const bool TraceIrExecution = true;
+    public const bool TraceIrExecution = false;
 }

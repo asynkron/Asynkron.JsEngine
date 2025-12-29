@@ -4,7 +4,7 @@ using System.Text;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
-using static Asynkron.JsEngine.StdLib.ArrayHelper;
+using static Asynkron.JsEngine.StdLib.JsArrayConstants;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion

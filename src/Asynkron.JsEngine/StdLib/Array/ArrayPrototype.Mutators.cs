@@ -32,7 +32,7 @@ public sealed partial class ArrayPrototype
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var newLength = length + args.Count;
-            if (newLength > ArrayHelper.MaxConcreteArrayLength)
+            if (newLength > JsArrayConstants.MaxConcreteArrayLength)
             {
                 throw ThrowTypeError("Array.prototype.push cannot exceed 2^32 - 1 elements", realm: Realm);
             }
@@ -188,7 +188,7 @@ public sealed partial class ArrayPrototype
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             var argCount = args.Count;
 
-            if (length + argCount > ArrayHelper.MaxConcreteArrayLength)
+            if (length + argCount > JsArrayConstants.MaxConcreteArrayLength)
             {
                 throw ThrowTypeError("Array.prototype.unshift cannot exceed 2^32 - 1 elements", realm: Realm);
             }
@@ -278,7 +278,7 @@ public sealed partial class ArrayPrototype
             }
 
             var newLength = length - actualDeleteCount + insertCount;
-            if (newLength > ArrayHelper.MaxConcreteArrayLength)
+            if (newLength > JsArrayConstants.MaxConcreteArrayLength)
             {
                 throw ThrowRangeError("Array length exceeds 2^32 - 1", realm: Realm);
             }

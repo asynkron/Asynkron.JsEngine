@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Asynkron.JsEngine.Generators;
 
@@ -13,46 +14,56 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var wellKnownTypes = context.CompilationProvider.Select(static (compilation, _) => WellKnownTypes.From(compilation));
+        var wellKnownTypes = context.CompilationProvider.Select<Compilation, WellKnownTypes>(
+            (compilation, _) => WellKnownTypes.From(compilation));
+
+        var generatorRoot = context.AnalyzerConfigOptionsProvider.Select<AnalyzerConfigOptionsProvider, string?>(
+            (options, _) => options.GlobalOptions.TryGetValue("build_property.PrototypeGeneratorRoot", out var value) ? value : null);
 
         var prototypeCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Asynkron.JsEngine.Runtime.Prototypes.JsPrototypeAttribute",
             static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
-            static (ctx, _) => new PrototypeTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0]));
+            static (ctx, _) => new PrototypeTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0], ctx.TargetNode.SyntaxTree.FilePath ?? string.Empty));
 
         var constructorCandidates = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorAttribute",
             static (node, _) => node is ClassDeclarationSyntax { AttributeLists.Count: > 0 },
-            static (ctx, _) => new ConstructorTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0]));
+            static (ctx, _) => new ConstructorTarget((INamedTypeSymbol)ctx.TargetSymbol, ctx.Attributes[0], ctx.TargetNode.SyntaxTree.FilePath ?? string.Empty));
 
         var prototypes = prototypeCandidates
+            .Combine(generatorRoot)
+            .Where(pair => ShouldInclude(pair.Left.FilePath, pair.Right))
+            .Select<(PrototypeTarget Left, string? Right), PrototypeTarget>((pair, _) => pair.Left)
             .Collect()
-            .SelectMany(static (items, _) => items.Distinct(PrototypeTargetComparer.Instance))
+            .SelectMany<ImmutableArray<PrototypeTarget>, PrototypeTarget>((items, _) => items.Distinct(PrototypeTargetComparer.Instance))
             .Combine(wellKnownTypes)
-            .Select(static (data, _) => TransformPrototype(data.Left, data.Right))
-            .Where(static info => info is not null)
-            .Select(static (info, _) => info!)
+            .Select<(PrototypeTarget, WellKnownTypes), PrototypeInfo?>((data, _) => TransformPrototype(data.Item1, data.Item2))
+            .Where(info => info is not null)
+            .Select<PrototypeInfo?, PrototypeInfo>((info, _) => info!)
             .WithComparer(PrototypeCacheKeyComparer.Instance);
 
         var constructors = constructorCandidates
+            .Combine(generatorRoot)
+            .Where(pair => ShouldInclude(pair.Left.FilePath, pair.Right))
+            .Select<(ConstructorTarget Left, string? Right), ConstructorTarget>((pair, _) => pair.Left)
             .Collect()
-            .SelectMany(static (items, _) => items.Distinct(ConstructorTargetComparer.Instance))
+            .SelectMany<ImmutableArray<ConstructorTarget>, ConstructorTarget>((items, _) => items.Distinct(ConstructorTargetComparer.Instance))
             .Combine(wellKnownTypes)
-            .Select(static (data, _) => TransformConstructor(data.Left, data.Right))
-            .Where(static info => info is not null)
-            .Select(static (info, _) => info!)
+            .Select<(ConstructorTarget, WellKnownTypes), ConstructorInfo?>((data, _) => TransformConstructor(data.Item1, data.Item2))
+            .Where(info => info is not null)
+            .Select<ConstructorInfo?, ConstructorInfo>((info, _) => info!)
             .WithComparer(ConstructorCacheKeyComparer.Instance);
 
         var orderedPrototypes = prototypes
             .Collect()
-            .SelectMany(static (items, _) => items.OrderBy(static p => p.CacheKey, StringComparer.Ordinal));
+            .SelectMany<ImmutableArray<PrototypeInfo>, PrototypeInfo>((items, _) => items.OrderBy(p => p.CacheKey, StringComparer.Ordinal));
 
         var orderedConstructors = constructors
             .Collect()
-            .SelectMany(static (items, _) => items.OrderBy(static c => c.CacheKey, StringComparer.Ordinal));
+            .SelectMany<ImmutableArray<ConstructorInfo>, ConstructorInfo>((items, _) => items.OrderBy(c => c.CacheKey, StringComparer.Ordinal));
 
-        context.RegisterSourceOutput(orderedPrototypes, static (spc, info) => Emit(spc, info));
-        context.RegisterSourceOutput(orderedConstructors, static (spc, info) => EmitConstructor(spc, info));
+        context.RegisterSourceOutput(orderedPrototypes, (spc, info) => Emit(spc, info));
+        context.RegisterSourceOutput(orderedConstructors, (spc, info) => EmitConstructor(spc, info));
     }
 
     private static PrototypeInfo? TransformPrototype(PrototypeTarget target, WellKnownTypes wellKnown)
@@ -1128,9 +1139,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         return false;
     }
 
-    private sealed record PrototypeTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute);
+    private sealed record PrototypeTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute, string FilePath);
 
-    private sealed record ConstructorTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute);
+    private sealed record ConstructorTarget(INamedTypeSymbol TypeSymbol, AttributeData Attribute, string FilePath);
 
     private sealed class PrototypeTargetComparer : IEqualityComparer<PrototypeTarget>
     {
@@ -1176,6 +1187,39 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         public int GetHashCode(ConstructorTarget obj)
             => SymbolEqualityComparer.Default.GetHashCode(obj.TypeSymbol);
+    }
+
+    private static bool ShouldInclude(string? filePath, string? rootSetting)
+    {
+        if (string.IsNullOrWhiteSpace(rootSetting))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return false;
+        }
+
+        var normalizedPath = filePath.Replace('\\', '/');
+        var roots = rootSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var root in roots)
+        {
+            var trimmed = root.Trim().Trim('/').Replace('\\', '/');
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            var needle = "/" + trimmed + "/";
+            if (normalizedPath.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                normalizedPath.EndsWith("/" + trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // All info records now use only primitive/string types for proper incremental caching

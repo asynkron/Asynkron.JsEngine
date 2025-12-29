@@ -153,7 +153,7 @@ internal sealed class EmitContext
     /// <summary>
     /// Build a catch block with the given symbol.
     /// </summary>
-    public static BlockStatement BuildCatchBlock(CatchClause catchClause, Symbol catchSlotSymbol)
+    public BlockStatement BuildCatchBlock(CatchClause catchClause, Symbol catchSlotSymbol)
     {
         return ExecutionPlanBuilder.BuildCatchBlockInternal(catchClause, catchSlotSymbol);
     }

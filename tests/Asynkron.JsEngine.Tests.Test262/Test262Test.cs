@@ -159,6 +159,7 @@ try {
         var engine = BaseRealmSnapshot.UseSnapshot
             ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions()
             {
+                Logger = new TestLogger(minLogLevel: LogLevel.Debug, maxLogCount:20000000),
 
             })
             : new JsEngine { ExecutionTimeout = TimeSpan.FromSeconds(10) };

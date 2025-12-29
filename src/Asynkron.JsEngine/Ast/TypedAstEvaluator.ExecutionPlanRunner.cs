@@ -1054,11 +1054,17 @@ public static partial class TypedAstEvaluator
 
                                 // Detect if we're in a subsequent iteration:
                                 // 1. If ScopeId is valid, use ScopeId matching
-                                // 2. If ScopeId is -1 (scope analysis not run), check if environment
-                                //    is an iteration env we created (description="scope" and has Enclosing)
+                                // 2. If ScopeId is -1 (scope analysis not run), check if:
+                                //    - This is a loop iteration scope (has PerIterationBindings), AND
+                                //    - Current environment is an iteration env we created (description="scope")
+                                // The PerIterationBindings check is CRITICAL: it distinguishes loop iteration
+                                // scopes from nested block scopes within the loop body. Without it, nested
+                                // blocks would incorrectly become siblings of their parent iteration scope.
                                 var isSubsequentIteration =
                                     (pushEnvInstruction.ScopeId >= 0 && environment.ScopeId == pushEnvInstruction.ScopeId) ||
-                                    (pushEnvInstruction.ScopeId < 0 && environment.Description == "scope" && environment.Enclosing != null);
+                                    (pushEnvInstruction.ScopeId < 0 &&
+                                     !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty &&
+                                     environment.Description == "scope" && environment.Enclosing != null);
 
                                 if (isSubsequentIteration)
                                 {

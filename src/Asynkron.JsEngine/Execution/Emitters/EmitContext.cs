@@ -215,4 +215,26 @@ internal sealed class EmitContext(
     {
         return builder.AppendYieldStarSequenceInternal(expression, continuationIndex, resultSlot);
     }
+
+    /// <summary>
+    /// Build a slot map from per-iteration bindings and their slot indices.
+    /// Used by LoopEmitter and ForOfEmitter to create PushEnvironmentInstruction slot maps.
+    /// </summary>
+    public static ImmutableDictionary<Symbol, int> BuildSlotMap(
+        ImmutableArray<Symbol> bindings,
+        ImmutableArray<int> slotIndices)
+    {
+        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+        var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
+
+        for (var i = 0; i < count; i++)
+        {
+            if (slotIndices[i] >= 0)
+            {
+                slotMapBuilder[bindings[i]] = slotIndices[i];
+            }
+        }
+
+        return slotMapBuilder.ToImmutable();
+    }
 }

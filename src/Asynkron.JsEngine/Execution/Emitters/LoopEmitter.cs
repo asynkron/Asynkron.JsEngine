@@ -60,7 +60,7 @@ internal static class LoopEmitter
         int createEnvIndex = -1;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
         {
-            var slotMap = BuildSlotMap(plan);
+            var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 
             // CreateEnv flows to PostIteration (increment)
             createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
@@ -107,7 +107,7 @@ internal static class LoopEmitter
         var iterationBodyEntry = bodyEntry;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind != LoopKind.For)
         {
-            var slotMap = BuildSlotMap(plan);
+            var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 
             var createEnvBeforeBody = ctx.Append(new PushEnvironmentInstruction(
                 bodyEntry,
@@ -158,26 +158,5 @@ internal static class LoopEmitter
             continueTarget));
 
         return true;
-    }
-
-    /// <summary>
-    /// Build the slot map for per-iteration bindings.
-    /// </summary>
-    private static ImmutableDictionary<Symbol, int> BuildSlotMap(LoopPlan plan)
-    {
-        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-        var bindings = plan.PerIterationBindings;
-        var slotIndices = plan.PerIterationSlotIndices;
-        var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
-
-        for (var i = 0; i < count; i++)
-        {
-            if (slotIndices[i] >= 0)
-            {
-                slotMapBuilder[bindings[i]] = slotIndices[i];
-            }
-        }
-
-        return slotMapBuilder.ToImmutable();
     }
 }

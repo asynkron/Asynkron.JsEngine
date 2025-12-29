@@ -94,7 +94,7 @@ public sealed class JsEnvironment : IRentable
         }
     }
 
-    public string Description => _description;
+    public string Description => _description ?? string.Empty;
 
     /// <summary>
     /// Unique ID for this scope, used to match variables to their declaring environment.
@@ -2218,7 +2218,7 @@ public sealed class JsEnvironment : IRentable
             return DeleteBindingResult.NotDeletable;
         }
 
-        globalObject.Delete(name.Name);
+        globalObject!.Delete(name.Name);
         return DeleteBindingResult.Deleted;
     }
 

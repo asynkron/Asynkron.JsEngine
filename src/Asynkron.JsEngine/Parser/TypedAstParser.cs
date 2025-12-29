@@ -1743,7 +1743,7 @@ public sealed class TypedAstParser(
             if (!initializerAllowsCoverNames && initializerExpression is { } expressionInitializer)
             {
                 var validated = ValidateExpression(expressionInitializer);
-                initializer = new ExpressionStatement(validated.Source ?? initializer.Source, validated);
+                initializer = new ExpressionStatement(validated.Source ?? initializer!.Source, validated);
             }
 
             if (!firstClauseTerminated)
@@ -3150,7 +3150,7 @@ public sealed class TypedAstParser(
             if (Match(TokenType.BigInt))
             {
                 var token = Previous();
-                return (token.Literal, false, CreateSourceReference(token));
+                return (token.Literal!, false, CreateSourceReference(token));
             }
 
             var identifier = ConsumePropertyIdentifierToken("Expected property name.");
@@ -4428,7 +4428,7 @@ public sealed class TypedAstParser(
                     _source);
             }
 
-            return decoded.Value;
+            return decoded.Value ?? string.Empty;
         }
 
         private string GetPropertyNameValue(Token token)

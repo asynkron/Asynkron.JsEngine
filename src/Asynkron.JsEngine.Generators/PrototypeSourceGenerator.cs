@@ -1201,8 +1201,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             return false;
         }
 
-        var normalizedPath = filePath.Replace('\\', '/');
-        var roots = rootSetting.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+        var normalizedPath = filePath!.Replace('\\', '/');
+        var roots = rootSetting!.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
         foreach (var root in roots)
         {
             var trimmed = root.Trim().Trim('/').Replace('\\', '/');

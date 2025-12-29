@@ -26,8 +26,8 @@ internal readonly struct AssignmentReference
 
     // Identifier binding data
     private readonly JsEnvironment.ResolvedIdentifierBinding _binding;
-    private readonly Symbol _name;
-    private readonly EvaluationContext _context;
+    private readonly Symbol? _name;
+    private readonly EvaluationContext? _context;
     private readonly bool _isStrict;
 
     // Global/With binding data
@@ -131,8 +131,8 @@ internal readonly struct AssignmentReference
         return new AssignmentReference(
             ReferenceKind.Delegate,
             default,
-            default,
-            null!,
+            null,
+            null,
             false,
             default,
             null,
@@ -143,8 +143,8 @@ internal readonly struct AssignmentReference
     private AssignmentReference(
         ReferenceKind kind,
         JsEnvironment.ResolvedIdentifierBinding binding,
-        Symbol name,
-        EvaluationContext context,
+        Symbol? name,
+        EvaluationContext? context,
         bool isStrict,
         in ObjectEnvironmentBinding globalBinding,
         JsEnvironment? withFallbackEnvironment,
@@ -206,11 +206,11 @@ internal readonly struct AssignmentReference
     {
         try
         {
-            return _binding.ReadJsValue(_context);
+            return _binding.ReadJsValue(_context!);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -231,7 +231,7 @@ internal readonly struct AssignmentReference
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -239,7 +239,7 @@ internal readonly struct AssignmentReference
 
     private void WriteGlobalBinding(JsValue value)
     {
-        JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context.RealmState);
+        JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context!.RealmState);
     }
 
     private JsValue ReadWithBindingJsValue()
@@ -250,7 +250,7 @@ internal readonly struct AssignmentReference
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -258,16 +258,16 @@ internal readonly struct AssignmentReference
 
     private void WriteWithBinding(JsValue value)
     {
-        if (_isStrict && IsStrictRestrictedName(_name))
+        if (_isStrict && IsStrictRestrictedName(_name!))
         {
             throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                "Assignment to eval or arguments is not allowed in strict mode.", _context,
-                _context.RealmState));
+                "Assignment to eval or arguments is not allowed in strict mode.", _context!,
+                _context!.RealmState));
         }
 
-        if (!JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context.RealmState))
+        if (!JsEnvironment.TrySetWithBindingValueJsValue(_globalBinding, value, _context!.RealmState))
         {
-            _withFallbackEnvironment!.AssignJsValue(_name, value);
+            _withFallbackEnvironment!.AssignJsValue(_name!, value);
         }
     }
 
@@ -275,11 +275,11 @@ internal readonly struct AssignmentReference
     {
         try
         {
-            return JsEnvironment.ReadUnresolvableJsValue(_name);
+            return JsEnvironment.ReadUnresolvableJsValue(_name!);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -287,7 +287,7 @@ internal readonly struct AssignmentReference
 
     private void WriteUnresolvable(JsValue value)
     {
-        JsEnvironment.AssignUnresolvableJsValue(_name, value, _isStrict, _context, _withFallbackEnvironment);
+        JsEnvironment.AssignUnresolvableJsValue(_name!, value, _isStrict, _context!, _withFallbackEnvironment);
     }
 
     private static bool IsStrictRestrictedName(Symbol name)

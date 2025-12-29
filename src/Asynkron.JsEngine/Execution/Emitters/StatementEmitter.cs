@@ -70,6 +70,11 @@ internal static class StatementEmitter
                 case TryStatement tryStatement:
                     return TryEmitter.TryEmitTry(ctx, tryStatement, nextIndex, activeLabel, out entryIndex);
 
+                case ForEachStatement { Kind: ForEachKind.In } forInStatement:
+                    // For-in loops delegate to AST evaluator via StatementInstruction
+                    entryIndex = ctx.Append(new StatementInstruction(nextIndex, forInStatement));
+                    return true;
+
                 case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
                     return TryEmitForOf(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);

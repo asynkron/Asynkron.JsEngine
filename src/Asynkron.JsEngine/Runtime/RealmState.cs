@@ -28,12 +28,6 @@ public sealed class RealmState
     public ILogger? Logger { get; set; }
 
     /// <summary>
-    /// Cached from Options.EnableFastPaths for hot path access.
-    /// When false, all fast paths are disabled and only base implementations are used.
-    /// </summary>
-    public bool EnableFastPaths { get; internal init; } = true;
-
-    /// <summary>
     /// Per ES spec 13.2.8.4, template objects are cached by parse node (source location).
     /// The key is the TaggedTemplateExpression AST node reference.
     /// </summary>

@@ -662,8 +662,6 @@ internal static class JsOps
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LooseEquals(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        var enableFastPaths = context?.RealmState.EnableFastPaths ?? true;
-
         // Fast path for same-type comparisons
         if ( left.Kind == right.Kind)
         {
@@ -773,64 +771,54 @@ internal static class JsOps
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        var enableFastPaths = context?.RealmState.EnableFastPaths ?? true;
-        if (enableFastPaths)
-        {
-            // Fast path for comparing two numbers
-            if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
-                return left.NumberValue > right.NumberValue;
-            // Fast path for comparing two strings
-            if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-                return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
-        }
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+            return left.NumberValue > right.NumberValue;
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
+
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool GreaterThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        var enableFastPaths = context?.RealmState.EnableFastPaths ?? true;
-        if (enableFastPaths)
-        {
-            // Fast path for comparing two numbers
-            if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
-                return left.NumberValue >= right.NumberValue;
-            // Fast path for comparing two strings
-            if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-                return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
-        }
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+            return left.NumberValue >= right.NumberValue;
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
+
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThan(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        var enableFastPaths = context?.RealmState.EnableFastPaths ?? true;
-        if (enableFastPaths)
-        {
-            // Fast path for comparing two numbers
-            if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
-                return left.NumberValue < right.NumberValue;
-            // Fast path for comparing two strings
-            if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-                return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
-        }
+
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+            return left.NumberValue < right.NumberValue;
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
+
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool LessThanOrEqual(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
-        var enableFastPaths = context?.RealmState.EnableFastPaths ?? true;
-        if (enableFastPaths)
-        {
-            // Fast path for comparing two numbers
-            if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
-                return left.NumberValue <= right.NumberValue;
-            // Fast path for comparing two strings
-            if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
-                return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
-        }
+
+        // Fast path for comparing two numbers
+        if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+            return left.NumberValue <= right.NumberValue;
+        // Fast path for comparing two strings
+        if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
+
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context);
     }
 

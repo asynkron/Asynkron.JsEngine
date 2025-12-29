@@ -98,12 +98,6 @@ public static partial class TypedAstEvaluator
             // Check if we need per-iteration environments for lexical bindings
             var allowIterationEnvPooling = plan.AllowIterationEnvironmentPooling;
 
-            // In reference mode, avoid reusing iteration environments to keep the per-iteration bindings isolated.
-            if (!context.RealmState.EnableFastPaths)
-            {
-                allowIterationEnvPooling = false;
-            }
-
             // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:
             // Create the first per-iteration environment BEFORE entering the loop
             var iterationEnvironment = hasPerIterationBindings
@@ -113,9 +107,6 @@ public static partial class TypedAstEvaluator
             // Fast path: if body is a single statement without block environment needs,
             // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
             var singleStatement = plan.SingleBodyStatement;
-
-            // Respect engine setting: disable loop fast paths when fast paths are off
-            var enableFastPaths = context.RealmState.EnableFastPaths;
 
             // Try ultra-fast path for simple numeric for loops
             // Pattern: for (let i = 0; i < limit; i++) { s += i; }

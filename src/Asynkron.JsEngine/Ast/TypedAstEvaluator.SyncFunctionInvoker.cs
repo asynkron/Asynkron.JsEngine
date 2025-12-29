@@ -530,7 +530,7 @@ public static partial class TypedAstEvaluator
         {
             // Fast-path for simple functions - uses precomputed _canUseFastPathBase
             // Only check newTarget at runtime (everything else is fixed after construction)
-            if ((callingContext?.RealmState.EnableFastPaths ?? true) && _canUseFastPathBase && newTarget.IsUndefined)
+            if (_canUseFastPathBase && newTarget.IsUndefined)
             {
                 return InvokeSimpleFast(arguments, thisValue, callingContext);
             }
@@ -706,7 +706,7 @@ public static partial class TypedAstEvaluator
             // - Functions with homeObject (class methods/field initializers) - need special super handling
             // - Functions with direct eval - AST path handles eval scope correctly
             if (!_function.IsGenerator && !IsClassConstructor && _homeObject is null &&
-                _allowIdentifierCache && RealmState.EnableFastPaths)
+                _allowIdentifierCache)
             {
                 var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
                 if (planCache.Succeeded)

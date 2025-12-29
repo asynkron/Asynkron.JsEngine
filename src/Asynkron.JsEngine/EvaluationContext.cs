@@ -285,7 +285,7 @@ public sealed class EvaluationContext(
     public IDisposable EnterPrivateNameScope(PrivateNameScope scope)
     {
         _privateNameScopes.Push(scope);
-        return new PrivateNameScopeHandle(_privateNameScopes);
+        return new StackPopHandle<PrivateNameScope>(_privateNameScopes);
     }
 
     public IDisposable EnterPrivateNameScopes(IReadOnlyList<PrivateNameScope> scopes)
@@ -295,7 +295,7 @@ public sealed class EvaluationContext(
             _privateNameScopes.Push(scope);
         }
 
-        return new PrivateNameScopeHandle(_privateNameScopes, scopes.Count);
+        return new StackPopHandle<PrivateNameScope>(_privateNameScopes, scopes.Count);
     }
 
     public IDisposable EnterClassFieldInitializer()
@@ -307,7 +307,7 @@ public sealed class EvaluationContext(
     public IDisposable EnterFunctionNameHint(Symbol name)
     {
         _functionNameHints.Push(name);
-        return new FunctionNameHintHandle(_functionNameHints);
+        return new StackPopHandle<Symbol>(_functionNameHints);
     }
 
     /// <summary>
@@ -553,7 +553,11 @@ public sealed class EvaluationContext(
         }
     }
 
-    private sealed class PrivateNameScopeHandle(Stack<PrivateNameScope> scopes, int count = 1) : IDisposable
+    /// <summary>
+    ///     Generic disposable handle that pops items from a stack on dispose.
+    ///     Used for scope management (private names, function name hints, etc).
+    /// </summary>
+    private sealed class StackPopHandle<T>(Stack<T> stack, int count = 1) : IDisposable
     {
         private bool _disposed;
 
@@ -565,9 +569,9 @@ public sealed class EvaluationContext(
             }
 
             var remaining = count;
-            while (remaining-- > 0 && scopes.Count > 0)
+            while (remaining-- > 0 && stack.Count > 0)
             {
-                scopes.Pop();
+                stack.Pop();
             }
 
             _disposed = true;
@@ -588,26 +592,6 @@ public sealed class EvaluationContext(
             if (context._classFieldInitializerDepth > 0)
             {
                 context._classFieldInitializerDepth--;
-            }
-
-            _disposed = true;
-        }
-    }
-
-    private sealed class FunctionNameHintHandle(Stack<Symbol> hints) : IDisposable
-    {
-        private bool _disposed;
-
-        public void Dispose()
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            if (hints.Count > 0)
-            {
-                hints.Pop();
             }
 
             _disposed = true;

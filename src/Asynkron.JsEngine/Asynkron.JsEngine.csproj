@@ -9,13 +9,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
-    <PackageReference Include="Roslynator.CSharp" Version="4.15.0"/>
-    <PackageReference Include="Roslynator.Refactorings" Version="4.15.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Update="Roslynator.Analyzers" Version="4.15.0" />
-    <PackageReference Remove="Meziantou.Analyzer" />
   </ItemGroup>
 
   <ItemGroup>

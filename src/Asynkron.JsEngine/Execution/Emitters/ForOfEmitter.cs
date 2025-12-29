@@ -171,25 +171,14 @@ internal static class ForOfEmitter
         if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
             !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
         {
-            // Build slot map from per-iteration bindings and slot indices
-            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-            var bindings = iteratorPlan.PerIterationBindings;
-            var slotIndices = iteratorPlan.PerIterationSlotIndices;
-            var count = Math.Min(bindings.Length, slotIndices.IsDefaultOrEmpty ? 0 : slotIndices.Length);
-            for (var i = 0; i < count; i++)
-            {
-                if (slotIndices[i] >= 0)
-                {
-                    slotMapBuilder[bindings[i]] = slotIndices[i];
-                }
-            }
+            var slotMap = EmitContext.BuildSlotMap(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
 
             var createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
                 iterationEntry,
                 iteratorPlan.PerIterationBindings,
                 iteratorPlan.IterationScopeId,
                 iteratorPlan.IterationSlotCount,
-                slotMapBuilder.ToImmutable(),
+                slotMap,
                 iteratorPlan.CanReuseIterationEnvironment));
             loopEntry = createEnvIndex;
         }

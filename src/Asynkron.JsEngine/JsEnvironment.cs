@@ -537,6 +537,13 @@ public sealed class JsEnvironment : IRentable
             }
 
             existing.JsValue = value;
+            // Also update slot if one exists for this identifier (IR execution uses slots)
+            // Try both the function scope and the original environment (slots may be in either)
+            scope.TrySetSlot(name, value);
+            if (!ReferenceEquals(this, scope))
+            {
+                TrySetSlot(name, value);
+            }
             if (isGlobalScope && globalThis is not null)
             {
                 globalThis.SetProperty(name.Name, value);
@@ -559,6 +566,13 @@ public sealed class JsEnvironment : IRentable
         }
 
         scope.Values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride, allowDelete);
+        // Also update slot if one exists for this identifier (IR execution uses slots)
+        // Try both the function scope and the original environment (slots may be in either)
+        scope.TrySetSlot(name, initialValue);
+        if (!ReferenceEquals(this, scope))
+        {
+            TrySetSlot(name, initialValue);
+        }
         if (!isGlobalScope || globalThis is null || !shouldWriteGlobal)
         {
             return;

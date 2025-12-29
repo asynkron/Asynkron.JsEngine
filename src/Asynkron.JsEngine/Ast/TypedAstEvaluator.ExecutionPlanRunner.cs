@@ -378,12 +378,21 @@ public static partial class TypedAstEvaluator
                     isLexical: true, blocksFunctionScopeOverride: true);
             }
 
+            // ES spec order: bind parameters FIRST, then hoist function declarations
+            // Function declarations should override parameter bindings with the same name
+            _function.BindFunctionParameters(_arguments, parameterEnvironment, generatorContext);
+            if (generatorContext.IsThrow)
+            {
+                var thrown = generatorContext.FlowValue;
+                generatorContext.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
             _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            _function.BindFunctionParameters(_arguments, parameterEnvironment, generatorContext);
             if (generatorContext.IsThrow)
             {
                 var thrown = generatorContext.FlowValue;
@@ -398,7 +407,6 @@ public static partial class TypedAstEvaluator
 
             return executionEnvironment;
         }
-
         private static JsValue CreateIteratorResult(JsValue value, bool done)
         {
             // Use singleton for the common done case with undefined value
@@ -1084,14 +1092,20 @@ public static partial class TypedAstEvaluator
                                         : CreateIteratorResult(varYieldedValue, false);
                                 }
 
-                                // For var declarations, ensure the binding exists in function scope and assign
+                                // For var declarations, ensure the binding exists in function scope
+                                // Only assign if there's an initializer - var without initializer preserves hoisted value
                                 if (varDeclInstruction.Kind == VariableKind.Var)
                                 {
                                     environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol, context);
-                                    // Try to assign to a blocked binding first (shadowed let/const in same scope)
-                                    if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol, varValue))
+                                    // Only assign if there's an initializer
+                                    // Per ES spec, `var x;` should not override hoisted function declarations
+                                    if (varDeclInstruction.Initializer is not null)
                                     {
-                                        environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                        // Try to assign to a blocked binding first (shadowed let/const in same scope)
+                                        if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol, varValue))
+                                        {
+                                            environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                        }
                                     }
                                 }
                                 else

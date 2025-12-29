@@ -27,22 +27,8 @@ public static partial class StandardLibrary
                     accessor = null!;
                     return false;
                 case JsValue jsValue:
-                    // Handle JsValue by extracting the underlying object based on kind
-                    if (jsValue is { Kind: JsValueKind.Object, ObjectValue: { } objVal })
-                    {
-                        candidate = objVal;
-                        continue;
-                    }
-
-                    if (jsValue.IsNullOrUndefined)
-                    {
-                        accessor = null!;
-                        return false;
-                    }
-
-                    // For primitives, use ObjectValue which contains the wrapped value
-                    candidate = jsValue.ObjectValue;
-                    continue;
+                    // Delegate to the JsValue-specific overload which handles all kinds properly
+                    return TryGetObject(jsValue, realm, out accessor);
                 case IJsObjectLike objectLike:
                     accessor = objectLike;
                     return true;

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
@@ -112,7 +113,7 @@ internal sealed class EmitContext(
     /// </summary>
     public bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)
     {
-        return builder.TryBuildStatementListInternal(statements, nextIndex, out entryIndex);
+        return builder.TryBuildStatementList(statements, nextIndex, out entryIndex);
     }
 
     /// <summary>
@@ -128,7 +129,7 @@ internal sealed class EmitContext(
     /// </summary>
     public void SetFailureReason(string reason)
     {
-        builder.SetFailureReasonInternal(reason);
+        builder.SetFailureReason(reason);
     }
 
     /// <summary>
@@ -136,7 +137,7 @@ internal sealed class EmitContext(
     /// </summary>
     public Symbol CreateCatchSlotSymbol()
     {
-        return builder.CreateCatchSlotSymbolInternal();
+        return builder.CreateCatchSlotSymbol();
     }
 
     /// <summary>
@@ -144,7 +145,7 @@ internal sealed class EmitContext(
     /// </summary>
     public BlockStatement BuildCatchBlock(CatchClause catchClause, Symbol catchSlotSymbol)
     {
-        return ExecutionPlanBuilder.BuildCatchBlockInternal(catchClause, catchSlotSymbol);
+        return ExecutionPlanBuilder.BuildCatchBlock(catchClause, catchSlotSymbol);
     }
 
     /// <summary>
@@ -152,20 +153,20 @@ internal sealed class EmitContext(
     /// </summary>
     public int AllocateSlot(Symbol symbol)
     {
-        return builder.AllocateSlotInternal(symbol);
+        return builder.AllocateSlot(symbol);
     }
 
     /// <summary>
     /// Get the instruction list (for IteratorInstructionTemplate).
     /// </summary>
-    public List<ExecutionInstruction> Instructions => builder.InstructionsInternal;
+    public List<ExecutionInstruction> Instructions => builder.Instructions;
 
     /// <summary>
     /// Create iterator binding statement.
     /// </summary>
     public static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol, int valueSlotIndex)
     {
-        return ExecutionPlanBuilder.CreateIteratorBindingStatementInternal(plan, valueSymbol, valueSlotIndex);
+        return ExecutionPlanBuilder.CreateIteratorBindingStatement(plan, valueSymbol, valueSlotIndex);
     }
 
     /// <summary>
@@ -173,7 +174,7 @@ internal sealed class EmitContext(
     /// </summary>
     public static bool IsStrictBlock(StatementNode statement)
     {
-        return ExecutionPlanBuilder.IsStrictBlockInternal(statement);
+        return ExecutionPlanBuilder.IsStrictBlock(statement);
     }
 
     /// <summary>
@@ -181,7 +182,7 @@ internal sealed class EmitContext(
     /// </summary>
     public static bool ContainsUnlabeledAbruptInFinally(StatementNode statement)
     {
-        return ExecutionPlanBuilder.ContainsUnlabeledAbruptInFinallyInternal(statement);
+        return ExecutionPlanBuilder.ContainsUnlabeledAbruptInFinally(statement);
     }
 
     /// <summary>
@@ -189,7 +190,7 @@ internal sealed class EmitContext(
     /// </summary>
     public Symbol CreateWithScopeSlotSymbol()
     {
-        return builder.CreateWithScopeSlotSymbolInternal();
+        return builder.CreateWithScopeSlotSymbol();
     }
 
     /// <summary>
@@ -197,7 +198,7 @@ internal sealed class EmitContext(
     /// </summary>
     public Symbol CreateResumeSlotSymbol()
     {
-        return builder.CreateResumeSlotSymbolInternal();
+        return builder.CreateResumeSlotSymbol();
     }
 
     /// <summary>
@@ -205,7 +206,7 @@ internal sealed class EmitContext(
     /// </summary>
     public int AppendYieldSequence(ExpressionNode? expression, int continuationIndex, Symbol? resumeSlot)
     {
-        return builder.AppendYieldSequenceInternal(expression, continuationIndex, resumeSlot);
+        return builder.AppendYieldSequence(expression, continuationIndex, resumeSlot);
     }
 
     /// <summary>
@@ -213,7 +214,7 @@ internal sealed class EmitContext(
     /// </summary>
     public int AppendYieldStarSequence(YieldExpression expression, int continuationIndex, Symbol? resultSlot)
     {
-        return builder.AppendYieldStarSequenceInternal(expression, continuationIndex, resultSlot);
+        return builder.AppendYieldStarSequence(expression, continuationIndex, resultSlot);
     }
 
     /// <summary>
@@ -236,5 +237,128 @@ internal sealed class EmitContext(
         }
 
         return slotMapBuilder.ToImmutable();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Shared Yield Detection Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Check if a symbol is a lowerer-generated temporary variable.
+    /// </summary>
+    public static bool IsLowererTemp(Symbol symbol)
+    {
+        return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
+    }
+
+    /// <summary>
+    /// Check if a binding target is a lowerer-generated temporary variable.
+    /// </summary>
+    public static bool IsLowererTemp(BindingTarget target)
+    {
+        return target is IdentifierBinding { Name.Name: not null } identifier &&
+               identifier.Name.Name.StartsWith("__yield_lower_", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Checks if a binding target contains yields anywhere - either in default values
+    /// or in assignment target expressions (like [ {}[ yield ] ]).
+    /// </summary>
+    public static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                    {
+                        return true;
+                    }
+                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
+                    {
+                        return true;
+                    }
+                }
+                if (arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
+                {
+                    return true;
+                }
+                return false;
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                    {
+                        return true;
+                    }
+                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
+                    {
+                        return true;
+                    }
+                    if (BindingTargetContainsYieldAnywhere(prop.Target))
+                    {
+                        return true;
+                    }
+                }
+                if (objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
+                {
+                    return true;
+                }
+                return false;
+
+            case AssignmentTargetBinding assignmentTarget:
+                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if an expression contains a destructuring assignment with yields anywhere in
+    /// the binding target - either in default values or in assignment target expressions.
+    /// </summary>
+    public static bool ExpressionContainsDestructuringWithYieldAnywhere(ExpressionNode expression)
+    {
+        while (true)
+        {
+            switch (expression)
+            {
+                case DestructuringAssignmentExpression destructuringExpr:
+                    if (BindingTargetContainsYieldAnywhere(destructuringExpr.Target))
+                    {
+                        return true;
+                    }
+                    expression = destructuringExpr.Value;
+                    continue;
+
+                case AssignmentExpression assignmentExpr:
+                    expression = assignmentExpr.Value;
+                    continue;
+
+                case PropertyAssignmentExpression propAssignExpr:
+                    expression = propAssignExpr.Value;
+                    continue;
+
+                case IndexAssignmentExpression indexAssignExpr:
+                    expression = indexAssignExpr.Value;
+                    continue;
+
+                case ConditionalExpression conditionalExpr:
+                    return ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Consequent) ||
+                           ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Alternate);
+
+                case SequenceExpression seqExpr:
+                    return ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Left) ||
+                           ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Right);
+
+                default:
+                    return false;
+            }
+        }
     }
 }

@@ -25,9 +25,9 @@ internal static class ExpressionStatementEmitter
             {
                 Target: { } targetSymbol, Value: YieldExpression yieldAssignment
             } &&
-            IsLowererTemp(targetSymbol))
+            EmitContext.IsLowererTemp(targetSymbol))
         {
-            if (YieldEmitter.TryEmitYieldAssignment(
+            if (YieldEmitter.TryEmitYieldToSymbol(
                 ctx, targetSymbol, yieldAssignment, nextIndex, out entryIndex))
             {
                 return true;
@@ -39,7 +39,7 @@ internal static class ExpressionStatementEmitter
         // - Yields in default values (only evaluated when element is undefined)
         // - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
         // Wrap them as StatementInstruction to use AST evaluation's state-saving.
-        if (ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
+        if (EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
         {
             entryIndex = ctx.Append(new StatementInstruction(nextIndex, expressionStatement));
             return true;
@@ -90,108 +90,5 @@ internal static class ExpressionStatementEmitter
         // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
         entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression));
         return true;
-    }
-
-    private static bool IsLowererTemp(Symbol symbol)
-    {
-        return symbol.Name?.StartsWith("__yield_lower_", StringComparison.Ordinal) == true;
-    }
-
-    /// <summary>
-    /// Checks if an expression contains a destructuring assignment with yields anywhere in
-    /// the binding target - either in default values or in assignment target expressions.
-    /// </summary>
-    private static bool ExpressionContainsDestructuringWithYieldAnywhere(ExpressionNode expression)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case DestructuringAssignmentExpression destructuringExpr:
-                    if (BindingTargetContainsYieldAnywhere(destructuringExpr.Target))
-                    {
-                        return true;
-                    }
-                    expression = destructuringExpr.Value;
-                    continue;
-
-                case AssignmentExpression assignmentExpr:
-                    expression = assignmentExpr.Value;
-                    continue;
-
-                case PropertyAssignmentExpression propAssignExpr:
-                    expression = propAssignExpr.Value;
-                    continue;
-
-                case IndexAssignmentExpression indexAssignExpr:
-                    expression = indexAssignExpr.Value;
-                    continue;
-
-                case ConditionalExpression conditionalExpr:
-                    return ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Consequent) ||
-                           ExpressionContainsDestructuringWithYieldAnywhere(conditionalExpr.Alternate);
-
-                case SequenceExpression seqExpr:
-                    return ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Left) ||
-                           ExpressionContainsDestructuringWithYieldAnywhere(seqExpr.Right);
-
-                default:
-                    return false;
-            }
-        }
-    }
-
-    private static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
-    {
-        switch (target)
-        {
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                    {
-                        return true;
-                    }
-                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
-                    {
-                        return true;
-                    }
-                }
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-                return false;
-
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                    {
-                        return true;
-                    }
-                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
-                    {
-                        return true;
-                    }
-                    if (BindingTargetContainsYieldAnywhere(prop.Target))
-                    {
-                        return true;
-                    }
-                }
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
-                {
-                    return true;
-                }
-                return false;
-
-            case AssignmentTargetBinding assignmentTarget:
-                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
-
-            default:
-                return false;
-        }
     }
 }

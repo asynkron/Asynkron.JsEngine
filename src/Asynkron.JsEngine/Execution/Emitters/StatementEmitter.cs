@@ -70,13 +70,9 @@ internal static class StatementEmitter
                     entryIndex = ctx.Append(new StatementInstruction(nextIndex, forInStatement));
                     return true;
 
-                case ForEachStatement { Kind: ForEachKind.Of } forEachStatement
+                case ForEachStatement { Kind: ForEachKind.Of or ForEachKind.AwaitOf } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
-                    return TryEmitForOf(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
-
-                case ForEachStatement { Kind: ForEachKind.AwaitOf } forEachStatement
-                    when IsSimpleForOfBinding(forEachStatement):
-                    return TryEmitForAwaitOf(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
+                    return TryEmitForEach(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ReturnStatement returnStatement:
                     // First check for yield return
@@ -142,7 +138,7 @@ internal static class StatementEmitter
             return false;
         }
 
-        var whileStrict = IsStrictBlock(whileStatement.Body);
+        var whileStrict = EmitContext.IsStrictBlock(whileStatement.Body);
         if (!LoopNormalizer.TryNormalize(whileStatement, whileStrict, out var whilePlan, out var whileFailure))
         {
             ctx.SetFailureReason(whileFailure ?? "Failed to normalize while loop.");
@@ -167,7 +163,7 @@ internal static class StatementEmitter
             return false;
         }
 
-        var doStrict = IsStrictBlock(doWhileStatement.Body);
+        var doStrict = EmitContext.IsStrictBlock(doWhileStatement.Body);
         if (!LoopNormalizer.TryNormalize(doWhileStatement, doStrict, out var doWhilePlan, out var doFailure))
         {
             ctx.SetFailureReason(doFailure ?? "Failed to normalize do/while loop.");
@@ -199,7 +195,7 @@ internal static class StatementEmitter
             return false;
         }
 
-        var forStrict = IsStrictBlock(forStatement.Body);
+        var forStrict = EmitContext.IsStrictBlock(forStatement.Body);
         if (!LoopNormalizer.TryNormalize(forStatement, forStrict, out var forPlan, out var forFailure))
         {
             ctx.SetFailureReason(forFailure ?? "Failed to normalize for loop.");
@@ -214,7 +210,7 @@ internal static class StatementEmitter
     // For-Of/For-Await-Of Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static bool TryEmitForOf(
+    private static bool TryEmitForEach(
         EmitContext ctx,
         ForEachStatement forEachStatement,
         int nextIndex,
@@ -224,7 +220,7 @@ internal static class StatementEmitter
         // If binding target has yields anywhere (defaults or assignment target expressions),
         // wrap as StatementInstruction. The AST evaluator handles yield state-saving correctly.
         // This handles patterns like: for ([ {}[ yield ] ] of iterable) { }
-        if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
+        if (EmitContext.BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
             !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
             !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
         {
@@ -232,27 +228,7 @@ internal static class StatementEmitter
             return true;
         }
 
-        return ForOfEmitter.TryEmitForOf(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
-    }
-
-    private static bool TryEmitForAwaitOf(
-        EmitContext ctx,
-        ForEachStatement forEachStatement,
-        int nextIndex,
-        Symbol? activeLabel,
-        out int entryIndex)
-    {
-        // If binding target has yields anywhere (defaults or assignment target expressions),
-        // wrap as StatementInstruction. Same reasoning as for regular for-of loops above.
-        if (BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
-            !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
-            !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
-        {
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, forEachStatement));
-            return true;
-        }
-
-        return ForOfEmitter.TryEmitForAwaitOf(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
+        return ForOfEmitter.TryEmit(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -289,87 +265,9 @@ internal static class StatementEmitter
     // Helper Methods
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static bool IsStrictBlock(StatementNode statement)
-    {
-        return statement is BlockStatement { IsStrict: true };
-    }
-
     private static bool IsSimpleForOfBinding(ForEachStatement statement)
     {
         // We now allow identifier or destructuring targets for all declaration kinds.
         return statement.Target is not null;
-    }
-
-    /// <summary>
-    /// Checks if a binding target contains yields anywhere - either in default values
-    /// or in assignment target expressions (like [ {}[ yield ] ]).
-    /// This is used to determine when to wrap declarations in StatementInstruction.
-    /// </summary>
-    private static bool BindingTargetContainsYieldAnywhere(BindingTarget target)
-    {
-        switch (target)
-        {
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    // Check for yields in default values
-                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    // Recursively check nested bindings
-                    if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    // Check for yields in default values
-                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    // Check for yields in computed property names
-                    if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
-                    {
-                        return true;
-                    }
-
-                    // Recursively check nested bindings
-                    if (BindingTargetContainsYieldAnywhere(prop.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case AssignmentTargetBinding assignmentTarget:
-                // Check if the assignment target expression contains a yield
-                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
-
-            default:
-                // IdentifierBinding doesn't have expressions or default values
-                return false;
-        }
     }
 }

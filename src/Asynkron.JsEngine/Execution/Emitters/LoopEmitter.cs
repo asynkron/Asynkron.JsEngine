@@ -83,15 +83,30 @@ internal static class LoopEmitter
             continueTarget = createEnvIndex;
         }
 
-        // Create Pop instruction for loop exit BEFORE building body
-        // This ensures breaks also go through the pop, then through BreakableExitInstruction
+        // Create Pop instructions for loop exit BEFORE building body
+        // This ensures breaks also go through the pops, then through BreakableExitInstruction
         var loopExitTarget = loopExitIndex;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty)
         {
+            // Pop loop scope (parent of per-iteration scopes) at loop exit
+            // Use IterationParentScopeId if available, otherwise synthesize from IterationScopeId
+            var loopScopeId = plan.IterationParentScopeId >= 0
+                ? plan.IterationParentScopeId
+                : (plan.IterationScopeId >= 0 ? plan.IterationScopeId + 1000 : -1);
+
+            if (plan.Kind == LoopKind.For)
+            {
+                loopExitTarget = ctx.Append(new PopEnvironmentInstruction(
+                    loopScopeId,
+                    plan.AllowIterationEnvironmentPooling,
+                    loopExitIndex));
+            }
+
+            // Pop per-iteration scope
             loopExitTarget = ctx.Append(new PopEnvironmentInstruction(
                 plan.IterationScopeId,
                 plan.AllowIterationEnvironmentPooling,
-                loopExitIndex));
+                loopExitTarget));
         }
 
         // TargetScopeId is the scope to pop TO when break/continue
@@ -146,6 +161,25 @@ internal static class LoopEmitter
 
         var loopEntry = plan.ConditionAfterBody ? iterationBodyEntry : conditionJumpIndex;
 
+        // Per ES spec 13.7.4.9 ForBodyEvaluation step 3:
+        // CreatePerIterationEnvironment is called BEFORE the first condition test.
+        // This ensures closures created in the initializer capture the loop scope,
+        // while closures in condition/body capture the per-iteration scope.
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
+        {
+            var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
+
+            // Initial PushEnv flows to loopEntry (condition)
+            // This is the FIRST per-iteration environment, created before the first test
+            loopEntry = ctx.Append(new PushEnvironmentInstruction(
+                loopEntry,
+                plan.PerIterationBindings,
+                plan.IterationScopeId,
+                plan.IterationSlotCount,
+                slotMap,
+                plan.AllowIterationEnvironmentPooling));
+        }
+
         if (!plan.LeadingStatements.IsDefaultOrEmpty)
         {
             // Per ES spec 13.7.4.7 (ForLoopEvaluation), the initializer expression/declaration
@@ -160,6 +194,31 @@ internal static class LoopEmitter
                 entryIndex = -1;
                 return false;
             }
+        }
+
+        // Per ES spec 13.7.4.7 ForLoopEvaluation steps 3-7:
+        // Create a LOOP SCOPE environment that wraps the initializer.
+        // This is the parent of per-iteration scopes and holds the let/const bindings.
+        // The initializer (LeadingStatements) runs in this loop scope, creating bindings there.
+        // Then per-iteration scopes copy values from this loop scope (or previous iteration).
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
+        {
+            var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
+
+            // Use IterationParentScopeId if available, otherwise synthesize from IterationScopeId
+            var loopScopeId = plan.IterationParentScopeId >= 0
+                ? plan.IterationParentScopeId
+                : (plan.IterationScopeId >= 0 ? plan.IterationScopeId + 1000 : -1);
+
+            // Loop scope PushEnv - NO PerIterationBindings (this is not a per-iteration scope,
+            // it's the parent scope where bindings are created by the initializer)
+            loopEntry = ctx.Append(new PushEnvironmentInstruction(
+                loopEntry,
+                ImmutableArray<Symbol>.Empty,  // Not per-iteration, so no bindings to copy
+                loopScopeId,
+                plan.IterationSlotCount,
+                slotMap,
+                plan.AllowIterationEnvironmentPooling));
         }
 
         // Wrap entry with BreakableEnterInstruction to push context at runtime.

@@ -84,6 +84,13 @@ public static partial class TypedAstEvaluator
             public bool CatchUsed { get; set; }
             public bool FinallyScheduled { get; set; }
             public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
+
+            /// <summary>
+            /// The value that was thrown and caught by this try/catch.
+            /// Set by HandleAbruptCompletion when routing to a catch handler.
+            /// Read by EnterCatchInstruction to bind the catch parameter.
+            /// </summary>
+            public JsValue ThrownValue { get; set; } = JsValue.Undefined;
         }
 
         private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)

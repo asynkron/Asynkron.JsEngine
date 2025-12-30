@@ -183,15 +183,20 @@ public static partial class TypedAstEvaluator
                 {
                     frame.CatchUsed = true;
 
+                    // Store the thrown value in the frame for EnterCatchInstruction to read.
+                    // Handle case where value is already a boxed JsValue.
+                    var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
+                    frame.ThrownValue = valueJs;
+
                     // Restore to the environment that was active when entering the try block.
                     // This ensures that block-scoped bindings inside the try are no longer visible.
                     var targetEnv = frame.EntryEnvironment;
                     TryCatchStateRef.RestoredEnvironmentFromTry = targetEnv;
 
+                    // Legacy: CatchSlotSymbol-based binding (kept for backward compatibility)
+                    // New IR path uses EnterCatchInstruction which reads frame.ThrownValue directly.
                     if (frame.CatchSlotSymbol is { } slot)
                     {
-                        // Handle case where value is already a boxed JsValue
-                        var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
                         // Use the entry environment for the catch slot, not the current (nested) environment
                         if (targetEnv.HasBinding(slot))
                         {

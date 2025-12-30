@@ -1,336 +1,87 @@
-# Unify ScriptRunner and ExecutionPlanRunner
+# Test262 Failure Investigation - IR Catch Block Implementation
 
-## Problem Statement
+## Status: IN PROGRESS - Implementing Pure IR Catch Blocks
 
-We have two IR execution engines that duplicate significant logic:
+## Root Cause Identified
 
-| Runner | Lines | Purpose |
-|--------|-------|---------|
-| `ScriptRunner` | ~740 | Top-level script execution |
-| `ExecutionPlanRunner` | ~2400+ | Function/generator/async execution |
+The catch block delegation to AST evaluation causes thrown values to be lost when:
+1. `assert.throws` runs via IR (no eval in its body)
+2. Its try block calls a function that uses AST path (due to `eval`)
+3. Error propagates from AST back to IR catch handler
+4. The synthetic `let thrown = #catchSlot` reads `undefined` instead of the thrown value
 
-The `ScriptRunner` exists because top-level code has different semantics for `var` declarations (must update global object), but it duplicates the entire instruction dispatch loop.
-
-## Key Semantic Differences
-
-### Variable Declaration Handling
-
-**ScriptRunner** (line 226-230):
-```csharp
-// Script-level var: use AssignJsValue to update global object
-environment.AssignJsValue(varDecl.TargetSymbol, initValue);
-```
-
-**ExecutionPlanRunner** (line 1011):
-```csharp
-// Function-level var: stays local
-environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
-```
-
-### Other Differences
-
-| Aspect | ScriptRunner | ExecutionPlanRunner |
-|--------|-------------|---------------------|
-| Generator/async | Not supported | Full support |
-| Slot initialization | Skipped | Full management |
-| State objects | Local stacks only | Lazy state (AsyncState, YieldState, etc.) |
-| Environment setup | None (pre-configured) | Full (arguments, this, super, etc.) |
-
-## Solution: Instruction-Level Discrimination
-
-Make the **instruction itself** carry the context. This avoids:
-- Mode flags/enums on the runner
-- Interface dispatch / vtable lookups
-- Runtime polymorphism overhead
-
-The check compiles to a simple branch - zero overhead beyond branch prediction.
-
----
+The fix: Emit catch blocks entirely in IR, avoiding AST delegation.
 
 ## Implementation Plan
 
-### Phase 1: Extend `SimpleVariableDeclarationInstruction`
-
-**File:** `src/Asynkron.JsEngine/Execution/Instructions/SimpleVariableDeclarationInstruction.cs`
-
-Add `IsScriptLevel` flag:
-
+### 1. Add `EnterCatchInstruction` (Instructions.cs)
 ```csharp
-public sealed record SimpleVariableDeclarationInstruction(
+internal sealed record EnterCatchInstruction(
     int Next,
-    Symbol TargetSymbol,
-    ExpressionNode? Initializer,
-    VariableKind VarKind,
-    bool IsScriptLevel = false  // NEW: indicates top-level script context
-) : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration);
+    Symbol? CatchParameterSymbol,  // The catch(e) parameter
+    int ScopeId,
+    int SlotCount,
+    ImmutableDictionary<Symbol, int> SlotMap)
+    : ExecutionInstruction(InstructionKind.EnterCatch, Next);
 ```
 
-### Phase 2: Update ExecutionPlanBuilder for Script Mode
+### 2. Add `InstructionKind.EnterCatch` to enum
 
-**File:** `src/Asynkron.JsEngine/Execution/ExecutionPlanBuilder.cs`
+### 3. Modify `TryFrame` to store thrown value
+Add `ThrownValue` field so `EnterCatchInstruction` can read it.
 
-Add script mode parameter:
+### 4. Modify `HandleAbruptCompletion`
+Store thrown value in `TryFrame.ThrownValue` instead of (or in addition to) the catch slot symbol.
 
+### 5. Add handler in `ExecutionPlanRunner`
 ```csharp
-private bool _isScriptLevel;
-
-public static bool TryBuild(
-    FunctionExpression function,
-    out ExecutionPlan plan,
-    out string? failureReason,
-    bool reportDiagnostics = true,
-    bool isScriptLevel = false)  // NEW
+case InstructionKind.EnterCatch:
 {
-    var builder = new ExecutionPlanBuilder { _isScriptLevel = isScriptLevel };
-    // ... rest unchanged
-}
-```
+    var enterCatch = Unsafe.As<EnterCatchInstruction>(instruction);
+    var frame = TryCatchStateRef.TryStack.Peek();
+    var thrownValue = frame.ThrownValue;
 
-**File:** `src/Asynkron.JsEngine/Execution/Emitters/VariableDeclarationEmitter.cs` (or wherever var decl is emitted)
+    // Create catch environment with slots
+    var catchEnv = new JsEnvironment(environment, ...);
+    catchEnv.InitializeSlots(enterCatch.SlotCount, enterCatch.ScopeId);
 
-When emitting `SimpleVariableDeclarationInstruction`, pass `_isScriptLevel`:
-
-```csharp
-new SimpleVariableDeclarationInstruction(
-    nextIndex,
-    symbol,
-    initializer,
-    varKind,
-    isScriptLevel: _isScriptLevel  // Pass through
-)
-```
-
-### Phase 3: Update ScriptPlanCache
-
-**File:** `src/Asynkron.JsEngine/Execution/ScriptPlanCache.cs`
-
-Pass `isScriptLevel: true` when building:
-
-```csharp
-if (ExecutionPlanBuilder.TryBuild(
-    syntheticFunction,
-    out var plan,
-    out var failureReason,
-    reportDiagnostics: false,
-    isScriptLevel: true))  // NEW
-{
-    return new ScriptPlanCache(plan, syntheticFunction, null);
-}
-```
-
-### Phase 4: Unify Variable Handling in ExecutionPlanRunner
-
-**File:** `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.cs`
-
-Update the `InstructionKind.SimpleVariableDeclaration` case:
-
-```csharp
-case InstructionKind.SimpleVariableDeclaration:
-{
-    var varDeclInstruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instruction);
-    // ... evaluate initializer (unchanged) ...
-
-    if (varDeclInstruction.VarKind == VariableKind.Var)
+    // Bind catch parameter directly to thrown value
+    if (enterCatch.CatchParameterSymbol is { } param)
     {
-        environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol, context);
-        if (varDeclInstruction.Initializer is not null)
-        {
-            if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol, varValue))
-            {
-                if (varDeclInstruction.IsScriptLevel)
-                {
-                    // Script-level var: update global object too
-                    environment.AssignJsValue(varDeclInstruction.TargetSymbol, varValue);
-                }
-                else
-                {
-                    // Function-level var: local binding only
-                    environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
-                }
-            }
-        }
-    }
-    else
-    {
-        // let/const handling unchanged
-        var isConst = varDeclInstruction.VarKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-        environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
-            isConst: isConst, isLexical: true, blocksFunctionScopeOverride: true);
+        catchEnv.DefineJsValue(param, thrownValue);
     }
 
-    _programCounter = varDeclInstruction.Next;
+    environment = catchEnv;
+    _programCounter = enterCatch.Next;
     continue;
 }
 ```
 
-### Phase 5: Add Static Script Entry Point
+### 6. Modify `TryEmitter.TryEmitTry`
+Instead of `BuildCatchBlock` + `StatementInstruction`:
+- Emit `PopEnvironmentInstruction` at end
+- Recursively emit catch body statements as IR
+- Emit `EnterCatchInstruction` as handler entry point
 
-**File:** `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.cs`
+### 7. Remove `BuildCatchBlock` (no longer needed)
 
-Add lightweight static method for script execution:
+## Files to Modify
 
-```csharp
-/// <summary>
-/// Runs an execution plan for script-level code.
-/// This is a lightweight path that skips generator/async machinery setup.
-/// The environment is already configured with hoisted declarations.
-/// </summary>
-public static JsValue RunScript(
-    ExecutionPlan plan,
-    JsEnvironment environment,
-    EvaluationContext context)
-{
-    // Scripts don't need generator/async state - run directly
-    var programCounter = plan.EntryPoint;
-    var resultValue = JsValue.Undefined;
-    var tryStack = new Stack<TryFrame>();
-    var loopStack = new Stack<LoopFrame>();
+1. `src/Asynkron.JsEngine/Execution/Instructions/Instructions.cs` - Add EnterCatchInstruction
+2. `src/Asynkron.JsEngine/Execution/Instructions/InstructionKind.cs` - Add EnterCatch enum
+3. `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Types.cs` - Add ThrownValue to TryFrame
+4. `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Completion.cs` - Store thrown value in frame
+5. `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.cs` - Add EnterCatch handler
+6. `src/Asynkron.JsEngine/Execution/Emitters/TryEmitter.cs` - Emit catch as IR
+7. `src/Asynkron.JsEngine/Execution/ExecutionPlanBuilder.cs` - Remove BuildCatchBlock
 
-    // Reuse the instruction dispatch loop
-    // Either inline it here or extract to shared method
-    return ExecuteInstructionLoop(
-        plan,
-        environment,
-        context,
-        ref programCounter,
-        ref resultValue,
-        tryStack,
-        loopStack);
-}
-```
+## Test Cases
 
-Alternative: Extract core loop to shared method:
+After implementation, these should pass:
+- `ArgumentsObject("language/arguments-object/10.5-1-s.js", True)`
+- `ArgumentsObject("language/arguments-object/10.5-7-b-1-s.js", True)`
+- `ArgumentsObject("language/arguments-object/10.6-13-c-1-s.js", True)`
+- `ArgumentsObject("language/arguments-object/10.6-14-c-4-s.js", True)`
+- `ArgumentsObject("language/arguments-object/10.6-2gs.js", True)`
 
-```csharp
-private static JsValue ExecuteInstructionLoop(
-    ExecutionPlan plan,
-    JsEnvironment environment,
-    EvaluationContext context,
-    ref int programCounter,
-    ref JsValue resultValue,
-    Stack<TryFrame> tryStack,
-    Stack<LoopFrame> loopStack,
-    // Optional state for generator/async - null for scripts
-    AsyncState? asyncState = null,
-    YieldState? yieldState = null)
-{
-    // Main switch statement logic
-}
-```
-
-### Phase 6: Update ProgramNodeExtensions
-
-**File:** `src/Asynkron.JsEngine/Ast/ProgramNodeExtensions.cs`
-
-Replace `ScriptRunner.Run()` call with `ExecutionPlanRunner.RunScript()`:
-
-```csharp
-if (scriptPlanCache.Succeeded)
-{
-    try
-    {
-        // Use unified runner with script entry point
-        var irResult = ExecutionPlanRunner.RunScript(
-            scriptPlanCache.Plan,
-            executionEnvironment,
-            context);
-        return irResult;
-    }
-    catch (NotSupportedException ex)
-    {
-        // Fall back to AST walking
-        context.RealmState.Logger?.LogWarning(
-            "Script IR execution fallback: {Reason}",
-            ex.Message);
-    }
-}
-```
-
-### Phase 7: Delete ScriptRunner
-
-**Files to delete:**
-- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ScriptRunner.cs`
-
-**Optional cleanup:**
-- Merge `ScriptPlanCache` into `ExecutionPlanCache` with a `ForScript()` factory method
-
----
-
-## Module Support (Future)
-
-ES Modules have additional semantics that can follow the same pattern:
-
-| Semantic | Solution |
-|----------|----------|
-| `import` bindings | Add `ImportBindingInstruction` |
-| `export` declarations | Add `ExportBindingInstruction` |
-| Module namespace | Pass `ModuleNamespace` to runner |
-| Top-level await | Already supported (async plan) |
-
-Instructions carry the context, not the runner.
-
----
-
-## Performance Considerations
-
-The instruction flag approach has **zero runtime overhead**:
-
-```csharp
-// Just a bool field access + branch
-if (varDeclInstruction.IsScriptLevel)
-{
-    environment.AssignJsValue(...);
-}
-else
-{
-    environment.DefineOrAssignJsValue(...);
-}
-```
-
-- Bool is on same cache line as other instruction fields
-- Single conditional branch (CPU branch prediction optimizes)
-- Direct method calls (no vtable lookup)
-
-Avoided alternatives:
-- Interface dispatch (vtable lookup per call)
-- Mode enum on runner (checked on every instruction)
-- Handler delegates (indirect call overhead)
-
----
-
-## Files Summary
-
-| File | Change |
-|------|--------|
-| `Instructions/SimpleVariableDeclarationInstruction.cs` | Add `IsScriptLevel` field |
-| `Execution/ExecutionPlanBuilder.cs` | Add `isScriptLevel` parameter |
-| `Execution/Emitters/*.cs` | Pass `isScriptLevel` when emitting var decl |
-| `Execution/ScriptPlanCache.cs` | Pass `isScriptLevel: true` |
-| `Ast/TypedAstEvaluator.ExecutionPlanRunner.cs` | Handle `IsScriptLevel` flag, add `RunScript()` |
-| `Ast/ProgramNodeExtensions.cs` | Call `RunScript()` instead of `ScriptRunner.Run()` |
-| `Ast/TypedAstEvaluator.ScriptRunner.cs` | DELETE |
-
----
-
-## Pre-Existing Test Failures
-
-These tests are already failing before any unification work begins. Do not confuse with regressions:
-
-| Test | Status |
-|------|--------|
-| `ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen` | Known failure |
-| `DebugFunction_CapturesLoopInCallStack` | Known failure |
-
----
-
-## Checklist
-
-- [ ] Phase 1: Add `IsScriptLevel` to `SimpleVariableDeclarationInstruction`
-- [ ] Phase 2: Add `isScriptLevel` parameter to `ExecutionPlanBuilder.TryBuild()`
-- [ ] Phase 3: Update `ScriptPlanCache.Build()` to pass `isScriptLevel: true`
-- [ ] Phase 4: Update `ExecutionPlanRunner` var handling to check `IsScriptLevel`
-- [ ] Phase 5: Add `ExecutionPlanRunner.RunScript()` static method
-- [ ] Phase 6: Update `ProgramNodeExtensions` to use `RunScript()`
-- [ ] Phase 7: Delete `ScriptRunner.cs`
-- [ ] Run tests to verify script execution still works
-- [ ] Run benchmarks to verify no performance regression
+Unit tests in `ThrowBugTests.cs` should continue to pass.

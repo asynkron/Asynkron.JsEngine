@@ -342,5 +342,47 @@ public class ErrorTypesTests(ITestOutputHelper output) : InternalTestBase(output
                                            """);
         Assert.Equal("RangeError: function error", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task EvalSyntaxError_CaughtValueShouldBeObject()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            'use strict';
+            var typeofE = '';
+            var isNull = true;
+            var isObject = false;
+            try {
+                eval('arguments = 10');
+            } catch (e) {
+                typeofE = typeof e;
+                isNull = e === null;
+                isObject = typeof e === 'object' && e !== null;
+            }
+            typeofE + ' | ' + isNull + ' | ' + isObject;
+        """);
+        output.WriteLine($"Result: {result}");
+        Assert.Equal("object | false | true", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task EvalSyntaxError_ShouldBeInstanceOfSyntaxError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            'use strict';
+            var isSyntaxError = false;
+            var constructorName = '';
+            try {
+                eval('arguments = 10');
+            } catch (e) {
+                isSyntaxError = e instanceof SyntaxError;
+                constructorName = e && e.constructor && e.constructor.name;
+            }
+            isSyntaxError + ' | ' + constructorName;
+        """);
+        output.WriteLine($"Result: {result}");
+        Assert.Equal("true | SyntaxError", result?.ToString());
+    }
 }
 

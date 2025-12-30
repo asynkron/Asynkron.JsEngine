@@ -54,7 +54,9 @@ internal sealed class ScriptPlanCache
 
         // Don't report diagnostics for script-level IR builds - these are separate from
         // function IR builds that tests track via ExecutionPlanDiagnostics.
-        if (ExecutionPlanBuilder.TryBuild(syntheticFunction, out var plan, out var failureReason, reportDiagnostics: false))
+        // Pass isScriptLevel: true so var declarations will update the global object.
+        if (ExecutionPlanBuilder.TryBuild(syntheticFunction, out var plan, out var failureReason,
+            reportDiagnostics: false, isScriptLevel: true))
         {
             return new ScriptPlanCache(plan, syntheticFunction, null);
         }

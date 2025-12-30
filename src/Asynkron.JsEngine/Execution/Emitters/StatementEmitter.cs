@@ -99,7 +99,15 @@ internal static class StatementEmitter
                     return DeclarationEmitter.TryEmitThrow(ctx, throwStatement, out entryIndex);
 
                 case LabeledStatement labeled:
-                    // For loop-like statements, pass the label through - they handle it internally
+                    // For for-in loops that are AST-evaluated, keep the label wrapper
+                    // so the AST evaluator can handle labeled break/continue correctly
+                    if (labeled.Statement is ForEachStatement { Kind: ForEachKind.In })
+                    {
+                        entryIndex = ctx.Append(new StatementInstruction(nextIndex, labeled));
+                        return true;
+                    }
+
+                    // For other loop-like statements, pass the label through - they handle it internally
                     if (labeled.Statement is WhileStatement or DoWhileStatement or ForStatement
                         or ForEachStatement or SwitchStatement)
                     {

@@ -34,6 +34,7 @@ internal sealed partial class ExecutionPlanBuilder
     private readonly List<Symbol> _slotSymbols = [];
     private int _catchSlotCounter;
     private string? _failureReason;
+    private bool _isScriptLevel;
     private int _resumeSlotCounter;
     private int _withScopeSlotCounter;
     private int _yieldStarStateCounter;
@@ -48,12 +49,29 @@ internal sealed partial class ExecutionPlanBuilder
         return index;
     }
 
+    /// <summary>
+    /// Whether this plan is being built for a top-level script (not a function body).
+    /// Script-level var declarations must update the global object.
+    /// </summary>
+    internal bool IsScriptLevel => _isScriptLevel;
+
     private ExecutionPlanBuilder()
     {
     }
 
+    /// <summary>
+    /// Builds an execution plan for a function expression.
+    /// </summary>
+    /// <param name="function">The function to build a plan for.</param>
+    /// <param name="plan">The resulting execution plan.</param>
+    /// <param name="failureReason">If building fails, the reason why.</param>
+    /// <param name="reportDiagnostics">Whether to report diagnostics for test tracking.</param>
+    /// <param name="isScriptLevel">
+    ///     When true, indicates this is a top-level script (not a function body).
+    ///     Script-level var declarations must update the global object.
+    /// </param>
     public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
-        bool reportDiagnostics = true)
+        bool reportDiagnostics = true, bool isScriptLevel = false)
     {
         // First run the yield-lowering pre-pass so that ExecutionPlanBuilder
         // can assume a simplified, pauseable-function-friendly AST. The lowerer currently acts
@@ -71,7 +89,7 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        var builder = new ExecutionPlanBuilder();
+        var builder = new ExecutionPlanBuilder { _isScriptLevel = isScriptLevel };
         var succeeded = builder.TryBuildInternal(lowered, out plan);
         failureReason = builder._failureReason ?? lowerFailure;
 
@@ -94,7 +112,15 @@ internal sealed partial class ExecutionPlanBuilder
         }
 
         // After building all instructions, assign slots to user variables and update AST nodes
-        AssignSlotsToUserVariables();
+        // NOTE: For scripts (IsScriptLevel=true), we do NOT assign slots to user variables because:
+        // 1. Script hoisting already created dictionary-based bindings for var/let/const declarations
+        // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
+        // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
+        // For functions, slot assignment is fine because scope analysis happens at parse time.
+        if (!_isScriptLevel)
+        {
+            AssignSlotsToUserVariables();
+        }
 
         plan = new ExecutionPlan(
             [.._instructions],

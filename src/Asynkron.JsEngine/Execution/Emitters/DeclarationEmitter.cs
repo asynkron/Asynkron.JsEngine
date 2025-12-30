@@ -216,11 +216,14 @@ internal static class DeclarationEmitter
             var declarator = declaration.Declarators[i];
             var targetSymbol = ((IdentifierBinding)declarator.Target).Name;
 
+            // Pass IsScriptLevel for var declarations - script-level vars must update global object
+            var isScriptLevel = ctx.IsScriptLevel && declaration.Kind == VariableKind.Var;
             var instructionIndex = ctx.Append(new SimpleVariableDeclarationInstruction(
                 currentNext,
                 declaration.Kind,
                 targetSymbol!,
-                declarator.Initializer));
+                declarator.Initializer,
+                isScriptLevel));
 
             currentNext = instructionIndex;
             if (i == 0)

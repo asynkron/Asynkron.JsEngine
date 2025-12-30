@@ -83,11 +83,17 @@ internal sealed record ClassDeclarationInstruction(int Next, ClassDeclaration De
 ///     Represents a simple variable declaration with an identifier binding (no destructuring).
 ///     Handles declarations like: let x = expr; const y = 5; var z = value;
 /// </summary>
+/// <param name="IsScriptLevel">
+///     When true, indicates this is a top-level script var declaration.
+///     Script-level var declarations must update the global object (via AssignJsValue),
+///     while function-level var declarations only update local bindings (via DefineOrAssignJsValue).
+/// </param>
 internal sealed record SimpleVariableDeclarationInstruction(
     int Next,
     VariableKind VarKind,
     Symbol TargetSymbol,
-    ExpressionNode? Initializer)
+    ExpressionNode? Initializer,
+    bool IsScriptLevel = false)
     : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next);
 
 /// <summary>

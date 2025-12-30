@@ -20,6 +20,12 @@ internal sealed class EmitContext(
     public int InstructionCount => instructions.Count;
 
     /// <summary>
+    /// Whether this plan is being built for a top-level script (not a function body).
+    /// Script-level var declarations must update the global object.
+    /// </summary>
+    public bool IsScriptLevel => builder.IsScriptLevel;
+
+    /// <summary>
     /// Append an instruction and return its index.
     /// </summary>
     public int Append(ExecutionInstruction instruction)

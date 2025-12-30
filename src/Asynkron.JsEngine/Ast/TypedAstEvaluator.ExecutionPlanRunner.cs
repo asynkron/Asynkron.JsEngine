@@ -34,6 +34,7 @@ public static partial class TypedAstEvaluator
         private readonly JsValue _thisValue;
         private readonly JsValue _newTarget;
         private readonly JsEnvironment? _lexicalThisEnvironment;
+        private readonly bool _isScriptMode;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
         private bool _done;
@@ -41,6 +42,7 @@ public static partial class TypedAstEvaluator
         private bool _privateScopesApplied;
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
+        private JsValue _scriptCompletionValue = JsValue.Undefined;
 
         // Lazy state objects - only allocated when needed
 
@@ -91,6 +93,81 @@ public static partial class TypedAstEvaluator
 
             _plan = planCache.Plan;
             _programCounter = _plan.EntryPoint;
+        }
+
+        /// <summary>
+        /// Private constructor for script execution mode.
+        /// Used by RunScript() to create a minimal runner without function context.
+        /// </summary>
+        private ExecutionPlanRunner(
+            ExecutionPlan plan,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            _plan = plan;
+            _programCounter = plan.EntryPoint;
+            _executionEnvironment = environment;
+            _closure = environment;
+            _context = context;
+            _realmState = context.RealmState;
+            _arguments = Array.Empty<JsValue>();
+            _callable = null!;
+            _function = null!;
+            _thisValue = context.RealmState.Engine?.GlobalObject is { } go
+                ? new JsValue(go)
+                : JsValue.Undefined;
+            _isStrict = environment.IsStrict;
+            _allowIdentifierCache = context.AllowIdentifierCache;
+            _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
+            _isScriptMode = true;
+        }
+
+        /// <summary>
+        /// Runs an execution plan for script-level code.
+        /// This is a lightweight path that skips generator/async machinery setup.
+        /// The environment is already configured with hoisted declarations.
+        /// </summary>
+        /// <param name="plan">The execution plan to run.</param>
+        /// <param name="environment">The pre-configured script environment with hoisted bindings.</param>
+        /// <param name="context">The evaluation context.</param>
+        /// <returns>The completion value of the script.</returns>
+        public static JsValue RunScript(
+            ExecutionPlan plan,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            var runner = new ExecutionPlanRunner(plan, environment, context);
+            return runner.RunScriptInternal();
+        }
+
+        /// <summary>
+        /// Internal method to run script without generator overhead.
+        /// Returns the raw completion value, not an iterator result.
+        /// </summary>
+        private JsValue RunScriptInternal()
+        {
+            // Run the plan - for scripts this completes immediately (no yield/async)
+            // The completion value is tracked in _scriptCompletionValue during execution
+            var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
+
+            // ExecutePlan returns an iterator result {value, done} for generators.
+            // For script execution with explicit return statements, extract the return value.
+            if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
+            {
+                iteratorResult.TryGetProperty("value", out var returnValue);
+                // If there was an explicit return, use that value
+                // Otherwise fall back to tracked completion value
+                return returnValue.IsUndefined ? _scriptCompletionValue : returnValue;
+            }
+
+            if (result.TryGetObject<JsObject>(out var jsObject) &&
+                jsObject.TryGetProperty("value", out var jsValue))
+            {
+                return jsValue.IsUndefined ? _scriptCompletionValue : jsValue;
+            }
+
+            // No iterator result wrapper - use tracked completion value
+            return _scriptCompletionValue;
         }
 
         public JsObject CreateGeneratorObject()
@@ -579,7 +656,13 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.Statement:
                             {
                                 var statementInstruction = Unsafe.As<StatementInstruction>(instruction);
-                                _ = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
+                                var stmtResult = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
+                                // In script mode, track the completion value (per ES spec, block completion is last statement value)
+                                // Per UpdateEmpty semantics, empty (Unit) becomes undefined at script level
+                                if (_isScriptMode)
+                                {
+                                    _scriptCompletionValue = stmtResult.IsUnit ? JsValue.Undefined : stmtResult;
+                                }
                                 if (TryHandlePendingAwait(context, out var pendingResult, environment))
                                 {
                                     return pendingResult;
@@ -724,8 +807,13 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.EvaluateAndDiscard:
                             {
                                 var evaluateInstruction = Unsafe.As<EvaluateAndDiscardInstruction>(instruction);
-                                // Evaluate the expression and discard the result
-                                _ = evaluateInstruction.Expression.EvaluateExpression(environment, context);
+                                // Evaluate the expression
+                                var evaluatedValue = evaluateInstruction.Expression.EvaluateExpression(environment, context);
+                                // In script mode, track the completion value (per ES spec, script completion is last expression value)
+                                if (_isScriptMode)
+                                {
+                                    _scriptCompletionValue = evaluatedValue;
+                                }
                                 if (TryHandlePendingAwait(context, out var pendingEvalResult, environment))
                                 {
                                     return pendingEvalResult;
@@ -882,15 +970,35 @@ public static partial class TypedAstEvaluator
                                     throw new ThrowSignal(incThrown);
                                 }
 
-                                // Convert to number if needed (fast path for already-number values)
-                                var incNumValue = incCurrentValue.IsNumber ? incCurrentValue.NumberValue : incCurrentValue.ToNumber();
+                                JsValue incNewJsValue;
+                                JsValue incOldNumericValue; // For postfix: the numeric value before incrementing
+                                // Handle BigInt separately - cannot use ToNumber()
+                                if (incCurrentValue.IsBigInt)
+                                {
+                                    var bigInt = (JsBigInt)incCurrentValue.ObjectValue!;
+                                    incOldNumericValue = incCurrentValue; // BigInt is already numeric
+                                    var incNewBigInt = incrementInstruction.IsIncrement ? bigInt.Value + 1 : bigInt.Value - 1;
+                                    incNewJsValue = new JsBigInt(incNewBigInt);
+                                }
+                                else
+                                {
+                                    // Convert to number if needed (fast path for already-number values)
+                                    var incNumValue = incCurrentValue.IsNumber ? incCurrentValue.NumberValue : incCurrentValue.ToNumber();
+                                    incOldNumericValue = JsValueCache.GetNumberJsValue(incNumValue);
 
-                                // Apply increment or decrement
-                                var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
-                                var incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
+                                    // Apply increment or decrement
+                                    var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
+                                    incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
+                                }
 
                                 // Update the binding - use AssignJsValue to walk up scope chain
                                 environment.AssignJsValue(incrementInstruction.TargetSymbol, incNewJsValue);
+
+                                // Track completion value for scripts (prefix returns new, postfix returns old numeric value)
+                                if (_isScriptMode)
+                                {
+                                    _scriptCompletionValue = incrementInstruction.IsPrefix ? incNewJsValue : incOldNumericValue;
+                                }
 
                                 _programCounter = incrementInstruction.Next;
                                 continue;
@@ -1008,7 +1116,16 @@ public static partial class TypedAstEvaluator
                                         // Try to assign to a blocked binding first (shadowed let/const in same scope)
                                         if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol, varValue))
                                         {
-                                            environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                            if (varDeclInstruction.IsScriptLevel)
+                                            {
+                                                // Script-level var: use AssignJsValue to update global object too
+                                                environment.AssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                            }
+                                            else
+                                            {
+                                                // Function-level var: local binding only
+                                                environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                            }
                                         }
                                     }
                                 }
@@ -1551,10 +1668,12 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.LoopEnter:
                             {
                                 var loopEnterInstruction = Unsafe.As<LoopEnterInstruction>(instruction);
+                                // In script mode, track the entry completion value to detect empty loop completions
                                 LoopStateRef.LoopStack.Push(new LoopFrame(
                                     loopEnterInstruction.Label,
                                     loopEnterInstruction.BreakTarget,
-                                    loopEnterInstruction.ContinueTarget));
+                                    loopEnterInstruction.ContinueTarget,
+                                    _isScriptMode ? _scriptCompletionValue : JsValue.Unit));
                                 _programCounter = loopEnterInstruction.Next;
                                 continue;
                             }
@@ -1564,7 +1683,13 @@ public static partial class TypedAstEvaluator
                                 var loopExitInstruction = Unsafe.As<LoopExitInstruction>(instruction);
                                 if (LoopStateRef.LoopStack.Count > 0)
                                 {
-                                    LoopStateRef.LoopStack.Pop();
+                                    var frame = LoopStateRef.LoopStack.Pop();
+                                    // In script mode, if the loop body didn't produce a new value,
+                                    // the loop's completion is empty, which becomes undefined at script level
+                                    if (_isScriptMode && _scriptCompletionValue.Equals(frame.EntryCompletionValue))
+                                    {
+                                        _scriptCompletionValue = JsValue.Undefined;
+                                    }
                                 }
                                 _programCounter = loopExitInstruction.Next;
                                 continue;

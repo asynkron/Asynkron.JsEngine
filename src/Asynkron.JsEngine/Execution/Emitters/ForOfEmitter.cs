@@ -168,8 +168,17 @@ internal static class ForOfEmitter
             continueTarget));
 
         // EnterTry - wraps the loop in a try/finally, points to LoopEnter
+        // Pass the loop continue target so that continue within the loop skips the finally
+        // (we don't want to close the iterator on continue, only on break/throw/return)
         var enterTryIndex =
-            ctx.Append(new EnterTryInstruction(loopEnterIndex, -1, null, iteratorCloseIndex, endFinallyIndex));
+            ctx.Append(new EnterTryInstruction(
+                loopEnterIndex,
+                HandlerIndex: -1,
+                CatchSlotSymbol: null,
+                iteratorCloseIndex,
+                endFinallyIndex,
+                LoopContinueTarget: continueTarget,
+                LoopBreakTarget: loopExitTarget));
 
         // Wire IteratorInit to point to EnterTry
         ctx.Patch(iteratorInstructions.InitIndex,

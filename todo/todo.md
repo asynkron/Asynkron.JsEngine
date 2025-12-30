@@ -78,3 +78,44 @@ failing tests:
 --------
 Add your findings and insights here:
 
+## Agent 2 Analysis Summary
+
+### CATEGORY 1: Scope/Closure Shadowing Bug (8 tests - switch + catch)
+Tests:
+- switch/scope-lex-close-case.js (2 tests)
+- switch/scope-lex-close-dflt.js (2 tests)
+- switch/scope-lex-open-case.js (2 tests)
+- try/scope-catch-block-lex-open.js (2 tests)
+
+ROOT CAUSE: When a closure is defined BEFORE a `let x` declaration in a block, it should
+still see the inner `x` when called later (closures capture environment, not values).
+The closures are capturing the OUTER environment instead of the BLOCK environment.
+
+KEY INSIGHT: Per ES spec, all lexical declarations are hoisted as TDZ bindings BEFORE
+any statements execute. Closures should capture the block environment where the binding exists.
+
+Files to investigate:
+- BlockStatementExtensions.cs - EvaluateBlockSlowCore (verify TDZ hoisting)
+- TryStatementExtensions.cs - how catch blocks create environments
+- SwitchStatementExtensions.cs - InstantiateSwitchLexicalDeclarations
+
+### CATEGORY 2: Prefix Increment/Decrement (4 tests)
+Tests: S11.4.5_A2.2_T1.js, S11.4.4_A2.2_T1.js
+
+Issue: `--object` where object has valueOf() returning a number should work.
+The test expects: `--{valueOf:()=>1}` to equal 0 and object to be set to 0.
+
+Traced code - ToPrimitive, ToNumericValue look correct.
+The test throws with an empty error message - possibly harness issue.
+
+### CATEGORY 3: Module Code (21 tests)
+All ModuleCode tests with eval/export - likely systemic issue with eval in modules.
+
+### CATEGORY 4: for-of with yield* (6 tests)
+Generator/iterator issues in try/catch blocks.
+
+### STRATEGY
+1. Fix switch/catch scope tests - 8 tests, need to verify block environment creation
+2. Fix prefix inc/dec - 4 tests, need to debug test262 harness error capture
+3. Skip modules unless time permits
+

@@ -69,12 +69,19 @@ public static partial class TypedAstEvaluator
             int handlerIndex,
             Symbol? catchSlotSymbol,
             int finallyIndex,
+            int endFinallyIndex,
             JsEnvironment entryEnvironment,
             JsValue entryCompletionValue)
         {
             public int HandlerIndex { get; } = handlerIndex;
             public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;
             public int FinallyIndex { get; } = finallyIndex;
+
+            /// <summary>
+            /// Index of the EndFinally instruction for this try/finally.
+            /// Used when break/continue inside a finally block needs to jump to EndFinally.
+            /// </summary>
+            public int EndFinallyIndex { get; } = endFinallyIndex;
 
             /// <summary>
             /// The environment that was active when entering the try block.

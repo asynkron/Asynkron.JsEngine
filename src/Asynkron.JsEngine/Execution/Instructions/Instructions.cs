@@ -165,7 +165,12 @@ internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbo
 /// <summary>
 ///     Marks the beginning of a <c>try</c> region.
 /// </summary>
-internal sealed record EnterTryInstruction(int Next, int HandlerIndex, Symbol? CatchSlotSymbol, int FinallyIndex)
+/// <param name="Next">Next instruction index (try body entry).</param>
+/// <param name="HandlerIndex">Index of catch handler, or -1 if no catch.</param>
+/// <param name="CatchSlotSymbol">Symbol for catch parameter binding (legacy).</param>
+/// <param name="FinallyIndex">Index of finally block entry, or -1 if no finally.</param>
+/// <param name="EndFinallyIndex">Index of EndFinally instruction, or -1 if no finally.</param>
+internal sealed record EnterTryInstruction(int Next, int HandlerIndex, Symbol? CatchSlotSymbol, int FinallyIndex, int EndFinallyIndex = -1)
     : ExecutionInstruction(InstructionKind.EnterTry, Next);
 
 /// <summary>
@@ -329,3 +334,10 @@ internal sealed record LeaveWithInstruction(Symbol WithScopeSlot, int Next)
 /// </summary>
 internal sealed record ExpressionInstruction(int Next, ExpressionNode Expression)
     : ExecutionInstruction(InstructionKind.Expression, Next);
+
+/// <summary>
+///     Sets the script completion value to undefined.
+///     Used for empty blocks/branches per ES spec UpdateEmpty semantics.
+/// </summary>
+internal sealed record SetCompletionValueInstruction(int Next)
+    : ExecutionInstruction(InstructionKind.SetCompletionValue, Next);

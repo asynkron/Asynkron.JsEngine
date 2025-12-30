@@ -113,7 +113,7 @@ public static partial class TypedAstEvaluator
             // (for UpdateEmpty semantics per ES spec)
             var entryCompletionValue = _isScriptMode ? _scriptCompletionValue : JsValue.Unit;
             var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex,
-                environment, entryCompletionValue);
+                instruction.EndFinallyIndex, environment, entryCompletionValue);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);

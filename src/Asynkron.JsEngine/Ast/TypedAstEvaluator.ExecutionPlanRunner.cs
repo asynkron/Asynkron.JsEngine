@@ -2431,6 +2431,19 @@ public static partial class TypedAstEvaluator
                                 var breakInstruction = Unsafe.As<BreakInstruction>(instruction);
                                 if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
                                 {
+                                    // If inside scheduled finally, HandleAbruptCompletion stored the pending
+                                    // completion but didn't advance _programCounter. We need to jump
+                                    // to EndFinally so it can process the pending break.
+                                    if (_programCounter == _currentInstructionIndex &&
+                                        TryCatchStateRef.TryStack.Count > 0)
+                                    {
+                                        var frame = TryCatchStateRef.TryStack.Peek();
+                                        if (frame.EndFinallyIndex >= 0)
+                                        {
+                                            _programCounter = frame.EndFinallyIndex;
+                                        }
+                                    }
+
                                     continue;
                                 }
 
@@ -2455,6 +2468,19 @@ public static partial class TypedAstEvaluator
                                 if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
                                         environment))
                                 {
+                                    // If inside scheduled finally, HandleAbruptCompletion stored the pending
+                                    // completion but didn't advance _programCounter. We need to jump
+                                    // to EndFinally so it can process the pending continue.
+                                    if (_programCounter == _currentInstructionIndex &&
+                                        TryCatchStateRef.TryStack.Count > 0)
+                                    {
+                                        var frame = TryCatchStateRef.TryStack.Peek();
+                                        if (frame.EndFinallyIndex >= 0)
+                                        {
+                                            _programCounter = frame.EndFinallyIndex;
+                                        }
+                                    }
+
                                     continue;
                                 }
 
@@ -2669,6 +2695,17 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 _programCounter = iteratorCloseInstruction.Next;
+                                continue;
+                            }
+
+                            case InstructionKind.SetCompletionValue:
+                            {
+                                var setCompletionInstruction = Unsafe.As<SetCompletionValueInstruction>(instruction);
+                                if (_isScriptMode)
+                                {
+                                    _scriptCompletionValue = JsValue.Undefined;
+                                }
+                                _programCounter = setCompletionInstruction.Next;
                                 continue;
                             }
 

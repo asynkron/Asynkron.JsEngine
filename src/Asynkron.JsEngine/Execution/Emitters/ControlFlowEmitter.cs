@@ -12,9 +12,7 @@ internal static class ControlFlowEmitter
 {
     /// <summary>
     /// Emit IR for an if statement.
-    /// Note: Per ES spec 13.6.7, if/else should have UpdateEmpty(stmtCompletion, undefined).
-    /// This is not yet implemented for if statements - a larger refactor is needed to track
-    /// completion values without interfering with loop scope handling.
+    /// Per ES spec 14.6.2, empty branches and missing else produce undefined completion value.
     /// </summary>
     public static bool TryEmitIf(
         EmitContext ctx,
@@ -34,19 +32,34 @@ internal static class ControlFlowEmitter
         var instructionStart = ctx.InstructionCount;
 
         // Build else branch first (bottom-up building)
-        var elseEntry = nextIndex;
+        int elseEntry;
         if (statement.Else is not null)
         {
-            if (!ctx.TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel))
+            // Check for empty else block - emit SetCompletionValue for UpdateEmpty semantics
+            if (IsEmptyBlock(statement.Else))
+            {
+                elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+            }
+            else if (!ctx.TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel))
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;
                 return false;
             }
         }
+        else
+        {
+            // No else branch - per ES spec, if condition is false, completion is undefined
+            elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+        }
 
-        // Build then branch
-        if (!ctx.TryBuildStatement(statement.Then, nextIndex, out var thenEntry, activeLabel))
+        // Build then branch - check for empty block
+        int thenEntry;
+        if (IsEmptyBlock(statement.Then))
+        {
+            thenEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+        }
+        else if (!ctx.TryBuildStatement(statement.Then, nextIndex, out thenEntry, activeLabel))
         {
             ctx.Rollback(instructionStart);
             entryIndex = -1;
@@ -56,6 +69,14 @@ internal static class ControlFlowEmitter
         // Emit branch instruction
         entryIndex = ctx.Append(new BranchInstruction(statement.Condition, thenEntry, elseEntry));
         return true;
+    }
+
+    /// <summary>
+    /// Checks if a statement is an empty block (BlockStatement with no statements).
+    /// </summary>
+    private static bool IsEmptyBlock(StatementNode statement)
+    {
+        return statement is BlockStatement { Statements.Length: 0 };
     }
 
     /// <summary>

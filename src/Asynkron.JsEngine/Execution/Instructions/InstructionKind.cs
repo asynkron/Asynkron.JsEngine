@@ -37,4 +37,5 @@ internal enum InstructionKind : byte
     EnterWith,
     LeaveWith,
     Expression,
+    SetCompletionValue,
 }

@@ -156,15 +156,16 @@ try {
 
     private static JsEngine BuildTestExecutor(Test262File file)
     {
+        var logger = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JSENGINE_TRACE_REALM"))
+            ? new TestLogger(minLogLevel: LogLevel.Debug, maxLogCount: 200000)
+            : null;
+
         var engine = BaseRealmSnapshot.UseSnapshot
-            ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions()
+            ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
             {
-            //    Logger = new TestLogger(minLogLevel: LogLevel.Debug, maxLogCount:200000),
-
+                Logger = logger,
             })
-            : new JsEngine { ExecutionTimeout = TimeSpan.FromSeconds(10) };
-
-        TestEngineFactory.AttachRealmLoggerIfEnvVarSet(engine);
+            : new JsEngine(new JsEngineOptions { Logger = logger }) { ExecutionTimeout = TimeSpan.FromSeconds(10) };
 
         if (file.Flags.Contains("raw"))
         {

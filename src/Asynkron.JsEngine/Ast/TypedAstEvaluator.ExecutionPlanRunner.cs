@@ -810,7 +810,8 @@ public static partial class TypedAstEvaluator
                                 // Evaluate the expression
                                 var evaluatedValue = evaluateInstruction.Expression.EvaluateExpression(environment, context);
                                 // In script mode, track the completion value (per ES spec, script completion is last expression value)
-                                if (_isScriptMode)
+                                // SuppressCompletionValue is true for loop update expressions (per ES spec, update expressions don't contribute)
+                                if (_isScriptMode && !evaluateInstruction.SuppressCompletionValue)
                                 {
                                     _scriptCompletionValue = evaluatedValue;
                                 }
@@ -995,7 +996,8 @@ public static partial class TypedAstEvaluator
                                 environment.AssignJsValue(incrementInstruction.TargetSymbol, incNewJsValue);
 
                                 // Track completion value for scripts (prefix returns new, postfix returns old numeric value)
-                                if (_isScriptMode)
+                                // SuppressCompletionValue is true for loop update expressions (per ES spec, update expressions don't contribute)
+                                if (_isScriptMode && !incrementInstruction.SuppressCompletionValue)
                                 {
                                     _scriptCompletionValue = incrementInstruction.IsPrefix ? incNewJsValue : incOldNumericValue;
                                 }
@@ -1744,6 +1746,20 @@ public static partial class TypedAstEvaluator
                                 var pending = completedFrame.PendingCompletion;
                                 if (pending.Kind == AbruptKind.None)
                                 {
+                                    // Per ES spec 13.15.8: "If F.[[Type]] is normal, set F to B"
+                                    // When finally completes normally, restore the try/catch completion value.
+                                    // The finally block's own value is discarded.
+                                    if (_isScriptMode)
+                                    {
+                                        _scriptCompletionValue = completedFrame.TryCatchCompletionValue;
+
+                                        // Apply UpdateEmpty semantics: if try/catch didn't produce a value, result is undefined.
+                                        if (_scriptCompletionValue.Equals(completedFrame.EntryCompletionValue))
+                                        {
+                                            _scriptCompletionValue = JsValue.Undefined;
+                                        }
+                                    }
+
                                     var target = pending.ResumeTarget >= 0
                                         ? pending.ResumeTarget
                                         : endFinallyInstruction.Next;

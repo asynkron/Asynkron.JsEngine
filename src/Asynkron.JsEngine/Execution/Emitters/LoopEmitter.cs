@@ -36,10 +36,15 @@ internal static class LoopEmitter
         var conditionJumpIndex = ctx.Append(new JumpInstruction(-1));
 
         // Build post-iteration (increment) statements
+        // Per ES spec, update expressions don't contribute to the loop's completion value
         var postIterationEntry = conditionJumpIndex;
         if (!plan.PostIteration.IsDefaultOrEmpty)
         {
-            if (!ctx.TryBuildStatementList(plan.PostIteration, conditionJumpIndex, out postIterationEntry))
+            var savedSuppressCompletionValue = ctx.SuppressCompletionValue;
+            ctx.SuppressCompletionValue = true;
+            var built = ctx.TryBuildStatementList(plan.PostIteration, conditionJumpIndex, out postIterationEntry);
+            ctx.SuppressCompletionValue = savedSuppressCompletionValue;
+            if (!built)
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;

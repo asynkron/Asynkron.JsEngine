@@ -12,6 +12,9 @@ internal static class ControlFlowEmitter
 {
     /// <summary>
     /// Emit IR for an if statement.
+    /// Note: Per ES spec 13.6.7, if/else should have UpdateEmpty(stmtCompletion, undefined).
+    /// This is not yet implemented for if statements - a larger refactor is needed to track
+    /// completion values without interfering with loop scope handling.
     /// </summary>
     public static bool TryEmitIf(
         EmitContext ctx,

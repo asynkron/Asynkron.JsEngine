@@ -69,7 +69,8 @@ public static partial class TypedAstEvaluator
             int handlerIndex,
             Symbol? catchSlotSymbol,
             int finallyIndex,
-            JsEnvironment entryEnvironment)
+            JsEnvironment entryEnvironment,
+            JsValue entryCompletionValue)
         {
             public int HandlerIndex { get; } = handlerIndex;
             public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;
@@ -81,6 +82,13 @@ public static partial class TypedAstEvaluator
             /// </summary>
             public JsEnvironment EntryEnvironment { get; } = entryEnvironment;
 
+            /// <summary>
+            /// The completion value that was active when entering the try block.
+            /// Used to implement ES spec UpdateEmpty semantics: if the try/catch
+            /// completes without producing a new value, result becomes undefined.
+            /// </summary>
+            public JsValue EntryCompletionValue { get; } = entryCompletionValue;
+
             public bool CatchUsed { get; set; }
             public bool FinallyScheduled { get; set; }
             public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
@@ -91,6 +99,13 @@ public static partial class TypedAstEvaluator
             /// Read by EnterCatchInstruction to bind the catch parameter.
             /// </summary>
             public JsValue ThrownValue { get; set; } = JsValue.Undefined;
+
+            /// <summary>
+            /// The completion value from the try or catch block before entering finally.
+            /// Per ES spec 13.15.8, if finally completes normally, this value should be
+            /// used as the final completion value (not finally's own value).
+            /// </summary>
+            public JsValue TryCatchCompletionValue { get; set; } = JsValue.Undefined;
         }
 
         private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)

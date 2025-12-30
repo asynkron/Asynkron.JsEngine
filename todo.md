@@ -1,8 +1,57 @@
 # Test262 Failure Investigation - IR Catch Block Implementation
 
-## Status: IN PROGRESS - Implementing Pure IR Catch Blocks
+## Status: IN PROGRESS - Test Bomb Analysis Complete
 
-## Root Cause Identified
+## Test Bomb Results (2024-12-30)
+
+Systematic testing revealed **two distinct bugs** in the IR catch block implementation:
+
+### Bug 1: Previous Statement Completion Value Leaks Through Empty Blocks
+
+When there's a statement before a compound statement (try/catch, if/else), and the executed block is **empty**, the previous statement's completion value incorrectly propagates:
+
+| Test | Code | Expected | Actual |
+|------|------|----------|--------|
+| H5 | `eval('1; try { throw null; } catch (e) { }')` | undefined | **1** |
+| H6 | `eval('1; try { } catch (e) { }')` | undefined | **1** |
+| H13 | `eval('5; if (false) { 1; } else { }')` | undefined | **5** |
+| H15 | `eval('1; for (var i = 0; i < 1; i++) { }')` | undefined | **0** |
+| H17 | `eval('1; switch (1) { case 1: break; }')` | undefined | **True** |
+
+### Bug 2: Finally Normal Completion Incorrectly Overwrites Try Value
+
+Per ES spec 13.15.8, a finally block with **normal completion** should preserve the try/catch completion value. Currently it's overwriting it:
+
+| Test | Code | Expected | Actual |
+|------|------|----------|--------|
+| H9 | `eval('try { 1; } finally { 9; }')` | 1 | **9** |
+
+The spec says: "If F.[[Type]] is normal, set F to C" - meaning finally's normal completion should preserve the previous value.
+
+### Additional Finding: Break From Finally Causes Infinite Loop
+
+The `Replicate_BreakFromFinally` test shows an infinite loop where BREAK instruction at [10] keeps going to [7] repeatedly without exiting the loop.
+
+### Passing Tests (21 of 27)
+
+Core functionality works:
+- Empty try/catch blocks return undefined (when no previous statement)
+- Try/catch with values return correct values
+- Finally preserves try/catch completion (when empty)
+- If/else completion values work (when no previous statement)
+- Catch parameter scoping works correctly
+- Continue/return/break from catch works
+- Nested try/catch works
+- Eval basics work
+
+### Test Files Created
+
+- `tests/Asynkron.JsEngine.Tests/CatchCompletionValueReplicationTest.cs` - Replication of Test262 failures
+- `tests/Asynkron.JsEngine.Tests/CatchBlockTestBomb.cs` - 27 hypothesis tests
+
+---
+
+## Original Root Cause (Pre-IR Implementation)
 
 The catch block delegation to AST evaluation causes thrown values to be lost when:
 1. `assert.throws` runs via IR (no eval in its body)
@@ -85,3 +134,54 @@ After implementation, these should pass:
 - `ArgumentsObject("language/arguments-object/10.6-2gs.js", True)`
 
 Unit tests in `ThrowBugTests.cs` should continue to pass.
+
+---
+
+## Next Steps: Fix Completion Value Bugs
+
+Based on test bomb analysis, the following fixes are needed:
+
+### Fix 1: Empty Block Completion Value
+
+Empty blocks (catch, try, if/else, for body, switch case) should set completion value to `undefined`, not preserve the previous statement's value.
+
+**Likely locations:**
+- `src/Asynkron.JsEngine/Execution/Emitters/` - Block emission not setting completion value
+- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.cs` - Completion value propagation
+
+**Fix approach:**
+1. When emitting an empty block, emit an instruction that sets completion value to `undefined`
+2. Or ensure the completion value tracking resets at statement boundaries
+
+### Fix 2: Finally Normal Completion
+
+Per ES spec 13.15.8, finally's normal completion should preserve try/catch completion value:
+```
+TryStatement : try Block Finally
+1. Let B be the result of evaluating Block.
+2. Let F be the result of evaluating Finally.
+3. If F.[[Type]] is normal, set F to B.  <-- THIS IS THE KEY
+4. Return Completion(UpdateEmpty(F, undefined)).
+```
+
+**Fix approach:**
+1. Track the try/catch completion value before entering finally
+2. If finally completes normally, restore the try/catch completion value
+3. Only use finally's completion if it's abrupt (return/throw/break/continue)
+
+### Fix 3: Break From Finally Infinite Loop
+
+The IR emitter for break inside finally is not correctly exiting the loop structure.
+
+**Fix approach:**
+1. Investigate the `TryEmitter` and how break targets are calculated within finally blocks
+2. Ensure break instruction properly pops all try frames and exits to the correct target
+
+### Verification
+
+After fixes, run:
+```bash
+dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~CatchBlockTestBomb"
+```
+
+All 27 tests should pass.

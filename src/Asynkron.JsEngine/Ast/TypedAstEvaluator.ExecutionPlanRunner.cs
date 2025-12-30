@@ -1263,9 +1263,12 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var allowPooling = pushEnvInstruction.AllowPooling;
+                                // Use different description for loop scope (empty bindings) vs per-iteration scope
+                                // This allows the subsequent iteration heuristic to correctly distinguish them
+                                var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
                                 var newIterationEnv = allowPooling
-                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, "scope", logger: _realmState.Logger)
-                                    : new JsEnvironment(loopScope, false, false, null, "scope");
+                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
+                                    : new JsEnvironment(loopScope, false, false, null, description);
 
                                 // Initialize slots for O(1) identifier lookups
                                 if (pushEnvInstruction is { SlotCount: > 0, ScopeId: >= 0 })
@@ -1348,9 +1351,15 @@ public static partial class TypedAstEvaluator
                                 // Pop the iteration environment when exiting a loop.
                                 // If current env matches ScopeId, pop (set to Enclosing).
                                 // If not (loop ran 0 times), this is a no-op.
-                                // CRITICAL: Only pop if ScopeId is valid (>= 0). When ScopeAnalyzer
-                                // hasn't run, both ScopeIds are -1, and we'd incorrectly pop.
-                                if (popEnvInstruction.ScopeId >= 0 && environment.ScopeId == popEnvInstruction.ScopeId)
+                                //
+                                // When ScopeId is -1 (scope analysis not run), use heuristic:
+                                // Pop if current env has Description="scope" or "loop-scope" and has Enclosing.
+                                // This matches environments created by PushEnvironment for loops.
+                                var shouldPop = popEnvInstruction.ScopeId >= 0
+                                    ? environment.ScopeId == popEnvInstruction.ScopeId
+                                    : (environment.Description is "scope" or "loop-scope") && environment.Enclosing != null;
+
+                                if (shouldPop)
                                 {
                                     var envToPop = environment;
                                     environment = environment.Enclosing!;

@@ -10,9 +10,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for generator functions (function*) and the iterator protocol.
 /// </summary>
-public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    private readonly ITestOutputHelper _output = output;
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 
@@ -23,13 +22,13 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* simpleGenerator() {
-                                                         yield 1;
-                                                     }
+                                          function* simpleGenerator() {
+                                              yield 1;
+                                          }
 
-                                         """);
+                              """);
     }
 
     [Fact(Timeout = 2000)]
@@ -60,14 +59,14 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                     }
-                                                     let g = gen();
+                                          function* gen() {
+                                              yield 1;
+                                          }
+                                          let g = gen();
 
-                                         """);
+                              """);
         var hasNext = await engine.Evaluate("g.next;");
 
         // Assert - next should be callable
@@ -81,15 +80,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 42;
-                                                     }
-                                                     let g = gen();
-                                                     let result = g.next();
+                                          function* gen() {
+                                              yield 42;
+                                          }
+                                          let g = gen();
+                                          let result = g.next();
 
-                                         """);
+                              """);
         var value = await engine.Evaluate("result.value;");
         var done = await engine.Evaluate("result.done;");
 
@@ -105,16 +104,16 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                         yield 2;
-                                                         yield 3;
-                                                     }
-                                                     let g = gen();
+                                          function* gen() {
+                                              yield 1;
+                                              yield 2;
+                                              yield 3;
+                                          }
+                                          let g = gen();
 
-                                         """);
+                              """);
 
         var r1Value = await engine.Evaluate("g.next().value;");
         var r2Value = await engine.Evaluate("g.next().value;");
@@ -133,15 +132,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 10;
-                                                     }
-                                                     let g = gen();
-                                                     let result = g.next();
+                                          function* gen() {
+                                              yield 10;
+                                          }
+                                          let g = gen();
+                                          let result = g.next();
 
-                                         """);
+                              """);
 
         // Assert - result should be an object with value and done properties
         var result = await engine.Evaluate("result;");
@@ -155,15 +154,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 5;
-                                                     }
-                                                     let g = gen();
-                                                     let result = g.next();
+                                          function* gen() {
+                                              yield 5;
+                                          }
+                                          let g = gen();
+                                          let result = g.next();
 
-                                         """);
+                              """);
 
         // Check the properties exist by accessing them
         var value = await engine.Evaluate("result.value;");
@@ -181,16 +180,16 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                     }
-                                                     let g = gen();
-                                                     g.next();  // Get the yielded value
-                                                     let finalResult = g.next();  // Generator is done
+                                          function* gen() {
+                                              yield 1;
+                                          }
+                                          let g = gen();
+                                          g.next();  // Get the yielded value
+                                          let finalResult = g.next();  // Generator is done
 
-                                         """);
+                              """);
 
         var done = await engine.Evaluate("finalResult.done;");
         var isUndefined = await engine.Evaluate("finalResult.value === undefined;");
@@ -207,15 +206,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1 + 1;
-                                                         yield 2 * 3;
-                                                     }
-                                                     let g = gen();
+                                          function* gen() {
+                                              yield 1 + 1;
+                                              yield 2 * 3;
+                                          }
+                                          let g = gen();
 
-                                         """);
+                              """);
 
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
@@ -232,17 +231,17 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         let x = 10;
-                                                         yield x;
-                                                         let y = 20;
-                                                         yield y;
-                                                     }
-                                                     let g = gen();
+                                          function* gen() {
+                                              let x = 10;
+                                              yield x;
+                                              let y = 20;
+                                              yield y;
+                                          }
+                                          let g = gen();
 
-                                         """);
+                              """);
 
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
@@ -259,15 +258,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen(start) {
-                                                         yield start;
-                                                         yield start + 1;
-                                                     }
-                                                     let g = gen(100);
+                                          function* gen(start) {
+                                              yield start;
+                                              yield start + 1;
+                                          }
+                                          let g = gen(100);
 
-                                         """);
+                              """);
 
         var r1 = await engine.Evaluate("g.next().value;");
         var r2 = await engine.Evaluate("g.next().value;");
@@ -284,16 +283,16 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                         yield 2;
-                                                     }
-                                                     let g1 = gen();
-                                                     let g2 = gen();
+                                          function* gen() {
+                                              yield 1;
+                                              yield 2;
+                                          }
+                                          let g1 = gen();
+                                          let g2 = gen();
 
-                                         """);
+                              """);
 
         var g1R1 = await engine.Evaluate("g1.next().value;");
         var g2R1 = await engine.Evaluate("g2.next().value;");
@@ -314,14 +313,14 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                     }
-                                                     let g = gen();
-                                                     let result = g.next();
+                                          function* gen() {
+                                          }
+                                          let g = gen();
+                                          let result = g.next();
 
-                                         """);
+                              """);
 
         var done = await engine.Evaluate("result.done;");
 
@@ -336,17 +335,17 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                         return 99;
-                                                     }
-                                                     let g = gen();
-                                                     let r1 = g.next();
-                                                     let r2 = g.next();
+                                          function* gen() {
+                                              yield 1;
+                                              return 99;
+                                          }
+                                          let g = gen();
+                                          let r1 = g.next();
+                                          let r2 = g.next();
 
-                                         """);
+                              """);
 
         var r1Value = await engine.Evaluate("r1.value;");
         var r1Done = await engine.Evaluate("r1.done;");
@@ -367,22 +366,22 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Simpler test: just yield* [1, 2, 3] without prior yield
-        var temp = await engine.Evaluate("""
-            function* g() {
-                yield* [1, 2, 3];
-            }
-            let iter = g();
-            let results = [];
-            let r = iter.next();
-            results.push({value: r.value, done: r.done});
-            r = iter.next();
-            results.push({value: r.value, done: r.done});
-            r = iter.next();
-            results.push({value: r.value, done: r.done});
-            r = iter.next();
-            results.push({value: r.value, done: r.done});
-            results;
-        """);
+        await engine.Evaluate("""
+                                  function* g() {
+                                      yield* [1, 2, 3];
+                                  }
+                                  let iter = g();
+                                  let results = [];
+                                  let r = iter.next();
+                                  results.push({value: r.value, done: r.done});
+                                  r = iter.next();
+                                  results.push({value: r.value, done: r.done});
+                                  r = iter.next();
+                                  results.push({value: r.value, done: r.done});
+                                  r = iter.next();
+                                  results.push({value: r.value, done: r.done});
+                                  results;
+                              """);
 
         // Get individual values
         var v0 = await engine.Evaluate("results[0].value;");
@@ -406,24 +405,24 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* inner() {
-                                                         yield 1;
-                                                         yield 2;
-                                                         return 42;
-                                                     }
-                                                     function* outer() {
-                                                         yield 0;
-                                                         return yield* inner();
-                                                     }
-                                                     let g = outer();
-                                                     let r1 = g.next();
-                                                     let r2 = g.next();
-                                                     let r3 = g.next();
-                                                     let r4 = g.next();
+                                          function* inner() {
+                                              yield 1;
+                                              yield 2;
+                                              return 42;
+                                          }
+                                          function* outer() {
+                                              yield 0;
+                                              return yield* inner();
+                                          }
+                                          let g = outer();
+                                          let r1 = g.next();
+                                          let r2 = g.next();
+                                          let r3 = g.next();
+                                          let r4 = g.next();
 
-                                         """);
+                              """);
 
         var r1Value = await engine.Evaluate("r1.value;");
         var r2Value = await engine.Evaluate("r2.value;");
@@ -452,22 +451,22 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* inner() {
-                                                         yield 10;
-                                                         return 5;
-                                                     }
-                                                     function* outer() {
-                                                         const captured = yield* inner();
-                                                         yield captured;
-                                                     }
-                                                     let g = outer();
-                                                     let r1 = g.next();
-                                                     let r2 = g.next();
-                                                     let r3 = g.next();
+                                          function* inner() {
+                                              yield 10;
+                                              return 5;
+                                          }
+                                          function* outer() {
+                                              const captured = yield* inner();
+                                              yield captured;
+                                          }
+                                          let g = outer();
+                                          let r1 = g.next();
+                                          let r2 = g.next();
+                                          let r3 = g.next();
 
-                                         """);
+                              """);
 
         var firstValue = await engine.Evaluate("r1.value;");
         var secondValue = await engine.Evaluate("r2.value;");
@@ -1204,15 +1203,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     let gen = function*() {
-                                                         yield 42;
-                                                     };
-                                                     let g = gen();
-                                                     let result = g.next();
+                                          let gen = function*() {
+                                              yield 42;
+                                          };
+                                          let g = gen();
+                                          let result = g.next();
 
-                                         """);
+                              """);
 
         var value = await engine.Evaluate("result.value;");
 
@@ -1227,15 +1226,15 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                         yield 2;
-                                                     }
-                                                     let g = gen();
+                                          function* gen() {
+                                              yield 1;
+                                              yield 2;
+                                          }
+                                          let g = gen();
 
-                                         """);
+                              """);
         var hasReturn = await engine.Evaluate("g[\"return\"];");
 
         // Assert - return should be callable
@@ -1249,18 +1248,18 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                         yield 2;
-                                                     }
-                                                     let g = gen();
-                                                     g.next();  // Get first value
-                                                     let returnResult = g["return"](99);
-                                                     let nextResult = g.next();  // Should be done
+                                          function* gen() {
+                                              yield 1;
+                                              yield 2;
+                                          }
+                                          let g = gen();
+                                          g.next();  // Get first value
+                                          let returnResult = g["return"](99);
+                                          let nextResult = g.next();  // Should be done
 
-                                         """);
+                              """);
 
         var returnValue = await engine.Evaluate("returnResult.value;");
         var returnDone = await engine.Evaluate("returnResult.done;");
@@ -1279,14 +1278,14 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         await using var engine = CreateEngine();
 
         // Act
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     function* gen() {
-                                                         yield 1;
-                                                     }
-                                                     let g = gen();
+                                          function* gen() {
+                                              yield 1;
+                                          }
+                                          let g = gen();
 
-                                         """);
+                              """);
         var hasThrow = await engine.Evaluate("g[\"throw\"];");
 
         // Assert - throw should be callable
@@ -2215,7 +2214,7 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1, "Expected at least one IR plan to be built.");
         Assert.Equal(0, failed);
@@ -2343,7 +2342,7 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1,
             "Expected for-increment generator with yield in the increment expression to lower to IR.");
@@ -2390,7 +2389,7 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1,
             "Expected for-increment generator with yield in the increment expression to lower to IR.");
@@ -2550,7 +2549,7 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
             let g = gen();
         """);
 
-        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+        var (_, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
 
         Assert.True(succeeded >= 1,
             "Expected for-increment generator with yield in the increment expression to lower to IR.");
@@ -3161,14 +3160,14 @@ public class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
         engine.SetGlobalFunction("log", args =>
         {
             var message = args.Count > 0 ? args[0].ToObject()?.ToString() ?? "null" : "null";
-            _output.WriteLine($"LOG: {message}");
+            output.WriteLine($"LOG: {message}");
             return JsValue.Null;
         });
 
         engine.SetGlobalFunction("markError", _ =>
         {
             errorCaught = true;
-            _output.WriteLine("LOG: Error caught!");
+            output.WriteLine("LOG: Error caught!");
             return JsValue.Null;
         });
 

@@ -85,33 +85,39 @@ internal static class TryEmitter
         Symbol? activeLabel,
         out int catchEntry)
     {
-        // Get catch parameter symbol (if any - ES2019 allows optional catch binding)
-        Symbol? catchParamSymbol = null;
-        if (catchClause.Binding is IdentifierBinding identifierBinding)
-        {
-            catchParamSymbol = identifierBinding.Name;
-        }
-        else if (catchClause.Binding is not null)
-        {
-            // For destructuring patterns, fall back to AST-based approach
-            // TODO: Implement pure IR for destructuring catch parameters
-            catchEntry = -1;
-            return false;
-        }
-
         // Allocate a scope ID for the catch environment
         var catchScopeId = ctx.AllocateScopeId();
 
-        // Build slot map for catch parameter
-        var slotMap = catchParamSymbol != null
-            ? ImmutableDictionary<Symbol, int>.Empty.Add(catchParamSymbol, 0)
-            : ImmutableDictionary<Symbol, int>.Empty;
-        var slotCount = catchParamSymbol != null ? 1 : 0;
+        // Build slot map and determine instruction type based on binding pattern
+        ImmutableDictionary<Symbol, int> slotMap;
+        int slotCount;
+        Symbol? catchParamSymbol = null;
+        BindingTarget? destructuringPattern = null;
+
+        if (catchClause.Binding is IdentifierBinding identifierBinding)
+        {
+            // Simple identifier binding: catch (e) { }
+            catchParamSymbol = identifierBinding.Name;
+            slotMap = ImmutableDictionary<Symbol, int>.Empty.Add(catchParamSymbol, 0);
+            slotCount = 1;
+        }
+        else if (catchClause.Binding is not null)
+        {
+            // Destructuring binding: catch ([a, b]) { } or catch ({x, y}) { }
+            destructuringPattern = catchClause.Binding;
+            slotMap = BuildSlotMapFromBindingTarget(catchClause.Binding, out slotCount);
+        }
+        else
+        {
+            // ES2019 optional catch binding: catch { }
+            slotMap = ImmutableDictionary<Symbol, int>.Empty;
+            slotCount = 0;
+        }
 
         // Build instructions bottom-up:
         // 1. PopEnvironmentInstruction → leaveTryIndex
         // 2. Body statements → PopEnvironment
-        // 3. EnterCatchInstruction → body entry
+        // 3. EnterCatchInstruction or EnterCatchWithDestructuringInstruction → body entry
 
         // 1. Pop catch environment at the end
         var popCatchEnv = ctx.Append(new PopEnvironmentInstruction(catchScopeId, false, leaveTryIndex));
@@ -123,14 +129,91 @@ internal static class TryEmitter
             return false;
         }
 
-        // 3. Emit EnterCatch as the catch handler entry point
-        catchEntry = ctx.Append(new EnterCatchInstruction(
-            bodyEntry,
-            catchParamSymbol,
-            catchScopeId,
-            slotCount,
-            slotMap));
+        // 3. Emit the appropriate catch instruction
+        if (destructuringPattern is not null)
+        {
+            // Destructuring catch parameter
+            catchEntry = ctx.Append(new EnterCatchWithDestructuringInstruction(
+                bodyEntry,
+                destructuringPattern,
+                catchScopeId,
+                slotCount,
+                slotMap));
+        }
+        else
+        {
+            // Simple identifier or no binding
+            catchEntry = ctx.Append(new EnterCatchInstruction(
+                bodyEntry,
+                catchParamSymbol,
+                catchScopeId,
+                slotCount,
+                slotMap));
+        }
 
         return true;
+    }
+
+    /// <summary>
+    /// Builds a slot map from a binding target by collecting all identifiers.
+    /// </summary>
+    private static ImmutableDictionary<Symbol, int> BuildSlotMapFromBindingTarget(
+        BindingTarget target,
+        out int slotCount)
+    {
+        var builder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+        var index = 0;
+        CollectBindingIdentifiers(target, builder, ref index);
+        slotCount = index;
+        return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Recursively collects all identifier symbols from a binding target.
+    /// </summary>
+    private static void CollectBindingIdentifiers(
+        BindingTarget target,
+        ImmutableDictionary<Symbol, int>.Builder builder,
+        ref int index)
+    {
+        switch (target)
+        {
+            case IdentifierBinding id:
+                if (!builder.ContainsKey(id.Name))
+                {
+                    builder.Add(id.Name, index++);
+                }
+                break;
+
+            case ArrayBinding array:
+                foreach (var element in array.Elements)
+                {
+                    if (element.Target is not null)
+                    {
+                        CollectBindingIdentifiers(element.Target, builder, ref index);
+                    }
+                }
+                if (array.RestElement is not null)
+                {
+                    CollectBindingIdentifiers(array.RestElement, builder, ref index);
+                }
+                break;
+
+            case ObjectBinding obj:
+                foreach (var prop in obj.Properties)
+                {
+                    CollectBindingIdentifiers(prop.Target, builder, ref index);
+                }
+                if (obj.RestElement is not null)
+                {
+                    CollectBindingIdentifiers(obj.RestElement, builder, ref index);
+                }
+                break;
+
+            case AssignmentTargetBinding:
+                // AssignmentTargetBinding is used for assignment patterns like [x.y] = ...
+                // These don't create new bindings in the catch scope
+                break;
+        }
     }
 }

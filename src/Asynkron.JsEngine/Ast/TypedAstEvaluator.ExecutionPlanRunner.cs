@@ -1696,6 +1696,59 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
+                            case InstructionKind.EnterCatchWithDestructuring:
+                            {
+                                var enterCatchDestructure = Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction);
+
+                                // Read the thrown value from the try frame
+                                var thrownValue = JsValue.Undefined;
+                                if (TryCatchStateRef.TryStack.Count > 0)
+                                {
+                                    thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
+                                }
+
+                                // Create a new lexical environment for the catch block
+                                var catchEnv = new JsEnvironment(
+                                    enclosing: environment,
+                                    isFunctionScope: false,
+                                    isStrict: environment.IsStrict,
+                                    creatingSource: null,
+                                    description: "catch");
+
+                                // Initialize slots if needed
+                                if (enterCatchDestructure.SlotCount > 0)
+                                {
+                                    catchEnv.InitializeSlots(enterCatchDestructure.SlotCount, enterCatchDestructure.ScopeId);
+                                }
+
+                                // Apply the destructuring pattern to bind the thrown value
+                                enterCatchDestructure.BindingPattern.DefineBindingTarget(
+                                    thrownValue, catchEnv, context, isConst: false);
+
+                                // Check for errors during destructuring (e.g., TypeError)
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    if (context.IsThrow)
+                                    {
+                                        var exception = context.FlowValue;
+                                        context.Clear();
+                                        // Re-throw - the outer try/catch may handle it
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, exception, environment))
+                                        {
+                                            continue;
+                                        }
+                                        TryCatchStateRef.TryStack.Clear();
+                                        throw new ThrowSignal(exception);
+                                    }
+                                    // Other stop conditions (return, break, continue) shouldn't happen here
+                                    // but handle gracefully by continuing execution
+                                }
+
+                                environment = catchEnv;
+                                _programCounter = enterCatchDestructure.Next;
+                                continue;
+                            }
+
                             case InstructionKind.LeaveTry:
                             {
                                 var leaveTryInstruction = Unsafe.As<LeaveTryInstruction>(instruction);

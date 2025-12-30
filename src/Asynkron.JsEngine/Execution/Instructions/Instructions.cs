@@ -191,6 +191,23 @@ internal sealed record EnterCatchInstruction(
     : ExecutionInstruction(InstructionKind.EnterCatch, Next);
 
 /// <summary>
+///     Marks the beginning of a <c>catch</c> block with destructuring pattern binding.
+///     Creates a new lexical environment and destructures the thrown value into bindings.
+/// </summary>
+/// <param name="Next">Next instruction index (catch body entry).</param>
+/// <param name="BindingPattern">The destructuring binding pattern (ArrayBinding or ObjectBinding).</param>
+/// <param name="ScopeId">The scope ID for this catch environment.</param>
+/// <param name="SlotCount">Number of slots in the catch environment.</param>
+/// <param name="SlotMap">Mapping from symbols to slot indices.</param>
+internal sealed record EnterCatchWithDestructuringInstruction(
+    int Next,
+    BindingTarget BindingPattern,
+    int ScopeId,
+    int SlotCount,
+    ImmutableDictionary<Symbol, int> SlotMap)
+    : ExecutionInstruction(InstructionKind.EnterCatchWithDestructuring, Next);
+
+/// <summary>
 ///     Marks normal completion of a <c>try</c> or <c>catch</c> block.
 /// </summary>
 internal sealed record LeaveTryInstruction(int Next)

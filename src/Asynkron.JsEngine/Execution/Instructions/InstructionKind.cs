@@ -22,6 +22,7 @@ internal enum InstructionKind : byte
     StoreResumeValue,
     EnterTry,
     EnterCatch,
+    EnterCatchWithDestructuring,
     LeaveTry,
     LoopEnter,
     LoopExit,

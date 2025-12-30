@@ -551,3 +551,303 @@ public class MyBugTestBomb
 - **Fast** - Run all hypotheses in parallel
 - **Educational** - Reveals how the system actually works
 - **Proof** - Can prove a bug does NOT exist in a component
+
+## Layered Tests Methodology
+
+When debugging complex issues, use "Layered Tests" to verify each component in the execution pipeline works correctly in isolation. This technique tests individual layers (parser, analyzer, evaluator) separately before testing the full end-to-end behavior.
+
+### What are Layered Tests?
+
+Layered Tests progressively verify each stage of the execution pipeline:
+
+```
+JavaScript Source → Lexer → Parser → AST → Analyzers → Evaluator → Result
+     Layer 0        Layer 1   Layer 2   Layer 3   Layer 4      Layer 5
+```
+
+Each test targets ONE layer, verifying its output before the next layer runs. This isolates exactly where a bug occurs in the pipeline.
+
+### When to Use Layered Tests
+
+- Bug manifests at runtime but root cause is unclear
+- Need to verify AST structure before evaluation
+- Testing analyzer transformations (scope analysis, CPS, loop normalization)
+- Verifying metadata (SlotMap, ScopeId, PerIterationBindings) is generated correctly
+- Debugging closure capture, environment chains, or slot-based lookups
+- Want to ensure an optimization doesn't break intermediate state
+
+### How to Build Layered Tests
+
+1. **Start at Layer 0** - Verify the source code is valid
+2. **Test parser output** - Parse without evaluating, inspect AST nodes
+3. **Test analyzer output** - Verify transformations and metadata
+4. **Test with logging** - Enable Realm logger, assert on internal operations
+5. **Test full evaluation** - Finally run end-to-end and verify result
+
+### The Five Layer Pattern
+
+| Layer | What to Test | How to Test |
+|-------|-------------|-------------|
+| **L1: Parser** | AST structure is correct | `AstTestHelpers.ParseAndAnalyze()`, inspect node types |
+| **L2: Analyzers** | Metadata generated correctly | Check `.SlotMap`, `.ScopeId`, `.PerIterationBindings` |
+| **L3: Plans** | Loop/function plans built correctly | `((IAstCacheable<LoopPlan>)node).GetOrCreateCache()` |
+| **L4: Runtime** | Internal operations work | `TestLogger` + assert on log messages |
+| **L5: Result** | Final output is correct | `engine.Evaluate()` + assert on value |
+
+### Example: For Loop Closure Capture Bug
+
+We suspected closures in `for (let i...)` loops weren't capturing per-iteration values:
+
+```csharp
+/// <summary>
+/// LAYERED TESTS: For loop closure capture verification.
+/// Tests each pipeline stage to isolate where capture fails.
+/// </summary>
+public class ForLoopClosureLayeredTests : InternalTestBase
+{
+    // ==================== LAYER 1: Parser ====================
+    /// <summary>
+    /// L1: Verify ForStatement parses correctly with let initializer.
+    /// </summary>
+    [Fact]
+    public void L1_ForLoopWithLet_ParsesCorrectly()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("""
+            for (let i = 0; i < 3; i++) { funcs.push(() => i); }
+            """);
+
+        var forStmt = AstTestHelpers.FindFirst<ForStatement>(pipeline.Analyzed);
+        Assert.NotNull(forStmt);
+        Assert.IsType<VariableDeclaration>(forStmt.Init);
+
+        var decl = (VariableDeclaration)forStmt.Init;
+        Assert.Equal(VariableDeclarationKind.Let, decl.Kind);
+    }
+
+    // ==================== LAYER 2: Scope Analysis ====================
+    /// <summary>
+    /// L2: Verify scope analyzer marks 'let' variables for per-iteration binding.
+    /// </summary>
+    [Fact]
+    public void L2_LetVariable_MarkedForPerIterationBinding()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("""
+            for (let i = 0; i < 3; i++) { funcs.push(() => i); }
+            """);
+
+        var forStmt = AstTestHelpers.FindFirst<ForStatement>(pipeline.Analyzed);
+
+        // Check the ScopeId was assigned
+        Assert.True(forStmt.ScopeId > 0, "ForStatement should have a ScopeId");
+    }
+
+    // ==================== LAYER 3: Loop Plan ====================
+    /// <summary>
+    /// L3: Verify LoopPlan includes 'i' in PerIterationBindings.
+    /// </summary>
+    [Fact]
+    public void L3_LoopPlan_ContainsPerIterationBinding()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("""
+            for (let i = 0; i < 3; i++) { funcs.push(() => i); }
+            """);
+
+        var forStmt = AstTestHelpers.FindFirst<ForStatement>(pipeline.Analyzed);
+        var plan = ((IAstCacheable<LoopPlan>)forStmt).GetOrCreateCache();
+
+        // THE KEY ASSERTION: 'i' must be in per-iteration bindings
+        var bindingNames = plan.PerIterationBindings.Select(b => b.Name).ToArray();
+        Assert.Contains("i", bindingNames);
+    }
+
+    // ==================== LAYER 4: Runtime Logging ====================
+    /// <summary>
+    /// L4: Verify environment creation per iteration via logs.
+    /// </summary>
+    [Fact]
+    public async Task L4_PerIterationEnvironments_Created()
+    {
+        var logger = new TestLogger();
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("""
+            const funcs = [];
+            for (let i = 0; i < 3; i++) { funcs.push(() => i); }
+            """);
+
+        // Check that per-iteration environments were created
+        var activateCount = logger.Collector.Snapshot()
+            .Count(r => r.Message.Contains("JsEnvironment.Activate"));
+
+        Output.WriteLine($"Environment activations: {activateCount}");
+        Assert.True(activateCount >= 3, "Should activate at least 3 environments (one per iteration)");
+    }
+
+    // ==================== LAYER 5: Full Result ====================
+    /// <summary>
+    /// L5: Verify closures capture correct per-iteration values.
+    /// </summary>
+    [Fact]
+    public async Task L5_Closures_CaptureCorrectValues()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const funcs = [];
+            for (let i = 0; i < 3; i++) { funcs.push(() => i); }
+            funcs.map(f => f());
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(0.0, array.GetElement(0).AsDouble()); // First closure sees i=0
+        Assert.Equal(1.0, array.GetElement(1).AsDouble()); // Second closure sees i=1
+        Assert.Equal(2.0, array.GetElement(2).AsDouble()); // Third closure sees i=2
+    }
+}
+```
+
+**Result**: L3 failed! The `LoopPlan.PerIterationBindings` was empty, revealing the bug was in `LoopNormalizer` not detecting the closure.
+
+### Helper Infrastructure
+
+**AstTestHelpers.cs** - Parse without evaluation:
+```csharp
+public static class AstTestHelpers
+{
+    /// <summary>
+    /// Runs lexer → parser → analyzers, returns AST without evaluation.
+    /// </summary>
+    public static AstPipelineResult ParseAndAnalyze(string source)
+    {
+        var lexer = new Lexer(source);
+        var tokens = lexer.Tokenize();
+        var parser = new TypedAstParser(tokens, source);
+        var parsed = parser.ParseProgram();
+        var analyzed = new TypedConstantExpressionTransformer().Transform(parsed);
+        return new AstPipelineResult(parsed, analyzed, analyzed);
+    }
+
+    /// <summary>
+    /// Find first node of type T in AST.
+    /// </summary>
+    public static T? FindFirst<T>(AstNode root) where T : AstNode
+    {
+        return Walk(root, includeSelf: true).OfType<T>().FirstOrDefault();
+    }
+}
+```
+
+**TestLogger.cs** - Capture internal operations:
+```csharp
+public sealed class TestLogger : ILogger
+{
+    public LogCollector Collector { get; } = new();
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+        Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        Collector.Add(new LogRecord(logLevel, eventId, exception, formatter(state, exception)));
+    }
+
+    public sealed class LogCollector
+    {
+        private readonly ConcurrentQueue<LogRecord> _records = new();
+        public void Add(LogRecord record) => _records.Enqueue(record);
+        public LogRecord[] Snapshot() => _records.ToArray();
+    }
+}
+```
+
+### Layered Test Template
+
+```csharp
+/// <summary>
+/// LAYERED TESTS: [Description of what's being tested].
+/// Tests each pipeline stage to isolate where [problem] occurs.
+/// </summary>
+public class MyFeatureLayeredTests : InternalTestBase
+{
+    public MyFeatureLayeredTests(ITestOutputHelper output) : base(output) { }
+
+    // ==================== LAYER 1: Parser ====================
+    [Fact]
+    public void L1_Parser_ProducesCorrectAst()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("/* source */");
+        var node = AstTestHelpers.FindFirst<ExpectedNodeType>(pipeline.Analyzed);
+        Assert.NotNull(node);
+        // Assert on AST structure
+    }
+
+    // ==================== LAYER 2: Analyzers ====================
+    [Fact]
+    public void L2_Analyzer_GeneratesCorrectMetadata()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("/* source */");
+        var node = AstTestHelpers.FindFirst<ExpectedNodeType>(pipeline.Analyzed);
+        // Assert on SlotMap, ScopeId, etc.
+        Assert.True(node.SlotMap.ContainsKey(Symbol.Create("x")));
+    }
+
+    // ==================== LAYER 3: Plans ====================
+    [Fact]
+    public void L3_Plan_BuiltCorrectly()
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze("/* source */");
+        var node = AstTestHelpers.FindFirst<ForStatement>(pipeline.Analyzed);
+        var plan = ((IAstCacheable<LoopPlan>)node).GetOrCreateCache();
+        // Assert on plan structure
+    }
+
+    // ==================== LAYER 4: Runtime Logging ====================
+    [Fact]
+    public async Task L4_Runtime_InternalOperationsCorrect()
+    {
+        var logger = new TestLogger();
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate("/* source */");
+
+        var messages = logger.Collector.Snapshot();
+        // Assert on log messages
+        Assert.Contains(messages, m => m.Message.Contains("Expected operation"));
+    }
+
+    // ==================== LAYER 5: Full Result ====================
+    [Fact]
+    public async Task L5_FullExecution_ProducesCorrectResult()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("/* source */");
+        Assert.Equal(expected, result);
+    }
+}
+```
+
+### Benefits
+
+- **Isolation** - Pinpoint exactly which layer is broken
+- **No guessing** - Each layer either works or doesn't
+- **Fast debugging** - Parser tests run instantly (no evaluation overhead)
+- **Regression protection** - Each layer test catches bugs at that level
+- **Documentation** - Tests explain what each layer should produce
+- **Incremental fixes** - Fix one layer at a time, verify before moving on
+
+### Layered Tests vs Test Bombs
+
+| Aspect | Layered Tests | Test Bombs |
+|--------|--------------|------------|
+| **Purpose** | Isolate which *pipeline stage* fails | Eliminate *hypotheses* about root cause |
+| **Structure** | Sequential: L1 → L2 → L3 → L4 → L5 | Parallel: H1, H2, H3 run independently |
+| **Naming** | `L1_`, `L2_`, `L3_`... | `H1_`, `H2_`, `H3_`... |
+| **When to use** | Know the pipeline, unsure which stage | Unclear what's wrong at all |
+| **Insight** | "The bug is in the analyzer" | "The test itself was wrong" |
+
+**Use both together**: Start with a Test Bomb to identify the component, then use Layered Tests to find the exact stage within that component

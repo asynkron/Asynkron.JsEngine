@@ -2482,6 +2482,15 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.Break:
                             {
                                 var breakInstruction = Unsafe.As<BreakInstruction>(instruction);
+
+                                // Per ES spec 13.15.8 (TryStatement), when break occurs inside a finally block,
+                                // UpdateEmpty(F, undefined) replaces the empty value with undefined.
+                                // Only set completion to undefined when inside a scheduled finally.
+                                if (_isScriptMode && IsInsideScheduledFinally())
+                                {
+                                    _scriptCompletionValue = JsValue.Undefined;
+                                }
+
                                 if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
                                 {
                                     // If inside scheduled finally, HandleAbruptCompletion stored the pending
@@ -2518,6 +2527,15 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.Continue:
                             {
                                 var continueInstruction = Unsafe.As<ContinueInstruction>(instruction);
+
+                                // Per ES spec 13.15.8 (TryStatement), when continue occurs inside a finally block,
+                                // UpdateEmpty(F, undefined) replaces the empty value with undefined.
+                                // Only set completion to undefined when inside a scheduled finally.
+                                if (_isScriptMode && IsInsideScheduledFinally())
+                                {
+                                    _scriptCompletionValue = JsValue.Undefined;
+                                }
+
                                 if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
                                         environment))
                                 {

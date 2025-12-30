@@ -148,7 +148,13 @@ internal static class LoopEmitter
 
         if (!plan.LeadingStatements.IsDefaultOrEmpty)
         {
-            if (!ctx.TryBuildStatementList(plan.LeadingStatements, loopEntry, out loopEntry))
+            // Per ES spec 13.7.4.7 (ForLoopEvaluation), the initializer expression/declaration
+            // does NOT contribute to the loop's completion value. Only the body contributes.
+            var savedSuppressCompletionValue = ctx.SuppressCompletionValue;
+            ctx.SuppressCompletionValue = true;
+            var built = ctx.TryBuildStatementList(plan.LeadingStatements, loopEntry, out loopEntry);
+            ctx.SuppressCompletionValue = savedSuppressCompletionValue;
+            if (!built)
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;

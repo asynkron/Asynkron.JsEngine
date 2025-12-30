@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                if (context.IsReturn || context.IsThrow)
+                if (context.IsReturn || context.IsThrow || context.IsContinue)
                 {
                     break;
                 }

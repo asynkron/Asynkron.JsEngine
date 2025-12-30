@@ -57,12 +57,12 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// State for labeled loop break/continue handling.
-        /// Only allocated when the function has labeled loops.
+        /// State for breakable construct (loop/switch) break/continue handling.
+        /// Only allocated when the function has loops or switch statements.
         /// </summary>
-        private sealed class LoopState
+        private sealed class BreakableState
         {
-            public readonly Stack<LoopFrame> LoopStack = new();
+            public readonly Stack<BreakableFrame> BreakableStack = new();
         }
 
         /// <summary>

@@ -260,4 +260,17 @@ public class CompletionValueDebugTests
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Expected undefined, got: {result}");
     }
+
+    [Fact(Timeout = 10000)]
+    public async Task Debug_SwitchFallThrough_ValueThenBreak()
+    {
+        var logger = new TestLogger(_output, "SwitchFallThrough", minLogLevel: LogLevel.Debug);
+        await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
+
+        // Test: switch with case "a": 7; falling through to case "b": break;
+        // Expected: 7 (break has empty completion, UpdateEmpty fills from previous value)
+        _output.WriteLine("=== Testing: eval('6; switch (\"a\") { case \"a\": 7; case \"b\": break; }') ===");
+        var result = await engine.Evaluate("eval('6; switch (\"a\") { case \"a\": 7; case \"b\": break; }')");
+        _output.WriteLine($"Result: {result?.ToString() ?? "null"} (expected: 7)");
+    }
 }

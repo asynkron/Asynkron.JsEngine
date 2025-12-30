@@ -74,12 +74,12 @@ internal static class ForOfEmitter
         // LeaveTry - normal exit from the loop
         var leaveTryIndex = ctx.Append(new LeaveTryInstruction(nextIndex));
 
-        // LoopExit - pops loop context from runtime stack, flows to LeaveTry
+        // BreakableExit - pops breakable context from runtime stack, flows to LeaveTry
         // This enables break/continue from AST-evaluated code (StatementInstruction)
-        // to resolve their jump targets using the runtime loop stack.
-        var loopExitIndex = ctx.Append(new LoopExitInstruction(leaveTryIndex));
+        // to resolve their jump targets using the runtime breakable stack.
+        var loopExitIndex = ctx.Append(new BreakableExitInstruction(leaveTryIndex));
 
-        // For loops with per-iteration bindings, create PopEnvironment before LoopExit
+        // For loops with per-iteration bindings, create PopEnvironment before BreakableExit
         var loopExitTarget = loopExitIndex;
         if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
             !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
@@ -160,14 +160,15 @@ internal static class ForOfEmitter
         // Wire up the MoveNext to point to the loop entry (env instruction or body)
         IteratorInstructionTemplate.Wire(iteratorInstructions, loopEntry, ctx.Instructions);
 
-        // LoopEnter - pushes loop context to runtime stack for break/continue from AST-evaluated code
-        var loopEnterIndex = ctx.Append(new LoopEnterInstruction(
+        // BreakableEnter - pushes context to runtime stack for break/continue from AST-evaluated code.
+        // Default is ResetsCompletionValue - loops need runtime to reset completion value per ES spec.
+        var loopEnterIndex = ctx.Append(new BreakableEnterInstruction(
             iteratorInstructions.MoveNextIndex,
             label,
             loopExitTarget,
             continueTarget));
 
-        // EnterTry - wraps the loop in a try/finally, points to LoopEnter
+        // EnterTry - wraps the loop in a try/finally, points to BreakableEnter
         // Pass the loop continue target so that continue within the loop skips the finally
         // (we don't want to close the iterator on continue, only on break/throw/return)
         var enterTryIndex =

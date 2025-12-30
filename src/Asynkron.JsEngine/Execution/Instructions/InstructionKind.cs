@@ -24,8 +24,8 @@ internal enum InstructionKind : byte
     EnterCatch,
     EnterCatchWithDestructuring,
     LeaveTry,
-    LoopEnter,
-    LoopExit,
+    BreakableEnter,
+    BreakableExit,
     EndFinally,
     IteratorInit,
     IteratorMoveNext,
@@ -39,4 +39,25 @@ internal enum InstructionKind : byte
     LeaveWith,
     Expression,
     SetCompletionValue,
+}
+
+/// <summary>
+///     Distinguishes how breakable constructs handle completion values.
+/// </summary>
+internal enum BreakableKind : byte
+{
+    /// <summary>
+    ///     Resets completion value to Unit on entry, finalizes on exit.
+    ///     Used by: loops (for, while, do-while, for-of, for-in) and labeled non-loop statements.
+    ///     These constructs need the runtime to initialize their completion value.
+    /// </summary>
+    ResetsCompletionValue,
+
+    /// <summary>
+    ///     Does NOT reset completion value on entry.
+    ///     Used by: switch statements.
+    ///     The switch emitter handles completion value initialization explicitly
+    ///     with an `undefined;` statement per ES spec 13.12.9.
+    /// </summary>
+    HandlesCompletionInternally,
 }

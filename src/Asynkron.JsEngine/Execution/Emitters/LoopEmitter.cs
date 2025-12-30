@@ -29,9 +29,9 @@ internal static class LoopEmitter
     {
         var instructionStart = ctx.InstructionCount;
 
-        // Create LoopExitInstruction first (we build bottom-up)
-        // This pops the loop stack when exiting the loop (normal exit or break)
-        var loopExitIndex = ctx.Append(new LoopExitInstruction(nextIndex));
+        // Create BreakableExitInstruction first (we build bottom-up)
+        // This pops the breakable stack when exiting the loop (normal exit or break)
+        var loopExitIndex = ctx.Append(new BreakableExitInstruction(nextIndex));
 
         var conditionJumpIndex = ctx.Append(new JumpInstruction(-1));
 
@@ -84,7 +84,7 @@ internal static class LoopEmitter
         }
 
         // Create Pop instruction for loop exit BEFORE building body
-        // This ensures breaks also go through the pop, then through LoopExitInstruction
+        // This ensures breaks also go through the pop, then through BreakableExitInstruction
         var loopExitTarget = loopExitIndex;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty)
         {
@@ -162,10 +162,11 @@ internal static class LoopEmitter
             }
         }
 
-        // Wrap entry with LoopEnterInstruction to push loop context at runtime
+        // Wrap entry with BreakableEnterInstruction to push context at runtime.
         // This enables break/continue from AST-evaluated code (via StatementInstruction)
-        // to resolve their jump targets using the runtime loop stack.
-        entryIndex = ctx.Append(new LoopEnterInstruction(
+        // to resolve their jump targets using the runtime breakable stack.
+        // Default is ResetsCompletionValue - loops need runtime to reset completion value per ES spec.
+        entryIndex = ctx.Append(new BreakableEnterInstruction(
             loopEntry,
             label,
             loopExitTarget,

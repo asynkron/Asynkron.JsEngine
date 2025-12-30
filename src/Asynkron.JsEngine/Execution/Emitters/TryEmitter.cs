@@ -37,7 +37,9 @@ internal static class TryEmitter
         if (hasFinally && statement.Finally is not null)
         {
             endFinallyIndex = ctx.Append(new EndFinallyInstruction(nextIndex));
-            if (!ctx.TryBuildStatement(statement.Finally, endFinallyIndex, out finallyEntry, activeLabel))
+
+            var builtFinally = ctx.TryBuildStatement(statement.Finally, endFinallyIndex, out finallyEntry, activeLabel);
+            if (!builtFinally)
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;

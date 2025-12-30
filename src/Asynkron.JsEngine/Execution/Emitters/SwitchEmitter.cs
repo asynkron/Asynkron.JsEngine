@@ -109,7 +109,8 @@ internal static class SwitchEmitter
 
             var setMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
                 new LiteralExpression(statement.Source, i));
-            var setMatchStatement = new ExpressionStatement(statement.Source, setMatch);
+            // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
+            var setMatchStatement = new ExpressionStatement(statement.Source, setMatch, SuppressCompletionValue: true);
             statements.Add(new IfStatement(statement.Source, combinedTest,
                 new BlockStatement(statement.Source, [setMatchStatement], statement.Cases[0].Body.IsStrict),
                 null));
@@ -123,11 +124,19 @@ internal static class SwitchEmitter
                 new LiteralExpression(statement.Source, -1));
             var setDefaultMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
                 new LiteralExpression(statement.Source, defaultIndex));
-            var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch);
+            // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
+            var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch, SuppressCompletionValue: true);
             statements.Add(new IfStatement(statement.Source, stillUnmatched,
                 new BlockStatement(statement.Source, [setDefaultStatement], statement.Cases[0].Body.IsStrict),
                 null));
         }
+
+        // Per ES spec 13.12.9 (CaseBlockEvaluation), step 1: "Let V = undefined."
+        // We need to set the initial completion value to undefined before executing case bodies.
+        // This ensures that if no case body produces a value (all empty), the switch completes with undefined.
+        // We use an expression statement that evaluates to undefined.
+        var initCompletionExpr = new IdentifierExpression(statement.Source, Symbol.Undefined);
+        statements.Add(new ExpressionStatement(statement.Source, initCompletionExpr));
 
         for (var caseIndex = 0; caseIndex < statement.Cases.Length; caseIndex++)
         {
@@ -197,26 +206,28 @@ internal static class SwitchEmitter
         var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
         var lowered = new BlockStatement(statement.Source, statements.ToImmutable(), isStrict);
 
-        // Create LoopExitInstruction first (we build bottom-up)
-        // This pops the loop stack when exiting the switch (normal exit or break)
-        var loopExitIndex = ctx.Append(new LoopExitInstruction(nextIndex));
+        // Create BreakableExitInstruction first (we build bottom-up)
+        // This pops the breakable stack when exiting the switch (normal exit or break)
+        var breakableExitIndex = ctx.Append(new BreakableExitInstruction(nextIndex));
 
-        if (!ctx.TryBuildStatement(lowered, loopExitIndex, out var switchBodyEntry, activeLabel))
+        if (!ctx.TryBuildStatement(lowered, breakableExitIndex, out var switchBodyEntry, activeLabel))
         {
             ctx.Rollback(instructionStart);
             entryIndex = -1;
             return false;
         }
 
-        // Wrap entry with LoopEnterInstruction to push loop context at runtime
+        // Wrap entry with BreakableEnterInstruction to push context at runtime.
         // This enables break statements from AST-evaluated code (via StatementInstruction)
-        // to resolve their jump targets using the runtime loop stack.
+        // to resolve their jump targets using the runtime breakable stack.
         // ContinueTarget is -1 because switch statements do not support continue.
-        entryIndex = ctx.Append(new LoopEnterInstruction(
+        // Use HandlesCompletionInternally because switch handles it with explicit undefined statement above.
+        entryIndex = ctx.Append(new BreakableEnterInstruction(
             switchBodyEntry,
             activeLabel,
-            loopExitIndex,
-            -1));
+            breakableExitIndex,
+            ContinueTarget: -1,
+            ConstructKind: BreakableKind.HandlesCompletionInternally));
 
         return true;
     }

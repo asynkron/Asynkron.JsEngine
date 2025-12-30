@@ -171,7 +171,7 @@ internal sealed record StoreResumeValueInstruction(int Next, Symbol? TargetSymbo
 /// <param name="FinallyIndex">Index of finally block entry, or -1 if no finally.</param>
 /// <param name="EndFinallyIndex">Index of EndFinally instruction, or -1 if no finally.</param>
 /// <param name="LoopContinueTarget">For for-of loops: the continue target index. Continue to this target skips the finally.</param>
-/// <param name="LoopBreakTarget">For for-of loops: the break target index (LoopExit). Break to this target triggers the finally.</param>
+/// <param name="LoopBreakTarget">For for-of loops: the break target index (BreakableExit). Break to this target triggers the finally.</param>
 internal sealed record EnterTryInstruction(
     int Next,
     int HandlerIndex,
@@ -223,27 +223,29 @@ internal sealed record LeaveTryInstruction(int Next)
     : ExecutionInstruction(InstructionKind.LeaveTry, Next);
 
 /// <summary>
-///     Marks entry into a loop. Pushes loop context onto the loop stack so that
-///     break/continue statements from AST-evaluated code (via StatementInstruction)
-///     can resolve their jump targets.
+///     Marks entry into a breakable construct (loop or switch).
+///     Pushes context onto the breakable stack so that break/continue statements
+///     from AST-evaluated code (via StatementInstruction) can resolve their jump targets.
 /// </summary>
-/// <param name="Next">The next instruction index (loop body entry).</param>
-/// <param name="Label">The loop label (null for unlabeled loops).</param>
+/// <param name="Next">The next instruction index (body entry).</param>
+/// <param name="Label">The label (null for unlabeled constructs).</param>
 /// <param name="BreakTarget">The instruction index to jump to for break.</param>
-/// <param name="ContinueTarget">The instruction index to jump to for continue.</param>
-internal sealed record LoopEnterInstruction(
+/// <param name="ContinueTarget">The instruction index to jump to for continue (-1 for switch).</param>
+/// <param name="ConstructKind">How this construct handles completion values.</param>
+internal sealed record BreakableEnterInstruction(
     int Next,
     Symbol? Label,
     int BreakTarget,
-    int ContinueTarget)
-    : ExecutionInstruction(InstructionKind.LoopEnter, Next);
+    int ContinueTarget,
+    BreakableKind ConstructKind = BreakableKind.ResetsCompletionValue)
+    : ExecutionInstruction(InstructionKind.BreakableEnter, Next);
 
 /// <summary>
-///     Marks exit from a loop. Pops the loop context from the loop stack.
+///     Marks exit from a breakable construct. Pops the context from the breakable stack.
 /// </summary>
-/// <param name="Next">The next instruction index after the loop.</param>
-internal sealed record LoopExitInstruction(int Next)
-    : ExecutionInstruction(InstructionKind.LoopExit, Next);
+/// <param name="Next">The next instruction index after the construct.</param>
+internal sealed record BreakableExitInstruction(int Next)
+    : ExecutionInstruction(InstructionKind.BreakableExit, Next);
 
 /// <summary>
 ///     Marks the end of a <c>finally</c> block so pending completions can resume.

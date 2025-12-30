@@ -3,9 +3,9 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: C33BDAC238B52816F23D83640B26DB8BE85C66B39989390E5B3F9F66864C6D47
+//   Template SHA: 1E7AB88C2A4B5176AD21BFEEAF1123398C1EE2CCDADBC2EB8F7EFE70E9C638D8
 //   Command line:  /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
-//   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
+//   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine-completion-values/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
 //----------------------
 

@@ -116,7 +116,7 @@ internal static class StatementEmitter
                         continue;
                     }
 
-                    // For non-loop statements (like blocks), wrap with LoopEnter/LoopExit
+                    // For non-loop statements (like blocks), wrap with BreakableEnter/BreakableExit
                     // to provide break targets for labeled break statements
                     return ControlFlowEmitter.TryEmitLabeledNonLoop(ctx, labeled, nextIndex, out entryIndex);
 

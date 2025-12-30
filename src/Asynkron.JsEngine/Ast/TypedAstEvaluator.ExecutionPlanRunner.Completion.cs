@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -13,6 +14,66 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
+        // ============================================================================
+        // Script Completion Value Helpers
+        // See class-level documentation for the overall design.
+        // ============================================================================
+
+        /// <summary>
+        /// Resets the completion value to Unit (sentinel) when entering a construct
+        /// that has its own completion value (loops, try, catch).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void ResetCompletionValue()
+        {
+            if (_isScriptMode)
+            {
+                _scriptCompletionValue = JsValue.Unit;
+            }
+        }
+
+        /// <summary>
+        /// Finalizes the completion value when exiting a construct.
+        /// If still Unit (no value produced), converts to undefined.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void FinalizeCompletionValue()
+        {
+            if (_isScriptMode && _scriptCompletionValue.IsUnit)
+            {
+                _scriptCompletionValue = JsValue.Undefined;
+            }
+        }
+
+        /// <summary>
+        /// Saves the current completion value to a TryFrame before entering finally.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SaveCompletionValueForFinally(TryFrame frame)
+        {
+            if (_isScriptMode)
+            {
+                frame.SavedCompletionValue = _scriptCompletionValue;
+            }
+        }
+
+        /// <summary>
+        /// Restores the completion value from a TryFrame after finally completes normally.
+        /// Applies Unit→undefined conversion.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void RestoreCompletionValueFromFinally(TryFrame frame)
+        {
+            if (_isScriptMode)
+            {
+                _scriptCompletionValue = frame.SavedCompletionValue.IsUnit
+                    ? JsValue.Undefined
+                    : frame.SavedCompletionValue;
+            }
+        }
+
+        // ============================================================================
+
         private void RecordYield(EvaluationContext context, JsEnvironment? currentEnvironment = null)
         {
             // Remember the active yield slot so the next resume value is applied to the
@@ -109,16 +170,12 @@ public static partial class TypedAstEvaluator
 
         private void PushTryFrame(EnterTryInstruction instruction, JsEnvironment environment)
         {
-            // In script mode, track the entry completion value to detect empty try/catch completions
-            // (for UpdateEmpty semantics per ES spec)
-            var entryCompletionValue = _isScriptMode ? _scriptCompletionValue : JsValue.Unit;
             var frame = new TryFrame(
                 instruction.HandlerIndex,
                 instruction.CatchSlotSymbol,
                 instruction.FinallyIndex,
                 instruction.EndFinallyIndex,
                 environment,
-                entryCompletionValue,
                 instruction.LoopContinueTarget,
                 instruction.LoopBreakTarget);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
@@ -131,25 +188,35 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// Finds the jump target for a break or continue signal.
-        /// For unlabeled: returns the innermost loop's target.
+        /// For unlabeled: returns the innermost breakable construct's target.
         /// For labeled: searches the stack for a matching label.
         /// </summary>
-        private int FindLoopTarget(Symbol? label, bool isBreak)
+        private int FindBreakableTarget(Symbol? label, bool isBreak)
         {
-            if (LoopStateRef.LoopStack.Count == 0)
+            if (BreakableStateRef.BreakableStack.Count == 0)
             {
                 return -1;
             }
 
             if (label is null)
             {
-                // Unlabeled: use innermost loop
-                var frame = LoopStateRef.LoopStack.Peek();
-                return isBreak ? frame.BreakTarget : frame.ContinueTarget;
+                // Unlabeled: use innermost loop/switch that supports this operation.
+                // For break: any loop/switch works (BreakTarget is always valid).
+                // For continue: skip switch statements (ContinueTarget = -1) and find enclosing loop.
+                foreach (var frame in BreakableStateRef.BreakableStack)
+                {
+                    var target = isBreak ? frame.BreakTarget : frame.ContinueTarget;
+                    if (target >= 0)
+                    {
+                        return target;
+                    }
+                }
+
+                return -1;
             }
 
             // Labeled: search for matching label
-            foreach (var frame in LoopStateRef.LoopStack)
+            foreach (var frame in BreakableStateRef.BreakableStack)
             {
                 if (ReferenceEquals(frame.Label, label))
                 {
@@ -164,6 +231,7 @@ public static partial class TypedAstEvaluator
         {
             if (TryCatchStateRef.TryStack.Count == 0)
             {
+                FinalizeCompletionValue();
                 _programCounter = resumeTarget;
                 return;
             }
@@ -173,25 +241,13 @@ public static partial class TypedAstEvaluator
             {
                 frame.FinallyScheduled = true;
                 frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
-                // Per ES spec 13.15.8: Store try/catch completion value before entering finally.
-                // If finally completes normally, this value will be restored (not finally's value).
-                if (_isScriptMode)
-                {
-                    frame.TryCatchCompletionValue = _scriptCompletionValue;
-                }
+                SaveCompletionValueForFinally(frame);
                 _programCounter = frame.FinallyIndex;
                 return;
             }
 
-            // Apply UpdateEmpty semantics per ES spec:
-            // If the try/catch body didn't produce a new completion value, result becomes undefined.
-            // This implements ES spec 13.15.8: "Return Completion(UpdateEmpty(C, undefined))"
-            if (_isScriptMode && _scriptCompletionValue.Equals(frame.EntryCompletionValue))
-            {
-                _scriptCompletionValue = JsValue.Undefined;
-            }
-
             TryCatchStateRef.TryStack.Pop();
+            FinalizeCompletionValue();
             _programCounter = resumeTarget;
         }
 
@@ -256,6 +312,7 @@ public static partial class TypedAstEvaluator
                     {
                         frame.FinallyScheduled = true;
                         frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                        SaveCompletionValueForFinally(frame);
 
                         // Restore to the environment that was active when entering the try block.
                         // This ensures that block-scoped bindings inside the try are no longer visible in finally.

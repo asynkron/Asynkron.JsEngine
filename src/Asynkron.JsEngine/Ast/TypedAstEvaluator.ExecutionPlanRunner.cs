@@ -16,6 +16,50 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    /// <summary>
+    /// Executes an IR execution plan (compiled from AST).
+    /// </summary>
+    /// <remarks>
+    /// ## Script Completion Value (_scriptCompletionValue)
+    ///
+    /// In script/eval mode, we track the completion value per ES spec.
+    /// The completion value is what eval() returns.
+    ///
+    /// ### Sentinel Pattern
+    ///
+    /// We use JsValue.Unit as a sentinel meaning "no value produced yet".
+    ///
+    /// - Script start: _scriptCompletionValue = Unit
+    /// - Expression statement (e.g., 5+5;): _scriptCompletionValue = 10
+    /// - At script end: if still Unit → return undefined, else return the value
+    ///
+    /// ### Loops, Try, Catch
+    ///
+    /// These constructs have their own internal completion value per ES spec.
+    /// They all follow the same pattern:
+    ///
+    /// 1. On ENTER: _scriptCompletionValue = Unit (reset to sentinel)
+    /// 2. Body executes: may or may not update _scriptCompletionValue
+    /// 3. On EXIT: if (_scriptCompletionValue.IsUnit) → set to undefined
+    ///
+    /// This ensures:
+    /// - eval('7; for (...) {}') returns undefined (not 7)
+    /// - eval('7; for (...) { 9; }') returns 9
+    /// - eval('for (...) { 9; break; }') returns 9 (break doesn't touch completion value)
+    ///
+    /// ### Finally (Special Case)
+    ///
+    /// Finally is different: its completion value is DISCARDED if it completes normally.
+    /// The try/catch completion value is restored.
+    ///
+    /// - eval('try { 7; } finally { 8; }') returns 7 (not 8)
+    ///
+    /// Implementation:
+    /// 1. When entering finally: frame.SavedCompletionValue = _scriptCompletionValue
+    /// 2. Finally body executes (its value is irrelevant if normal completion)
+    /// 3. On normal exit: _scriptCompletionValue = SavedCompletionValue.IsUnit ? undefined : SavedCompletionValue
+    /// 4. On abrupt exit (return/throw): abrupt completion takes over, completion value doesn't matter
+    /// </remarks>
     private sealed partial class ExecutionPlanRunner
     {
         // Core fields - always needed
@@ -42,7 +86,7 @@ public static partial class TypedAstEvaluator
         private bool _privateScopesApplied;
         private int _programCounter;
         private GeneratorState _state = GeneratorState.Start;
-        private JsValue _scriptCompletionValue = JsValue.Undefined;
+        private JsValue _scriptCompletionValue = JsValue.Unit;
 
         // Lazy state objects - only allocated when needed
 
@@ -51,7 +95,7 @@ public static partial class TypedAstEvaluator
         private YieldState YieldStateRef => field ??= new YieldState();
         private IteratorState IteratorStateRef => field ??= new IteratorState();
         private TryCatchState TryCatchStateRef => field ??= new TryCatchState();
-        private LoopState LoopStateRef => field ??= new LoopState();
+        private BreakableState BreakableStateRef => field ??= new BreakableState();
         private WithState WithStateRef => field ??= new WithState();
 
         public ExecutionPlanRunner(
@@ -157,17 +201,26 @@ public static partial class TypedAstEvaluator
                 iteratorResult.TryGetProperty("value", out var returnValue);
                 // If there was an explicit return, use that value
                 // Otherwise fall back to tracked completion value
-                return returnValue.IsUndefined ? _scriptCompletionValue : returnValue;
+                return returnValue.IsUndefined ? GetFinalCompletionValue() : returnValue;
             }
 
             if (result.TryGetObject<JsObject>(out var jsObject) &&
                 jsObject.TryGetProperty("value", out var jsValue))
             {
-                return jsValue.IsUndefined ? _scriptCompletionValue : jsValue;
+                return jsValue.IsUndefined ? GetFinalCompletionValue() : jsValue;
             }
 
             // No iterator result wrapper - use tracked completion value
-            return _scriptCompletionValue;
+            return GetFinalCompletionValue();
+        }
+
+        /// <summary>
+        /// Gets the final completion value, converting Unit sentinel to undefined.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue GetFinalCompletionValue()
+        {
+            return _scriptCompletionValue.IsUnit ? JsValue.Undefined : _scriptCompletionValue;
         }
 
         public JsObject CreateGeneratorObject()
@@ -658,10 +711,12 @@ public static partial class TypedAstEvaluator
                                 var statementInstruction = Unsafe.As<StatementInstruction>(instruction);
                                 var stmtResult = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                                 // In script mode, track the completion value (per ES spec, block completion is last statement value)
-                                // Per UpdateEmpty semantics, empty (Unit) becomes undefined at script level
-                                if (_isScriptMode)
+                                // Per UpdateEmpty semantics: if result is Unit (empty), do NOT update completion value.
+                                // Empty completions preserve the previous completion value.
+                                // Only update when the statement actually produces a value (non-Unit).
+                                if (_isScriptMode && !stmtResult.IsUnit)
                                 {
-                                    _scriptCompletionValue = stmtResult.IsUnit ? JsValue.Undefined : stmtResult;
+                                    _scriptCompletionValue = stmtResult;
                                 }
                                 if (TryHandlePendingAwait(context, out var pendingResult, environment))
                                 {
@@ -726,7 +781,7 @@ public static partial class TypedAstEvaluator
                                              ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
                                     context.Clear();
 
-                                    var target = FindLoopTarget(label, isBreak);
+                                    var target = FindBreakableTarget(label, isBreak);
                                     if (target >= 0)
                                     {
                                         _programCounter = target;
@@ -1665,6 +1720,7 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.EnterTry:
                             {
                                 var enterTryInstruction = Unsafe.As<EnterTryInstruction>(instruction);
+                                ResetCompletionValue();
                                 PushTryFrame(enterTryInstruction, environment);
                                 _programCounter = enterTryInstruction.Next;
                                 continue;
@@ -1673,6 +1729,7 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.EnterCatch:
                             {
                                 var enterCatch = Unsafe.As<EnterCatchInstruction>(instruction);
+                                ResetCompletionValue();
 
                                 // Read the thrown value from the try frame
                                 var thrownValue = JsValue.Undefined;
@@ -1709,6 +1766,7 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.EnterCatchWithDestructuring:
                             {
                                 var enterCatchDestructure = Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction);
+                                ResetCompletionValue();
 
                                 // Read the thrown value from the try frame
                                 var thrownValue = JsValue.Undefined;
@@ -1766,33 +1824,32 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
-                            case InstructionKind.LoopEnter:
+                            case InstructionKind.BreakableEnter:
                             {
-                                var loopEnterInstruction = Unsafe.As<LoopEnterInstruction>(instruction);
-                                // In script mode, track the entry completion value to detect empty loop completions
-                                LoopStateRef.LoopStack.Push(new LoopFrame(
-                                    loopEnterInstruction.Label,
-                                    loopEnterInstruction.BreakTarget,
-                                    loopEnterInstruction.ContinueTarget,
-                                    _isScriptMode ? _scriptCompletionValue : JsValue.Unit));
-                                _programCounter = loopEnterInstruction.Next;
+                                var enterInstruction = Unsafe.As<BreakableEnterInstruction>(instruction);
+                                // ResetsCompletionValue: loops and labeled non-loops need runtime to reset
+                                // HandlesCompletionInternally: switch handles it with explicit undefined statement
+                                if (enterInstruction.ConstructKind == BreakableKind.ResetsCompletionValue)
+                                {
+                                    ResetCompletionValue();
+                                }
+                                BreakableStateRef.BreakableStack.Push(new BreakableFrame(
+                                    enterInstruction.Label,
+                                    enterInstruction.BreakTarget,
+                                    enterInstruction.ContinueTarget));
+                                _programCounter = enterInstruction.Next;
                                 continue;
                             }
 
-                            case InstructionKind.LoopExit:
+                            case InstructionKind.BreakableExit:
                             {
-                                var loopExitInstruction = Unsafe.As<LoopExitInstruction>(instruction);
-                                if (LoopStateRef.LoopStack.Count > 0)
+                                var exitInstruction = Unsafe.As<BreakableExitInstruction>(instruction);
+                                if (BreakableStateRef.BreakableStack.Count > 0)
                                 {
-                                    var frame = LoopStateRef.LoopStack.Pop();
-                                    // In script mode, if the loop body didn't produce a new value,
-                                    // the loop's completion is empty, which becomes undefined at script level
-                                    if (_isScriptMode && _scriptCompletionValue.Equals(frame.EntryCompletionValue))
-                                    {
-                                        _scriptCompletionValue = JsValue.Undefined;
-                                    }
+                                    BreakableStateRef.BreakableStack.Pop();
                                 }
-                                _programCounter = loopExitInstruction.Next;
+                                FinalizeCompletionValue();
+                                _programCounter = exitInstruction.Next;
                                 continue;
                             }
 
@@ -1807,22 +1864,11 @@ public static partial class TypedAstEvaluator
 
                                 var completedFrame = TryCatchStateRef.TryStack.Pop();
                                 var pending = completedFrame.PendingCompletion;
+
+                                // Normal completion - restore saved completion value (finally's value is discarded)
                                 if (pending.Kind == AbruptKind.None)
                                 {
-                                    // Per ES spec 13.15.8: "If F.[[Type]] is normal, set F to B"
-                                    // When finally completes normally, restore the try/catch completion value.
-                                    // The finally block's own value is discarded.
-                                    if (_isScriptMode)
-                                    {
-                                        _scriptCompletionValue = completedFrame.TryCatchCompletionValue;
-
-                                        // Apply UpdateEmpty semantics: if try/catch didn't produce a value, result is undefined.
-                                        if (_scriptCompletionValue.Equals(completedFrame.EntryCompletionValue))
-                                        {
-                                            _scriptCompletionValue = JsValue.Undefined;
-                                        }
-                                    }
-
+                                    RestoreCompletionValueFromFinally(completedFrame);
                                     var target = pending.ResumeTarget >= 0
                                         ? pending.ResumeTarget
                                         : endFinallyInstruction.Next;
@@ -1846,6 +1892,8 @@ public static partial class TypedAstEvaluator
 
                                 if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
                                 {
+                                    // Break/continue - restore saved completion value
+                                    RestoreCompletionValueFromFinally(completedFrame);
                                     if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
                                     {
                                         continue;
@@ -2493,14 +2541,6 @@ public static partial class TypedAstEvaluator
                             {
                                 var breakInstruction = Unsafe.As<BreakInstruction>(instruction);
 
-                                // Per ES spec 13.15.8 (TryStatement), when break occurs inside a finally block,
-                                // UpdateEmpty(F, undefined) replaces the empty value with undefined.
-                                // Only set completion to undefined when inside a scheduled finally.
-                                if (_isScriptMode && IsInsideScheduledFinally())
-                                {
-                                    _scriptCompletionValue = JsValue.Undefined;
-                                }
-
                                 if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
                                 {
                                     // If inside scheduled finally, HandleAbruptCompletion stored the pending
@@ -2537,14 +2577,6 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.Continue:
                             {
                                 var continueInstruction = Unsafe.As<ContinueInstruction>(instruction);
-
-                                // Per ES spec 13.15.8 (TryStatement), when continue occurs inside a finally block,
-                                // UpdateEmpty(F, undefined) replaces the empty value with undefined.
-                                // Only set completion to undefined when inside a scheduled finally.
-                                if (_isScriptMode && IsInsideScheduledFinally())
-                                {
-                                    _scriptCompletionValue = JsValue.Undefined;
-                                }
 
                                 if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
                                         environment))

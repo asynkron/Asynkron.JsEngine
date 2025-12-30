@@ -12,7 +12,8 @@ internal static class ControlFlowEmitter
 {
     /// <summary>
     /// Emit IR for an if statement.
-    /// Per ES spec 14.6.2, empty branches and missing else produce undefined completion value.
+    /// Per ES spec 14.6.2, empty branches produce undefined completion value.
+    /// Missing else produces NormalCompletion(empty) - completion value is NOT changed.
     /// </summary>
     public static bool TryEmitIf(
         EmitContext ctx,
@@ -35,35 +36,46 @@ internal static class ControlFlowEmitter
         int elseEntry;
         if (statement.Else is not null)
         {
-            // Check for empty else block - emit SetCompletionValue for UpdateEmpty semantics
             if (IsEmptyBlock(statement.Else))
             {
+                // Empty block - set completion to undefined per ES spec
                 elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
             }
-            else if (!ctx.TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel))
+            else
+            {
+                var built = ctx.TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel);
+                if (!built)
+                {
+                    ctx.Rollback(instructionStart);
+                    entryIndex = -1;
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            // No else branch - per ES spec 14.6.2, if condition is false, the result is
+            // NormalCompletion(empty). This means the completion value is NOT changed.
+            // Just jump to the next instruction without modifying completion.
+            elseEntry = ctx.Append(new JumpInstruction(nextIndex));
+        }
+
+        // Build then branch
+        int thenEntry;
+        if (IsEmptyBlock(statement.Then))
+        {
+            // Empty block - set completion to undefined per ES spec
+            thenEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
+        }
+        else
+        {
+            var built = ctx.TryBuildStatement(statement.Then, nextIndex, out thenEntry, activeLabel);
+            if (!built)
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;
                 return false;
             }
-        }
-        else
-        {
-            // No else branch - per ES spec, if condition is false, completion is undefined
-            elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
-        }
-
-        // Build then branch - check for empty block
-        int thenEntry;
-        if (IsEmptyBlock(statement.Then))
-        {
-            thenEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
-        }
-        else if (!ctx.TryBuildStatement(statement.Then, nextIndex, out thenEntry, activeLabel))
-        {
-            ctx.Rollback(instructionStart);
-            entryIndex = -1;
-            return false;
         }
 
         // Emit branch instruction
@@ -81,6 +93,8 @@ internal static class ControlFlowEmitter
 
     /// <summary>
     /// Emit IR for a break statement.
+    /// Break has an "empty" completion - it does NOT modify the completion value.
+    /// The BreakableExit instruction handles UpdateEmpty semantics via sentinel check.
     /// </summary>
     public static bool TryEmitBreak(
         EmitContext ctx,
@@ -100,6 +114,8 @@ internal static class ControlFlowEmitter
 
     /// <summary>
     /// Emit IR for a continue statement.
+    /// Continue has an "empty" completion - it does NOT modify the completion value.
+    /// The BreakableExit instruction handles UpdateEmpty semantics via sentinel check.
     /// </summary>
     public static bool TryEmitContinue(
         EmitContext ctx,
@@ -128,15 +144,15 @@ internal static class ControlFlowEmitter
     {
         var instructionStart = ctx.InstructionCount;
 
-        // Create LoopExitInstruction first (we build bottom-up)
-        // This pops the loop stack when exiting the labeled statement
-        var loopExitIndex = ctx.Append(new LoopExitInstruction(nextIndex));
+        // Create BreakableExitInstruction first (we build bottom-up)
+        // This pops the breakable stack when exiting the labeled statement
+        var breakableExitIndex = ctx.Append(new BreakableExitInstruction(nextIndex));
 
         // Push scope so that labeled break can be resolved during IR building.
         // ContinueTarget is -1 because continue is not valid for non-loop labeled statements.
-        ctx.PushLoopScope(labeled.Label, continueTarget: -1, breakTarget: loopExitIndex, targetScopeId: -1);
+        ctx.PushLoopScope(labeled.Label, continueTarget: -1, breakTarget: breakableExitIndex, targetScopeId: -1);
 
-        var bodyBuilt = ctx.TryBuildStatement(labeled.Statement, loopExitIndex, out var bodyEntry);
+        var bodyBuilt = ctx.TryBuildStatement(labeled.Statement, breakableExitIndex, out var bodyEntry);
         ctx.PopLoopScope();
 
         if (!bodyBuilt)
@@ -146,13 +162,16 @@ internal static class ControlFlowEmitter
             return false;
         }
 
-        // Wrap entry with LoopEnterInstruction to push loop context at runtime
+        // Wrap entry with BreakableEnterInstruction to push context at runtime.
         // This enables labeled break statements from AST-evaluated code to resolve their jump targets.
-        entryIndex = ctx.Append(new LoopEnterInstruction(
+        // Use ResetsCompletionValue because labeled statements return UpdateEmpty(stmtResult, undefined)
+        // per ES spec, which means we need to reset on entry and finalize on exit.
+        entryIndex = ctx.Append(new BreakableEnterInstruction(
             bodyEntry,
             labeled.Label,
-            loopExitIndex,
-            ContinueTarget: -1));
+            breakableExitIndex,
+            ContinueTarget: -1,
+            ConstructKind: BreakableKind.ResetsCompletionValue));
 
         return true;
     }

@@ -71,7 +71,6 @@ public static partial class TypedAstEvaluator
             int finallyIndex,
             int endFinallyIndex,
             JsEnvironment entryEnvironment,
-            JsValue entryCompletionValue,
             int loopContinueTarget = -1,
             int loopBreakTarget = -1)
         {
@@ -103,13 +102,6 @@ public static partial class TypedAstEvaluator
             /// </summary>
             public JsEnvironment EntryEnvironment { get; } = entryEnvironment;
 
-            /// <summary>
-            /// The completion value that was active when entering the try block.
-            /// Used to implement ES spec UpdateEmpty semantics: if the try/catch
-            /// completes without producing a new value, result becomes undefined.
-            /// </summary>
-            public JsValue EntryCompletionValue { get; } = entryCompletionValue;
-
             public bool CatchUsed { get; set; }
             public bool FinallyScheduled { get; set; }
             public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
@@ -122,11 +114,11 @@ public static partial class TypedAstEvaluator
             public JsValue ThrownValue { get; set; } = JsValue.Undefined;
 
             /// <summary>
-            /// The completion value from the try or catch block before entering finally.
-            /// Per ES spec 13.15.8, if finally completes normally, this value should be
-            /// used as the final completion value (not finally's own value).
+            /// The script completion value saved when entering finally.
+            /// If finally completes normally, this value is restored (with Unit→undefined).
+            /// See ExecutionPlanRunner class documentation for details.
             /// </summary>
-            public JsValue TryCatchCompletionValue { get; set; } = JsValue.Undefined;
+            public JsValue SavedCompletionValue { get; set; } = JsValue.Unit;
         }
 
         private readonly record struct PendingCompletion(AbruptKind Kind, object? Value, int ResumeTarget)
@@ -145,11 +137,11 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Tracks loop context at runtime so break/continue from AST-evaluated code
+        /// Tracks breakable construct context at runtime so break/continue from AST-evaluated code
         /// (via StatementInstruction) can resolve their jump targets.
-        /// EntryCompletionValue is used in script mode to track whether the loop body produced a value.
+        /// Works for both loops and switch statements.
         /// </summary>
-        private readonly record struct LoopFrame(Symbol? Label, int BreakTarget, int ContinueTarget, JsValue EntryCompletionValue);
+        private readonly record struct BreakableFrame(Symbol? Label, int BreakTarget, int ContinueTarget);
 
         private sealed class YieldStarState
         {

@@ -16,12 +16,6 @@ public static partial class TypedAstEvaluator
         private readonly IEnumerator<JsValue>? _enumerator;
         private readonly bool _isGeneratorObject;
         private readonly IJsObjectLike? _iterator;
-
-        // Cached result from the last MoveNext call that hasn't been consumed yet
-        private (JsValue Value, bool Done, bool IsDelegatedCompletion, bool PropagateThrow, IJsObjectLike?
-            IteratorResultObject)? _cachedResult;
-
-        private bool _hasCachedResult;
         private IJsCallable? _nextMethod;
 
         private DelegatedYieldState(IJsObjectLike? iterator, IEnumerator<JsValue>? enumerator, bool isGeneratorObject)

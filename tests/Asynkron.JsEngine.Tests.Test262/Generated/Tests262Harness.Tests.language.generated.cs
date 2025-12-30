@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: C12A9BD615E5CC2FBF4588E714F7097D2AE1BD50A9A33B792088185CABDF569F
+//   Template SHA: 04A42228AAC525F8463A63BDAE62C0F4E1C590557BF73DD01B3B15BAFACFBEB1
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -1063,10 +1063,10 @@ public class LanguageTests : Test262Test
     [TestCase("language/comments/S7.4_A4_T6.js", true)]
     [TestCase("language/comments/S7.4_A4_T7.js", false)]
     [TestCase("language/comments/S7.4_A4_T7.js", true)]
-    [TestCase("language/comments/S7.4_A5.js", false)]
-    [TestCase("language/comments/S7.4_A5.js", true)]
-    [TestCase("language/comments/S7.4_A6.js", false)]
-    [TestCase("language/comments/S7.4_A6.js", true)]
+    [TestCase("language/comments/S7.4_A5.js", false, IgnoreReason = "File language/comments/s7.4_a5.js excluded (glob pattern)")]
+    [TestCase("language/comments/S7.4_A5.js", true, IgnoreReason = "File language/comments/s7.4_a5.js excluded (glob pattern)")]
+    [TestCase("language/comments/S7.4_A6.js", false, IgnoreReason = "File language/comments/s7.4_a6.js excluded (glob pattern)")]
+    [TestCase("language/comments/S7.4_A6.js", true, IgnoreReason = "File language/comments/s7.4_a6.js excluded (glob pattern)")]
     [TestCase("language/comments/single-line-html-close-without-lt.js", false)]
     [TestCase("language/comments/single-line-html-close-without-lt.js", true)]
     public void Comments(string test, bool strict)

@@ -174,9 +174,11 @@ internal static class SwitchEmitter
 
             if (breakIndex != -1)
             {
+                // Mark as SuppressCompletionValue because __done is a synthetic variable -
+                // its assignment should never affect the script's completion value.
                 var setDoneAssignment = new AssignmentExpression(statement.Source, doneSymbol,
                     new LiteralExpression(statement.Source, true));
-                execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment));
+                execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment, SuppressCompletionValue: true));
             }
 
             var execBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);

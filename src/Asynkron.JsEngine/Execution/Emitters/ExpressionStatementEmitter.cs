@@ -71,6 +71,9 @@ internal static class ExpressionStatementEmitter
             return true;
         }
 
+        // Combine context and statement-level suppression flags
+        var suppressCompletion = ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
+
         // Fast path: simple increment/decrement on identifiers (e.g., i++, --j)
         if (expressionStatement.Expression is UnaryExpression
             {
@@ -84,12 +87,12 @@ internal static class ExpressionStatementEmitter
                 identTarget.Name,
                 isIncrement,
                 unaryExpr.IsPrefix,
-                ctx.SuppressCompletionValue));
+                suppressCompletion));
             return true;
         }
 
         // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
-        entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression, ctx.SuppressCompletionValue));
+        entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression, suppressCompletion));
         return true;
     }
 }

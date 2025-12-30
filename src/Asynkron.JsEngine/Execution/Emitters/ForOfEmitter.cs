@@ -169,7 +169,7 @@ internal static class ForOfEmitter
 
         // EnterTry - wraps the loop in a try/finally, points to LoopEnter
         var enterTryIndex =
-            ctx.Append(new EnterTryInstruction(loopEnterIndex, -1, null, iteratorCloseIndex));
+            ctx.Append(new EnterTryInstruction(loopEnterIndex, -1, null, iteratorCloseIndex, endFinallyIndex));
 
         // Wire IteratorInit to point to EnterTry
         ctx.Patch(iteratorInstructions.InitIndex,

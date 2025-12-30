@@ -33,9 +33,10 @@ internal static class TryEmitter
 
         // Build finally block first (bottom-up)
         var finallyEntry = -1;
+        var endFinallyIndex = -1;
         if (hasFinally && statement.Finally is not null)
         {
-            var endFinallyIndex = ctx.Append(new EndFinallyInstruction(nextIndex));
+            endFinallyIndex = ctx.Append(new EndFinallyInstruction(nextIndex));
             if (!ctx.TryBuildStatement(statement.Finally, endFinallyIndex, out finallyEntry, activeLabel))
             {
                 ctx.Rollback(instructionStart);
@@ -69,7 +70,7 @@ internal static class TryEmitter
 
         // Emit EnterTry instruction as the entry point
         // Note: CatchSlotSymbol is null because we use EnterCatchInstruction now
-        entryIndex = ctx.Append(new EnterTryInstruction(tryEntry, catchEntry, null, finallyEntry));
+        entryIndex = ctx.Append(new EnterTryInstruction(tryEntry, catchEntry, null, finallyEntry, endFinallyIndex));
         return true;
     }
 

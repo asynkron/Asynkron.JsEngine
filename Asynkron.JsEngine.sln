@@ -29,11 +29,26 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		MISSING_BUILTINS.md = MISSING_BUILTINS.md
 		.claude\settings.local.json = .claude\settings.local.json
 		.claude\agents\deep-thinker.md = .claude\agents\deep-thinker.md
-		.claude\agents\faang-debugger.md = .claude\agents\faang-debugger.md
 		.claude\agents\coordinator.md = .claude\agents\coordinator.md
 		.claude\agents\test-failure-analyzer.md = .claude\agents\test-failure-analyzer.md
 		.claude\commands\codex.md = .claude\commands\codex.md
 		.claude\commands\wt.md = .claude\commands\wt.md
+		todo\todo-environment-stack.md = todo\todo-environment-stack.md
+		todo\todo-async-for-of.md = todo\todo-async-for-of.md
+		todo\todo-large-iteration-async-bug.md = todo\todo-large-iteration-async-bug.md
+		todo\todo-builtins.md = todo\todo-builtins.md
+		todo\todo-universal-ir.md = todo\todo-universal-ir.md
+		todo\todo-failing.md = todo\todo-failing.md
+		todo\todo-sync-ir-investigation.md = todo\todo-sync-ir-investigation.md
+		todo\todo.md = todo\todo.md
+		todo\todo-array-iterator-hang.md = todo\todo-array-iterator-hang.md
+		todo\todo-intl.md = todo\todo-intl.md
+		todo\todo-nested-async-loop-bug.md = todo\todo-nested-async-loop-bug.md
+		todo\todo-csharp-transpiler.md = todo\todo-csharp-transpiler.md
+		todo\todo-emitter.md = todo\todo-emitter.md
+		todo\todo-toplevel-ir.md = todo\todo-toplevel-ir.md
+		todo\todo-ir-loops.md = todo\todo-ir-loops.md
+		todo\todo-private-arrow-function.md = todo\todo-private-arrow-function.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
@@ -93,23 +108,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{9BC3
 		tools\profile-scripts\simplearithmetic.js = tools\profile-scripts\simplearithmetic.js
 		tools\profile-scripts\forloop.js = tools\profile-scripts\forloop.js
 		tools\profile-scripts\fib.js = tools\profile-scripts\fib.js
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "todo", "todo", "{3C93D9EB-8431-4E41-98BD-859A41FC4B2C}"
-	ProjectSection(SolutionItems) = preProject
-		todo-universal-ir.md = todo-universal-ir.md
-		todo-async-for-of.md = todo-async-for-of.md
-		todo-nested-async-loop-bug.md = todo-nested-async-loop-bug.md
-		todo-array-iterator-hang.md = todo-array-iterator-hang.md
-		todo-csharp-transpiler.md = todo-csharp-transpiler.md
-		todo-large-iteration-async-bug.md = todo-large-iteration-async-bug.md
-		todo.md = todo.md
-		todo-builtins.md = todo-builtins.md
-		todo-environment-stack.md = todo-environment-stack.md
-		todo-intl.md = todo-intl.md
-		todo-ir-loops.md = todo-ir-loops.md
-		todo-private-arrow-function.md = todo-private-arrow-function.md
-		todo-sync-ir-investigation.md = todo-sync-ir-investigation.md
 	EndProjectSection
 EndProject
 Global

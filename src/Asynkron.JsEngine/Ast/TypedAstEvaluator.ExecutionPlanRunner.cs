@@ -1658,6 +1658,42 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
+                            case InstructionKind.EnterCatch:
+                            {
+                                var enterCatch = Unsafe.As<EnterCatchInstruction>(instruction);
+
+                                // Read the thrown value from the try frame
+                                var thrownValue = JsValue.Undefined;
+                                if (TryCatchStateRef.TryStack.Count > 0)
+                                {
+                                    thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
+                                }
+
+                                // Create a new lexical environment for the catch block
+                                var catchEnv = new JsEnvironment(
+                                    enclosing: environment,
+                                    isFunctionScope: false,
+                                    isStrict: environment.IsStrict,
+                                    creatingSource: null,
+                                    description: "catch");
+
+                                // Initialize slots if needed
+                                if (enterCatch.SlotCount > 0)
+                                {
+                                    catchEnv.InitializeSlots(enterCatch.SlotCount, enterCatch.ScopeId);
+                                }
+
+                                // Bind the catch parameter directly to the thrown value
+                                if (enterCatch.CatchParameterSymbol is { } param)
+                                {
+                                    catchEnv.DefineJsValue(param, thrownValue, isConst: false, isLexical: true);
+                                }
+
+                                environment = catchEnv;
+                                _programCounter = enterCatch.Next;
+                                continue;
+                            }
+
                             case InstructionKind.LeaveTry:
                             {
                                 var leaveTryInstruction = Unsafe.As<LeaveTryInstruction>(instruction);

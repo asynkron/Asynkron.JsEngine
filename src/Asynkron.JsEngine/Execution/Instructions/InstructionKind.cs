@@ -21,6 +21,7 @@ internal enum InstructionKind : byte
     YieldStar,
     StoreResumeValue,
     EnterTry,
+    EnterCatch,
     LeaveTry,
     LoopEnter,
     LoopExit,

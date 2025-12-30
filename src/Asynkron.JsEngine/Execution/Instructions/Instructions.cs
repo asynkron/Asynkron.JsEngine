@@ -160,6 +160,23 @@ internal sealed record EnterTryInstruction(int Next, int HandlerIndex, Symbol? C
     : ExecutionInstruction(InstructionKind.EnterTry, Next);
 
 /// <summary>
+///     Marks the beginning of a <c>catch</c> block.
+///     Creates a new lexical environment and binds the catch parameter to the thrown value.
+/// </summary>
+/// <param name="Next">Next instruction index (catch body entry).</param>
+/// <param name="CatchParameterSymbol">The catch parameter symbol (e.g., 'e' in catch(e)). Null for ES2019 optional catch binding.</param>
+/// <param name="ScopeId">The scope ID for this catch environment.</param>
+/// <param name="SlotCount">Number of slots in the catch environment.</param>
+/// <param name="SlotMap">Mapping from symbols to slot indices.</param>
+internal sealed record EnterCatchInstruction(
+    int Next,
+    Symbol? CatchParameterSymbol,
+    int ScopeId,
+    int SlotCount,
+    ImmutableDictionary<Symbol, int> SlotMap)
+    : ExecutionInstruction(InstructionKind.EnterCatch, Next);
+
+/// <summary>
 ///     Marks normal completion of a <c>try</c> or <c>catch</c> block.
 /// </summary>
 internal sealed record LeaveTryInstruction(int Next)

@@ -36,6 +36,7 @@ internal sealed partial class ExecutionPlanBuilder
     private string? _failureReason;
     private bool _isScriptLevel;
     private int _resumeSlotCounter;
+    private int _scopeIdCounter = 1; // Start at 1 because 0 is reserved for function-level scope
     private int _withScopeSlotCounter;
     private int _yieldStarStateCounter;
 
@@ -47,6 +48,14 @@ internal sealed partial class ExecutionPlanBuilder
         var index = _slotSymbols.Count;
         _slotSymbols.Add(symbol);
         return index;
+    }
+
+    /// <summary>
+    /// Allocates a new scope ID for dynamic scopes (catch blocks, etc.).
+    /// </summary>
+    internal int AllocateScopeId()
+    {
+        return _scopeIdCounter++;
     }
 
     /// <summary>

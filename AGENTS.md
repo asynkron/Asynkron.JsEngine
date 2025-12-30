@@ -453,3 +453,101 @@ When we're slower than Jint, the proper approach is:
 
 - **Realm logger assertions**: In tests, inject `new FakeLogger()` (from `Microsoft.Extensions.Logging.Testing`) via `new JsEngine(new JsEngineOptions { DebugMode = true, Logger = fakeLogger })`. Execute the script, then assert on `fakeLogger.Collector.Snapshot()` strings. Example: ensure no slot misses with `Assert.DoesNotContain(messages, m => m.Contains("Identifier slot read miss name=s", StringComparison.Ordinal))` and confirm hits for `i`/`s` to prove the fast path is exercised.
 - **AST slot metadata**: Scope analysis now stamps `FunctionExpression` and `BlockStatement` with `ScopeId`, `SlotCount`, and `SlotMap` (symbol → slot index). You can parse and inspect the analyzed AST (e.g., `var parsed = engine.ParseProgram(script); var runDecl = (FunctionDeclaration)parsed.Body[0]; var slotMap = runDecl.Function.SlotMap; Assert.True(slotMap.ContainsKey(Symbol.Create("i")));`) to verify that specific identifiers received slots in the expected scope before running code.
+
+## Test Bomb Methodology
+
+When debugging a complex issue where the root cause is unclear, use the "Test Bomb" approach to systematically eliminate hypotheses. This is a FAANG-style debugging technique.
+
+### What is a Test Bomb?
+
+A Test Bomb is a collection of targeted tests, each testing **ONE specific hypothesis** about what might be wrong. By running all tests together, you can quickly identify which component is broken by observing the pattern of pass/fail results.
+
+### When to Use Test Bombs
+
+- Root cause is unclear despite initial investigation
+- Multiple potential failure points
+- Bug could be in one of several components
+- Need to prove the bug ISN'T in a specific area
+- Suspecting the test itself might be wrong
+
+### How to Build a Test Bomb
+
+1. **List all suspected causes** - Brainstorm every possible reason the bug could occur
+2. **Write ONE test per hypothesis** - Each test should:
+   - Test exactly ONE thing in isolation
+   - Have a clear, predictable expected outcome
+   - Be named `H1_DescriptiveHypothesis`, `H2_AnotherHypothesis`, etc.
+   - Include a doc comment explaining the hypothesis
+3. **Run all tests together** - The pattern of pass/fail reveals the problem:
+   - All pass → Your hypothesis list is incomplete, or the test itself is wrong
+   - One fails → That's likely your bug
+   - Multiple fail → Related issues or root cause affects multiple areas
+4. **Add edge case tests** - As you learn more, add `H13`, `H14`, etc.
+
+### Example: Strict Mode Eval Investigation
+
+We suspected `eval()` wasn't inheriting strict mode. We wrote 14 tests:
+
+```
+H1_UseStrictWorksAtAll             ✅ PASS
+H2_UseStrictWorksInFunction        ✅ PASS
+H3_UseStrictInsideTryBlock         ✅ PASS
+H4_EvalWorksAtAll                  ✅ PASS
+H5_DirectEvalInheritsStrictMode    ✅ PASS
+H6_UseStrictInsideEvalWorks        ✅ PASS
+H7_ArgumentsAssignmentIsSyntaxError ✅ PASS
+H8_EvalAssignmentIsSyntaxError     ✅ PASS
+H9_CallerStrictEvalInheritsIt      ✅ PASS
+H10_OtherReservedWordAssignment    ✅ PASS
+H11_IndirectEvalDoesNotInheritStrict ✅ PASS
+H12_EvalFromStrictFunction         ✅ PASS
+H13_UseStrictInsideTryIsNotDirective ✅ PASS
+H14_UseStrictAtTopWithTry          ✅ PASS
+```
+
+All passed! This revealed the **original test was wrong** - it had `'use strict'` inside a try block, which per ECMAScript spec is just a string literal, not a directive.
+
+### Test Bomb Template
+
+```csharp
+/// <summary>
+/// TEST BOMB: Systematic elimination of suspected causes for [BUG DESCRIPTION].
+/// Each test targets ONE specific hypothesis.
+/// </summary>
+public class MyBugTestBomb
+{
+    private readonly ITestOutputHelper _output;
+
+    public MyBugTestBomb(ITestOutputHelper output) => _output = output;
+
+    /// <summary>
+    /// H1: [First hypothesis description]
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H1_FirstHypothesis()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate("/* test code */");
+        _output.WriteLine($"H1 Result: {result}");
+        Assert.Equal("expected", result?.ToString());
+    }
+
+    /// <summary>
+    /// H2: [Second hypothesis description]
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H2_SecondHypothesis()
+    {
+        // ...
+    }
+}
+```
+
+### Benefits
+
+- **Systematic** - No guessing, methodical elimination of possibilities
+- **Documented** - Each test explains what it's checking and why
+- **Reusable** - Tests become regression tests for the future
+- **Fast** - Run all hypotheses in parallel
+- **Educational** - Reveals how the system actually works
+- **Proof** - Can prove a bug does NOT exist in a component

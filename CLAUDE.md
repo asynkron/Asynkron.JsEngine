@@ -243,3 +243,76 @@ Pane navigation:
 - Getting alternative implementation approaches
 - Research tasks with web search (`--search`)
 - Tasks benefiting from GPT's specific strengths
+
+## Test Bomb Methodology
+
+When debugging a complex issue where the root cause is unclear, use the "Test Bomb" approach to systematically eliminate hypotheses.
+
+### What is a Test Bomb?
+
+A Test Bomb is a collection of targeted tests, each testing **ONE specific hypothesis** about what might be wrong. By running all tests together, you can quickly identify which component is broken.
+
+### How to Build a Test Bomb
+
+1. **List all suspected causes** - Brainstorm every possible reason the bug could occur
+2. **Write ONE test per hypothesis** - Each test should:
+   - Test exactly ONE thing
+   - Have a clear expected outcome
+   - Be named `H1_DescriptiveHypothesis`, `H2_AnotherHypothesis`, etc.
+3. **Run all tests together** - The pattern of pass/fail reveals the problem:
+   - All pass → Your hypothesis list is incomplete
+   - One fails → That's your bug
+   - Multiple fail → Related issues or root cause affects multiple areas
+4. **Add edge case tests** - As you learn more, add `H13`, `H14`, etc.
+
+### Example: Strict Mode Eval Bug
+
+We suspected `eval()` wasn't inheriting strict mode. We wrote 14 tests:
+
+| Test | Hypothesis | Result |
+|------|-----------|--------|
+| H1 | Does 'use strict' work at all? | ✅ |
+| H5 | Does direct eval inherit strict mode? | ✅ |
+| H9 | Caller strict, eval inherits it? | ✅ |
+| H13 | 'use strict' INSIDE try block | ✅ |
+
+All passed! This revealed the **test itself was wrong** - `'use strict'` inside a try block is not a directive.
+
+### Test Bomb Template
+
+```csharp
+/// <summary>
+/// TEST BOMB: Systematic elimination of suspected causes for [BUG DESCRIPTION].
+/// Each test targets ONE specific hypothesis.
+/// </summary>
+public class MyBugTestBomb
+{
+    /// <summary>
+    /// H1: [First hypothesis]
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H1_FirstHypothesis()
+    {
+        // Test ONE thing
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// H2: [Second hypothesis]
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H2_SecondHypothesis()
+    {
+        // Test ONE thing
+        Assert.Equal(expected, actual);
+    }
+}
+```
+
+### Benefits
+
+- **Systematic** - No guessing, methodical elimination
+- **Documented** - Each test explains what it's checking
+- **Reusable** - Tests become regression tests
+- **Fast** - Run all hypotheses in parallel
+- **Educational** - Reveals how the system actually works

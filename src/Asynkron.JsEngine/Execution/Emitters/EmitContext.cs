@@ -163,6 +163,14 @@ internal sealed class EmitContext(
     }
 
     /// <summary>
+    /// Allocate a scope ID for dynamic scopes (catch blocks, etc.).
+    /// </summary>
+    public int AllocateScopeId()
+    {
+        return builder.AllocateScopeId();
+    }
+
+    /// <summary>
     /// Get the instruction list (for IteratorInstructionTemplate).
     /// </summary>
     public List<ExecutionInstruction> Instructions => builder.Instructions;

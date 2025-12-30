@@ -165,8 +165,17 @@ internal static class SwitchEmitter
             var execCondition =
                 new BinaryExpression(statement.Source, BinaryOperator.LogicalAnd, notDoneExec, matchGuard);
 
-            var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             var copyCount = breakIndex == -1 ? bodyStatements.Length : breakIndex;
+
+            // Per ES spec 13.12.9 (CaseBlockEvaluation), empty case clauses should NOT
+            // produce a completion value that overwrites the previous completion value.
+            // Skip generating the if statement for truly empty case bodies.
+            if (copyCount == 0 && breakIndex == -1)
+            {
+                continue;
+            }
+
+            var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             for (var i = 0; i < copyCount; i++)
             {
                 execBuilder.Add(bodyStatements[i]);

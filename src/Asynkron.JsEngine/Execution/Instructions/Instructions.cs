@@ -24,7 +24,11 @@ internal sealed record ThrowInstruction(ExpressionNode Expression)
 ///     Represents an expression statement in the generator.
 ///     Evaluates the expression and discards the result.
 /// </summary>
-internal sealed record EvaluateAndDiscardInstruction(int Next, ExpressionNode Expression)
+/// <param name="SuppressCompletionValue">
+///     When true, the completion value is NOT updated (used for loop update expressions).
+///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
+/// </param>
+internal sealed record EvaluateAndDiscardInstruction(int Next, ExpressionNode Expression, bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
 /// <summary>
@@ -56,11 +60,16 @@ internal sealed record BinaryOpInstruction(
 ///     For the common case of loop counters, this avoids identifier lookup and
 ///     ToNumber conversion overhead when the value is already a number.
 /// </remarks>
+/// <param name="SuppressCompletionValue">
+///     When true, the completion value is NOT updated (used for loop update expressions).
+///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
+/// </param>
 internal sealed record IncrementSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     bool IsIncrement,
-    bool IsPrefix)
+    bool IsPrefix,
+    bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.IncrementSlot, Next);
 
 /// <summary>

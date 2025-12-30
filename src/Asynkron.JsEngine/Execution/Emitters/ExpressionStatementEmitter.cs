@@ -83,12 +83,13 @@ internal static class ExpressionStatementEmitter
                 nextIndex,
                 identTarget.Name,
                 isIncrement,
-                unaryExpr.IsPrefix));
+                unaryExpr.IsPrefix,
+                ctx.SuppressCompletionValue));
             return true;
         }
 
         // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
-        entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression));
+        entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression, ctx.SuppressCompletionValue));
         return true;
     }
 }

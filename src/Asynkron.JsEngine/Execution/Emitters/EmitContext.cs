@@ -20,6 +20,12 @@ internal sealed class EmitContext(
     public int InstructionCount => instructions.Count;
 
     /// <summary>
+    /// When true, expression statements should suppress completion value updates.
+    /// Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
+    /// </summary>
+    public bool SuppressCompletionValue { get; set; }
+
+    /// <summary>
     /// Whether this plan is being built for a top-level script (not a function body).
     /// Script-level var declarations must update the global object.
     /// </summary>

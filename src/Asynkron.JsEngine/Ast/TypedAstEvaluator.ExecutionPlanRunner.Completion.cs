@@ -109,8 +109,11 @@ public static partial class TypedAstEvaluator
 
         private void PushTryFrame(EnterTryInstruction instruction, JsEnvironment environment)
         {
+            // In script mode, track the entry completion value to detect empty try/catch completions
+            // (for UpdateEmpty semantics per ES spec)
+            var entryCompletionValue = _isScriptMode ? _scriptCompletionValue : JsValue.Unit;
             var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex,
-                environment);
+                environment, entryCompletionValue);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);
@@ -163,8 +166,22 @@ public static partial class TypedAstEvaluator
             {
                 frame.FinallyScheduled = true;
                 frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
+                // Per ES spec 13.15.8: Store try/catch completion value before entering finally.
+                // If finally completes normally, this value will be restored (not finally's value).
+                if (_isScriptMode)
+                {
+                    frame.TryCatchCompletionValue = _scriptCompletionValue;
+                }
                 _programCounter = frame.FinallyIndex;
                 return;
+            }
+
+            // Apply UpdateEmpty semantics per ES spec:
+            // If the try/catch body didn't produce a new completion value, result becomes undefined.
+            // This implements ES spec 13.15.8: "Return Completion(UpdateEmpty(C, undefined))"
+            if (_isScriptMode && _scriptCompletionValue.Equals(frame.EntryCompletionValue))
+            {
+                _scriptCompletionValue = JsValue.Undefined;
             }
 
             TryCatchStateRef.TryStack.Pop();

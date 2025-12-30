@@ -31,8 +31,9 @@ public class SwitchCompletionDiagTests(ITestOutputHelper output)
         await using var engine = new JsEngine();
         var r = await engine.Evaluate("eval('if (true) { 7; } if (false) {}')");
         output.WriteLine($"if7, if false: {r}");
-        // Expected: 7 (second if is false, so completion from first if stays)
-        Assert.Equal(7.0, r);
+        // Per ES spec 14.6.2, when condition is false with no else, result is undefined.
+        // This DOES update the completion value (verified with Node.js/Chrome).
+        Assert.Equal("undefined", r?.ToString());
     }
 
     [Fact]

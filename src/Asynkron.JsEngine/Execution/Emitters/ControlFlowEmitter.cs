@@ -43,21 +43,25 @@ internal static class ControlFlowEmitter
             }
             else
             {
-                var built = ctx.TryBuildStatement(statement.Else, nextIndex, out elseEntry, activeLabel);
+                var built = ctx.TryBuildStatement(statement.Else, nextIndex, out var elseBodyEntry, activeLabel);
                 if (!built)
                 {
                     ctx.Rollback(instructionStart);
                     entryIndex = -1;
                     return false;
                 }
+
+                // Per ES spec 14.6.2, if statement returns UpdateEmpty(stmtCompletion, undefined).
+                // Prepend SetCompletionValue to ensure abrupt completions (break/continue) that
+                // bypass normal control flow leave the completion value as undefined.
+                elseEntry = ctx.Append(new SetCompletionValueInstruction(elseBodyEntry));
             }
         }
         else
         {
             // No else branch - per ES spec 14.6.2, if condition is false, the result is
-            // NormalCompletion(empty). This means the completion value is NOT changed.
-            // Just jump to the next instruction without modifying completion.
-            elseEntry = ctx.Append(new JumpInstruction(nextIndex));
+            // NormalCompletion(undefined). This DOES update the script completion value.
+            elseEntry = ctx.Append(new SetCompletionValueInstruction(nextIndex));
         }
 
         // Build then branch
@@ -69,13 +73,18 @@ internal static class ControlFlowEmitter
         }
         else
         {
-            var built = ctx.TryBuildStatement(statement.Then, nextIndex, out thenEntry, activeLabel);
+            var built = ctx.TryBuildStatement(statement.Then, nextIndex, out var thenBodyEntry, activeLabel);
             if (!built)
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;
                 return false;
             }
+
+            // Per ES spec 14.6.2, if statement returns UpdateEmpty(stmtCompletion, undefined).
+            // Prepend SetCompletionValue to ensure abrupt completions (break/continue) that
+            // bypass normal control flow leave the completion value as undefined.
+            thenEntry = ctx.Append(new SetCompletionValueInstruction(thenBodyEntry));
         }
 
         // Emit branch instruction

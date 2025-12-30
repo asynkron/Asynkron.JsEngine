@@ -68,13 +68,6 @@ Statements_forOf("language/statements/for-of/yield-star-from-catch.js",False)
 Statements_forOf("language/statements/for-of/yield-star-from-catch.js",True)
 Statements_forOf("language/statements/for-of/yield-star-from-try.js",False)
 Statements_forOf("language/statements/for-of/yield-star-from-try.js",True)
-Statements_if
-Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",False)
-Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",True)
-Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",False)
-Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",True)
-Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",False)
-Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",True)
 Statements_let
 Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
 Statements_let_syntax

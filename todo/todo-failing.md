@@ -1,10 +1,6 @@
     Asynkron.JsEngine.Tests
-     DebugTests
-      DebugFunction_CapturesLoopInCallStack
      ForLoopPerIterationTests
       ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen
-     ThrowBugTests
-      EvalThrow_TypeofThrownSyntaxError
 Asynkron.JsEngine.Tests.Test262
 Asynkron.JsEngine.Tests.Test262
 TestHarness

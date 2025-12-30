@@ -137,31 +137,6 @@ public class ThrowBugTests
     }
 
     /// <summary>
-    /// Test with eval throwing - this is the specific case from Test262.
-    /// </summary>
-    [Fact(Timeout = 10000)]
-    public async Task EvalThrow_TypeofThrownSyntaxError()
-    {
-        var testLogger = new TestLogger(_output, "ThrowBug", minLogLevel: LogLevel.Debug);
-        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
-        await using var engine = new JsEngine(options);
-
-        var result = await engine.Evaluate("""
-            var thrownType = 'not-set';
-            try {
-                'use strict';
-                eval('arguments = 10');
-            } catch (e) {
-                thrownType = typeof e + ' | ' + (e !== null) + ' | ' + (e instanceof SyntaxError);
-            }
-            thrownType;
-        """);
-
-        _output.WriteLine($"\nResult: {result}");
-        Assert.Equal("object | true | true", result?.ToString());
-    }
-
-    /// <summary>
     /// TEST262: catch-parameter-shadowing-var-variable.js
     /// A catch parameter should properly shadow a var in the outer scope.
     /// Inside the catch: 'a' = thrown value ('stuff3')

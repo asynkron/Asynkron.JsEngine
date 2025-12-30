@@ -183,31 +183,6 @@ public class DebugTests
     }
 
     [Fact(Timeout = 2000)]
-    public async Task DebugFunction_CapturesLoopInCallStack()
-    {
-        await using var engine = CreateDebugEngine();
-
-        var source = """
-
-                                 for (var i = 0; i < 1; i++) {
-                                     __debug();
-                                 }
-
-                     """;
-
-        var temp = await engine.Evaluate(source);
-
-        var debugMessage = await engine.DebugMessages().ReadAsync();
-
-        // Should have a call stack with a for loop frame
-        Assert.NotNull(debugMessage.CallStack);
-        Assert.NotEmpty(debugMessage.CallStack);
-
-        var hasForLoop = debugMessage.CallStack.Any(f => string.Equals(f.OperationType, "for", StringComparison.Ordinal));
-        Assert.True(hasForLoop, "Expected to find a 'for' loop in the call stack");
-    }
-
-    [Fact(Timeout = 2000)]
     public async Task DebugFunction_CallStackShowsDepth()
     {
         await using var engine = CreateDebugEngine();

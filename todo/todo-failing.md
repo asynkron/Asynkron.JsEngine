@@ -1,9 +1,11 @@
-     DebugTests
-      DebugFunction_CapturesLoopInCallStack
-     ForLoopPerIterationTests
-      ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen
-     ThrowBugTests
-      EvalThrow_TypeofThrownSyntaxError
+Asynkron.JsEngine.Tests
+Asynkron.JsEngine.Tests
+DebugTests
+DebugFunction_CapturesLoopInCallStack
+ForLoopPerIterationTests
+ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen
+ThrowBugTests
+EvalThrow_TypeofThrownSyntaxError
 Asynkron.JsEngine.Tests.Test262
 Asynkron.JsEngine.Tests.Test262
 TestHarness
@@ -20,12 +22,6 @@ EvalCode_direct("language/eval-code/direct/var-env-var-init-local-new-delete.js"
 EvalCode_indirect
 EvalCode_indirect("language/eval-code/indirect/cptn-nrml-empty-for.js",False)
 EvalCode_indirect("language/eval-code/indirect/cptn-nrml-empty-for.js",True)
-Expressions_class_elements
-Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-anonymous.js",False)
-Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-anonymous.js",True)
-Expressions_generators
-Expressions_generators("language/expressions/generators/implicit-name.js",False)
-Expressions_generators("language/expressions/generators/implicit-name.js",True)
 Expressions_prefixDecrement
 Expressions_prefixDecrement("language/expressions/prefix-decrement/S11.4.5_A2.2_T1.js",False)
 Expressions_prefixDecrement("language/expressions/prefix-decrement/S11.4.5_A2.2_T1.js",True)
@@ -68,22 +64,6 @@ ModuleCode("language/module-code/instn-named-bndng-let.js",True)
 ModuleCode("language/module-code/instn-once.js",True)
 ModuleCode_topLevelAwait
 ModuleCode_topLevelAwait("language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",True)
-Statements_class_definition
-Statements_class_definition("language/statements/class/definition/basics.js",False)
-Statements_class_definition("language/statements/class/definition/basics.js",True)
-Statements_class_strictMode
-Statements_class_strictMode("language/statements/class/strict-mode/arguments-callee.js",False)
-Statements_const
-Statements_const("language/statements/const/fn-name-arrow.js",False)
-Statements_const("language/statements/const/fn-name-arrow.js",True)
-Statements_const("language/statements/const/fn-name-class.js",False)
-Statements_const("language/statements/const/fn-name-class.js",True)
-Statements_const("language/statements/const/fn-name-cover.js",False)
-Statements_const("language/statements/const/fn-name-cover.js",True)
-Statements_const("language/statements/const/fn-name-fn.js",False)
-Statements_const("language/statements/const/fn-name-fn.js",True)
-Statements_const("language/statements/const/fn-name-gen.js",False)
-Statements_const("language/statements/const/fn-name-gen.js",True)
 Statements_const_syntax
 Statements_const_syntax("language/statements/const/syntax/const-outer-inner-let-bindings.js",False)
 Statements_const_syntax("language/statements/const/syntax/const-outer-inner-let-bindings.js",True)
@@ -103,32 +83,16 @@ Statements_for("language/statements/for/scope-head-lex-close.js",True)
 Statements_for("language/statements/for/scope-head-lex-open.js",False)
 Statements_for("language/statements/for/scope-head-lex-open.js",True)
 Statements_forOf
-Statements_forOf("language/statements/for-of/continue-from-catch.js",False)
-Statements_forOf("language/statements/for-of/continue-from-catch.js",True)
-Statements_forOf("language/statements/for-of/continue-from-finally.js",False)
-Statements_forOf("language/statements/for-of/continue-from-finally.js",True)
-Statements_forOf("language/statements/for-of/continue-from-try.js",False)
-Statements_forOf("language/statements/for-of/continue-from-try.js",True)
-Statements_forOf("language/statements/for-of/continue.js",False)
-Statements_forOf("language/statements/for-of/continue.js",True)
 Statements_forOf("language/statements/for-of/cptn-expr-abrupt-empty.js",False)
 Statements_forOf("language/statements/for-of/cptn-expr-abrupt-empty.js",True)
 Statements_forOf("language/statements/for-of/cptn-expr-itr.js",False)
 Statements_forOf("language/statements/for-of/cptn-expr-itr.js",True)
-Statements_forOf("language/statements/for-of/generator-close-via-break.js",False)
-Statements_forOf("language/statements/for-of/generator-close-via-continue.js",False)
-Statements_forOf("language/statements/for-of/generator-close-via-throw.js",False)
-Statements_forOf("language/statements/for-of/generator.js",False)
-Statements_forOf("language/statements/for-of/generator.js",True)
 Statements_forOf("language/statements/for-of/head-let-destructuring.js",False)
 Statements_forOf("language/statements/for-of/head-let-destructuring.js",True)
 Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",False)
 Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
 Statements_forOf("language/statements/for-of/iterator-as-proxy.js",False)
 Statements_forOf("language/statements/for-of/iterator-as-proxy.js",True)
-Statements_forOf("language/statements/for-of/iterator-close-via-break.js",False)
-Statements_forOf("language/statements/for-of/iterator-close-via-continue.js",False)
-Statements_forOf("language/statements/for-of/iterator-close-via-throw.js",False)
 Statements_forOf("language/statements/for-of/map-contract-expand.js",False)
 Statements_forOf("language/statements/for-of/map-contract-expand.js",True)
 Statements_forOf("language/statements/for-of/map-contract.js",False)
@@ -139,8 +103,6 @@ Statements_forOf("language/statements/for-of/map-expand.js",False)
 Statements_forOf("language/statements/for-of/map-expand.js",True)
 Statements_forOf("language/statements/for-of/map.js",False)
 Statements_forOf("language/statements/for-of/map.js",True)
-Statements_forOf("language/statements/for-of/nested.js",False)
-Statements_forOf("language/statements/for-of/nested.js",True)
 Statements_forOf("language/statements/for-of/scope-body-lex-close.js",False)
 Statements_forOf("language/statements/for-of/scope-body-lex-close.js",True)
 Statements_forOf("language/statements/for-of/set-contract-expand.js",False)
@@ -165,16 +127,6 @@ Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",True)
 Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",False)
 Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",True)
 Statements_let
-Statements_let("language/statements/let/fn-name-arrow.js",False)
-Statements_let("language/statements/let/fn-name-arrow.js",True)
-Statements_let("language/statements/let/fn-name-class.js",False)
-Statements_let("language/statements/let/fn-name-class.js",True)
-Statements_let("language/statements/let/fn-name-cover.js",False)
-Statements_let("language/statements/let/fn-name-cover.js",True)
-Statements_let("language/statements/let/fn-name-fn.js",False)
-Statements_let("language/statements/let/fn-name-fn.js",True)
-Statements_let("language/statements/let/fn-name-gen.js",False)
-Statements_let("language/statements/let/fn-name-gen.js",True)
 Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
 Statements_let_syntax
 Statements_let_syntax("language/statements/let/syntax/let-closure-inside-next-expression.js",False)
@@ -229,14 +181,3 @@ Statements_try("language/statements/try/cptn-finally-empty-continue.js",False)
 Statements_try("language/statements/try/cptn-finally-empty-continue.js",True)
 Statements_try("language/statements/try/optional-catch-binding-lexical.js",False)
 Statements_try("language/statements/try/optional-catch-binding-lexical.js",True)
-Statements_variable
-Statements_variable("language/statements/variable/fn-name-arrow.js",False)
-Statements_variable("language/statements/variable/fn-name-arrow.js",True)
-Statements_variable("language/statements/variable/fn-name-class.js",False)
-Statements_variable("language/statements/variable/fn-name-class.js",True)
-Statements_variable("language/statements/variable/fn-name-cover.js",False)
-Statements_variable("language/statements/variable/fn-name-cover.js",True)
-Statements_variable("language/statements/variable/fn-name-fn.js",False)
-Statements_variable("language/statements/variable/fn-name-fn.js",True)
-Statements_variable("language/statements/variable/fn-name-gen.js",False)
-Statements_variable("language/statements/variable/fn-name-gen.js",True)

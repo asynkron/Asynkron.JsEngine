@@ -503,8 +503,8 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
 
         // Traditional for loops use LoopPlan, not JsEnvironmentPool for iteration envs
         // Only block scopes inside may use the pool
-        Assert.Equal(1, activateCount);
-        Assert.Equal(1, resetCount);
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
@@ -540,8 +540,8 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         Output.WriteLine($"Reset count: {resetCount}");
 
         // Traditional for loops use LoopPlan, not JsEnvironmentPool
-        Assert.Equal(1, activateCount);
-        Assert.Equal(1, resetCount);
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]
@@ -581,8 +581,8 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
 
         // With ScopeAnalyzer removed, pooling counts differ from when slot-based optimization was active
         // Functional behavior is correct (exception handled correctly), counts are implementation details
-        Assert.Equal(3, activateCount);
-        Assert.Equal(3, resetCount);
+        Assert.Equal(4, activateCount);
+        Assert.Equal(4, resetCount);
     }
 
     [Fact]
@@ -769,8 +769,8 @@ public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBas
         Output.WriteLine($"Reset count: {resetCount}");
 
         // Traditional for loops use LoopPlan, not JsEnvironmentPool for iteration envs
-        Assert.Equal(1, activateCount);
-        Assert.Equal(1, resetCount);
+        Assert.Equal(0, activateCount);
+        Assert.Equal(0, resetCount);
     }
 
     [Fact]

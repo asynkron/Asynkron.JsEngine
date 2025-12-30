@@ -2030,7 +2030,7 @@ public static partial class TypedAstEvaluator
                                 if (!driverState.IsAsyncIterator)
                                 {
                                     JsValue currentValue;
-                                    if (driverState.IteratorObject is JsObject iteratorObj)
+                                    if (driverState.IteratorObject is { } iteratorObj)
                                     {
                                         driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
                                         var nextResult = iteratorObj.InvokeIteratorNext(
@@ -2202,7 +2202,7 @@ public static partial class TypedAstEvaluator
                                     hasAwaitedNextResult = true;
                                 }
 
-                                if (driverState.IteratorObject is JsObject awaitIteratorObj)
+                                if (driverState.IteratorObject is { } awaitIteratorObj)
                                 {
                                     if (!hasAwaitedNextResult)
                                     {
@@ -2712,7 +2712,7 @@ public static partial class TypedAstEvaluator
                                 if (TryGetSymbolValueJsValue(environment, iteratorCloseInstruction.IteratorSlot,
                                         out var iterStateValue) &&
                                     iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
-                                    iterState.IteratorObject is JsObject iteratorObj)
+                                    iterState.IteratorObject is { } iteratorObj)
                                 {
                                     // Per ES spec 13.6.4.13 step 5.d: If IteratorStep (calling next()) returns
                                     // an abrupt completion, we return that completion WITHOUT calling IteratorClose.

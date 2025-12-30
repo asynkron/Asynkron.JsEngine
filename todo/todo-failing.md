@@ -1,277 +1,303 @@
-# Failing Test262 Tests - Analysis and Fix Plans
-
-## Summary
-
-| Category | Tests | Priority | Root Cause |
-|----------|-------|----------|------------|
-| Catch parameter shadowing | 2 | High | `blocksFunctionScopeOverride: true` on catch params |
-| Arrow function super() | 6 | High | `LexicalThisEnvironment` not propagated correctly |
-| TDZ/Const fast path | 3 | High | Slot-only write path bypasses checks |
-| Iterator error handling | 4 | Medium | Value getter errors trigger incorrect iterator close |
-| yield* in try/catch | 2 | Medium | `_tryStack` not preserved across yield points |
-| Finally completion values | 1 | Medium | Finally throw sets context flag, doesn't throw signal |
-
----
-
-## 1. Block Scope Shadowing (2 tests)
-
-**Failing Tests:**
-- `language/block-scope/shadowing/catch-parameter-shadowing-var-variable.js`
-- `language/block-scope/shadowing/parameter-name-shadowing-catch-parameter.js`
-
-### Problem
-
-```javascript
-function fn() {
-  var a = 1;
-  try { throw 'stuff3'; }
-  catch (a) {
-    assert.sameValue(a, 'stuff3');  // OK
-  }
-  assert.sameValue(a, 1);  // FAILS: gets 'stuff3' instead of 1
-}
-```
-
-### Root Cause
-
-Catch parameters are defined with `blocksFunctionScopeOverride: true` because `BindingMode.DefineLet` is used. Per ECMAScript, catch parameters should NOT block var declarations from reaching the function scope.
-
-**Code path:**
-1. `TryStatementExtensions.cs:57` → `DefineBindingTarget(thrownValue, catchEnv, context, false)`
-2. Uses `BindingMode.DefineLet`
-3. `IdentifierBindingExtensions.cs:39-41` → `DefineJsValue(..., blocksFunctionScopeOverride: true)`
-
-### Fix Plan
-
-In `JsEnvironment.cs` → `TryAssignBlockedBindingJsValue`, skip catch parameters:
-
-```csharp
-if (current.IsSimpleCatchParameter(name))
-{
-    current = current.Enclosing;
-    continue;  // Skip catch parameters - var should go to function scope
-}
-```
-
-**Files:** `JsEnvironment.cs`
-
----
-
-## 2. Arrow Functions, Super Calls, and Class TDZ (6 tests)
-
-**Failing Tests:**
-- `language/expressions/arrow-function/lexical-supercall-from-immediately-invoked-arrow.js`
-- `language/expressions/class/constructor-this-tdz-during-initializers.js`
-- `language/statements/class/subclass/class-definition-null-proto-this.js`
-- `language/statements/class/subclass/derived-class-return-override-catch-finally-arrow.js`
-- `language/statements/class/subclass/derived-class-return-override-finally-super-arrow.js`
-- `language/statements/class/subclass/derived-class-return-override-for-of-arrow.js`
-
-### Problem
-
-Arrow functions inside derived class constructors can call `super()`, which should initialize `this` in the constructor's environment. Several edge cases fail:
-
-1. **Immediately invoked arrow with super()** - `super()` not updating outer `this`
-2. **extends null** - Class should be derived but has no callable super
-3. **super() in finally after return** - `IsThisInitialized` incorrectly restored to false
-4. **super() via iterator return()** - Environment chain broken
-
-### Root Causes
-
-| Issue | Description |
-|-------|-------------|
-| `LexicalThisEnvironment` propagation | Arrow functions may not correctly capture constructor's environment |
-| `extends null` handling | Class extending `null` not marked as derived |
-| Finally state restoration | `IsThisInitialized` restored to `false` after finally runs `super()` |
-| Iterator close + super | `super()` from iterator `return()` doesn't update `this` correctly |
-
-### Fix Plan
-
-1. **Fix `LexicalThisEnvironment` capture** - Walk environment chain to find the environment that owns `Symbol.This`, store THAT in `_lexicalThisEnvironment`
-
-2. **Fix `extends null`** - Mark class as derived (`_isDerivedClassConstructor = true`) even when extending null, but prevent `super()` call
-
-3. **Fix finally state** - Don't restore `IsThisInitialized=false` when `super()` was called during finally
-
-4. **Fix iterator close** - Ensure `super()` from iterator `return()` correctly propagates `this` initialization
-
-**Files:** `SyncFunctionInvoker.cs`, `ExpressionNodeExtensions.cs`, `TryStatementExtensions.cs`, `IteratorDriverPlanExtensions.cs`
-
----
-
-## 3. For-Of Loop Issues (10 tests)
-
-**Failing Tests:**
-- `language/statements/for-of/head-const-bound-names-fordecl-tdz.js`
-- `language/statements/for-of/head-let-bound-names-fordecl-tdz.js`
-- `language/statements/for-of/head-using-bound-names-fordecl-tdz.js`
-- `language/statements/for-of/iterator-close-throw-get-method-abrupt.js`
-- `language/statements/for-of/iterator-close-throw-get-method-non-callable.js`
-- `language/statements/for-of/iterator-next-error.js`
-- `language/statements/for-of/iterator-next-result-value-attr-error.js`
-- `language/statements/for-of/return-from-finally.js`
-- `language/statements/for-of/yield-star-from-catch.js`
-- `language/statements/for-of/yield-star-from-try.js`
-
-### Problems by Category
-
-#### 3a. TDZ in for-of head (3 tests)
-
-```javascript
-let x = 1;
-for (const x of [x]) {}  // Should throw ReferenceError - inner x is in TDZ
-```
-
-**Root Cause:** Slot fast path may bypass TDZ check when evaluating iterable.
-
-**Fix:** Add TDZ check before iterable evaluation when using let/const.
-
-**Files:** `ForEachStatementExtensions.cs`
-
-#### 3b. Iterator Protocol Errors (4 tests)
-
-| Test | Expected Behavior |
-|------|-------------------|
-| `iterator-next-error` | When `next()` throws, `return()` should NOT be called |
-| `iterator-next-result-value-attr-error` | When `value` getter throws, `return()` should NOT be called |
-| `iterator-close-throw-get-method-abrupt` | When loop throws and getting `return` throws, original error propagates |
-| `iterator-close-throw-get-method-non-callable` | When `return` is not callable, original error propagates |
-
-**Root Cause:**
-- `value` getter errors at line ~260 in `IteratorDriverPlanExtensions.cs` not handled before iterator close
-- Error suppression logic for non-callable `return` may not apply correctly
-
-**Fix:**
-1. Wrap `value` getter access in try/catch, propagate error without iterator close
-2. Ensure `preserveExistingThrow` properly suppresses TypeError from non-callable return
-
-**Files:** `IteratorDriverPlanExtensions.cs`, `JsObjectExtensions.cs`
-
-#### 3c. Control Flow (1 test)
-
-```javascript
-function* values() { yield 1; throw new Error('unreachable'); }
-var result = (function() {
-  for (var x of values()) {
-    try {} finally { return 34; }  // Should exit immediately
-  }
-})();
-// result should be 34, iterator should be closed
-```
-
-**Root Cause:** `return` in finally within for-of needs proper iterator close sequencing.
-
-**Files:** `ExecutionPlanRunner.cs`
-
-#### 3d. yield* in try/catch (2 tests)
-
-```javascript
-function*() {
-  for (var x of dataIterator) {
-    try {
-      yield * values();  // Must preserve try context across yield
-    } catch (err) {}
-  }
-}
-```
-
-**Root Cause:** `_tryStack` not preserved across yield points.
-
-**Fix:** Serialize/restore try stack state before/after yielding.
-
-**Files:** `ExecutionPlanRunner.cs`
-
----
-
-## 4. Try/Catch Completion Values and TDZ (3 tests)
-
-**Failing Tests:**
-- `language/statements/try/completion-values-fn-finally-abrupt.js`
-- `language/statements/let/function-local-closure-set-before-initialization.js`
-- `language/statements/const/syntax/const-invalid-assignment-next-expression-for.js`
-
-### 4a. Finally Completion Values
-
-```javascript
-function fn() {
-  try { throw 'try'; }
-  catch { throw 'catch'; }
-  finally { throw 'finally'; }  // This should be the thrown error
-}
-```
-
-**Root Cause:** Finally throw may not propagate as exception - only sets `context.IsThrow` flag without throwing `ThrowSignal`.
-
-**Fix:** Convert context-based throws to `ThrowSignal` exceptions when exiting finally.
-
-**Files:** `TryStatementExtensions.cs`
-
-### 4b. Let TDZ Writes
-
-```javascript
-(function() {
-  function f() { x = 1; }  // Captures x
-  f();  // Should throw ReferenceError - x is in TDZ
-  let x;
-})();
-```
-
-**Root Cause:** Slot-only fast path in `TryWriteIdentifierWithSlot` (line ~1247) writes directly without checking TDZ:
-
-```csharp
-slots[slotIndex] = value;  // No TDZ check!
-```
-
-**Fix:** Check if slot value is `JsValue.Uninitialized` before writing in fast path.
-
-**Files:** `JsEnvironment.cs`
-
-### 4c. Const Assignment in For-Loop
-
-```javascript
-for (const i = 0; i < 1; i++) {}  // Should throw TypeError
-```
-
-**Root Cause:** Slot-only fast path bypasses const reassignment check.
-
-**Fix:** Store const/lexical flags alongside slots, or check `IsConstBinding` before slot writes.
-
-**Files:** `JsEnvironment.cs`, `UnaryExpressionExtensions.cs`
-
----
-
-## Implementation Priority
-
-### Phase 1: High Priority (11 tests)
-
-1. [ ] **Catch parameter shadowing** - Skip catch params in `TryAssignBlockedBindingJsValue`
-2. [ ] **TDZ/Const fast path** - Add checks to slot-only write path
-3. [ ] **Arrow super() fixes** - Fix `LexicalThisEnvironment` capture and propagation
-
-### Phase 2: Medium Priority (9 tests)
-
-4. [ ] **Iterator error handling** - Handle value getter exceptions, fix error suppression
-5. [ ] **Finally completion values** - Convert context throws to `ThrowSignal`
-6. [ ] **yield* in try/catch** - Preserve `_tryStack` across yield points
-
-### Phase 3: Edge Cases (remaining)
-
-7. [ ] **extends null** - Mark as derived, prevent super() call
-8. [ ] **Finally + super()** - Don't restore `IsThisInitialized=false` after finally
-9. [ ] **return-from-finally in for-of** - Proper iterator close sequencing
-
----
-
-## Files Summary
-
-| File | Issues |
-|------|--------|
-| `JsEnvironment.cs` | Catch param shadowing, TDZ writes, const checks |
-| `TryStatementExtensions.cs` | Finally completion, `IsThisInitialized` restoration |
-| `SyncFunctionInvoker.cs` | `LexicalThisEnvironment` capture |
-| `IteratorDriverPlanExtensions.cs` | Value getter errors, iterator close |
-| `ExecutionPlanRunner.cs` | `_tryStack` preservation, return-from-finally |
-| `ForEachStatementExtensions.cs` | TDZ in for-of head |
-| `ExpressionNodeExtensions.cs` | extends null handling |
-| `JsObjectExtensions.cs` | Iterator close error suppression |
-| `UnaryExpressionExtensions.cs` | Const increment check |
+       Comments
+        Comments("language/comments/S7.4_A5.js",False)
+        Comments("language/comments/S7.4_A5.js",True)
+        Comments("language/comments/S7.4_A6.js",False)
+        Comments("language/comments/S7.4_A6.js",True)
+       EvalCode_direct
+        EvalCode_direct("language/eval-code/direct/cptn-nrml-empty-for.js",False)
+        EvalCode_direct("language/eval-code/direct/cptn-nrml-empty-for.js",True)
+        EvalCode_direct("language/eval-code/direct/var-env-var-init-local-new-delete.js",False)
+       EvalCode_indirect
+        EvalCode_indirect("language/eval-code/indirect/cptn-nrml-empty-for.js",False)
+        EvalCode_indirect("language/eval-code/indirect/cptn-nrml-empty-for.js",True)
+       Expressions_class_elements
+        Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-anonymous.js",False)
+        Expressions_class_elements("language/expressions/class/elements/class-name-static-initializer-anonymous.js",True)
+       Expressions_generators
+        Expressions_generators("language/expressions/generators/implicit-name.js",False)
+        Expressions_generators("language/expressions/generators/implicit-name.js",True)
+       Expressions_prefixDecrement
+        Expressions_prefixDecrement("language/expressions/prefix-decrement/S11.4.5_A2.2_T1.js",False)
+        Expressions_prefixDecrement("language/expressions/prefix-decrement/S11.4.5_A2.2_T1.js",True)
+       Expressions_prefixIncrement
+        Expressions_prefixIncrement("language/expressions/prefix-increment/S11.4.4_A2.2_T1.js",False)
+        Expressions_prefixIncrement("language/expressions/prefix-increment/S11.4.4_A2.2_T1.js",True)
+       Literals_regexp
+        Literals_regexp("language/literals/regexp/S7.8.5_A1.1_T2.js",False)
+        Literals_regexp("language/literals/regexp/S7.8.5_A1.1_T2.js",True)
+        Literals_regexp("language/literals/regexp/S7.8.5_A1.4_T2.js",False)
+        Literals_regexp("language/literals/regexp/S7.8.5_A1.4_T2.js",True)
+        Literals_regexp("language/literals/regexp/S7.8.5_A2.1_T2.js",False)
+        Literals_regexp("language/literals/regexp/S7.8.5_A2.1_T2.js",True)
+        Literals_regexp("language/literals/regexp/S7.8.5_A2.4_T2.js",False)
+        Literals_regexp("language/literals/regexp/S7.8.5_A2.4_T2.js",True)
+       ModuleCode
+        ModuleCode("language/module-code/eval-export-dflt-cls-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-cls-name-meth.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-cls-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-cls-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-cls-name-meth.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-cls-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-fn-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-fn-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-gen-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-gen-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-in.js",True)
+        ModuleCode("language/module-code/eval-self-once.js",True)
+        ModuleCode("language/module-code/export-star-as-dflt.js",True)
+        ModuleCode("language/module-code/instn-iee-bndng-cls.js",True)
+        ModuleCode("language/module-code/instn-iee-bndng-const.js",True)
+        ModuleCode("language/module-code/instn-iee-bndng-let.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-cls.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-const.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-cls.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-expr.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-named.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-star.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-let.js",True)
+        ModuleCode("language/module-code/instn-once.js",True)
+       ModuleCode_topLevelAwait
+        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",True)
+       Statements_class_definition
+        Statements_class_definition("language/statements/class/definition/basics.js",False)
+        Statements_class_definition("language/statements/class/definition/basics.js",True)
+       Statements_class_strictMode
+        Statements_class_strictMode("language/statements/class/strict-mode/arguments-callee.js",False)
+       Statements_const
+        Statements_const("language/statements/const/fn-name-arrow.js",False)
+        Statements_const("language/statements/const/fn-name-arrow.js",True)
+        Statements_const("language/statements/const/fn-name-class.js",False)
+        Statements_const("language/statements/const/fn-name-class.js",True)
+        Statements_const("language/statements/const/fn-name-cover.js",False)
+        Statements_const("language/statements/const/fn-name-cover.js",True)
+        Statements_const("language/statements/const/fn-name-fn.js",False)
+        Statements_const("language/statements/const/fn-name-fn.js",True)
+        Statements_const("language/statements/const/fn-name-gen.js",False)
+        Statements_const("language/statements/const/fn-name-gen.js",True)
+       Statements_const_syntax
+        Statements_const_syntax("language/statements/const/syntax/const-outer-inner-let-bindings.js",False)
+        Statements_const_syntax("language/statements/const/syntax/const-outer-inner-let-bindings.js",True)
+       Statements_for
+        Statements_for("language/statements/for/cptn-expr-expr-iter.js",False)
+        Statements_for("language/statements/for/cptn-expr-expr-iter.js",True)
+        Statements_for("language/statements/for/head-init-expr-check-empty-inc-empty-completion.js",False)
+        Statements_for("language/statements/for/head-init-expr-check-empty-inc-empty-completion.js",True)
+        Statements_for("language/statements/for/head-init-var-check-empty-inc-empty-completion.js",False)
+        Statements_for("language/statements/for/head-init-var-check-empty-inc-empty-completion.js",True)
+        Statements_for("language/statements/for/head-let-destructuring.js",False)
+        Statements_for("language/statements/for/head-let-destructuring.js",True)
+        Statements_for("language/statements/for/scope-body-lex-open.js",False)
+        Statements_for("language/statements/for/scope-body-lex-open.js",True)
+        Statements_for("language/statements/for/scope-head-lex-close.js",False)
+        Statements_for("language/statements/for/scope-head-lex-close.js",True)
+        Statements_for("language/statements/for/scope-head-lex-open.js",False)
+        Statements_for("language/statements/for/scope-head-lex-open.js",True)
+       Statements_forOf
+        Statements_forOf("language/statements/for-of/break-from-finally.js",False)
+        Statements_forOf("language/statements/for-of/break-from-finally.js",True)
+        Statements_forOf("language/statements/for-of/break-label-from-finally.js",False)
+        Statements_forOf("language/statements/for-of/break-label-from-finally.js",True)
+        Statements_forOf("language/statements/for-of/continue-from-catch.js",False)
+        Statements_forOf("language/statements/for-of/continue-from-catch.js",True)
+        Statements_forOf("language/statements/for-of/continue-from-finally.js",False)
+        Statements_forOf("language/statements/for-of/continue-from-finally.js",True)
+        Statements_forOf("language/statements/for-of/continue-from-try.js",False)
+        Statements_forOf("language/statements/for-of/continue-from-try.js",True)
+        Statements_forOf("language/statements/for-of/continue.js",False)
+        Statements_forOf("language/statements/for-of/continue.js",True)
+        Statements_forOf("language/statements/for-of/cptn-expr-abrupt-empty.js",False)
+        Statements_forOf("language/statements/for-of/cptn-expr-abrupt-empty.js",True)
+        Statements_forOf("language/statements/for-of/cptn-expr-itr.js",False)
+        Statements_forOf("language/statements/for-of/cptn-expr-itr.js",True)
+        Statements_forOf("language/statements/for-of/generator-close-via-break.js",False)
+        Statements_forOf("language/statements/for-of/generator-close-via-continue.js",False)
+        Statements_forOf("language/statements/for-of/generator-close-via-throw.js",False)
+        Statements_forOf("language/statements/for-of/generator.js",False)
+        Statements_forOf("language/statements/for-of/generator.js",True)
+        Statements_forOf("language/statements/for-of/head-let-destructuring.js",False)
+        Statements_forOf("language/statements/for-of/head-let-destructuring.js",True)
+        Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",False)
+        Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
+        Statements_forOf("language/statements/for-of/iterator-as-proxy.js",False)
+        Statements_forOf("language/statements/for-of/iterator-as-proxy.js",True)
+        Statements_forOf("language/statements/for-of/iterator-close-via-break.js",False)
+        Statements_forOf("language/statements/for-of/iterator-close-via-continue.js",False)
+        Statements_forOf("language/statements/for-of/iterator-close-via-throw.js",False)
+        Statements_forOf("language/statements/for-of/map-contract-expand.js",False)
+        Statements_forOf("language/statements/for-of/map-contract-expand.js",True)
+        Statements_forOf("language/statements/for-of/map-contract.js",False)
+        Statements_forOf("language/statements/for-of/map-contract.js",True)
+        Statements_forOf("language/statements/for-of/map-expand-contract.js",False)
+        Statements_forOf("language/statements/for-of/map-expand-contract.js",True)
+        Statements_forOf("language/statements/for-of/map-expand.js",False)
+        Statements_forOf("language/statements/for-of/map-expand.js",True)
+        Statements_forOf("language/statements/for-of/map.js",False)
+        Statements_forOf("language/statements/for-of/map.js",True)
+        Statements_forOf("language/statements/for-of/nested.js",False)
+        Statements_forOf("language/statements/for-of/nested.js",True)
+        Statements_forOf("language/statements/for-of/scope-body-lex-close.js",False)
+        Statements_forOf("language/statements/for-of/scope-body-lex-close.js",True)
+        Statements_forOf("language/statements/for-of/set-contract-expand.js",False)
+        Statements_forOf("language/statements/for-of/set-contract-expand.js",True)
+        Statements_forOf("language/statements/for-of/set-contract.js",False)
+        Statements_forOf("language/statements/for-of/set-contract.js",True)
+        Statements_forOf("language/statements/for-of/set-expand-contract.js",False)
+        Statements_forOf("language/statements/for-of/set-expand-contract.js",True)
+        Statements_forOf("language/statements/for-of/set-expand.js",False)
+        Statements_forOf("language/statements/for-of/set-expand.js",True)
+        Statements_forOf("language/statements/for-of/set.js",False)
+        Statements_forOf("language/statements/for-of/set.js",True)
+        Statements_forOf("language/statements/for-of/yield-star-from-catch.js",False)
+        Statements_forOf("language/statements/for-of/yield-star-from-catch.js",True)
+        Statements_forOf("language/statements/for-of/yield-star-from-try.js",False)
+        Statements_forOf("language/statements/for-of/yield-star-from-try.js",True)
+       Statements_if
+        Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",False)
+        Statements_if("language/statements/if/cptn-else-false-abrupt-empty.js",True)
+        Statements_if("language/statements/if/cptn-else-false-nrml.js",False)
+        Statements_if("language/statements/if/cptn-else-false-nrml.js",True)
+        Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",False)
+        Statements_if("language/statements/if/cptn-else-true-abrupt-empty.js",True)
+        Statements_if("language/statements/if/cptn-else-true-nrml.js",False)
+        Statements_if("language/statements/if/cptn-else-true-nrml.js",True)
+        Statements_if("language/statements/if/cptn-no-else-false.js",False)
+        Statements_if("language/statements/if/cptn-no-else-false.js",True)
+        Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",False)
+        Statements_if("language/statements/if/cptn-no-else-true-abrupt-empty.js",True)
+        Statements_if("language/statements/if/cptn-no-else-true-nrml.js",False)
+        Statements_if("language/statements/if/cptn-no-else-true-nrml.js",True)
+       Statements_let
+        Statements_let("language/statements/let/fn-name-arrow.js",False)
+        Statements_let("language/statements/let/fn-name-arrow.js",True)
+        Statements_let("language/statements/let/fn-name-class.js",False)
+        Statements_let("language/statements/let/fn-name-class.js",True)
+        Statements_let("language/statements/let/fn-name-cover.js",False)
+        Statements_let("language/statements/let/fn-name-cover.js",True)
+        Statements_let("language/statements/let/fn-name-fn.js",False)
+        Statements_let("language/statements/let/fn-name-fn.js",True)
+        Statements_let("language/statements/let/fn-name-gen.js",False)
+        Statements_let("language/statements/let/fn-name-gen.js",True)
+        Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
+       Statements_let_syntax
+        Statements_let_syntax("language/statements/let/syntax/let-closure-inside-next-expression.js",False)
+        Statements_let_syntax("language/statements/let/syntax/let-closure-inside-next-expression.js",True)
+        Statements_let_syntax("language/statements/let/syntax/let-outer-inner-let-bindings.js",False)
+        Statements_let_syntax("language/statements/let/syntax/let-outer-inner-let-bindings.js",True)
+       Statements_switch
+        Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-a-fall-thru-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-a-fall-thru-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-a-fall-thru-nrml.js",False)
+        Statements_switch("language/statements/switch/cptn-a-fall-thru-nrml.js",True)
+        Statements_switch("language/statements/switch/cptn-b-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-b-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-b-fall-thru-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-b-fall-thru-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-b-fall-thru-nrml.js",False)
+        Statements_switch("language/statements/switch/cptn-b-fall-thru-nrml.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-b-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-b-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-nrml.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-nrml.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-b-final.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-b-final.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-fall-thru-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-fall-thru-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-dflt-fall-thru-nrml.js",False)
+        Statements_switch("language/statements/switch/cptn-dflt-fall-thru-nrml.js",True)
+        Statements_switch("language/statements/switch/cptn-no-dflt-match-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-no-dflt-match-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-abrupt-empty.js",False)
+        Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-abrupt-empty.js",True)
+        Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-nrml.js",False)
+        Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-nrml.js",True)
+        Statements_switch("language/statements/switch/scope-lex-close-case.js",False)
+        Statements_switch("language/statements/switch/scope-lex-close-case.js",True)
+        Statements_switch("language/statements/switch/scope-lex-close-dflt.js",False)
+        Statements_switch("language/statements/switch/scope-lex-close-dflt.js",True)
+        Statements_switch("language/statements/switch/scope-lex-open-case.js",False)
+        Statements_switch("language/statements/switch/scope-lex-open-case.js",True)
+       Statements_try
+        Statements_try("language/statements/try/completion-values-fn-finally-abrupt.js",False)
+        Statements_try("language/statements/try/completion-values-fn-finally-abrupt.js",True)
+        Statements_try("language/statements/try/cptn-finally-empty-break.js",False)
+        Statements_try("language/statements/try/cptn-finally-empty-break.js",True)
+        Statements_try("language/statements/try/cptn-finally-empty-continue.js",False)
+        Statements_try("language/statements/try/cptn-finally-empty-continue.js",True)
+        Statements_try("language/statements/try/optional-catch-binding-lexical.js",False)
+        Statements_try("language/statements/try/optional-catch-binding-lexical.js",True)
+        Statements_try("language/statements/try/S12.14_A10_T2.js",False)
+        Statements_try("language/statements/try/S12.14_A10_T2.js",True)
+        Statements_try("language/statements/try/S12.14_A10_T3.js",False)
+        Statements_try("language/statements/try/S12.14_A10_T3.js",True)
+        Statements_try("language/statements/try/S12.14_A11_T2.js",False)
+        Statements_try("language/statements/try/S12.14_A11_T2.js",True)
+        Statements_try("language/statements/try/S12.14_A11_T3.js",False)
+        Statements_try("language/statements/try/S12.14_A11_T3.js",True)
+        Statements_try("language/statements/try/S12.14_A9_T2.js",False)
+        Statements_try("language/statements/try/S12.14_A9_T2.js",True)
+        Statements_try("language/statements/try/S12.14_A9_T3.js",False)
+        Statements_try("language/statements/try/S12.14_A9_T3.js",True)
+       Statements_try_dstr
+        Statements_try_dstr("language/statements/try/dstr/ary-init-iter-get-err-array-prototype.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-init-iter-get-err-array-prototype.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-init-iter-get-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-init-iter-get-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-ary-val-null.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-ary-val-null.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-init-throws.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-init-throws.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-init-unresolvable.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-init-unresolvable.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-iter-step-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-iter-step-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-iter-val-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-id-iter-val-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-obj-val-null.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-obj-val-null.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-obj-val-undef.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-elem-obj-val-undef.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-rest-id-elision-next-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-rest-id-elision-next-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-rest-id-iter-step-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-rest-id-iter-step-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-rest-id-iter-val-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/ary-ptrn-rest-id-iter-val-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-id-get-value-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-id-get-value-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-id-init-throws.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-id-init-throws.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-id-init-unresolvable.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-id-init-unresolvable.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-list-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-list-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-ary-value-null.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-ary-value-null.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-eval-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-eval-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-id-get-value-err.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-id-get-value-err.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-id-init-throws.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-id-init-throws.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-id-init-unresolvable.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-id-init-unresolvable.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-obj-value-null.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-obj-value-null.js",True)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-obj-value-undef.js",False)
+        Statements_try_dstr("language/statements/try/dstr/obj-ptrn-prop-obj-value-undef.js",True)
+       Statements_variable
+        Statements_variable("language/statements/variable/fn-name-arrow.js",False)
+        Statements_variable("language/statements/variable/fn-name-arrow.js",True)
+        Statements_variable("language/statements/variable/fn-name-class.js",False)
+        Statements_variable("language/statements/variable/fn-name-class.js",True)
+        Statements_variable("language/statements/variable/fn-name-cover.js",False)
+        Statements_variable("language/statements/variable/fn-name-cover.js",True)
+        Statements_variable("language/statements/variable/fn-name-fn.js",False)
+        Statements_variable("language/statements/variable/fn-name-fn.js",True)
+        Statements_variable("language/statements/variable/fn-name-gen.js",False)
+        Statements_variable("language/statements/variable/fn-name-gen.js",True)

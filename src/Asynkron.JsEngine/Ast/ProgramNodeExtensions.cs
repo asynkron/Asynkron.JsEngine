@@ -493,16 +493,36 @@ public static partial class TypedAstEvaluator
             var scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
             if (scriptPlanCache.Succeeded)
             {
+                var plan = scriptPlanCache.Plan!;
                 context.RealmState.Logger?.LogInformation(
                     "Executing script via IR path ({InstructionCount} instructions)",
-                    scriptPlanCache.Plan!.Instructions.Length);
+                    plan.Instructions.Length);
+
+                // Initialize slots for execution plan internal variables (iterator states, etc.)
+                // This is needed for for-of loops and other IR constructs that store state in slots.
+                // NOTE: Skip slot initialization for scripts with dynamic scope features (with/eval)
+                // because slot-based lookup would bypass the with-scope check.
+                var hasDynamicScope = !AllowsIdentifierCaching(program);
+                if (!hasDynamicScope && plan.SlotCount > 0 && !plan.SlotSymbols.IsDefaultOrEmpty)
+                {
+                    executionEnvironment.InitializeSlots(plan.SlotCount, scopeId: 0);
+                    var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                        ReferenceEqualityComparer<Symbol>.Instance);
+                    for (var i = 0; i < plan.SlotSymbols.Length; i++)
+                    {
+                        slotMap[plan.SlotSymbols[i]] = i;
+                    }
+                    executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+                }
 
                 try
                 {
-                    // Use ScriptRunner which handles all the complexity of loops,
+                    // Use unified ExecutionPlanRunner which handles all the complexity of loops,
                     // break/continue signals, try/catch, etc. consistently.
-                    var irResult = TypedAstEvaluator.ScriptRunner.Run(
-                        scriptPlanCache.Plan,
+                    // Script-level var declarations are marked with IsScriptLevel=true in the IR
+                    // so they correctly update the global object.
+                    var irResult = TypedAstEvaluator.ExecutionPlanRunner.RunScript(
+                        plan,
                         executionEnvironment,
                         context);
                     return irResult;

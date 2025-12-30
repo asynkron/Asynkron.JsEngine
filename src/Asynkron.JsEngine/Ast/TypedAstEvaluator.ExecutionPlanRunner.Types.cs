@@ -104,8 +104,9 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Tracks loop context at runtime so break/continue from AST-evaluated code
         /// (via StatementInstruction) can resolve their jump targets.
+        /// EntryCompletionValue is used in script mode to track whether the loop body produced a value.
         /// </summary>
-        private readonly record struct LoopFrame(Symbol? Label, int BreakTarget, int ContinueTarget);
+        private readonly record struct LoopFrame(Symbol? Label, int BreakTarget, int ContinueTarget, JsValue EntryCompletionValue);
 
         private sealed class YieldStarState
         {

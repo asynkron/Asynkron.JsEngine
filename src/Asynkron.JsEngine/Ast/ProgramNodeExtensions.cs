@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -487,6 +488,47 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
+            // Try IR execution path first (unified execution model)
+            // Fall back to AST walking if IR building fails or encounters unsupported constructs
+            var scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+            if (scriptPlanCache.Succeeded)
+            {
+                context.RealmState.Logger?.LogInformation(
+                    "Executing script via IR path ({InstructionCount} instructions)",
+                    scriptPlanCache.Plan!.Instructions.Length);
+
+                try
+                {
+                    // Use ScriptRunner which handles all the complexity of loops,
+                    // break/continue signals, try/catch, etc. consistently.
+                    var irResult = TypedAstEvaluator.ScriptRunner.Run(
+                        scriptPlanCache.Plan,
+                        executionEnvironment,
+                        context);
+                    return irResult;
+                }
+                catch (ThrowSignal)
+                {
+                    // Re-throw JavaScript exceptions
+                    throw;
+                }
+                catch (NotSupportedException ex)
+                {
+                    // Unsupported instruction encountered - fall back to AST walking
+                    context.RealmState.Logger?.LogWarning(
+                        "Script IR execution fallback: {Reason}",
+                        ex.Message);
+                    // Continue to AST walking path below
+                }
+            }
+            else
+            {
+                context.RealmState.Logger?.LogInformation(
+                    "Script IR building failed: {Reason}. Using AST walking.",
+                    scriptPlanCache.FailureReason ?? "unknown");
+            }
+
+            // AST walking fallback path
             var resultJs = JsValue.Unit;
             foreach (var statement in program.Body)
             {

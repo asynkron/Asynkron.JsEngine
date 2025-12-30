@@ -49,13 +49,16 @@ internal static class LoopEmitter
 
         // For lexical declarations (let/const), emit PushEnvironmentInstruction
         // AFTER the body but BEFORE the increment (PostIteration).
-        // This matches the ECMAScript spec (ForBodyEvaluation):
+        // This matches the ECMAScript spec (ForBodyEvaluation step 3.e):
         //   1. Evaluate condition
         //   2. Evaluate body (closures capture current environment)
         //   3. CreatePerIterationEnvironment (create new env, copy values)
         //   4. Evaluate increment (modifies new env, not the captured one)
         //
-        // This ensures closures capture the pre-increment value of loop variables.
+        // NOTE: For per-iteration environments, PushEnvironment copies values from the
+        // current iteration environment but creates the new env with currentEnv.Enclosing
+        // as parent (handled in ScriptRunner/ExecutionPlanRunner). This ensures per-iteration
+        // environments are SIBLINGS (same parent), not nested.
         var continueTarget = postIterationEntry;
         int createEnvIndex = -1;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)

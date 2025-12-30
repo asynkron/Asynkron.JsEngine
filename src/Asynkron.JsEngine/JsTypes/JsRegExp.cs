@@ -73,28 +73,6 @@ public class JsRegExp
         }
     }
 
-    /// <summary>
-    ///     Creates a JsRegExp using a pre-compiled RegexCache.
-    ///     This avoids pattern normalization and regex compilation for regex literals.
-    /// </summary>
-    internal JsRegExp(Ast.RegexCache cache, RealmState? realmState = null, JsObject? existingObject = null)
-    {
-        Pattern = cache.Pattern;
-        Flags = cache.Flags;
-        RealmState = realmState;
-        JsObject = existingObject ?? new JsObject();
-
-        _normalizedPattern = cache.NormalizedPattern;
-        _regexOptions = cache.RegexOptions;
-        _compiledRegex = cache.CompiledRegex;
-
-        if (existingObject is null)
-        {
-            JsObject.DefineProperty("lastIndex",
-                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
-        }
-    }
-
     public string Pattern { get; }
 
     public string Flags { get; }
@@ -233,7 +211,7 @@ public class JsRegExp
         return EnsureRegex();
     }
 
-    internal static void ValidateFlags(string flags)
+    private static void ValidateFlags(string flags)
     {
         var seen = new HashSet<char>();
         var hasUnicode = false;
@@ -394,7 +372,7 @@ public class JsRegExp
         return groups;
     }
 
-    internal static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase)
+    private static string NormalizePattern(string pattern, bool hasUnicodeFlag, bool ignoreCase)
     {
         if (!hasUnicodeFlag)
         {

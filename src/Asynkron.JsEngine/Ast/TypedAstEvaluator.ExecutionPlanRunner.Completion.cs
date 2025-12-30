@@ -112,8 +112,15 @@ public static partial class TypedAstEvaluator
             // In script mode, track the entry completion value to detect empty try/catch completions
             // (for UpdateEmpty semantics per ES spec)
             var entryCompletionValue = _isScriptMode ? _scriptCompletionValue : JsValue.Unit;
-            var frame = new TryFrame(instruction.HandlerIndex, instruction.CatchSlotSymbol, instruction.FinallyIndex,
-                instruction.EndFinallyIndex, environment, entryCompletionValue);
+            var frame = new TryFrame(
+                instruction.HandlerIndex,
+                instruction.CatchSlotSymbol,
+                instruction.FinallyIndex,
+                instruction.EndFinallyIndex,
+                environment,
+                entryCompletionValue,
+                instruction.LoopContinueTarget,
+                instruction.LoopBreakTarget);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);
@@ -231,6 +238,20 @@ public static partial class TypedAstEvaluator
 
                 if (frame.FinallyIndex >= 0)
                 {
+                    // For for-of loops: if this is a continue that targets within the loop,
+                    // skip the finally block (IteratorClose). We only run IteratorClose when
+                    // exiting the loop, not when continuing to the next iteration.
+                    if (kind == AbruptKind.Continue &&
+                        frame.LoopContinueTarget >= 0 &&
+                        value is int targetIndex &&
+                        targetIndex == frame.LoopContinueTarget)
+                    {
+                        // Pop this frame and continue - the continue will execute normally
+                        // without triggering the iterator close
+                        TryCatchStateRef.TryStack.Pop();
+                        continue;
+                    }
+
                     if (!frame.FinallyScheduled)
                     {
                         frame.FinallyScheduled = true;
@@ -326,11 +347,14 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// Scans the environment chain for all IActiveIteratorState objects and collects
         /// those with active iterators that need closing.
+        /// IMPORTANT: Only scans within the current function scope, not parent scopes from the caller.
+        /// This prevents closing iterators that are iterating OVER this generator when the generator completes.
         /// </summary>
         private static void ScanEnvironmentForActiveIterators(
             JsEnvironment env,
             List<(IActiveIteratorState, IJsObjectLike)> results)
         {
+            var isFirstEnv = true;
             while (true)
             {
                 // Scan symbol bindings in this environment (using safe method to skip uninitialized TDZ bindings)
@@ -359,7 +383,17 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                // Also scan parent environments
+                // Stop at the function scope boundary - don't scan caller's scopes.
+                // If this is a function scope (and not the first one we entered), stop.
+                // The first environment might be a function scope that we need to scan.
+                if (!isFirstEnv && env.IsFunctionScope)
+                {
+                    break;
+                }
+
+                isFirstEnv = false;
+
+                // Continue to parent environment within the function
                 if (env.Enclosing is { } parent)
                 {
                     env = parent;

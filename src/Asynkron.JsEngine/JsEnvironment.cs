@@ -146,7 +146,7 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal bool IsArrowFunctionEnvironment { get; set; }
 
-    private bool IsFunctionScope { get; set; }
+    internal bool IsFunctionScope { get; private set; }
 
     /// <summary>
     ///     When true, indicates this environment belongs to a default derived constructor

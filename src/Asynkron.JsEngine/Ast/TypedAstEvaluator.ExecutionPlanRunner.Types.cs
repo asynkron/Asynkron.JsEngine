@@ -71,7 +71,9 @@ public static partial class TypedAstEvaluator
             int finallyIndex,
             int endFinallyIndex,
             JsEnvironment entryEnvironment,
-            JsValue entryCompletionValue)
+            JsValue entryCompletionValue,
+            int loopContinueTarget = -1,
+            int loopBreakTarget = -1)
         {
             public int HandlerIndex { get; } = handlerIndex;
             public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;
@@ -82,6 +84,18 @@ public static partial class TypedAstEvaluator
             /// Used when break/continue inside a finally block needs to jump to EndFinally.
             /// </summary>
             public int EndFinallyIndex { get; } = endFinallyIndex;
+
+            /// <summary>
+            /// For for-of loops: the continue target index. When a continue targets this index,
+            /// the finally should NOT be scheduled (we're staying in the loop).
+            /// </summary>
+            public int LoopContinueTarget { get; } = loopContinueTarget;
+
+            /// <summary>
+            /// For for-of loops: the break target index. When a break targets this index,
+            /// the finally should be scheduled via LeaveTry flow (exiting the loop).
+            /// </summary>
+            public int LoopBreakTarget { get; } = loopBreakTarget;
 
             /// <summary>
             /// The environment that was active when entering the try block.

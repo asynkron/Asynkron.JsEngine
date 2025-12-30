@@ -61,8 +61,6 @@ public sealed class EvaluationContext(
     /// </summary>
     public RealmState RealmState { get; } = realmState ?? throw new ArgumentNullException(nameof(realmState));
 
-    public IJsEngineOptions Options => RealmState.Options;
-
     /// <summary>
     ///     Indicates whether the current execution originated from script code or eval.
     /// </summary>
@@ -126,11 +124,6 @@ public sealed class EvaluationContext(
     ///     anonymous class/function expressions).
     /// </summary>
     public Symbol? CurrentFunctionNameHint => _functionNameHints.Count > 0 ? _functionNameHints.Peek() : null;
-
-    /// <summary>
-    ///     Returns the current innermost label, or null if not in a labeled context.
-    /// </summary>
-    public Symbol? CurrentLabel => _labelStack.Count > 0 ? _labelStack.Peek() : null;
 
     /// <summary>
     ///     The value associated with the control flow (for Return, Throw, and Yield signals).
@@ -322,14 +315,6 @@ public sealed class EvaluationContext(
     }
 
     /// <summary>
-    ///     Checks if a label is in the current label stack.
-    /// </summary>
-    public bool IsLabelInScope(Symbol label)
-    {
-        return _labelStack.Contains(label);
-    }
-
-    /// <summary>
     ///     Sets the context to Return state with the given value.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -380,27 +365,6 @@ public sealed class EvaluationContext(
     {
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value);
-    }
-
-    /// <summary>
-    ///     Sets the context to Yield state with the given value and original iterator result object.
-    ///     Used by yield* to preserve the original iterator result properties (like done being absent).
-    /// </summary>
-    public void SetYieldWithIteratorResult(JsValue value, int yieldIndex, IJsObjectLike? iteratorResultObject)
-    {
-        LastYieldIndex = yieldIndex;
-        CurrentSignal = new YieldCompletionSignal(value, iteratorResultObject);
-    }
-
-    /// <summary>
-    ///     Clears the Continue signal (used when a loop consumes it).
-    /// </summary>
-    public void ClearContinue()
-    {
-        if (CurrentSignal is ContinueCompletionSignal)
-        {
-            CurrentSignal = null;
-        }
     }
 
     /// <summary>

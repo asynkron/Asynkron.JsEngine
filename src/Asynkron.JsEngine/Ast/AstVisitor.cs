@@ -141,7 +141,7 @@ public abstract class AstVisitor
                     VisitContinue(node);
                     break;
                 }
-                case FunctionDeclaration node:
+                case FunctionDeclaration:
                 {
                     // Functions create their own scope, don't traverse body by default
                     break;

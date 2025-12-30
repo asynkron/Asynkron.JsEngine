@@ -141,7 +141,7 @@ public class CatchCompletionValueReplicationTest
     [Fact(Timeout = 10000)]
     public async Task Replicate_BreakFromFinally()
     {
-        var logger = new TestLogger(_output, "BreakFromFinally", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(_output, "BreakFromFinally", minLogLevel: LogLevel.Debug, maxLogCount:10000);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""

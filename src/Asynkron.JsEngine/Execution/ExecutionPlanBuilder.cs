@@ -213,8 +213,11 @@ internal sealed partial class ExecutionPlanBuilder
 
         if (plan.DeclarationKind is null)
         {
+            // Per ES spec 13.6.4.13 (ForIn/OfBodyEvaluation), the iterator binding assignment
+            // should NOT affect the loop's completion value. Only the loop body contributes.
             bindingStatement = new ExpressionStatement(plan.Body.Source,
-                CreateAssignmentExpression(plan.Target, valueExpression));
+                CreateAssignmentExpression(plan.Target, valueExpression),
+                SuppressCompletionValue: true);
         }
         else
         {

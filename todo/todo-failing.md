@@ -1,6 +1,7 @@
-    Asynkron.JsEngine.Tests
-     ForLoopPerIterationTests
-      ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen
+Asynkron.JsEngine.Tests
+Asynkron.JsEngine.Tests
+ForLoopPerIterationTests
+ForLoop_LexicalBindings_AreFreshPerIteration_ScopeBodyLexOpen
 Asynkron.JsEngine.Tests.Test262
 Asynkron.JsEngine.Tests.Test262
 TestHarness
@@ -82,32 +83,6 @@ Statements_let_syntax("language/statements/let/syntax/let-closure-inside-next-ex
 Statements_let_syntax("language/statements/let/syntax/let-outer-inner-let-bindings.js",False)
 Statements_let_syntax("language/statements/let/syntax/let-outer-inner-let-bindings.js",True)
 Statements_switch
-Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-a-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-a-fall-thru-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-a-fall-thru-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-b-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-b-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-b-fall-thru-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-b-fall-thru-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-dflt-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-dflt-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-dflt-b-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-dflt-b-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-dflt-b-fall-thru-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-dflt-b-final.js",False)
-Statements_switch("language/statements/switch/cptn-dflt-b-final.js",True)
-Statements_switch("language/statements/switch/cptn-dflt-fall-thru-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-dflt-fall-thru-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-dflt-final.js",False)
-Statements_switch("language/statements/switch/cptn-dflt-final.js",True)
-Statements_switch("language/statements/switch/cptn-no-dflt-match-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-no-dflt-match-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-abrupt-empty.js",False)
-Statements_switch("language/statements/switch/cptn-no-dflt-match-fall-thru-abrupt-empty.js",True)
-Statements_switch("language/statements/switch/cptn-no-dflt-match-final.js",False)
-Statements_switch("language/statements/switch/cptn-no-dflt-match-final.js",True)
 Statements_switch("language/statements/switch/scope-lex-close-case.js",False)
 Statements_switch("language/statements/switch/scope-lex-close-case.js",True)
 Statements_switch("language/statements/switch/scope-lex-close-dflt.js",False)

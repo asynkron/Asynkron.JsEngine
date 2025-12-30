@@ -1050,6 +1050,16 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.SimpleVariableDeclaration:
                             {
                                 var varDeclInstruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instruction);
+
+                                // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
+                                // then perform SetFunctionName(value, bindingId).
+                                var isAnonymousFunctionDefinition = varDeclInstruction.Initializer is not null &&
+                                    ExpressionNode.IsAnonymousFunctionDefinitionNode(varDeclInstruction.Initializer);
+
+                                using var functionNameHint = isAnonymousFunctionDefinition
+                                    ? context.EnterFunctionNameHint(varDeclInstruction.TargetSymbol)
+                                    : null;
+
                                 // Evaluate initializer if present
                                 var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
 

@@ -1,6 +1,5 @@
 # failing tests to fix:
-when running tests, run with filters for these specific tests.
-OR them together to a filter pattern and run.
+when running tests, run with filters for these specific tests, be precise.
 Pick a random group of failing tests here. e.g. Atomics. then write update the stdlib prototypes, constructors and concrete Js**** types to make this work.
 ---
 

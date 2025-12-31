@@ -1633,6 +1633,13 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return true;
         }
 
+        if (_virtualPropertyProvider is not null &&
+            !name.IsPrivateSlotName() &&
+            _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
+        {
+            return virtualDescriptor?.Configurable != false;
+        }
+
         // Property does not exist; delete is a no-op that succeeds.
         return true;
     }

@@ -295,3 +295,63 @@ the `JsValueKind` to be lost or defaulting to something that returns NaN.
 
 ### Time ran out before implementing fix
 
+---
+## Round 5 - Agent 4 Progress
+
+### FIXED: completion-values-fn-finally-abrupt (2 tests) - Cherry-picked from Agent 1
+
+**Root Cause:** When a finally block throws an exception, it was incorrectly being caught
+by the catch handler from the same try-catch-finally structure. Per ES spec, the catch
+handler should only handle exceptions from the try block, NOT from the finally block.
+
+**Fix:** Added `FinallyScheduled: false` check to the catch handler condition in
+`HandleAbruptCompletion`:
+
+```csharp
+// BEFORE:
+if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
+
+// AFTER:
+if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false, FinallyScheduled: false })
+```
+
+**FILE CHANGED:** `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Completion.cs`
+
+**TESTS FIXED:**
+- Statements_try("language/statements/try/completion-values-fn-finally-abrupt.js",False)
+- Statements_try("language/statements/try/completion-values-fn-finally-abrupt.js",True)
+
+### TDZ Write Bug - INVESTIGATED but not fixed
+
+**Finding:** READ before initialization correctly throws ReferenceError. But WRITE before
+initialization does NOT throw - it creates a global variable instead.
+
+**Tests created:**
+- `TdzClosureTest.cs` with multiple hypothesis tests (H0-H4)
+- Debug tests confirming let/const bindings work correctly after initialization
+
+**Root cause analysis:**
+The issue is complex - `TryLocateBinding` in `JsEnvironment.cs` correctly finds TDZ bindings,
+but the TDZ check in `WriteResolvedBindingJsValue` only happens if the binding IS found.
+When the binding is NOT found (because it's in a child scope), `AssignUnresolvableJsValue`
+is called which creates a global.
+
+The fix requires ensuring lexical declarations are hoisted to the correct environment
+BEFORE the function body executes. Currently `InvokeWithContext` does this correctly
+(lines 1162-1170), but the issue is that closures created before the let declaration
+don't see the TDZ binding.
+
+### Remaining Tests Analysis
+
+**yield-star-from-catch/try (4 tests):** Complex generator + for-of + try/catch interaction.
+Fails on iteration count assertions. Would require deep investigation of generator IR.
+
+**forOf using TDZ (2 tests):** Requires `explicit-resource-management` feature (the `using`
+declaration) which is not implemented. Cannot fix without implementing that feature.
+
+**ModuleCode tests (24+):** Require module-specific features not fully implemented.
+
+**function-local-closure-set-before-initialization (1 test):** The TDZ write bug described above.
+
+### FINAL SCORE: 2 tests fixed (cherry-picked from Agent 1)
+

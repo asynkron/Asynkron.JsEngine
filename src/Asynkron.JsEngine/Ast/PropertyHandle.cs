@@ -199,7 +199,7 @@ public readonly struct PropertyHandle
         var resolvedFromContext = false;
         var resolvedKeyFromContext = context.ResolvePrivateNameKey(propertyName);
         if (resolvedKeyFromContext is not null &&
-            PrivateNameScope.TryResolveScope(resolvedKeyFromContext, out var resolvedScope))
+            PrivateNameScope.TryResolveScope(context.RealmState, resolvedKeyFromContext, out var resolvedScope))
         {
             resolvedKey = resolvedKeyFromContext;
             privateScope = resolvedScope;
@@ -208,13 +208,13 @@ public readonly struct PropertyHandle
 
         if (privateScope is null && propertyName.Contains('@', StringComparison.Ordinal))
         {
-            PrivateNameScope.TryResolveScope(propertyName, out privateScope);
+            PrivateNameScope.TryResolveScope(context.RealmState, propertyName, out privateScope);
         }
 
         privateScope ??= context.CurrentPrivateNameScope;
         if (privateScope is null)
         {
-            PrivateNameScope.TryResolveScope(propertyName, out privateScope);
+            PrivateNameScope.TryResolveScope(context.RealmState, propertyName, out privateScope);
         }
 
         if (privateScope is null)

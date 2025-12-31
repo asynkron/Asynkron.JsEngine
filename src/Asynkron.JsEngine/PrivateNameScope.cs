@@ -1,6 +1,6 @@
 #region
 
-using System.Collections.Concurrent;
+using Asynkron.JsEngine.Runtime;
 
 #endregion
 
@@ -9,13 +9,12 @@ namespace Asynkron.JsEngine;
 public sealed class PrivateNameScope
 {
     private static int _nextId;
-    private static readonly ConcurrentDictionary<int, PrivateNameScope> _scopes = new();
     private readonly int _id = Interlocked.Increment(ref _nextId);
     private readonly Dictionary<string, string> _map = new(StringComparer.Ordinal);
 
-    public PrivateNameScope()
+    public PrivateNameScope(RealmState realm)
     {
-        _scopes[_id] = this;
+        realm.PrivateNameScopes[_id] = this;
     }
 
     public object BrandToken { get; } = new();
@@ -37,7 +36,7 @@ public sealed class PrivateNameScope
         return key;
     }
 
-    public static bool TryResolveScope(string key, out PrivateNameScope? scope)
+    public static bool TryResolveScope(RealmState realm, string key, out PrivateNameScope? scope)
     {
         scope = null;
         var separator = key.LastIndexOf('@');
@@ -51,6 +50,6 @@ public sealed class PrivateNameScope
             return false;
         }
 
-        return _scopes.TryGetValue(id, out scope);
+        return realm.PrivateNameScopes.TryGetValue(id, out scope);
     }
 }

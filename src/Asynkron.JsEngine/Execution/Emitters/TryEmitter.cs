@@ -118,14 +118,16 @@ internal static class TryEmitter
 
         // Build instructions bottom-up:
         // 1. PopEnvironmentInstruction → leaveTryIndex
-        // 2. Body statements → PopEnvironment
+        // 2. Body statements (possibly with its own block environment) → PopEnvironment
         // 3. EnterCatchInstruction or EnterCatchWithDestructuringInstruction → body entry
 
         // 1. Pop catch environment at the end
         var popCatchEnv = ctx.Append(new PopEnvironmentInstruction(catchScopeId, false, leaveTryIndex));
 
-        // 2. Emit catch body statements (directly, not as a BlockStatement to avoid double scope)
-        if (!ctx.TryBuildStatementList(catchClause.Body.Statements, popCatchEnv, out var bodyEntry))
+        // 2. Emit catch body - use TryEmitBlock to properly handle block-scoped declarations
+        // Per ECMAScript, the catch block body gets its own lexical environment for let/const,
+        // separate from the catch parameter environment.
+        if (!BlockEmitter.TryEmitBlock(ctx, catchClause.Body, popCatchEnv, out var bodyEntry))
         {
             catchEntry = -1;
             return false;

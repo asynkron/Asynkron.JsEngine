@@ -259,7 +259,10 @@ public static partial class TypedAstEvaluator
             while (TryCatchStateRef.TryStack.Count > 0)
             {
                 var frame = TryCatchStateRef.TryStack.Peek();
-                if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
+                // Per ES spec: catch clause only handles exceptions from the try block, NOT from finally.
+                // If FinallyScheduled is true, we're executing inside the finally block, so exceptions
+                // should propagate up, not go to the catch handler.
+                if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false, FinallyScheduled: false })
                 {
                     frame.CatchUsed = true;
 

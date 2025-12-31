@@ -179,6 +179,78 @@ public class TdzClosureTest
         Assert.Equal("true|ReferenceError", result?.ToString());
     }
 
+    /// <summary>
+    /// Debug test: Check if x is accessible at all after let declaration
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task Debug_LetXAfterDeclaration()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Test that let x works normally - accessing after initialization
+        var result = await engine.Evaluate("""
+            (function() {
+              let x = 42;
+              return x;
+            }());
+        """);
+
+        _output.WriteLine($"Result: {result}");
+        var val = result is JsValue jv ? jv.AsDouble() : Convert.ToDouble(result);
+        Assert.Equal(42.0, val);
+    }
+
+    /// <summary>
+    /// Debug test: Check if inner function can see let binding after initialization
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task Debug_InnerFunctionCanAccessLetAfterInit()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // This should work: function called AFTER let x is initialized
+        var result = await engine.Evaluate("""
+            (function() {
+              let x = 42;
+              function f() { return x; }
+              return f();
+            }());
+        """);
+
+        _output.WriteLine($"Result: {result}");
+        var val2 = result is JsValue jv2 ? jv2.AsDouble() : Convert.ToDouble(result);
+        Assert.Equal(42.0, val2);
+    }
+
+    /// <summary>
+    /// Debug test: Check if inner function can assign to let binding after initialization
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task Debug_InnerFunctionCanWriteLetAfterInit()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // This should work: function called AFTER let x is initialized, then writes to it
+        var result = await engine.Evaluate("""
+            (function() {
+              let x = 42;
+              function f() { x = 100; }
+              f();
+              return x;
+            }());
+        """);
+
+        _output.WriteLine($"Result: {result}");
+        var val3 = result is JsValue jv3 ? jv3.AsDouble() : Convert.ToDouble(result);
+        Assert.Equal(100.0, val3);
+    }
+
     [Fact(Timeout = 10000)]
     public async Task ClosureTdz_WithAssertThrowsPattern()
     {

@@ -1,0 +1,229 @@
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Tests.Helpers;
+using Microsoft.Extensions.Logging;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Asynkron.JsEngine.Tests;
+
+public class TdzClosureTest
+{
+    private readonly ITestOutputHelper _output;
+
+    public TdzClosureTest(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
+    /// <summary>
+    /// H0: Simple TDZ check - non-closure, same scope
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H0_SimpleTdz_ReadBeforeInit()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Simple case: read `x` before let declaration
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                (function() {
+                    console.log(x);  // Should throw ReferenceError
+                    let x = 1;
+                }());
+            """);
+        });
+
+        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// H1: Simple TDZ check - non-closure, same scope, assignment
+    /// This test is EXPECTED TO FAIL - it exposes the TDZ hoisting bug.
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H1_SimpleTdz_AssignBeforeInit()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Simple case: assign to `x` before let declaration
+        // Per ECMAScript spec, `let x` should be hoisted with TDZ, so `x = 1` should throw ReferenceError.
+        // BUG: Currently this doesn't throw - it creates a global variable instead.
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                (function() {
+                    x = 1;  // Should throw ReferenceError since `let x` below is hoisted with TDZ
+                    let x;
+                }());
+            """);
+        });
+
+        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// H2: Closure TDZ - closure in nested function, read
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H2_ClosureTdz_ReadBeforeInit()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Closure case: read `x` from inner function before outer `let x` is initialized
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                (function() {
+                    function f() { return x; }  // Closure captures x
+                    f();  // Should throw ReferenceError
+                    let x = 1;
+                }());
+            """);
+        });
+
+        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// H3: Closure TDZ - closure in nested function, assign
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H3_ClosureTdz_AssignBeforeInit()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Closure case: assign `x` from inner function before outer `let x` is initialized
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                (function() {
+                    function f() { x = 1; }  // Closure captures x
+                    f();  // Should throw ReferenceError
+                    let x;
+                }());
+            """);
+        });
+
+        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// H4: Let is hoisted, should see undefined without TDZ
+    /// </summary>
+    [Fact(Timeout = 10000)]
+    public async Task H4_VarIsHoisted_ShouldNotThrow()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Var is hoisted, should not throw
+        var result = await engine.Evaluate("""
+            (function() {
+                function f() { x = 1; }
+                f();
+                var x;
+                return x;
+            }());
+        """);
+
+        _output.WriteLine($"Result: {result}");
+        // Expected: 1 (var is hoisted and assignment succeeds)
+        Assert.Equal(1.0, ((JsValue)result!).AsDouble());
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task ClosureTdz_AssignBeforeInit_ShouldThrowReferenceError()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Mimics the Test262 test function-local-closure-set-before-initialization.js
+        var result = await engine.Evaluate("""
+            var caught = false;
+            var errorType = null;
+
+            (function() {
+              function f() { x = 1; }
+
+              try {
+                f();
+              } catch (e) {
+                caught = true;
+                errorType = e.name;
+              }
+
+              let x;
+            }());
+
+            caught + "|" + errorType;
+        """);
+
+        _output.WriteLine($"Result: {result}");
+        // Expected: "true|ReferenceError" (exception should be caught)
+        Assert.Equal("true|ReferenceError", result?.ToString());
+    }
+
+    [Fact(Timeout = 10000)]
+    public async Task ClosureTdz_WithAssertThrowsPattern()
+    {
+        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
+        await using var engine = new JsEngine(options);
+
+        // Load Test262-like assert.throws pattern
+        await engine.Evaluate("""
+            function assert(condition, message) {
+                if (!condition) throw new Error(message || 'Assertion failed');
+            }
+            assert.throws = function(expectedErrorConstructor, func, message) {
+                var thrown = false;
+                try {
+                    func();
+                } catch (e) {
+                    thrown = true;
+                    if (!(e instanceof expectedErrorConstructor)) {
+                        throw new Error('Expected ' + expectedErrorConstructor.name + ' but got ' + e.name);
+                    }
+                }
+                if (!thrown) {
+                    throw new Error('Expected function to throw, but it did not');
+                }
+            };
+        """);
+
+        // Now test the same pattern as the Test262 test
+        var result = await engine.Evaluate("""
+            var testPassed = false;
+            (function() {
+              function f() { x = 1; }
+              
+              assert.throws(ReferenceError, function() {
+                f();
+              });
+              testPassed = true;
+              
+              let x;
+            }());
+            testPassed;
+        """);
+
+        _output.WriteLine($"Result: {result}");
+        Assert.True(result is JsValue jsValue && jsValue.IsTruthy);
+    }
+}

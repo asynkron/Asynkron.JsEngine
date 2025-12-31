@@ -471,22 +471,24 @@ public sealed partial class ArrayPrototype
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.toSorted";
+
+        // Per spec step 1: If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError.
+        // This MUST happen BEFORE getting the length (step 3).
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && !args[0].IsUndefined)
+        {
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
+            {
+                throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+            }
+            compareFn = callable;
+        }
+
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
-
-        if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
-        {
-            throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
-        }
-
-        IJsCallable? compareFn = null;
-        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var callable))
-        {
-            compareFn = callable;
-        }
 
         // Per spec SortIndexedProperties with skipHoles=true: read all existing elements first.
         // Holes ARE skipped - they will end up at the end of the result array.
@@ -596,10 +598,21 @@ public sealed partial class ArrayPrototype
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
+        // Per spec step 8: If start is not present, then actualDeleteCount = 0.
+        // Per spec step 9: Else if deleteCount is not present, use len - actualStart.
+        // NOTE: "not present" means the argument wasn't passed at all, NOT that it's undefined.
+        // If deleteCount is passed as undefined, we use ToIntegerOrInfinity(undefined) = 0.
+        var startIsNotPresent = args.Count == 0;
+        var deleteCountIsNotPresent = args.Count == 1;  // Only when deleteCount arg is truly missing
         long actualDeleteCount;
-        if (deleteCountIsUndefined)
+        if (startIsNotPresent)
         {
+            // Per spec step 8: If start is not present, actualDeleteCount = 0
+            actualDeleteCount = 0;
+        }
+        else if (deleteCountIsNotPresent)
+        {
+            // Per spec step 9: Else if deleteCount is not present, actualDeleteCount = len - actualStart
             actualDeleteCount = length - actualStart;
         }
         else

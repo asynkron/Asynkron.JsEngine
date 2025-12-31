@@ -184,4 +184,24 @@ public sealed class JsSymbol : IJsPropertyAccessor
 
         return IdRegistry.TryGetValue(id, out symbol);
     }
+
+    /// <summary>
+    /// Clears all non-global (local) symbols from the registry.
+    /// This is intended for test cleanup to prevent memory accumulation across test runs.
+    /// Global symbols (created via Symbol.for) are preserved.
+    /// </summary>
+    internal static void ClearLocalSymbols()
+    {
+        // Collect IDs of non-global symbols (those with null key)
+        var localIds = IdRegistry
+            .Where(kvp => kvp.Value._key is null)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var id in localIds)
+        {
+            IdRegistry.TryRemove(id, out _);
+            PropertyKeyCache.TryRemove(id, out _);
+        }
+    }
 }

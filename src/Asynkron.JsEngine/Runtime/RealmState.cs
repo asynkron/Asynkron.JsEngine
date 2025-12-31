@@ -1,5 +1,7 @@
 #region
 
+using System.Collections.Concurrent;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
@@ -32,6 +34,19 @@ public sealed class RealmState
     /// The key is the TaggedTemplateExpression AST node reference.
     /// </summary>
     internal Dictionary<object, object> TemplateObjectCache { get; } = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// Per-realm registry of private name scopes for class private fields.
+    /// Scopes are stored here instead of a static dictionary to allow GC when the realm is disposed.
+    /// </summary>
+    internal ConcurrentDictionary<int, PrivateNameScope> PrivateNameScopes { get; } = new();
+
+    /// <summary>
+    /// Per-realm registry of JsSymbol instances by their ID.
+    /// Used to resolve symbol property keys (e.g., "@@symbol:123") back to the original symbol.
+    /// Stored here instead of a static dictionary to allow GC when the realm is disposed.
+    /// </summary>
+    internal ConcurrentDictionary<int, JsSymbol> JsSymbolRegistry { get; } = new();
 
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }

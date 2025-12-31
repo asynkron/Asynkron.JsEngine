@@ -91,6 +91,12 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         });
     }
 
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
+
     /// <summary>
     /// %TypedArray%.from ( source [ , mapfn [ , thisArg ] ] )
     /// </summary>

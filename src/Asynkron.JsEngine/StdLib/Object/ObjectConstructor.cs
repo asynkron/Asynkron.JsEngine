@@ -869,7 +869,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             iteratorCallable is not null)
         {
             var iterator = iteratorCallable.Invoke([], receiver);
-            if (!iterator.TryGetObject(out var iteratorObj) || iteratorObj is null)
+            if (!iterator.TryGetObjectLike(out var iteratorObj) || iteratorObj is null)
             {
                 throw ThrowTypeError($"{methodName} Symbol.iterator must return an object", realm: realm);
             }

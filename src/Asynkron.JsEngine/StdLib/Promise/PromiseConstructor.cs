@@ -52,6 +52,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         AttachStatics(constructor);
     }
 
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
+
     private object ConstructPromise(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
     {
         IJsCallable? executor = null;

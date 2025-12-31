@@ -147,6 +147,11 @@ internal sealed partial class ExecutionPlanBuilder
     {
         // Step 1: Collect all unique user variable symbols from instructions using the visitor
         var collector = new IdentifierCollector();
+
+        // Pre-collect per-iteration symbols so we exclude them from execution plan slots
+        // (they get their slots via PushEnvironmentInstruction)
+        collector.CollectPerIterationSymbols(_instructions);
+
         foreach (var instruction in _instructions)
         {
             collector.VisitInstruction(instruction);

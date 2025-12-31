@@ -80,11 +80,20 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
         // Update the assignment target slot info
         if (symbolToScope.TryGetValue(node.Target, out var targetInfo))
         {
+            // Pre-create the TargetIdentifier to avoid allocating it at every assignment evaluation
+            var targetIdentifier = new IdentifierExpression(
+                node.Source,
+                node.Target,
+                0,  // ScopeDepth
+                targetInfo.slotIndex,
+                targetInfo.scopeId);
+
             return node with
             {
                 ScopeDepth = 0,
                 ScopeId = targetInfo.scopeId,
                 SlotIndex = targetInfo.slotIndex,
+                TargetIdentifier = targetIdentifier,
                 Value = RewriteExpression(node.Value)
             };
         }

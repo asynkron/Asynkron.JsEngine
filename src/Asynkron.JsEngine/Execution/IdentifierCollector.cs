@@ -13,6 +13,25 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class IdentifierCollector : AstVisitor
 {
     public HashSet<Symbol> Identifiers { get; } = new(ReferenceEqualityComparer<Symbol>.Instance);
+    private readonly HashSet<Symbol> _perIterationSymbols = new(ReferenceEqualityComparer<Symbol>.Instance);
+
+    /// <summary>
+    /// Pre-collect per-iteration symbols from all instructions.
+    /// Must be called before VisitInstruction to ensure we know which symbols are per-iteration.
+    /// </summary>
+    public void CollectPerIterationSymbols(IEnumerable<ExecutionInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction is PushEnvironmentInstruction pushEnv)
+            {
+                foreach (var symbol in pushEnv.PerIterationBindings)
+                {
+                    _perIterationSymbols.Add(symbol);
+                }
+            }
+        }
+    }
 
     public void VisitInstruction(ExecutionInstruction instruction)
     {
@@ -39,10 +58,21 @@ internal sealed class IdentifierCollector : AstVisitor
             case BranchInstruction branch:
                 Visit(branch.Condition);
                 break;
-            case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
-                // Only visit the initializer expression, NOT the target symbol
-                // The target symbol declares a new variable and should NOT be collected
-                Visit(varDecl.Initializer);
+            case SimpleVariableDeclarationInstruction varDecl:
+                // Only assign slots to let/const declarations, NOT var declarations.
+                // var declarations are hoisted and share binding with parameters,
+                // so they should NOT get execution plan slots.
+                // Also exclude per-iteration bindings - they get slots via PushEnvironmentInstruction.
+                if (varDecl.VarKind is VariableKind.Let or VariableKind.Const &&
+                    !_perIterationSymbols.Contains(varDecl.TargetSymbol))
+                {
+                    Identifiers.Add(varDecl.TargetSymbol);
+                }
+                // Also visit the initializer expression if present
+                if (varDecl.Initializer is not null)
+                {
+                    Visit(varDecl.Initializer);
+                }
                 break;
             case IteratorInitInstruction iterInit:
                 Visit(iterInit.IterableExpression);
@@ -53,9 +83,8 @@ internal sealed class IdentifierCollector : AstVisitor
             case YieldStarInstruction yieldStar:
                 Visit(yieldStar.IterableExpression);
                 break;
-            // Note: PushEnvironmentInstruction symbols belong to iteration environments,
-            // not the execution plan environment. They already have slots assigned by
-            // LoopNormalizer/IteratorDriverFactory, so we don't collect them here.
+            // Note: PushEnvironmentInstruction symbols are pre-collected via CollectPerIterationSymbols()
+            // and excluded from Identifiers since they get their slots via PushEnvironmentInstruction.
         }
     }
 
@@ -119,10 +148,12 @@ internal sealed class IdentifierCollector : AstVisitor
 
     protected override void VisitIdentifier(IdentifierExpression node)
     {
-        // Only collect compiler-generated symbols (resume slots, iterator state, etc.)
-        // User variables from outer scopes should NOT be assigned slots in the execution plan environment
+        // Collect compiler-generated symbols (resume slots, iterator state, etc.)
+        // and any symbol that might reference a locally declared variable
         // Compiler-generated symbols all start with '\u0001' prefix
-        // User variables declared IN the plan are collected via SimpleVariableDeclarationInstruction
+        // User variables declared via SimpleVariableDeclarationInstruction are collected
+        // in VisitInstruction, so we add them to Identifiers there.
+        // Here we only need to add compiler-generated symbols.
         if (node.Name.Name.StartsWith('\u0001'))
         {
             Identifiers.Add(node.Name);
@@ -131,8 +162,7 @@ internal sealed class IdentifierCollector : AstVisitor
 
     protected override void VisitAssignment(AssignmentExpression node)
     {
-        // Only collect compiler-generated assignment targets
-        // User variables declared IN the plan are collected via SimpleVariableDeclarationInstruction
+        // Collect compiler-generated assignment targets
         if (node.Target.Name.StartsWith('\u0001'))
         {
             Identifiers.Add(node.Target);

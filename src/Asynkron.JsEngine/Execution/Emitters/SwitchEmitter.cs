@@ -3,6 +3,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -68,27 +69,56 @@ internal static class SwitchEmitter
         var matchIndexSymbol = Symbol.Intern($"__switch_match_{instructionStart}");
         var doneSymbol = Symbol.Intern($"__switch_done_{instructionStart}");
 
-        var statements = ImmutableArray.CreateBuilder<StatementNode>();
+        // Outer block statements (discriminant, match vars - these capture outer scope)
+        var outerStatements = ImmutableArray.CreateBuilder<StatementNode>();
 
         // const __discN = <discriminant>;
         var discBinding = new IdentifierBinding(statement.Source, discriminantSymbol);
         var discDeclarator = new VariableDeclarator(statement.Source, discBinding, statement.Discriminant);
         var discDeclaration = new VariableDeclaration(statement.Source, VariableKind.Const, [discDeclarator]);
-        statements.Add(discDeclaration);
+        outerStatements.Add(discDeclaration);
 
         // let __matchN = -1;
         var matchBinding = new IdentifierBinding(statement.Source, matchIndexSymbol);
         var matchInitializer = new LiteralExpression(statement.Source, -1);
         var matchDeclarator = new VariableDeclarator(statement.Source, matchBinding, matchInitializer);
         var matchDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [matchDeclarator]);
-        statements.Add(matchDeclaration);
+        outerStatements.Add(matchDeclaration);
 
         // let __doneN = false;
         var doneBinding = new IdentifierBinding(statement.Source, doneSymbol);
         var doneInitializer = new LiteralExpression(statement.Source, false);
         var doneDeclarator = new VariableDeclarator(statement.Source, doneBinding, doneInitializer);
         var doneDeclaration = new VariableDeclaration(statement.Source, VariableKind.Let, [doneDeclarator]);
-        statements.Add(doneDeclaration);
+        outerStatements.Add(doneDeclaration);
+
+        // Inner block statements (switch scope - all case bodies share this)
+        var innerStatements = ImmutableArray.CreateBuilder<StatementNode>();
+
+        // Per ES spec 13.12.9: All case bodies share ONE lexical scope.
+        // Collect and hoist all let/const declarations from ALL case bodies.
+        var hoistedDeclarators = ImmutableArray.CreateBuilder<VariableDeclarator>();
+        var hoistedSymbols = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var switchCase in statement.Cases)
+        {
+            foreach (var stmt in switchCase.Body.Statements)
+            {
+                if (stmt is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } varDecl)
+                {
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        CollectBindingSymbols(declarator.Target, hoistedSymbols, hoistedDeclarators, statement.Source, varDecl.Kind);
+                    }
+                }
+            }
+        }
+
+        // Add hoisted declarations (without initializers) at start of inner block
+        if (hoistedDeclarators.Count > 0)
+        {
+            var hoistedDecl = new VariableDeclaration(statement.Source, VariableKind.Let, hoistedDeclarators.ToImmutable());
+            innerStatements.Add(hoistedDecl);
+        }
 
         // Matching phase: set __matchN to the first matching case index.
         for (var i = 0; i < statement.Cases.Length; i++)
@@ -111,7 +141,7 @@ internal static class SwitchEmitter
                 new LiteralExpression(statement.Source, i));
             // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
             var setMatchStatement = new ExpressionStatement(statement.Source, setMatch, SuppressCompletionValue: true);
-            statements.Add(new IfStatement(statement.Source, combinedTest,
+            innerStatements.Add(new IfStatement(statement.Source, combinedTest,
                 new BlockStatement(statement.Source, [setMatchStatement], statement.Cases[0].Body.IsStrict),
                 null));
         }
@@ -126,7 +156,7 @@ internal static class SwitchEmitter
                 new LiteralExpression(statement.Source, defaultIndex));
             // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
             var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch, SuppressCompletionValue: true);
-            statements.Add(new IfStatement(statement.Source, stillUnmatched,
+            innerStatements.Add(new IfStatement(statement.Source, stillUnmatched,
                 new BlockStatement(statement.Source, [setDefaultStatement], statement.Cases[0].Body.IsStrict),
                 null));
         }
@@ -136,7 +166,7 @@ internal static class SwitchEmitter
         // This ensures that if no case body produces a value (all empty), the switch completes with undefined.
         // We use an expression statement that evaluates to undefined.
         var initCompletionExpr = new IdentifierExpression(statement.Source, Symbol.Undefined);
-        statements.Add(new ExpressionStatement(statement.Source, initCompletionExpr));
+        innerStatements.Add(new ExpressionStatement(statement.Source, initCompletionExpr));
 
         for (var caseIndex = 0; caseIndex < statement.Cases.Length; caseIndex++)
         {
@@ -187,7 +217,24 @@ internal static class SwitchEmitter
             var execBuilder = ImmutableArray.CreateBuilder<StatementNode>();
             for (var i = 0; i < copyCount; i++)
             {
-                execBuilder.Add(bodyStatements[i]);
+                var stmt = bodyStatements[i];
+                // Transform let/const declarations with initializers into assignments
+                // (the declaration is hoisted to start of switch scope)
+                if (stmt is VariableDeclaration { Kind: VariableKind.Let or VariableKind.Const } varDecl)
+                {
+                    foreach (var declarator in varDecl.Declarators)
+                    {
+                        if (declarator.Initializer is not null && declarator.Target is IdentifierBinding id)
+                        {
+                            var assign = new AssignmentExpression(stmt.Source, id.Name, declarator.Initializer);
+                            execBuilder.Add(new ExpressionStatement(stmt.Source, assign));
+                        }
+                    }
+                }
+                else
+                {
+                    execBuilder.Add(stmt);
+                }
             }
 
             if (breakIndex != -1)
@@ -199,12 +246,23 @@ internal static class SwitchEmitter
                 execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment, SuppressCompletionValue: true));
             }
 
-            var execBlock = new BlockStatement(body.Source, execBuilder.ToImmutable(), body.IsStrict);
-            statements.Add(new IfStatement(statement.Source, execCondition, execBlock, null));
+            // Case bodies do NOT get their own block scope - statements go directly into innerStatements
+            // This is wrapped in if() to guard execution based on match index
+            foreach (var s in execBuilder)
+            {
+                // Create if guard for this statement (or group of statements from this case)
+                innerStatements.Add(new IfStatement(statement.Source, execCondition,
+                    new BlockStatement(body.Source, [s], body.IsStrict), null));
+            }
         }
 
+        // Create inner block (switch scope) containing all case body statements
         var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
-        var lowered = new BlockStatement(statement.Source, statements.ToImmutable(), isStrict);
+        var innerBlock = new BlockStatement(statement.Source, innerStatements.ToImmutable(), isStrict);
+        outerStatements.Add(innerBlock);
+
+        // Outer block contains discriminant setup + inner block
+        var lowered = new BlockStatement(statement.Source, outerStatements.ToImmutable(), isStrict);
 
         // Create BreakableExitInstruction first (we build bottom-up)
         // This pops the breakable stack when exiting the switch (normal exit or break)
@@ -230,5 +288,51 @@ internal static class SwitchEmitter
             ConstructKind: BreakableKind.HandlesCompletionInternally));
 
         return true;
+    }
+
+    /// <summary>
+    /// Collects binding symbols from a binding target for switch scope hoisting.
+    /// Creates uninitialized declarators for each identifier.
+    /// </summary>
+    private static void CollectBindingSymbols(
+        BindingTarget target,
+        HashSet<Symbol> seenSymbols,
+        ImmutableArray<VariableDeclarator>.Builder declarators,
+        SourceReference? source,
+        VariableKind kind)
+    {
+        switch (target)
+        {
+            case IdentifierBinding id:
+                if (seenSymbols.Add(id.Name))
+                {
+                    // Create declarator without initializer (TDZ until assignment)
+                    declarators.Add(new VariableDeclarator(source, id, null));
+                }
+                break;
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is not null)
+                    {
+                        CollectBindingSymbols(element.Target, seenSymbols, declarators, source, kind);
+                    }
+                }
+                if (arrayBinding.RestElement is not null)
+                {
+                    CollectBindingSymbols(arrayBinding.RestElement, seenSymbols, declarators, source, kind);
+                }
+                break;
+            case ObjectBinding objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    CollectBindingSymbols(property.Target, seenSymbols, declarators, source, kind);
+                }
+                if (objectBinding.RestElement is not null)
+                {
+                    CollectBindingSymbols(objectBinding.RestElement, seenSymbols, declarators, source, kind);
+                }
+                break;
+        }
     }
 }

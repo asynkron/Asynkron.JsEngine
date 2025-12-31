@@ -87,6 +87,12 @@ When `++x` is standalone ExpressionStatement, value is lost.
 3. BlockStatementExtensions.cs - block completion values
 
 --------
+## Links to Other Agents' Progress
+
+**CHECK THESE FOR ALTERNATIVE APPROACHES:**
+- See ../Asynkron.JsEngine-t1/todo/todo.md - Agent 1 also fixed prefix ++/-- (may have different insights)
+
+---
 ## Round 4 Insights (Agent 3):
 
 ### FIXED: Prefix ++/-- with valueOf (4 tests fixed!)

@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -110,7 +111,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var privateNameScope = definition.CreatePrivateNameScope();
+            var privateNameScope = definition.CreatePrivateNameScope(context.RealmState);
             context.RealmState.Logger?.LogInformation(
                 "Class evaluation start: name='{Name}', fields={FieldCount}, staticElements={StaticCount}, envStrict={EnvStrict}",
                 className?.Name ?? "<anonymous>",
@@ -242,11 +243,11 @@ public static partial class TypedAstEvaluator
             return constructorJsValue;
         }
 
-        private PrivateNameScope? CreatePrivateNameScope()
+        private PrivateNameScope? CreatePrivateNameScope(RealmState realm)
         {
             var hasPrivateFields = definition.Fields.Any(static f => f.IsPrivate);
             var hasPrivateMembers = definition.Members.Any(static m => m.IsPrivate);
-            return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope() : null;
+            return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope(realm) : null;
         }
 
         // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,

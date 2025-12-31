@@ -39,6 +39,17 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
+            // ES2024 19.2.1.3 EvalDeclarationInstantiation: in sloppy eval, var bindings
+            // are created BEFORE the eval code runs (with canDelete=true). If a binding
+            // was deleted during eval execution, encountering the 'var x' statement
+            // should NOT re-create it. Only non-eval contexts can create new var bindings.
+            if (context.ExecutionKind == ExecutionKind.Eval && !context.IsStrictSource)
+            {
+                // Var bindings in eval were already instantiated. If the binding doesn't
+                // exist now, it means it was deleted and should stay deleted.
+                return;
+            }
+
             var allowDelete = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
             environment.DefineFunctionScoped(name, JsValue.Undefined, false, context: context, canDelete: allowDelete);
         }

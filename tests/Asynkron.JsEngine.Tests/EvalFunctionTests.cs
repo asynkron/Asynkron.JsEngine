@@ -202,4 +202,173 @@ public class EvalFunctionTests(ITestOutputHelper output) : InternalTestBase(outp
         """);
         Assert.Equal("inside", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarInit_LocalNewDelete()
+    {
+        // Test eval var hoisting - x should be undefined before var statement
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var initial = null;
+            (function() {
+              eval('initial = x; var x;');
+            }());
+            initial;
+        """);
+        Output.WriteLine($"initial = {result}");
+        Assert.True(ReferenceEquals(result, Symbol.Undefined), $"Expected undefined, got: {result}");
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarDelete_NewBinding()
+    {
+        // Test that new var binding created by eval in function scope is deletable
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var deleteResult = null;
+            (function() {
+              eval('var y = 1; deleteResult = delete y;');
+            }());
+            deleteResult;
+        """);
+        Output.WriteLine($"delete result = {result}");
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarDeleteThenAccess_ShouldThrow()
+    {
+        // Test that after deleting eval-created var, access throws ReferenceError
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var threw = false;
+            (function() {
+              eval('var x = 1; delete x;');
+              try {
+                x;
+              } catch (e) {
+                threw = e instanceof ReferenceError;
+              }
+            }());
+            threw;
+        """);
+        Output.WriteLine($"threw ReferenceError = {result}");
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarInit_LocalNewDelete_Full()
+    {
+        // Full test matching Test262 var-env-var-init-local-new-delete.js
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var initial = null;
+            var postDeletion;
+
+            (function() {
+              eval('initial = x; delete x; postDeletion = function() { x; }; var x;');
+            }());
+
+            // Check that initial was undefined (var hoisting)
+            if (initial !== undefined) throw new Error('initial should be undefined, got: ' + initial);
+
+            // Check that postDeletion throws ReferenceError (binding was deleted)
+            var threwError = false;
+            try {
+                postDeletion();
+            } catch (e) {
+                if (e instanceof ReferenceError) {
+                    threwError = true;
+                }
+            }
+            if (!threwError) throw new Error('postDeletion should throw ReferenceError');
+            'success';
+        """);
+        Output.WriteLine($"result = {result}");
+        Assert.Equal("success", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_ClosureAccessToDeletedVar()
+    {
+        // Test that a closure defined in eval throws when accessing a deleted variable
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var capture;
+            var threw = false;
+            (function() {
+              eval('var x = 1; capture = function() { return x; }; delete x;');
+              try {
+                capture();
+              } catch (e) {
+                threw = e instanceof ReferenceError;
+              }
+            }());
+            threw;
+        """);
+        Output.WriteLine($"threw ReferenceError = {result}");
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_ClosureDefinedAfterDelete()
+    {
+        // Test that a closure defined AFTER delete still throws ReferenceError
+        // This matches the Test262 test pattern
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var capture;
+            var threw = false;
+            (function() {
+              eval('delete x; capture = function() { x; }; var x;');
+              try {
+                capture();
+              } catch (e) {
+                threw = e instanceof ReferenceError;
+              }
+            }());
+            threw;
+        """);
+        Output.WriteLine($"threw ReferenceError = {result}");
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Eval_VarBindingDeletedStaysDeleted()
+    {
+        // ES2024 19.2.1.3: var bindings created by EvalDeclarationInstantiation
+        // should NOT be re-created when the var statement is encountered after delete.
+        // This tests that accessing x after the var statement still throws ReferenceError.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var xBefore, deleteResult, xAfterDeleteThrew, xAfterVarThrew;
+            (function() {
+              eval(`
+                xBefore = typeof x;       // 'undefined' due to hoisting
+                deleteResult = delete x;  // should return true
+
+                // Access x after delete (should throw ReferenceError)
+                try {
+                  x;
+                  xAfterDeleteThrew = false;
+                } catch (e) {
+                  xAfterDeleteThrew = e instanceof ReferenceError;
+                }
+
+                var x;  // Should NOT re-create the deleted binding
+
+                // Access x after the var statement (should STILL throw ReferenceError)
+                try {
+                  x;
+                  xAfterVarThrew = false;
+                } catch (e) {
+                  xAfterVarThrew = e instanceof ReferenceError;
+                }
+              `);
+            }());
+            [xBefore, deleteResult, xAfterDeleteThrew, xAfterVarThrew].join(', ');
+        """);
+        Output.WriteLine($"result = {result}");
+        Assert.Equal("undefined, true, true, true", result);
+    }
 }

@@ -417,6 +417,26 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
+        // ES2024 19.2.1.3 EvalDeclarationInstantiation step 16:
+        // For each var-declared name that doesn't already exist in varEnv,
+        // create a deletable mutable binding initialized to undefined.
+        // This must happen BEFORE the eval code executes so that:
+        // 1. var bindings are visible at the start of evaluation (hoisting)
+        // 2. Once created here, they are NOT re-created if later deleted and
+        //    the var statement is encountered (delete semantics)
+        if (!isStrictEval)
+        {
+            foreach (var name in varDeclaredNames)
+            {
+                if (!varEnv.HasBinding(name))
+                {
+                    // Create deletable binding per spec (D=true in CreateMutableBinding)
+                    varEnv.DefineJsValue(name, JsValue.Undefined, isLexical: false,
+                        blocksFunctionScopeOverride: false, canDelete: true);
+                }
+            }
+        }
+
         try
         {
             // Evaluate directly in the constructed eval environment (direct eval is synchronous).

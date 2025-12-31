@@ -1,5 +1,6 @@
 #region
 
+using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -8,8 +9,8 @@ namespace Asynkron.JsEngine;
 
 public sealed class PrivateNameScope
 {
-    private static int _nextId;
-    private readonly int _id = Interlocked.Increment(ref _nextId);
+    private static int NextId;
+    private readonly int _id = Interlocked.Increment(ref NextId);
     private readonly Dictionary<string, string> _map = new(StringComparer.Ordinal);
 
     public PrivateNameScope(RealmState realm)
@@ -45,7 +46,7 @@ public sealed class PrivateNameScope
             return false;
         }
 
-        if (!int.TryParse(key.AsSpan(separator + 1), out var id))
+        if (!int.TryParse(key.AsSpan(separator + 1), CultureInfo.InvariantCulture, out var id ))
         {
             return false;
         }

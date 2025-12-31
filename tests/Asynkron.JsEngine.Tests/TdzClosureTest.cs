@@ -143,7 +143,7 @@ public class TdzClosureTest
 
         _output.WriteLine($"Result: {result}");
         // Expected: 1 (var is hoisted and assignment succeeds)
-        Assert.Equal(1.0, ((JsValue)result!).AsDouble());
+        Assert.Equal(1.0, (double)result);
     }
 
     [Fact(Timeout = 10000)]
@@ -284,12 +284,12 @@ public class TdzClosureTest
             var testPassed = false;
             (function() {
               function f() { x = 1; }
-              
+
               assert.throws(ReferenceError, function() {
                 f();
               });
               testPassed = true;
-              
+
               let x;
             }());
             testPassed;

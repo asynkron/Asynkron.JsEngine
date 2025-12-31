@@ -33,6 +33,11 @@ public sealed partial class MapIteratorPrototype : JsPrototype
             jsObj.RealmState = Realm;
         }
 
+        var iteratorPrototype = Realm.IteratorPrototype ??
+                                (JsObject)IteratorPrototype.CreatePrototype(Realm);
+        Realm.IteratorPrototype = iteratorPrototype;
+        Prototype.SetPrototype(iteratorPrototype);
+
         Realm.MapIteratorPrototype ??= Prototype as JsObject;
     }
 }

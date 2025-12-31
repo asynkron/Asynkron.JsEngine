@@ -42,7 +42,21 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     protected override void ConfigureConstructor(HostFunction constructor)
     {
         // Store the iterator prototype in the realm for static method access
-        Realm.IteratorPrototype ??= Prototype as JsObject;
+        var constructorPrototype = Prototype as JsObject;
+        if (constructorPrototype is null)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(Realm.IteratorPrototype, constructorPrototype))
+        {
+            Realm.IteratorPrototype = constructorPrototype;
+        }
+
+        var iteratorPrototype = constructorPrototype;
+        Realm.ArrayIteratorPrototype?.SetPrototype(iteratorPrototype);
+        Realm.MapIteratorPrototype?.SetPrototype(iteratorPrototype);
+        Realm.SetIteratorPrototype?.SetPrototype(iteratorPrototype);
     }
 
     /// <summary>

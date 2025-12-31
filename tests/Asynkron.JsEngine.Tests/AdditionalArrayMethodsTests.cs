@@ -187,14 +187,17 @@ public class AdditionalArrayMethodsTests(ITestOutputHelper output) : InternalTes
     }
 
     [Fact(Timeout = 2000)]
-    public async Task Array_ToSpliced_TreatsUndefinedDeleteCountAsWholeTail()
+    public async Task Array_ToSpliced_TreatsUndefinedDeleteCountAsZero()
     {
+        // Per spec: ToIntegerOrInfinity(undefined) = 0, so no elements are deleted
+        // [1,2,3,4].toSpliced(1, undefined, 9) inserts 9 at index 1 without deleting anything
+        // Result should be [1, 9, 2, 3, 4] with length 5
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
 
                                                        const arr = [1, 2, 3, 4];
                                                        const spliced = arr.toSpliced(1, undefined, 9);
-                                                       return spliced.length === 2 && spliced[0] === 1 && spliced[1] === 9;
+                                                       return spliced.length === 5 && spliced[0] === 1 && spliced[1] === 9 && spliced[2] === 2;
 
                                            """);
         Assert.Equal(true, result);

@@ -471,15 +471,24 @@ public sealed partial class ArrayPrototype
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.toSorted";
+
+        // Per spec step 1: Check comparefn BEFORE ToObject and LengthOfArrayLike
+        // If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError
+        if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
+        {
+            throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+        }
+
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
-        if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
+        // Per spec step 6 (ArrayCreate): If length > 2^32 - 1, throw a RangeError exception
+        if (length > MaxConcreteArrayLength)
         {
-            throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+            throw ThrowRangeError($"{MethodName} result exceeds 2^32 - 1 elements", realm: Realm);
         }
 
         IJsCallable? compareFn = null;
@@ -596,14 +605,24 @@ public sealed partial class ArrayPrototype
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
         long actualDeleteCount;
-        if (deleteCountIsUndefined)
+        // Per spec:
+        // Step 8: If start is not present, actualDeleteCount = 0
+        // Step 9: Else if deleteCount is not present, actualDeleteCount = len - actualStart
+        // Step 10: Else, actualDeleteCount = min(max(ToIntegerOrInfinity(deleteCount), 0), len - actualStart)
+        if (args.Count == 0)
         {
+            // start not present
+            actualDeleteCount = 0;
+        }
+        else if (args.Count == 1)
+        {
+            // deleteCount not present
             actualDeleteCount = length - actualStart;
         }
         else
         {
+            // deleteCount IS present (even if undefined)
             var deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
             if (double.IsPositiveInfinity(deleteCountArg))
             {
@@ -619,6 +638,15 @@ public sealed partial class ArrayPrototype
 
         var insertCount = Math.Max(args.Count - 2, 0);
         var newLength = length - actualDeleteCount + insertCount;
+
+        // Per spec step 12: If newLen > 2^53 - 1, throw a TypeError exception
+        const long MaxSafeInteger = 9007199254740991L; // 2^53 - 1
+        if (newLength > MaxSafeInteger)
+        {
+            throw ThrowTypeError($"{MethodName} result exceeds 2^53 - 1 elements", realm: Realm);
+        }
+
+        // Per spec step 13 (ArrayCreate): If length > 2^32 - 1, throw a RangeError exception
         if (newLength > MaxConcreteArrayLength)
         {
             throw ThrowRangeError($"{MethodName} result exceeds 2^32 - 1 elements", realm: Realm);

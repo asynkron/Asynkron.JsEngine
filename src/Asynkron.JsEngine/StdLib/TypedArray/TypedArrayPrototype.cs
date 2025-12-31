@@ -834,7 +834,16 @@ public sealed partial class TypedArrayPrototype
             values.Add(typedArray.GetValueForIndex(i));
         }
 
-        values.Sort(Comparer);
+        // Wrap sort to properly propagate ThrowSignal from compareFn
+        try
+        {
+            values.Sort(Comparer);
+        }
+        catch (InvalidOperationException ex) when (ex.InnerException is ThrowSignal ts)
+        {
+            // Re-throw the original ThrowSignal
+            throw ts;
+        }
 
         var result = SpeciesCreate(typedArray, length);
         for (var i = 0; i < values.Count; i++)

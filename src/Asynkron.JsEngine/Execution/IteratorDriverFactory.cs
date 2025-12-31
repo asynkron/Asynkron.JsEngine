@@ -23,10 +23,10 @@ internal static class IteratorDriverFactory
         var canReuseIterationEnvironment = !ContainsInnerFunctionExpression(rewrittenBody) &&
                                            !ContainsInnerFunctionExpression(statement.Target);
 
-        // Collect per-iteration bindings from Target if DeclarationKind is let/const
+        // Collect per-iteration bindings from Target if DeclarationKind is let/const/using/await using
         // (independent of ScopeAnalyzer which may not have run)
         var perIterationBindings = statement.PerIterationBindings;
-        if (perIterationBindings.IsDefault && statement.DeclarationKind is VariableKind.Let or VariableKind.Const)
+        if (perIterationBindings.IsDefault && statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing)
         {
             var bindingNames = new List<Symbol>();
             CollectBindingNames(statement.Target, bindingNames);

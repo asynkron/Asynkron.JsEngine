@@ -869,7 +869,9 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             iteratorCallable is not null)
         {
             var iterator = iteratorCallable.Invoke([], receiver);
-            if (!iterator.TryGetObject(out var iteratorObj) || iteratorObj is null)
+            // Use TryGetObjectLike instead of TryGetObject to support iterator types like
+            // JsArrayIterator and JsMapIterator that implement IJsObjectLike but are not JsObject
+            if (!iterator.TryGetObjectLike(out var iteratorObj) || iteratorObj is null)
             {
                 throw ThrowTypeError($"{methodName} Symbol.iterator must return an object", realm: realm);
             }

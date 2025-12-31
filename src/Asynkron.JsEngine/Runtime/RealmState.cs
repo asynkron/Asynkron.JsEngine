@@ -54,6 +54,7 @@ public sealed class RealmState
     public JsObject? SymbolPrototype { get; set; }
     public JsObject? MapPrototype { get; set; }
     public JsObject? MapIteratorPrototype { get; set; }
+    public JsObject? ArrayIteratorPrototype { get; set; }
     public JsObject? SetPrototype { get; set; }
     public JsObject? SetIteratorPrototype { get; set; }
     public JsObject? WeakMapPrototype { get; set; }

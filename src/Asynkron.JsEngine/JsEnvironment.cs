@@ -2657,6 +2657,12 @@ public sealed class JsEnvironment : IRentable
 
             foreach (var kvp in current._values)
             {
+                // Skip uninitialized TDZ bindings - they exist but can't be accessed
+                if (kvp.Value.IsUninitialized)
+                {
+                    continue;
+                }
+
                 if (!result.ContainsKey(kvp.Key.Name))
                 {
                     result[kvp.Key.Name] = kvp.Value.JsValue.ToObject();

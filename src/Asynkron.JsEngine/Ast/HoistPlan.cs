@@ -17,6 +17,7 @@ internal sealed class HoistPlan
         Dictionary<Symbol, bool> lexicalDeclarationKinds,
         HashSet<Symbol> catchParameterNames,
         HashSet<Symbol> simpleCatchParameterNames,
+        HashSet<Symbol> topLevelLexicalNames,
         bool hasFunctionDeclarations,
         ImmutableArray<Symbol> lexicalTemplate,
         ImmutableArray<Symbol> catchParameterTemplate,
@@ -27,6 +28,7 @@ internal sealed class HoistPlan
         LexicalDeclarationKinds = lexicalDeclarationKinds;
         CatchParameterNames = catchParameterNames;
         SimpleCatchParameterNames = simpleCatchParameterNames;
+        TopLevelLexicalNames = topLevelLexicalNames;
         HasFunctionDeclarations = hasFunctionDeclarations;
         LexicalTemplate = lexicalTemplate;
         CatchParameterTemplate = catchParameterTemplate;
@@ -38,6 +40,12 @@ internal sealed class HoistPlan
     internal Dictionary<Symbol, bool> LexicalDeclarationKinds { get; }
     internal HashSet<Symbol> CatchParameterNames { get; }
     internal HashSet<Symbol> SimpleCatchParameterNames { get; }
+    /// <summary>
+    /// Lexical names declared directly in the block (not in for-loop/for-each initializers).
+    /// These are the names that need TDZ bindings in the function environment.
+    /// For-loop/for-each initializers create their own per-iteration environments.
+    /// </summary>
+    internal HashSet<Symbol> TopLevelLexicalNames { get; }
     internal ImmutableArray<Symbol> LexicalTemplate { get; }
     internal ImmutableArray<Symbol> CatchParameterTemplate { get; }
     internal ImmutableArray<Symbol> SimpleCatchParameterTemplate { get; }
@@ -56,9 +64,11 @@ internal sealed class HoistPlan
         var lexicalKindMap = new Dictionary<Symbol, bool>(ReferenceEqualityComparer<Symbol>.Instance);
         var catchNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         var simpleCatchNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var topLevelLexicalNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         var hasFunctionDeclarations = false;
 
         CollectLexical(block, lexicalNames, lexicalKindMap, ref hasFunctionDeclarations);
+        CollectTopLevelLexical(block, topLevelLexicalNames, lexicalKindMap);
         CollectCatchNames(block, catchNames);
         CollectSimpleCatchNames(block, simpleCatchNames);
 
@@ -102,6 +112,7 @@ internal sealed class HoistPlan
             lexicalKindMap,
             catchNames,
             simpleCatchNames,
+            topLevelLexicalNames,
             hasFunctionDeclarations,
             lexicalTemplate,
             catchParameterTemplate,
@@ -406,6 +417,44 @@ internal sealed class HoistPlan
             }
 
             break;
+        }
+    }
+
+    /// <summary>
+    /// Collects lexical names declared DIRECTLY in the block statement - no recursion into nested blocks.
+    /// These are the names that need TDZ bindings in the function environment.
+    /// For-loop/for-of initializers and nested block declarations (try/if/switch) are excluded
+    /// because they have their own scopes.
+    /// </summary>
+    private static void CollectTopLevelLexical(
+        BlockStatement block,
+        HashSet<Symbol> names,
+        Dictionary<Symbol, bool> lexicalKindMap)
+    {
+        foreach (var statement in block.Statements)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration
+                {
+                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
+                } letDecl:
+                    var isConstDecl =
+                        letDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                    foreach (var declarator in letDecl.Declarators)
+                    {
+                        CollectBindingSymbols(declarator.Target, names, lexicalKindMap, isConstDecl);
+                    }
+
+                    break;
+
+                case ClassDeclaration classDeclaration:
+                    names.Add(classDeclaration.Name);
+                    lexicalKindMap[classDeclaration.Name] = true;
+                    break;
+
+                // NO recursion into other statement types - they have their own scopes
+            }
         }
     }
 

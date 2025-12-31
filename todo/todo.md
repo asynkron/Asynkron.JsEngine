@@ -1,64 +1,53 @@
-# Tournament Round 4
+# Tournament Round 5
 
-Fix the following failing tests. 43 tests remain.
+Fix the following failing tests. 
 
 After X time, you will be stopped, and we pick a winner.
 The winner get to live on and multiply, the loser get deleted forever.
 
 Document your findings at the end of this file.
 
-## Remaining failing tests (45 tests)
-
-### EvalCode_direct (1 test)
-- var-env-var-init-local-new-delete.js (non-strict)
-
-### Expressions_prefixDecrement (2 tests) - FIXED!
-- S11.4.5_A2.2_T1.js (strict + non-strict) - FIXED by Round 4
-
-### Expressions_prefixIncrement (2 tests) - FIXED!
-- S11.4.4_A2.2_T1.js (strict + non-strict) - FIXED by Round 4
-
-### ModuleCode (24 tests)
-- eval-export-dflt-cls-anon.js
-- eval-export-dflt-cls-name-meth.js
-- eval-export-dflt-cls-named.js
-- eval-export-dflt-expr-cls-anon.js
-- eval-export-dflt-expr-cls-name-meth.js
-- eval-export-dflt-expr-cls-named.js
-- eval-export-dflt-expr-fn-anon.js
-- eval-export-dflt-expr-fn-named.js
-- eval-export-dflt-expr-gen-anon.js
-- eval-export-dflt-expr-gen-named.js
-- eval-export-dflt-expr-in.js
-- eval-self-once.js
-- export-star-as-dflt.js
-- instn-iee-bndng-cls.js
-- instn-iee-bndng-const.js
-- instn-iee-bndng-let.js
-- instn-named-bndng-cls.js
-- instn-named-bndng-const.js
-- instn-named-bndng-dflt-cls.js
-- instn-named-bndng-dflt-expr.js
-- instn-named-bndng-dflt-named.js
-- instn-named-bndng-dflt-star.js
-- instn-named-bndng-let.js
-- instn-once.js
-
-### ModuleCode_topLevelAwait (1 test)
-- module-self-import-async-resolution-ticks.js
-
-### Statements_forOf (6 tests)
-- head-using-bound-names-fordecl-tdz.js (strict + non-strict)
-- yield-star-from-catch.js (strict + non-strict)
-- yield-star-from-try.js (strict + non-strict)
-
-### Statements_let (1 test)
-- function-local-closure-set-before-initialization.js (non-strict)
-
-### Statements_try (6 tests)
-- completion-values-fn-finally-abrupt.js (strict + non-strict)
-- optional-catch-binding-lexical.js (strict + non-strict) - FIXED!
-- scope-catch-block-lex-open.js (strict + non-strict) - FIXED!
+       EvalCode_direct
+        EvalCode_direct("language/eval-code/direct/var-env-var-init-local-new-delete.js",False)
+       ModuleCode
+        ModuleCode("language/module-code/eval-export-dflt-cls-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-cls-name-meth.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-cls-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-cls-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-cls-name-meth.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-cls-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-fn-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-fn-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-gen-anon.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-gen-named.js",True)
+        ModuleCode("language/module-code/eval-export-dflt-expr-in.js",True)
+        ModuleCode("language/module-code/eval-self-once.js",True)
+        ModuleCode("language/module-code/export-star-as-dflt.js",True)
+        ModuleCode("language/module-code/instn-iee-bndng-cls.js",True)
+        ModuleCode("language/module-code/instn-iee-bndng-const.js",True)
+        ModuleCode("language/module-code/instn-iee-bndng-let.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-cls.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-const.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-cls.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-expr.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-named.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-dflt-star.js",True)
+        ModuleCode("language/module-code/instn-named-bndng-let.js",True)
+        ModuleCode("language/module-code/instn-once.js",True)
+       ModuleCode_topLevelAwait
+        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",True)
+       Statements_forOf
+        Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",False)
+        Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
+        Statements_forOf("language/statements/for-of/yield-star-from-catch.js",False)
+        Statements_forOf("language/statements/for-of/yield-star-from-catch.js",True)
+        Statements_forOf("language/statements/for-of/yield-star-from-try.js",False)
+        Statements_forOf("language/statements/for-of/yield-star-from-try.js",True)
+       Statements_let
+        Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
+       Statements_try
+        Statements_try("language/statements/try/completion-values-fn-finally-abrupt.js",False)
+        Statements_try("language/statements/try/completion-values-fn-finally-abrupt.js",True)
 
 --------
 ## Inherited Knowledge

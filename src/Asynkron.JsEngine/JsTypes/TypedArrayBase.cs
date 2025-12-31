@@ -825,7 +825,13 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
 
     internal TypedArrayBase CreateSpeciesDefault(int length)
     {
-        return CreateNewSameType(length);
+        var result = CreateNewSameType(length);
+        // Copy prototype from source to result for spec compliance
+        if (Prototype is not null)
+        {
+            result.SetPrototype(Prototype);
+        }
+        return result;
     }
 
     public TypedArrayBase Slice(int begin, int end)

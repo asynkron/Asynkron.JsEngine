@@ -471,6 +471,13 @@ public sealed partial class ArrayPrototype
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.toSorted";
+        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+
+        // Per spec: Step 2 - check compareFn is callable BEFORE reading length (Step 3)
+        if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
+        {
+            throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+        }
 
         // Per spec step 1: If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError.
         // This MUST happen BEFORE getting the length (step 3).
@@ -484,11 +491,17 @@ public sealed partial class ArrayPrototype
             compareFn = callable;
         }
 
-        var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+        // Per spec: Step 3 - Get length AFTER checking compareFn
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+
+        // Per spec: ArrayCreate throws RangeError if length > 2^32 - 1
+        if (length > MaxConcreteArrayLength)
+        {
+            throw ThrowRangeError($"{MethodName} array length exceeds maximum (2^32 - 1)", realm: Realm);
+        }
 
         // Per spec SortIndexedProperties with skipHoles=true: read all existing elements first.
         // Holes ARE skipped - they will end up at the end of the result array.

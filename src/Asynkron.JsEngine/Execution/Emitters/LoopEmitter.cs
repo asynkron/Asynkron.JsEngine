@@ -66,7 +66,9 @@ internal static class LoopEmitter
         // environments are SIBLINGS (same parent), not nested.
         var continueTarget = postIterationEntry;
         int createEnvIndex = -1;
-        if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
+        if (!plan.PerIterationBindings.IsDefaultOrEmpty &&
+            plan.Kind == LoopKind.For &&
+            !plan.AllowIterationEnvironmentPooling)
         {
             var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 

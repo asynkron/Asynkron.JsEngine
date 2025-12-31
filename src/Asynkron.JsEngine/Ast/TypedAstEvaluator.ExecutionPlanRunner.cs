@@ -1306,6 +1306,17 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var allowPooling = pushEnvInstruction.AllowPooling;
+                                if (allowPooling &&
+                                    isSubsequentIteration &&
+                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                {
+                                    // Optimization: reuse the existing iteration environment when no closures can
+                                    // capture it. This avoids rent/return churn inside hot loops.
+                                    IteratorStateRef.ResumedWithEnvironment = null;
+                                    _programCounter = pushEnvInstruction.Next;
+                                    continue;
+                                }
+
                                 // Use different description for loop scope (empty bindings) vs per-iteration scope
                                 // This allows the subsequent iteration heuristic to correctly distinguish them
                                 var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";

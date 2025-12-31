@@ -154,5 +154,24 @@ catching `Test262Error` correctly. This is unrelated to the catch scope fix.
 The module tests all appear to require module-specific features that are not fully implemented.
 
 The `yield-star-from-catch/try` tests involve complex generator + for-of + try/catch interactions.
+However, manual testing shows the basic yield* in try functionality works. The Test262 tests
+fail on `assert.sameValue` assertions, suggesting there's a subtle behavioral difference in
+how the for-of + yield* + try combination handles iteration counts.
+
+## FINAL SCORE: 4 tests fixed (catch block lexical scope)
+
+### Summary
+Agent 3 fixed the catch block lexical scope issue in TryEmitter.cs:
+- Changed `ctx.TryBuildStatementList(...)` to `BlockEmitter.TryEmitBlock(...)`
+- This ensures catch block bodies get their own lexical environment for let/const
+
+The prefix ++/-- tests were already fixed before this agent's work started.
+
+### Tests Still Failing (41 remaining after this fix)
+- ModuleCode tests (24): `*default*` binding issues
+- yield-star-from-try/catch (4): Iterator count assertion mismatches
+- completion-values-fn-finally-abrupt (2): assert.throws not catching properly
+- eval/let TDZ tests (3): Various edge cases
+- forOf using (2): explicit-resource-management not implemented
 
 

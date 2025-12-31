@@ -36,6 +36,7 @@ public sealed class RealmState
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }
     public IJsObjectLike? ArrayPrototype { get; set; }
+    public JsObject? ArrayIteratorPrototype { get; set; }
     public JsObject? DatePrototype { get; set; }
     public JsObject? ErrorPrototype { get; set; }
     public JsObject? TypeErrorPrototype { get; set; }

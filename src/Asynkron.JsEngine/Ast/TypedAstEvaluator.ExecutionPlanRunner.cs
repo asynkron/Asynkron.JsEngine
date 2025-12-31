@@ -1275,6 +1275,10 @@ public static partial class TypedAstEvaluator
                                 //
                                 // Per-iteration envs are SIBLINGS (same parent), values are COPIED between them.
                                 // This ensures closures capture separate values per iteration.
+                                //
+                                // OPTIMIZATION: When AllowPooling is true (no closures capture the environment),
+                                // we REUSE the same environment across all iterations instead of rent/return
+                                // per iteration. This dramatically reduces overhead for hot loops.
 
                                 JsEnvironment loopScope;
                                 JsEnvironment? previousIterEnv = null;
@@ -1293,6 +1297,21 @@ public static partial class TypedAstEvaluator
                                      !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty &&
                                      environment.Description == "scope" && environment.Enclosing != null);
 
+                                var allowPooling = pushEnvInstruction.AllowPooling;
+
+                                // FAST PATH: For loops without closures (AllowPooling=true), we can reuse
+                                // the same environment for ALL iterations. The slot values persist across
+                                // iterations and are updated by the loop body/increment as needed.
+                                // This eliminates the rent/copy/return overhead per iteration.
+                                if (isSubsequentIteration && allowPooling && !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                {
+                                    // Subsequent iteration with pooling enabled: just continue using the same env.
+                                    // No rent, no copy, no return needed. Values are already in slots.
+                                    IteratorStateRef.ResumedWithEnvironment = null;
+                                    _programCounter = pushEnvInstruction.Next;
+                                    continue;
+                                }
+
                                 if (isSubsequentIteration)
                                 {
                                     // In a previous iteration - parent is Enclosing, current is previous iter
@@ -1305,7 +1324,6 @@ public static partial class TypedAstEvaluator
                                     loopScope = environment;
                                 }
 
-                                var allowPooling = pushEnvInstruction.AllowPooling;
                                 // Use different description for loop scope (empty bindings) vs per-iteration scope
                                 // This allows the subsequent iteration heuristic to correctly distinguish them
                                 var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";

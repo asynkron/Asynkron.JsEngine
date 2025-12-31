@@ -5,44 +5,25 @@ The winner get to live on and multiply, the loser get deleted forever.
 
 Document your findings at the end of this file.
 
+      // testbomb leftovers? are the tests correct? should some be removed?
+      ClosureTdz_AssignBeforeInit_ShouldThrowReferenceError
+      ClosureTdz_WithAssertThrowsPattern
+      H0_SimpleTdz_ReadBeforeInit
+      H1_SimpleTdz_AssignBeforeInit
+      H2_ClosureTdz_ReadBeforeInit
+      H3_ClosureTdz_AssignBeforeInit
+      H4_VarIsHoisted_ShouldNotThrow
+
+       //spec failures
        EvalCode_direct
         EvalCode_direct("language/eval-code/direct/var-env-var-init-local-new-delete.js",False)
-       ModuleCode
-        ModuleCode("language/module-code/eval-export-dflt-cls-anon.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-cls-name-meth.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-cls-named.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-cls-anon.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-cls-name-meth.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-cls-named.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-fn-anon.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-fn-named.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-gen-anon.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-gen-named.js",True)
-        ModuleCode("language/module-code/eval-export-dflt-expr-in.js",True)
-        ModuleCode("language/module-code/eval-self-once.js",True)
-        ModuleCode("language/module-code/export-star-as-dflt.js",True)
-        ModuleCode("language/module-code/instn-iee-bndng-cls.js",True)
-        ModuleCode("language/module-code/instn-iee-bndng-const.js",True)
-        ModuleCode("language/module-code/instn-iee-bndng-let.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-cls.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-const.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-dflt-cls.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-dflt-expr.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-dflt-named.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-dflt-star.js",True)
-        ModuleCode("language/module-code/instn-named-bndng-let.js",True)
-        ModuleCode("language/module-code/instn-once.js",True)
-       ModuleCode_topLevelAwait
-        ModuleCode_topLevelAwait("language/module-code/top-level-await/module-self-import-async-resolution-ticks.js",True)
        Statements_forOf
         Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",False)
         Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
-        Statements_forOf("language/statements/for-of/yield-star-from-catch.js",False)
-        Statements_forOf("language/statements/for-of/yield-star-from-catch.js",True)
-        Statements_forOf("language/statements/for-of/yield-star-from-try.js",False)
-        Statements_forOf("language/statements/for-of/yield-star-from-try.js",True)
        Statements_let
         Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
+
+
 
 --------
 ## Sibling Agents (check for progress to incorporate)

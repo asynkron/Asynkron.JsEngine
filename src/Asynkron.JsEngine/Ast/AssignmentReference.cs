@@ -19,7 +19,8 @@ internal readonly struct AssignmentReference
         GlobalBinding, // Global object property
         WithBinding, // With statement binding
         Unresolvable, // Undeclared identifier
-        Delegate // Fallback for complex cases (member access, etc.)
+        Delegate, // Fallback for complex cases (member access, etc.)
+        StrictRestrictedName // eval/arguments in strict mode - read allowed, write throws
     }
 
     private readonly ReferenceKind _kind;
@@ -140,6 +141,30 @@ internal readonly struct AssignmentReference
             setter);
     }
 
+    /// <summary>
+    /// Creates a reference for strict restricted names (eval/arguments in strict mode).
+    /// Reads are allowed, writes throw SyntaxError.
+    /// This avoids closure allocation compared to ForDelegate.
+    /// </summary>
+    internal static AssignmentReference ForStrictRestrictedName(
+        AssignmentReference underlyingReference,
+        Symbol name,
+        EvaluationContext context)
+    {
+        // We re-use the binding/context from the underlying reference for reads
+        // but mark it as StrictRestrictedName so writes throw
+        return new AssignmentReference(
+            ReferenceKind.StrictRestrictedName,
+            underlyingReference._binding,
+            name,
+            context,
+            true, // isStrict is always true for this case
+            underlyingReference._globalBinding,
+            underlyingReference._withFallbackEnvironment,
+            null,
+            null);
+    }
+
     private AssignmentReference(
         ReferenceKind kind,
         JsEnvironment.ResolvedIdentifierBinding binding,
@@ -174,6 +199,7 @@ internal readonly struct AssignmentReference
             ReferenceKind.WithBinding => ReadWithBindingJsValue(),
             ReferenceKind.Unresolvable => ReadUnresolvableJsValue(),
             ReferenceKind.Delegate => _delegateGetterJs!(),
+            ReferenceKind.StrictRestrictedName => ReadDeclarativeBindingJsValue(), // Reads are allowed
             _ => throw new InvalidOperationException($"Unknown reference kind: {_kind}")
         };
     }
@@ -197,6 +223,12 @@ internal readonly struct AssignmentReference
             case ReferenceKind.Delegate:
                 _delegateSetterJs!(value);
                 break;
+            case ReferenceKind.StrictRestrictedName:
+                // Writes to eval/arguments in strict mode throw SyntaxError
+                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
+                    "Assignment to eval or arguments is not allowed in strict mode.",
+                    _context!,
+                    _context!.RealmState));
             default:
                 throw new InvalidOperationException($"Unknown reference kind: {_kind}");
         }

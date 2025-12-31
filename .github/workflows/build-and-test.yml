@@ -77,7 +77,7 @@ jobs:
           --configuration Release \
           --no-build \
           --verbosity normal \
-          --filter "ClassName~.${{ matrix.test-class }}" \
+          --filter "FullyQualifiedName~Tests.${{ matrix.test-class }}." \
           --logger "trx;LogFileName=${{ matrix.test-class }}.trx" \
           --results-directory TestResults
       

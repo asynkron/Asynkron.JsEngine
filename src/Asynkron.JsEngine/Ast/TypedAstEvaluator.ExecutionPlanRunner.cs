@@ -1038,13 +1038,38 @@ public static partial class TypedAstEvaluator
                                 }
                                 else
                                 {
-                                    // Convert to number if needed (fast path for already-number values)
-                                    var incNumValue = incCurrentValue.IsNumber ? incCurrentValue.NumberValue : incCurrentValue.ToNumber();
-                                    incOldNumericValue = JsValueCache.GetNumberJsValue(incNumValue);
+                                    // Convert to numeric using ToNumericValue which properly calls ToPrimitive
+                                    // for objects (invoking valueOf/toString methods as per ES spec)
+                                    var numericJsValue = ToNumericValue(incCurrentValue, context);
+                                    if (context.ShouldStopEvaluation)
+                                    {
+                                        var incFlowThrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown, environment))
+                                        {
+                                            continue;
+                                        }
+                                        TryCatchStateRef.TryStack.Clear();
+                                        throw new ThrowSignal(incFlowThrown);
+                                    }
 
-                                    // Apply increment or decrement
-                                    var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
-                                    incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
+                                    // Check if we got a BigInt from ToNumericValue (e.g., valueOf returned a BigInt)
+                                    if (numericJsValue.IsBigInt)
+                                    {
+                                        var bigInt = (JsBigInt)numericJsValue.ObjectValue!;
+                                        incOldNumericValue = numericJsValue;
+                                        var incNewBigInt = incrementInstruction.IsIncrement ? bigInt.Value + 1 : bigInt.Value - 1;
+                                        incNewJsValue = new JsBigInt(incNewBigInt);
+                                    }
+                                    else
+                                    {
+                                        var incNumValue = numericJsValue.NumberValue;
+                                        incOldNumericValue = JsValueCache.GetNumberJsValue(incNumValue);
+
+                                        // Apply increment or decrement
+                                        var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
+                                        incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
+                                    }
                                 }
 
                                 // Update the binding - use AssignJsValue to walk up scope chain

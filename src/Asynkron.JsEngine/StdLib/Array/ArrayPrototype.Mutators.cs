@@ -251,30 +251,43 @@ public sealed partial class ArrayPrototype
 
             var insertCount = args.Count > 2 ? args.Count - 2 : 0;
 
-            double deleteCountArg;
-            if (args.Count == 0)
-            {
-                deleteCountArg = length - actualStart;
-            }
-            else
-            {
-                deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
-            }
+            // Per spec: "If start is not present" means args.Count == 0, not that args[0] is undefined
+            // Step 8: If start is not present, then actualDeleteCount = 0.
+            var startNotPresent = args.Count == 0;
+            // Per spec: "If deleteCount is not present" means args.Count <= 1, not that args[1] is undefined
+            // Step 9: Else if deleteCount is not present, actualDeleteCount = len - actualStart.
+            var deleteCountNotPresent = args.Count <= 1;
 
             long actualDeleteCount;
-            if (double.IsPositiveInfinity(deleteCountArg))
+            if (startNotPresent)
             {
-                actualDeleteCount = length - actualStart;
-            }
-            else if (double.IsNegativeInfinity(deleteCountArg))
-            {
+                // Step 8: start not present → actualDeleteCount = 0
                 actualDeleteCount = 0;
+            }
+            else if (deleteCountNotPresent)
+            {
+                // Step 9: deleteCount not present → actualDeleteCount = len - actualStart
+                actualDeleteCount = length - actualStart;
             }
             else
             {
-                var bounded = Math.Max(deleteCountArg, 0);
-                bounded = Math.Min(bounded, length - actualStart);
-                actualDeleteCount = (long)bounded;
+                // Step 10: deleteCount is present (even if undefined)
+                // ToIntegerOrInfinity(undefined) = 0
+                var deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
+                if (double.IsPositiveInfinity(deleteCountArg))
+                {
+                    actualDeleteCount = length - actualStart;
+                }
+                else if (double.IsNegativeInfinity(deleteCountArg))
+                {
+                    actualDeleteCount = 0;
+                }
+                else
+                {
+                    var bounded = Math.Max(deleteCountArg, 0);
+                    bounded = Math.Min(bounded, length - actualStart);
+                    actualDeleteCount = (long)bounded;
+                }
             }
 
             var newLength = length - actualDeleteCount + insertCount;

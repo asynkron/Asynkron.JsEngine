@@ -186,15 +186,24 @@ public class AdditionalArrayMethodsTests(ITestOutputHelper output) : InternalTes
         Assert.Equal(5d + 4d + 99d, result); // original unchanged, spliced is [1,2,99,5]
     }
 
+    /// <summary>
+    /// Per ECMAScript spec, when deleteCount is passed as undefined, it is converted to 0
+    /// via ToIntegerOrInfinity(undefined) = 0. This means no elements are deleted, and
+    /// the new elements are inserted at the start position.
+    /// To delete all elements from start to end, omit deleteCount entirely or use Infinity.
+    /// See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/toSpliced
+    /// </summary>
     [Fact(Timeout = 2000)]
-    public async Task Array_ToSpliced_TreatsUndefinedDeleteCountAsWholeTail()
+    public async Task Array_ToSpliced_UndefinedDeleteCountConvertedToZero()
     {
         await using var engine = CreateEngine();
+        // With undefined deleteCount: ToIntegerOrInfinity(undefined) = 0, so nothing is deleted
+        // arr.toSpliced(1, undefined, 9) inserts 9 at index 1 with 0 deletions → [1, 9, 2, 3, 4]
         var result = await engine.Evaluate("""
 
                                                        const arr = [1, 2, 3, 4];
                                                        const spliced = arr.toSpliced(1, undefined, 9);
-                                                       return spliced.length === 2 && spliced[0] === 1 && spliced[1] === 9;
+                                                       return spliced.length === 5 && spliced[0] === 1 && spliced[1] === 9 && spliced[2] === 2;
 
                                            """);
         Assert.Equal(true, result);

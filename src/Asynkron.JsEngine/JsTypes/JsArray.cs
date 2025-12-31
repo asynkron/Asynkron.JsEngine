@@ -322,6 +322,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
+        if (IsSealed && TryGetOwnIndex(index, out _))
+        {
+            return false;
+        }
+
         _properties.DeleteOwnProperty(name);
         return DeleteElement((int)index);
     }

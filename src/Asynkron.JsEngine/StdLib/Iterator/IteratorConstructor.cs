@@ -43,6 +43,14 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
     {
         // Store the iterator prototype in the realm for static method access
         Realm.IteratorPrototype ??= Prototype as JsObject;
+
+        if (Realm.IteratorPrototype is { } iteratorPrototype)
+        {
+            if (Realm.ArrayIteratorPrototype is { } arrayIteratorPrototype)
+            {
+                arrayIteratorPrototype.SetPrototype(iteratorPrototype);
+            }
+        }
     }
 
     /// <summary>

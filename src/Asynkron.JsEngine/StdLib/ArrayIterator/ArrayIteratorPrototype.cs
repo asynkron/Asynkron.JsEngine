@@ -36,6 +36,11 @@ public sealed partial class ArrayIteratorPrototype : JsPrototype
             jsObj.RealmState = Realm;
         }
 
+        if (Realm.IteratorPrototype is { } iteratorPrototype)
+        {
+            Prototype.SetPrototype(iteratorPrototype);
+        }
+
         Realm.ArrayIteratorPrototype ??= Prototype as JsObject;
     }
 }

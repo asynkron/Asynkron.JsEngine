@@ -85,7 +85,22 @@ git worktree add ../Asynkron.JsEngine-t1 -b tournament/r2-agent1 tournament/r1-a
 # ... etc, branching from winner's branch
 ```
 
-### Step 2: Spawn Agents
+### Step 2: Cross-Link Worktrees
+
+Before spawning agents, add links to ALL sibling worktrees in each todo.md:
+
+```markdown
+## Sibling Agents (check for progress to incorporate)
+
+- ../Asynkron.JsEngine-t1/todo/todo.md
+- ../Asynkron.JsEngine-t2/todo/todo.md
+- ../Asynkron.JsEngine-t3/todo/todo.md
+- ../Asynkron.JsEngine-t4/todo/todo.md
+```
+
+This allows agents to monitor each other's progress and cherry-pick independent fixes.
+
+### Step 3: Spawn Agents
 
 Ask Claude to spawn background agents:
 
@@ -185,6 +200,37 @@ Example agent insights section:
 3. **Document everything**: Your insights help future generations
 4. **Test frequently**: `dotnet test --filter "Name~X"` after each change
 5. **Commit often**: Your branch is your survival
+
+---
+
+## Round History
+
+### Round 1 (Initial)
+- **Winner**: Agent 3
+- **Fixed**: 6 switch tests (SwitchEmitter outer/inner block structure, hoisted let/const)
+- **Key insight**: Switch statements need proper lexical scoping per case block
+
+### Round 2
+- **Winner**: Agent 4
+- **Fixed**: 4 try/catch tests (TryEmitter improvements)
+- **Key insight**: Try/catch completion value handling
+
+### Round 3
+- **Winner**: Agent 2
+- **Fixed**: 6 switch scope tests (scope-lex-close-case, scope-lex-close-dflt, scope-lex-open-case)
+- **Key insight**: Switch case blocks need separate lexical environments per ES spec 13.12.9
+
+### Round 4
+- **Winner**: Agent 3 (t3)
+- **Fixed**: 8 tests total
+  - Prefix ++/-- with valueOf (4 tests) - `TypedAstEvaluator.ExecutionPlanRunner.cs`
+  - Catch block lexical scope (4 tests) - `TryEmitter.cs`
+- **Key insights**:
+  - `ToNumericValue` must pass context to properly handle ToPrimitive errors
+  - Catch blocks need TWO environments per ES spec 14.15.2 (parameter + body)
+- **Notable**: 3 agents (t1, t2, t3) independently fixed prefix ++/-- with same approach
+
+---
 
 ## Cleanup
 

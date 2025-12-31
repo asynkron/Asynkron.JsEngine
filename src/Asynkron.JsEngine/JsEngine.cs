@@ -210,6 +210,9 @@ public sealed class JsEngine : IAsyncDisposable
 
         SetGlobal("WeakRef", WeakRefHelper.CreateWeakRefConstructor(RealmState));
 
+        SetGlobal("DisposableStack", DisposableStackConstructor.CreateConstructor(RealmState));
+        SetGlobal("AsyncDisposableStack", AsyncDisposableStackConstructor.CreateConstructor(RealmState));
+
         // Register Iterator constructor
         SetGlobal("Iterator", IteratorConstructor.CreateConstructor(RealmState));
 

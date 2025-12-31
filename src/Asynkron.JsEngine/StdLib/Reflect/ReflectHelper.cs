@@ -548,6 +548,8 @@ public static class ReflectHelper
             "WeakMap" => realmState.WeakMapPrototype,
             "WeakSet" => realmState.WeakSetPrototype,
             "String" => realmState.StringPrototype,
+            "DisposableStack" => realmState.DisposableStackPrototype,
+            "AsyncDisposableStack" => realmState.AsyncDisposableStackPrototype,
             _ => null
         };
 

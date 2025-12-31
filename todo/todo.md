@@ -48,9 +48,9 @@ Document your findings at the end of this file.
 ## Sibling Agents (check for progress to incorporate)
 
 - ../Asynkron.JsEngine-t1/todo/todo.md
-- ../Asynkron.JsEngine-t2/todo/todo.md
+- ../Asynkron.JsEngine-t2/todo/todo.md (you are here)
 - ../Asynkron.JsEngine-t3/todo/todo.md
-- ../Asynkron.JsEngine-t4/todo/todo.md (you are here)
+- ../Asynkron.JsEngine-t4/todo/todo.md
 
 **TIP**: Periodically check sibling todo.md files for fixes you can cherry-pick!
 

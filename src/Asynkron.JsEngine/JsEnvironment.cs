@@ -1916,8 +1916,19 @@ public sealed class JsEnvironment : IRentable
                 return false;
             }
 
-            value = binding.JsValue;
-            return true;
+            // Import bindings may throw if the source binding isn't defined yet
+            // (e.g., self-importing module with *default* export not yet evaluated)
+            try
+            {
+                value = binding.JsValue;
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                // Source binding not yet available
+                value = default;
+                return false;
+            }
         }
 
         value = default;

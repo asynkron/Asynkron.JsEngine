@@ -81,7 +81,7 @@ public sealed partial class ArrayPrototype
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
             if (length == 0)
             {
-                accessor.SetProperty("length", 0d);
+                SetPropertyOrThrow(accessor, "length", new JsValue(0d), MethodName, Realm);
                 return JsValue.Undefined;
             }
 
@@ -89,7 +89,7 @@ public sealed partial class ArrayPrototype
             var key = ToIndexString(newLength);
             var elementExists = TryGetExistingElement(accessor, key, out var element);
             DeletePropertyOrThrow(objectLike, key, elementExists, MethodName, Realm);
-            accessor.SetProperty("length", (double)newLength);
+            SetPropertyOrThrow(accessor, "length", new JsValue((double)newLength), MethodName, Realm);
             return elementExists ? element : JsValue.Undefined;
         }
         finally

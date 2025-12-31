@@ -792,7 +792,8 @@ public sealed partial class TypedArrayPrototype
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toReversed");
 
         var length = typedArray.Length;
-        var result = SpeciesCreate(typedArray, length);
+        // Per spec: TypedArrayCreateSameType - do NOT use species, always create same typed array
+        var result = typedArray.CreateSpeciesDefault(length);
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -845,7 +846,8 @@ public sealed partial class TypedArrayPrototype
             throw ts;
         }
 
-        var result = SpeciesCreate(typedArray, length);
+        // Per spec: TypedArrayCreateSameType - do NOT use species, always create same typed array
+        var result = typedArray.CreateSpeciesDefault(length);
         for (var i = 0; i < values.Count; i++)
         {
             result.SetValue(i, values[i]);
@@ -858,7 +860,12 @@ public sealed partial class TypedArrayPrototype
             if (compareFn is not null)
             {
                 var res = compareFn.Invoke([left, right], JsValue.Undefined);
-                var numeric = JsOps.ToNumber(res);
+                var context = Realm?.CreateContext();
+                var numeric = JsOps.ToNumber(res, context);
+                if (context?.IsThrow == true)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
                 return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
             }
 
@@ -917,7 +924,8 @@ public sealed partial class TypedArrayPrototype
         var insertCount = Math.Max(args.Count - 2, 0);
         var newLength = length - actualDeleteCount + insertCount;
 
-        var result = SpeciesCreate(typedArray, newLength);
+        // Per spec: TypedArrayCreateSameType - do NOT use species, always create same typed array
+        var result = typedArray.CreateSpeciesDefault(newLength);
         var targetIndex = 0;
 
         for (var i = 0; i < actualStart; i++)
@@ -975,7 +983,8 @@ public sealed partial class TypedArrayPrototype
             throw ThrowRangeError("Index out of range", realm: Realm);
         }
 
-        var result = SpeciesCreate(typedArray, length);
+        // Per spec: TypedArrayCreateSameType - do NOT use species, always create same typed array
+        var result = typedArray.CreateSpeciesDefault(length);
         for (var i = 0; i < length; i++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())

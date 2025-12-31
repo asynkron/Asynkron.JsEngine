@@ -411,21 +411,6 @@ public static partial class TypedAstEvaluator
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
-            // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
-            // Create TDZ bindings for lexical declarations (let/const) in the function environment.
-            // This must happen BEFORE the body is evaluated so that closures that reference these
-            // variables will find them in TDZ state and throw ReferenceError if accessed before initialization.
-            var lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
-            foreach (var lexicalName in bodyLexicalNames)
-            {
-                if (!executionEnvironment.HasBinding(lexicalName))
-                {
-                    var isConst = lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
-                        blocksFunctionScopeOverride: true, isConst: isConst);
-                }
-            }
-
             // Store YieldResumeContext reference in the environment for yield expressions
             var yieldState = YieldStateRef;
 

@@ -488,24 +488,42 @@ public sealed partial class ArrayPrototype
             compareFn = callable;
         }
 
-        // Snapshot elements before sorting; comparefn must not observe changes during enumeration.
+        // Per spec SortIndexedProperties with skipHoles=true: read all existing elements first.
+        // Holes ARE skipped - they will end up at the end of the result array.
+        // Use Get(O, k) which traverses the prototype chain but only add to list if property exists.
         var values = new List<(JsValue Value, long OriginalIndex)>((int)Math.Min(length, int.MaxValue));
         for (long k = 0; k < length; k++)
         {
-            if (TryGetExistingElement(accessor, k, out var value))
+            // Check HasProperty first (which includes prototype chain), then Get if true
+            if (HasProperty(accessor, ToIndexString(k)))
             {
+                var value = GetElementOrUndefinedJsValue(accessor, ToIndexString(k));
                 values.Add((value, k));
             }
         }
 
         // Keep the sort stable by falling back to the original index on ties.
-        values.Sort(Comparer);
+        // Wrap in try-catch to properly propagate ThrowSignal from compareFn
+        try
+        {
+            values.Sort(Comparer);
+        }
+        catch (InvalidOperationException ex) when (ex.InnerException is ThrowSignal ts)
+        {
+            // Re-throw the original ThrowSignal
+            throw ts;
+        }
 
         var result = CreateCopyArray(length, Realm, MethodName);
-        long targetIndex = 0;
-        foreach (var pair in values)
+
+        // Per spec step 8: Repeat while j < len, setting result[j] = sortedList[j]
+        // For j < sortedList.length, we use the sorted values
+        // For j >= sortedList.length (holes moved to end), we use undefined
+        // This is CreateDataPropertyOrThrow which always creates an own property (holes become undefined)
+        for (long j = 0; j < length; j++)
         {
-            result.SetProperty(ToIndexString(targetIndex++), pair.Value);
+            var value = j < values.Count ? values[(int)j].Value : JsValue.Undefined;
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(j), value, Realm, MethodName);
         }
 
         SetArrayLikeLength(result, length);
@@ -528,8 +546,8 @@ public sealed partial class ArrayPrototype
                     return a.OriginalIndex.CompareTo(b.OriginalIndex);
                 }
 
-                var result = numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
-                return result != 0 ? result : a.OriginalIndex.CompareTo(b.OriginalIndex);
+                var cmpResult = numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
+                return cmpResult != 0 ? cmpResult : a.OriginalIndex.CompareTo(b.OriginalIndex);
             }
 
             var aStr = JsValueToString(a.Value);
@@ -550,10 +568,16 @@ public sealed partial class ArrayPrototype
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
         var result = CreateCopyArray(length, Realm, MethodName);
+        // Per spec: toReversed does NOT preserve holes. Use Get(O, from) which returns
+        // undefined for holes (both own and prototype), then CreateDataPropertyOrThrow
+        // which always creates an own property. This means holes become undefined own properties.
         for (long k = 0; k < length; k++)
         {
             var from = length - 1 - k;
-            CopyArrayElement(accessor, from, result, k);
+            // Get(O, from) - returns undefined if property doesn't exist (including prototype)
+            var fromValue = GetElementOrUndefinedJsValue(accessor, ToIndexString(from));
+            // CreateDataPropertyOrThrow - always create an own data property
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(k), fromValue, Realm, MethodName);
         }
 
         SetArrayLikeLength(result, length);
@@ -603,19 +627,23 @@ public sealed partial class ArrayPrototype
         var result = CreateCopyArray(newLength, Realm, MethodName);
         long targetIndex = 0;
 
+        // Per spec: Array.prototype.toSpliced does NOT preserve holes. Use Get(O, k) which returns
+        // undefined for holes, then CreateDataPropertyOrThrow which always creates an own property.
         for (long k = 0; k < actualStart; k++)
         {
-            CopyArrayElement(accessor, k, result, targetIndex++);
+            var fromValue = GetElementOrUndefinedJsValue(accessor, ToIndexString(k));
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(targetIndex++), fromValue, Realm, MethodName);
         }
 
         for (var i = 0; i < insertCount; i++)
         {
-            result.SetProperty(ToIndexString(targetIndex++), args[i + 2]);
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(targetIndex++), args[i + 2], Realm, MethodName);
         }
 
         for (var k = actualStart + actualDeleteCount; k < length; k++)
         {
-            CopyArrayElement(accessor, k, result, targetIndex++);
+            var fromValue = GetElementOrUndefinedJsValue(accessor, ToIndexString(k));
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(targetIndex++), fromValue, Realm, MethodName);
         }
 
         SetArrayLikeLength(result, targetIndex);
@@ -660,16 +688,23 @@ public sealed partial class ArrayPrototype
         var value = args.Count > 1 ? args[1] : JsValue.Undefined;
         var result = CreateCopyArray(length, Realm, MethodName);
 
+        // Per spec: Array.prototype.with does NOT preserve holes. Use Get(O, Pk) which returns
+        // undefined for holes, then CreateDataPropertyOrThrow which always creates an own property.
         for (long k = 0; k < length; k++)
         {
+            JsValue fromValue;
             if (k == integer)
             {
-                result.SetProperty(ToIndexString(k), value);
+                fromValue = value;
             }
             else
             {
-                CopyArrayElement(accessor, k, result, k);
+                // Get(O, Pk) - returns undefined if property doesn't exist (including prototype)
+                fromValue = GetElementOrUndefinedJsValue(accessor, ToIndexString(k));
             }
+
+            // CreateDataPropertyOrThrow - always create an own data property
+            CreateDataPropertyOrThrowJsValue(result, ToIndexString(k), fromValue, Realm, MethodName);
         }
 
         SetArrayLikeLength(result, length);

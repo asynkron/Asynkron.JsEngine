@@ -312,8 +312,9 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var lengthLiteral = GetNamedDouble(constructorAttr, "Length");
         var displayName = GetNamedValue(constructorAttr, "DisplayName") ?? typeSymbol.Name;
 
-        // Scan for static methods with JsConstructorMethodAttribute
+        // Scan for static methods with JsConstructorMethodAttribute or JsConstructorSymbolGetterAttribute
         var staticMethods = ImmutableArray.CreateBuilder<ConstructorMethodInfo>();
+        var symbolGetters = ImmutableArray.CreateBuilder<ConstructorSymbolGetterInfo>();
         var jsValueType = wellKnown.JsValueType;
         var readOnlyListType = wellKnown.ReadOnlyListType;
         var realmStateType = wellKnown.RealmStateType;
@@ -328,29 +329,48 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             foreach (var attr in member.GetAttributes())
             {
                 var attrName = attr.AttributeClass?.ToDisplayString();
-                if (!string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorMethodAttribute", StringComparison.Ordinal))
+                if (string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorMethodAttribute", StringComparison.Ordinal))
                 {
-                    continue;
-                }
+                    var propertyName = attr.ConstructorArguments.Length > 0
+                        ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                        : string.Empty;
+                    if (string.IsNullOrWhiteSpace(propertyName))
+                    {
+                        continue;
+                    }
 
-                var propertyName = attr.ConstructorArguments.Length > 0
-                    ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                    : string.Empty;
-                if (string.IsNullOrWhiteSpace(propertyName))
+                    var methodLengthLiteral = GetNamedDouble(attr, "Length");
+                    var methodDisplayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
+                    var enumerable = GetNamedBool(attr, "Enumerable");
+                    var configurable = GetNamedBool(attr, "Configurable", true);
+                    var writable = GetNamedBool(attr, "Writable", true);
+
+                    var signature = GetConstructorMethodSignature(member, jsValueType, readOnlyListType, realmStateType);
+                    var returnsJsValue = jsValueType is not null && IsJsValue(member.ReturnType, jsValueType);
+                    staticMethods.Add(new ConstructorMethodInfo(member.Name, propertyName, methodDisplayName, methodLengthLiteral,
+                        enumerable, configurable, writable, signature, returnsJsValue));
+                }
+                else if (string.Equals(attrName, "Asynkron.JsEngine.Runtime.Prototypes.JsConstructorSymbolGetterAttribute", StringComparison.Ordinal))
                 {
-                    continue;
+                    var symbolName = attr.ConstructorArguments.Length > 0
+                        ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                        : string.Empty;
+                    if (string.IsNullOrWhiteSpace(symbolName))
+                    {
+                        continue;
+                    }
+
+                    var getterDisplayName = GetNamedValue(attr, "DisplayName") ?? $"get [Symbol.{symbolName}]";
+                    var enumerable = GetNamedBool(attr, "Enumerable");
+                    var configurable = GetNamedBool(attr, "Configurable", true);
+
+                    // Detect if the method takes a thisValue parameter
+                    var takesThisValue = member.Parameters.Length > 0 &&
+                        jsValueType is not null &&
+                        IsJsValue(member.Parameters[0].Type, jsValueType);
+
+                    symbolGetters.Add(new ConstructorSymbolGetterInfo(member.Name, symbolName, getterDisplayName, enumerable, configurable, takesThisValue));
                 }
-
-                var methodLengthLiteral = GetNamedDouble(attr, "Length");
-                var methodDisplayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
-                var enumerable = GetNamedBool(attr, "Enumerable");
-                var configurable = GetNamedBool(attr, "Configurable", true);
-                var writable = GetNamedBool(attr, "Writable", true);
-
-                var signature = GetConstructorMethodSignature(member, jsValueType, readOnlyListType, realmStateType);
-                var returnsJsValue = jsValueType is not null && IsJsValue(member.ReturnType, jsValueType);
-                staticMethods.Add(new ConstructorMethodInfo(member.Name, propertyName, methodDisplayName, methodLengthLiteral,
-                    enumerable, configurable, writable, signature, returnsJsValue));
             }
         }
 
@@ -362,9 +382,10 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         var prototypeTypeName = prototypeTypeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         var orderedStaticMethods = OrderConstructorMethods(staticMethods.ToImmutable());
-        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods);
+        var orderedSymbolGetters = OrderConstructorSymbolGetters(symbolGetters.ToImmutable());
+        var cacheKey = BuildConstructorCacheKey(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods, orderedSymbolGetters);
 
-        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods, cacheKey);
+        return new ConstructorInfo(className, namespaceName, prototypeTypeName, lengthLiteral, displayName, orderedStaticMethods, orderedSymbolGetters, cacheKey);
     }
 
     private static ConstructorMethodSignature GetConstructorMethodSignature(
@@ -842,6 +863,38 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .AppendLine(" });");
         }
 
+        // Generate symbol-keyed getter registrations (e.g., [Symbol.species])
+        foreach (var getter in info.SymbolGetters)
+        {
+            var getterVar = $"symbolGetter_{Sanitize(getter.SymbolName)}";
+            membersSource.Append("        var ").Append(getterVar)
+                .Append(" = new HostFunction(");
+            if (getter.TakesThisValue)
+            {
+                membersSource.Append("(thisValue, _) => ").Append(info.ClassName).Append(".")
+                    .Append(getter.MethodName)
+                    .AppendLine("(thisValue), realm, isConstructor: false);");
+            }
+            else
+            {
+                membersSource.Append("(_, _) => ").Append(info.ClassName).Append(".")
+                    .Append(getter.MethodName)
+                    .AppendLine("(), realm, isConstructor: false);");
+            }
+            membersSource.Append("        ").Append(getterVar)
+                .Append(".DefineProperty(\"length\", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });")
+                .AppendLine();
+            membersSource.Append("        ").Append(getterVar)
+                .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
+                .Append(getter.DisplayName.Replace("\"", "\\\""))
+                .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
+            membersSource.Append("        constructor.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
+                .Append(getter.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ").Append(getterVar)
+                .Append(", Enumerable = ").Append(getter.Enumerable ? "true" : "false")
+                .Append(", Configurable = ").Append(getter.Configurable ? "true" : "false")
+                .AppendLine(" });");
+        }
+
         membersSource.AppendLine("    }");
         membersSource.AppendLine("}");
 
@@ -903,6 +956,13 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             ? source
             : source.OrderBy(static m => m.PropertyName, StringComparer.Ordinal)
                 .ThenBy(static m => m.MethodName, StringComparer.Ordinal)
+                .ToImmutableArray();
+
+    private static ImmutableArray<ConstructorSymbolGetterInfo> OrderConstructorSymbolGetters(ImmutableArray<ConstructorSymbolGetterInfo> source)
+        => source.Length <= 1
+            ? source
+            : source.OrderBy(static g => g.SymbolName, StringComparer.Ordinal)
+                .ThenBy(static g => g.MethodName, StringComparer.Ordinal)
                 .ToImmutableArray();
 
     private static string BuildPrototypeCacheKey(
@@ -1022,7 +1082,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         string prototypeTypeName,
         string lengthLiteral,
         string displayName,
-        ImmutableArray<ConstructorMethodInfo> staticMethods)
+        ImmutableArray<ConstructorMethodInfo> staticMethods,
+        ImmutableArray<ConstructorSymbolGetterInfo> symbolGetters)
     {
         var builder = new StringBuilder();
         AppendWithLength(builder, namespaceName ?? string.Empty);
@@ -1043,6 +1104,17 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             AppendBool(builder, method.Writable);
             AppendWithLength(builder, ((int)method.Signature).ToString(CultureInfo.InvariantCulture));
             AppendBool(builder, method.ReturnsJsValue);
+        }
+
+        AppendWithLength(builder, symbolGetters.Length.ToString(CultureInfo.InvariantCulture));
+        foreach (var getter in symbolGetters)
+        {
+            AppendWithLength(builder, getter.SymbolName);
+            AppendWithLength(builder, getter.MethodName);
+            AppendWithLength(builder, getter.DisplayName);
+            AppendBool(builder, getter.Enumerable);
+            AppendBool(builder, getter.Configurable);
+            AppendBool(builder, getter.TakesThisValue);
         }
 
         return builder.ToString();
@@ -1264,10 +1336,13 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         bool Enumerable, bool Writable, bool Configurable);
 
     private sealed record ConstructorInfo(string ClassName, string? Namespace, string PrototypeTypeName, string LengthLiteral,
-        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods, string CacheKey);
+        string DisplayName, ImmutableArray<ConstructorMethodInfo> StaticMethods, ImmutableArray<ConstructorSymbolGetterInfo> SymbolGetters, string CacheKey);
 
     private sealed record ConstructorMethodInfo(string MethodName, string PropertyName, string DisplayName,
         string LengthLiteral, bool Enumerable, bool Configurable, bool Writable, ConstructorMethodSignature Signature, bool ReturnsJsValue);
+
+    private sealed record ConstructorSymbolGetterInfo(string MethodName, string SymbolName, string DisplayName,
+        bool Enumerable, bool Configurable, bool TakesThisValue);
 
     private sealed class PrototypeCacheKeyComparer : IEqualityComparer<PrototypeInfo>
     {

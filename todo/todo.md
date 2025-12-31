@@ -119,3 +119,82 @@ Generator/iterator issues in try/catch blocks.
 2. Fix prefix inc/dec - 4 tests, need to debug test262 harness error capture
 3. Skip modules unless time permits
 
+## FIXED: Switch Scope Tests (6 tests)
+Root cause: SwitchEmitter was creating separate BlockStatements for each case body,
+giving each case its own lexical scope. Per ES spec 13.12.9, ALL case bodies share
+ONE lexical scope.
+
+Fix in SwitchEmitter.cs:
+1. Split lowering into outer block (discriminant, match vars) and inner block (switch scope)
+2. Hoist all let/const declarations from ALL case bodies to start of inner block
+3. Transform let/const declarations with initializers into assignments in case bodies
+4. All case body statements go into the shared inner block scope
+
+Tests now passing:
+- Statements_switch("language/statements/switch/scope-lex-close-case.js",False)
+- Statements_switch("language/statements/switch/scope-lex-close-case.js",True)
+- Statements_switch("language/statements/switch/scope-lex-close-dflt.js",False)
+- Statements_switch("language/statements/switch/scope-lex-close-dflt.js",True)
+- Statements_switch("language/statements/switch/scope-lex-open-case.js",False)
+- Statements_switch("language/statements/switch/scope-lex-open-case.js",True)
+
+## Current Status After Fix
+- Tests passing: 22/28 in target subset (up from 16)
+- Switch scope tests: 6/6 FIXED
+- Catch scope tests: 0/2 still failing (different root cause)
+- Prefix inc/dec tests: 0/4 still failing (need investigation)
+
+## Agent 3 (Round 2) Deep Investigation: Prefix Increment Bug
+
+### CRITICAL FINDING: Completion Value Bug
+
+The prefix increment (`++x`) on objects with `valueOf()` works correctly in SOME contexts but fails in others:
+
+**WORKS:**
+- `var result = ++x; result` - Returns 43 (correct!)
+- `++x + 0` - Returns 43 (correct!)
+- `return ++x` inside a function - Returns 43 (correct!)
+
+**FAILS (Returns NaN):**
+- `++x` as final expression statement
+- `++x;` with semicolon as final statement
+- `(++x)` parenthesized as final expression
+
+### ROOT CAUSE HYPOTHESIS
+
+The bug is NOT in `ToNumericValue` or `ToPrimitive` - those work correctly (proven by `++x + 0 = 43`).
+
+The bug is in how the COMPLETION VALUE is extracted when `++x` is the final expression.
+When `++x` is used in a BinaryExpression or AssignmentExpression, the result flows through
+correctly. But when it's a standalone ExpressionStatement, something loses the JsValue.
+
+The completion value path is likely returning the wrong value when the UnaryExpression
+result (a JsValue with Kind=Number) is being propagated up as the script completion value.
+
+### FILES TO INVESTIGATE
+
+1. **StatementNodeExtensions.cs** - How ExpressionStatement completion values are returned
+2. **TypedAstEvaluator.cs** - How the final statement result becomes the script result
+3. **BlockStatementExtensions.cs** - How block completion values are computed
+
+### TEST CASE FOR VERIFICATION
+
+```csharp
+// Pattern that WORKS (valueOf IS called, returns 43):
+engine.Evaluate(@"var x = {valueOf: function() {return 42}}; var result = ++x; result");
+
+// Pattern that FAILS (valueOf IS called, but result is NaN):
+engine.Evaluate(@"var x = {valueOf: function() {return 42}}; ++x");
+```
+
+The valueOf IS being called (proven by console.log in the function). The issue is
+that the numeric result (43) is getting lost somewhere in the completion value chain.
+
+### LIKELY FIX LOCATION
+
+Look for where `JsValue` from UnaryExpression evaluation is being converted back to
+`object?` or where the completion value is being re-wrapped incorrectly, causing
+the `JsValueKind` to be lost or defaulting to something that returns NaN.
+
+### Time ran out before implementing fix
+

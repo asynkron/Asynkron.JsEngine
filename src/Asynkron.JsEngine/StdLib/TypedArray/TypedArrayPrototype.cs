@@ -835,7 +835,22 @@ public sealed partial class TypedArrayPrototype
             values.Add(typedArray.GetValueForIndex(i));
         }
 
-        values.Sort(Comparer);
+        // Wrap sort in try-catch to properly propagate ThrowSignal from compareFn
+        // The .NET Sort may wrap the exception in InvalidOperationException
+        try
+        {
+            values.Sort(Comparer);
+        }
+        catch (InvalidOperationException ex) when (ex.InnerException is ThrowSignal ts)
+        {
+            // Re-throw the original ThrowSignal
+            throw ts;
+        }
+        catch (ThrowSignal)
+        {
+            // Directly propagate ThrowSignal
+            throw;
+        }
 
         // Per spec: use TypedArrayCreateSameType which ignores @@species
         var result = TypedArrayCreateSameType(typedArray, length);
@@ -851,7 +866,12 @@ public sealed partial class TypedArrayPrototype
             if (compareFn is not null)
             {
                 var res = compareFn.Invoke([left, right], JsValue.Undefined);
-                var numeric = JsOps.ToNumber(res);
+                var context = Realm?.CreateContext();
+                var numeric = JsOps.ToNumber(res, context);
+                if (context?.IsThrow == true)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
                 return numeric > 0 ? 1 : numeric < 0 ? -1 : 0;
             }
 

@@ -437,6 +437,84 @@ public static partial class StandardLibrary
         target.DefineProperty(propertyKey, descriptor);
     }
 
+    internal static void SetPropertyOrThrow(IJsPropertyAccessor accessor, string propertyKey, JsValue value,
+        string methodName, RealmState? realm)
+    {
+        if (accessor is JsProxy)
+        {
+            accessor.SetProperty(propertyKey, value);
+            return;
+        }
+
+        if (accessor is JsArray jsArray && string.Equals(propertyKey, "length", StringComparison.Ordinal))
+        {
+            jsArray.SetLength(value, null);
+            return;
+        }
+
+        if (accessor is IJsObjectLike objectLike)
+        {
+            if (!CanSetProperty(objectLike, propertyKey))
+            {
+                throw ThrowTypeError($"{methodName} could not set property '{propertyKey}'", realm: realm);
+            }
+
+            objectLike.SetProperty(propertyKey, value);
+            return;
+        }
+
+        accessor.SetProperty(propertyKey, value);
+    }
+
+    private static bool CanSetProperty(IJsObjectLike target, string propertyKey)
+    {
+        var ownDescriptor = target.GetOwnPropertyDescriptor(propertyKey);
+        if (ownDescriptor is not null)
+        {
+            if (ownDescriptor.IsAccessorDescriptor)
+            {
+                return ownDescriptor.Set is not null;
+            }
+
+            return ownDescriptor.Writable;
+        }
+
+        var extensible = IsExtensible(target);
+        var prototype = target.Prototype;
+        while (prototype is not null)
+        {
+            var inheritedDescriptor = prototype.GetOwnPropertyDescriptor(propertyKey);
+            if (inheritedDescriptor is not null)
+            {
+                if (inheritedDescriptor.IsAccessorDescriptor)
+                {
+                    return inheritedDescriptor.Set is not null;
+                }
+
+                return inheritedDescriptor.Writable && extensible;
+            }
+
+            prototype = prototype.Prototype;
+        }
+
+        return extensible;
+    }
+
+    private static bool IsExtensible(IJsObjectLike target)
+    {
+        if (target is IExtensibilityControl extensible)
+        {
+            return extensible.IsExtensible;
+        }
+
+        if (target is JsObject jsObject)
+        {
+            return jsObject.IsExtensible;
+        }
+
+        return true;
+    }
+
     internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out JsValue value)
     {
         return TryGetExistingElement(accessor, ToIndexString(index), out value);

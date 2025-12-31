@@ -20,10 +20,17 @@ jobs:
     - name: Discover test classes
       id: discover
       run: |
-        # Find all public classes in test files, excluding base classes, fixtures, and collections
-        classes=$(grep -rh "^\s*public\s\+class\s" tests/Asynkron.JsEngine.Tests/*.cs \
-          | sed 's/.*public\s\+class\s\+//' \
-          | sed 's/[(:<{: ].*$//' \
+        # Find all public classes in test files
+        # 1. Extract "public class ClassName" declarations
+        # 2. Extract just the class name (remove everything after class name)
+        # 3. Exclude base classes, fixtures, collections, and helpers
+        # 4. Convert to JSON array for matrix
+        classes=$(grep -rh "public class " tests/Asynkron.JsEngine.Tests/*.cs \
+          | sed 's/.*public class //' \
+          | cut -d' ' -f1 \
+          | cut -d'(' -f1 \
+          | cut -d':' -f1 \
+          | cut -d'<' -f1 \
           | grep -v "Base$\|Fixture$\|Collection$\|Helper$" \
           | sort -u \
           | jq -R -s -c 'split("\n") | map(select(length > 0))')
@@ -70,7 +77,7 @@ jobs:
           --configuration Release \
           --no-build \
           --verbosity normal \
-          --filter "FullyQualifiedName~${{ matrix.test-class }}" \
+          --filter "ClassName~.${{ matrix.test-class }}" \
           --logger "trx;LogFileName=${{ matrix.test-class }}.trx" \
           --results-directory TestResults
       

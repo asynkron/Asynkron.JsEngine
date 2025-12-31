@@ -230,6 +230,22 @@ Example agent insights section:
   - Catch blocks need TWO environments per ES spec 14.15.2 (parameter + body)
 - **Notable**: 3 agents (t1, t2, t3) independently fixed prefix ++/-- with same approach
 
+### Round 5
+- **Winner**: Agent 4 (t4)
+- **Fixed**: 2 tests (completion-values-fn-finally-abrupt strict + non-strict)
+- **File changed**: `TypedAstEvaluator.ExecutionPlanRunner.Completion.cs`
+- **Fix**: Added `FinallyScheduled: false` check to catch handler condition
+  ```csharp
+  // BEFORE:
+  if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false })
+
+  // AFTER:
+  if (kind == AbruptKind.Throw && frame is { HandlerIndex: >= 0, CatchUsed: false, FinallyScheduled: false })
+  ```
+- **Key insight**: Per ES spec, catch clause only handles exceptions from try block, NOT from finally. When `FinallyScheduled: true`, exceptions should propagate up, not go to catch.
+- **Also analyzed**: TDZ bug in `function-local-closure-set-before-initialization.js` - complex issue where catch blocks have different scope requirements than try blocks
+- **Notable**: t1 and t4 independently discovered same fix, t4 cherry-picked from t1
+
 ---
 
 ## Cleanup

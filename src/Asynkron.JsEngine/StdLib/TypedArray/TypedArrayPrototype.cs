@@ -792,7 +792,8 @@ public sealed partial class TypedArrayPrototype
         var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.toReversed");
 
         var length = typedArray.Length;
-        var result = SpeciesCreate(typedArray, length);
+        // Per spec: use TypedArrayCreateSameType which ignores @@species
+        var result = TypedArrayCreateSameType(typedArray, length);
         for (var k = 0; k < length; k++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -836,7 +837,8 @@ public sealed partial class TypedArrayPrototype
 
         values.Sort(Comparer);
 
-        var result = SpeciesCreate(typedArray, length);
+        // Per spec: use TypedArrayCreateSameType which ignores @@species
+        var result = TypedArrayCreateSameType(typedArray, length);
         for (var i = 0; i < values.Count; i++)
         {
             result.SetValue(i, values[i]);
@@ -908,7 +910,8 @@ public sealed partial class TypedArrayPrototype
         var insertCount = Math.Max(args.Count - 2, 0);
         var newLength = length - actualDeleteCount + insertCount;
 
-        var result = SpeciesCreate(typedArray, newLength);
+        // Per spec: use TypedArrayCreateSameType which ignores @@species
+        var result = TypedArrayCreateSameType(typedArray, newLength);
         var targetIndex = 0;
 
         for (var i = 0; i < actualStart; i++)
@@ -966,7 +969,8 @@ public sealed partial class TypedArrayPrototype
             throw ThrowRangeError("Index out of range", realm: Realm);
         }
 
-        var result = SpeciesCreate(typedArray, length);
+        // Per spec: use TypedArrayCreateSameType which ignores @@species
+        var result = TypedArrayCreateSameType(typedArray, length);
         for (var i = 0; i < length; i++)
         {
             if (typedArray.IsDetachedOrOutOfBounds())
@@ -979,6 +983,22 @@ public sealed partial class TypedArrayPrototype
         }
 
         return (JsValue)result;
+    }
+
+    /// <summary>
+    /// TypedArrayCreateSameType: Creates a new TypedArray of the same intrinsic type,
+    /// ignoring @@species. Used by toReversed, toSorted, toSpliced, with.
+    /// Per ECMAScript: 23.2.4.3 TypedArrayCreateSameType ( exemplar, argumentList )
+    /// </summary>
+    private TypedArrayBase TypedArrayCreateSameType(TypedArrayBase exemplar, int length)
+    {
+        length = Math.Max(length, 0);
+        var result = exemplar.CreateSpeciesDefault(length);
+        if (exemplar.Prototype is not null)
+        {
+            result.SetPrototype(exemplar.Prototype);
+        }
+        return result;
     }
 
     private TypedArrayBase SpeciesCreate(TypedArrayBase exemplar, int length)
@@ -999,7 +1019,7 @@ public sealed partial class TypedArrayPrototype
 
         if (constructorValue.IsNullOrUndefined)
         {
-            return CreateDefaultTypedArray(exemplar, length);
+            return TypedArrayCreateSameType(exemplar, length);
         }
 
         if (!JsOps.IsConstructor(constructorValue) || !constructorValue.TryGetObject<IJsCallable>(out var callable))
@@ -1019,17 +1039,6 @@ public sealed partial class TypedArrayPrototype
         }
 
         return typedResult;
-
-        static TypedArrayBase CreateDefaultTypedArray(TypedArrayBase exemplarArray, int len)
-        {
-            var fallback = exemplarArray.CreateSpeciesDefault(len);
-            if (exemplarArray.Prototype is not null)
-            {
-                fallback.SetPrototype(exemplarArray.Prototype);
-            }
-
-            return fallback;
-        }
     }
 
     private static int ClampRelativeIndex(double index, int length)

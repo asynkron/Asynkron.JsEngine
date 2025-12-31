@@ -471,22 +471,27 @@ public sealed partial class ArrayPrototype
     public JsValue ToSorted(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         const string MethodName = "Array.prototype.toSorted";
+
+        // Step 1: If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError.
+        // This MUST happen before ToObject(this value) and LengthOfArrayLike per spec.
+        IJsCallable? compareFn = null;
+        if (args.Count > 0 && !args[0].IsUndefined)
+        {
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
+            {
+                throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+            }
+            compareFn = callable;
+        }
+
+        // Step 2: Let O be ? ToObject(this value).
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
+
+        // Step 3: Let len be ? LengthOfArrayLike(O).
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
         if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
-
-        if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
-        {
-            throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
-        }
-
-        IJsCallable? compareFn = null;
-        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var callable))
-        {
-            compareFn = callable;
-        }
 
         // Per spec SortIndexedProperties with skipHoles=true: read all existing elements first.
         // Holes ARE skipped - they will end up at the end of the result array.

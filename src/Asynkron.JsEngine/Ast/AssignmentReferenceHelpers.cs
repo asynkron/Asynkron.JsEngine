@@ -211,7 +211,7 @@ public static partial class TypedAstEvaluator
         {
             JsValueKind.String => StringHelper.CreateStringWrapper(primitiveTarget.AsString(), context, realm),
             JsValueKind.Boolean => CreateBooleanWrapper(primitiveTarget.AsBoolean(), realm),
-            JsValueKind.Symbol when primitiveTarget.ObjectValue is TypedAstSymbol sym => CreateSymbolWrapper(sym, realm),
+            JsValueKind.Symbol when primitiveTarget.ObjectValue is JsSymbol sym => CreateSymbolWrapper(sym, realm),
             JsValueKind.BigInt when primitiveTarget.ObjectValue is JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi, context, realm),
             JsValueKind.Number => NumberHelper.CreateNumberWrapper(primitiveTarget.NumberValue, context, realm),
             _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget.Kind}")
@@ -352,7 +352,7 @@ public static partial class TypedAstEvaluator
         return obj;
     }
 
-    private static JsObject CreateSymbolWrapper(TypedAstSymbol symbol, RealmState? realm)
+    private static JsObject CreateSymbolWrapper(JsSymbol symbol, RealmState? realm)
     {
         var obj = new JsObject();
         if (realm?.SymbolPrototype is not null)

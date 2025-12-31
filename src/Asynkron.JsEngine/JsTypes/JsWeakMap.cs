@@ -227,7 +227,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         }
 
         // Symbol is a special case - not allowed as WeakMap key
-        if (value is TypedAstSymbol)
+        if (value is JsSymbol)
         {
             return false;
         }

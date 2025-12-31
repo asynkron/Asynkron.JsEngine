@@ -623,7 +623,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(symMethod.DisplayName.Replace("\"", "\\\""))
                 .Append("\", Writable = false, Enumerable = false, Configurable = true });").AppendLine();
-            membersSource.Append("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.")
+            membersSource.Append("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
                 .Append(symMethod.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Value = ").Append(methodVar)
                 .Append(", Writable = ").Append(symMethod.Writable ? "true" : "false")
                 .Append(", Enumerable = ").Append(symMethod.Enumerable ? "true" : "false")
@@ -644,7 +644,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 .Append(".DefineProperty(\"name\", new PropertyDescriptor { Value = \"")
                 .Append(symGetter.DisplayName.Replace("\"", "\\\""))
                 .AppendLine("\", Writable = false, Enumerable = false, Configurable = true });");
-            membersSource.Append("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.")
+            membersSource.Append("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
                 .Append(symGetter.SymbolName).Append("\").GetHashCode()}\", new PropertyDescriptor { Get = ").Append(getterVar)
                 .Append(", Enumerable = ").Append(symGetter.Enumerable ? "true" : "false")
                 .Append(", Configurable = ").Append(symGetter.Configurable ? "true" : "false")
@@ -656,7 +656,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
         {
             membersSource.Append("        if (prototype.TryGetProperty(\"").Append(alias.TargetPropertyName).AppendLine("\", out var aliasTarget))");
             membersSource.AppendLine("        {");
-            membersSource.Append("            prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.")
+            membersSource.Append("            prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.")
                 .Append(alias.SymbolName).AppendLine("\").GetHashCode()}\",");
             membersSource.AppendLine("                new PropertyDescriptor");
             membersSource.AppendLine("                {");
@@ -688,7 +688,7 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
 
         if (!string.IsNullOrEmpty(info.ToStringTag))
         {
-            membersSource.AppendLine("        prototype.DefineProperty($\"@@symbol:{TypedAstSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
+            membersSource.AppendLine("        prototype.DefineProperty($\"@@symbol:{JsSymbol.For(\"Symbol.toStringTag\").GetHashCode()}\",");
             membersSource.AppendLine("            new PropertyDescriptor");
             membersSource.AppendLine("            {");
             membersSource.Append("                Value = \"").Append(info.ToStringTag?.Replace("\"", "\\\""))

@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        if (PrivateNameScope.TryResolveScope(resolvedKey, out var scope) && scope is not null)
+        if (PrivateNameScope.TryResolveScope(context.RealmState, resolvedKey, out var scope) && scope is not null)
         {
             return jsObject.HasPrivateBrand(scope.BrandToken);
         }

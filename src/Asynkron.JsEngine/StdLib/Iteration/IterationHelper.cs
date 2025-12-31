@@ -70,9 +70,9 @@ public static class IterationHelper
 
             throw new InvalidOperationException($"Value is not iterable: {iterable.Kind}");
 
-            static bool TryInvokeSymbolIterator(JsObject target, TypedAstSymbol symbol, out JsObject? iterator)
+            static bool TryInvokeSymbolIterator(JsObject target, JsSymbol symbol, out JsObject? iterator)
             {
-                var propertyName = TypedAstSymbol.PropertyKey(symbol);
+                var propertyName = JsSymbol.PropertyKey(symbol);
                 if (target.TryGetProperty(propertyName, out var method) &&
                     method.TryGetObject<IJsCallable>(out var callable) && callable is not null)
                 {

@@ -25,18 +25,18 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var key = args[0].ToJsString();
-        return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.For(key));
+        return new JsValue(JsValueKind.Symbol, 0.0, JsSymbol.For(key));
     }
 
     [JsConstructorMethod("keyFor", Length = 1d)]
     public static JsValue KeyFor(IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not TypedAstSymbol sym)
+        if (args.Count == 0 || !args[0].IsSymbol || args[0].ObjectValue is not JsSymbol sym)
         {
             return JsValue.Undefined;
         }
 
-        var key = TypedAstSymbol.KeyFor(sym);
+        var key = JsSymbol.KeyFor(sym);
         return key != null ? new JsValue(key) : JsValue.Undefined;
     }
 
@@ -64,7 +64,7 @@ public sealed partial class SymbolConstructor(IJsObjectLike prototype, RealmStat
         var description = args.Count > 0 && !args[0].IsUndefined
             ? args[0].ToJsString()
             : null;
-        return new JsValue(JsValueKind.Symbol, 0.0, TypedAstSymbol.Create(description));
+        return new JsValue(JsValueKind.Symbol, 0.0, JsSymbol.Create(description));
     }
 
     private static void AttachWellKnownSymbols(HostFunction constructor)

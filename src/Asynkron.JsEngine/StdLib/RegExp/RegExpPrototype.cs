@@ -81,8 +81,8 @@ public sealed partial class RegExpPrototype
 
         var patternArg = args.GetArgument(0);
         var flagsArg = args.GetArgument(1);
-        if (patternArg.TryUnwrap<TypedAstSymbol>(out _) ||
-            (flagsArg != JsValue.Undefined && flagsArg.TryUnwrap<TypedAstSymbol>(out _)))
+        if (patternArg.TryUnwrap<JsSymbol>(out _) ||
+            (flagsArg != JsValue.Undefined && flagsArg.TryUnwrap<JsSymbol>(out _)))
         {
             throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: Realm);
         }

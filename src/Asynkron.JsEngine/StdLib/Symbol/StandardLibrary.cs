@@ -16,7 +16,7 @@ public static class SymbolHelper
         return SymbolConstructor.CreateConstructor(realm);
     }
 
-    public static JsObject CreateSymbolWrapper(TypedAstSymbol symbol, EvaluationContext? context = null,
+    public static JsObject CreateSymbolWrapper(JsSymbol symbol, EvaluationContext? context = null,
         RealmState? realm = null)
     {
         var wrapper = new JsObject { ["__value__"] = new JsValue(JsValueKind.Symbol, 0.0, symbol) };
@@ -58,9 +58,9 @@ public static class SymbolHelper
         return wrapper;
     }
 
-    internal static TypedAstSymbol RequireSymbolReceiver(JsValue receiver, RealmState? realm = null)
+    internal static JsSymbol RequireSymbolReceiver(JsValue receiver, RealmState? realm = null)
     {
-        if (receiver.IsSymbol && receiver.TryUnwrap<TypedAstSymbol>(out var sym))
+        if (receiver.IsSymbol && receiver.TryUnwrap<JsSymbol>(out var sym))
         {
             return sym;
         }
@@ -69,13 +69,13 @@ public static class SymbolHelper
             obj.TryGetProperty("__value__", out var inner))
         {
             // inner is JsValue, need to extract TypedAstSymbol from it
-            if (inner.IsSymbol && inner.TryUnwrap<TypedAstSymbol>(out var innerSym))
+            if (inner.IsSymbol && inner.TryUnwrap<JsSymbol>(out var innerSym))
             {
                 return innerSym;
             }
 
             // Also check if inner.ObjectValue is directly a TypedAstSymbol (backward compatibility)
-            if (inner.ObjectValue is TypedAstSymbol directSym)
+            if (inner.ObjectValue is JsSymbol directSym)
             {
                 return directSym;
             }

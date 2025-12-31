@@ -10,7 +10,7 @@ public class ToPropertyNameSymbolTests(ITestOutputHelper output) : InternalTestB
     [Fact]
     public void ThrowsWhenSymbolToPrimitiveIsNotCallable()
     {
-        var symbolKey = JsOps.ToPropertyName(TypedAstSymbol.For("Symbol.toPrimitive"))
+        var symbolKey = JsOps.ToPropertyName(JsSymbol.For("Symbol.toPrimitive"))
                        ?? throw new InvalidOperationException("Symbol key should not be null");
 
         var obj = new JsObject();
@@ -32,7 +32,7 @@ public class ToPropertyNameSymbolTests(ITestOutputHelper output) : InternalTestB
         var result = await engine.Evaluate("var obj = { [Symbol.toPrimitive]: 1 }; obj;");
         var obj = Assert.IsType<JsObject>(result);
 
-        var symbolKey = JsOps.ToPropertyName(TypedAstSymbol.For("Symbol.toPrimitive"))
+        var symbolKey = JsOps.ToPropertyName(JsSymbol.For("Symbol.toPrimitive"))
                        ?? throw new InvalidOperationException("Symbol key should not be null");
 
         Assert.Contains(symbolKey, obj.Keys);

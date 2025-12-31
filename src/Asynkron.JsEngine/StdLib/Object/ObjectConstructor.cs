@@ -626,7 +626,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             foreach (var key in moduleNamespace.OwnKeys())
             {
-                if (key is TypedAstSymbol symbol)
+                if (key is JsSymbol symbol)
                 {
                     symbols.Push(symbol);
                 }
@@ -637,7 +637,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
         foreach (var key in obj.GetOwnPropertyKeysInOrder(true, true))
         {
-            if (TypedAstSymbol.TryGetByInternalKey(key, out var symbol))
+            if (JsSymbol.TryGetByInternalKey(key, out var symbol))
             {
                 symbols.Push(symbol!);
             }
@@ -688,7 +688,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         var value = args[0];
 
         // Check if it's a TypedAstSymbol (stored in ObjectValue when Kind is Symbol)
-        if (value is { IsSymbol: true, ObjectValue: TypedAstSymbol typedSym })
+        if (value is { IsSymbol: true, ObjectValue: JsSymbol typedSym })
         {
             return CreateSymbolWrapper(typedSym, realm: Realm);
         }

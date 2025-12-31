@@ -1,3 +1,5 @@
+# Tournament Round 7
+
 Fix the following failing tests.
 
 After X time, you will be stopped, and we pick a winner.
@@ -5,16 +7,8 @@ The winner get to live on and multiply, the loser get deleted forever.
 
 Document your findings at the end of this file.
 
-      // testbomb leftovers? are the tests correct? should some be removed?
-      ClosureTdz_AssignBeforeInit_ShouldThrowReferenceError
-      ClosureTdz_WithAssertThrowsPattern
-      H0_SimpleTdz_ReadBeforeInit
-      H1_SimpleTdz_AssignBeforeInit
-      H2_ClosureTdz_ReadBeforeInit
-      H3_ClosureTdz_AssignBeforeInit
-      H4_VarIsHoisted_ShouldNotThrow
+## Spec Failures (4 tests)
 
-       //spec failures
        EvalCode_direct
         EvalCode_direct("language/eval-code/direct/var-env-var-init-local-new-delete.js",False)
        Statements_forOf
@@ -22,6 +16,12 @@ Document your findings at the end of this file.
         Statements_forOf("language/statements/for-of/head-using-bound-names-fordecl-tdz.js",True)
        Statements_let
         Statements_let("language/statements/let/function-local-closure-set-before-initialization.js",False)
+
+## Notes
+- forOf using tests require `using` declaration (not implemented)
+- let TDZ test is a closure scope issue
+- eval test is about delete behavior on eval-created bindings
+- TdzClosureTest.cs contains debugging tests from Round 5 (some may be failing intentionally)
 
 
 

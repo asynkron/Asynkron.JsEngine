@@ -530,6 +530,19 @@ public static partial class TypedAstEvaluator
                 generatorContext.ClearReturn();
             }
 
+            // Create TDZ bindings for lexical declarations at function level.
+            // Use FunctionLevelLexicalTemplate which excludes for-each variables (per-iteration bindings).
+            var lexicalKinds = hoistPlan.LexicalDeclarationKinds;
+            foreach (var lexicalName in hoistPlan.FunctionLevelLexicalTemplate)
+            {
+                if (!executionEnvironment.HasBinding(lexicalName))
+                {
+                    var isConst = lexicalKinds.TryGetValue(lexicalName, out var c) && c;
+                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                        blocksFunctionScopeOverride: true, isConst: isConst);
+                }
+            }
+
             return executionEnvironment;
         }
 

@@ -17,31 +17,47 @@ internal sealed class HoistPlan
         Dictionary<Symbol, bool> lexicalDeclarationKinds,
         HashSet<Symbol> catchParameterNames,
         HashSet<Symbol> simpleCatchParameterNames,
+        HashSet<Symbol> forEachVariableNames,
         bool hasFunctionDeclarations,
         ImmutableArray<Symbol> lexicalTemplate,
         ImmutableArray<Symbol> catchParameterTemplate,
         ImmutableArray<Symbol> simpleCatchParameterTemplate,
-        ImmutableArray<Symbol> bodyLexicalTemplate)
+        ImmutableArray<Symbol> bodyLexicalTemplate,
+        ImmutableArray<Symbol> functionLevelLexicalTemplate)
     {
         LexicalNames = lexicalNames;
         LexicalDeclarationKinds = lexicalDeclarationKinds;
         CatchParameterNames = catchParameterNames;
         SimpleCatchParameterNames = simpleCatchParameterNames;
+        ForEachVariableNames = forEachVariableNames;
         HasFunctionDeclarations = hasFunctionDeclarations;
         LexicalTemplate = lexicalTemplate;
         CatchParameterTemplate = catchParameterTemplate;
         SimpleCatchParameterTemplate = simpleCatchParameterTemplate;
         BodyLexicalTemplate = bodyLexicalTemplate;
+        FunctionLevelLexicalTemplate = functionLevelLexicalTemplate;
     }
 
     internal HashSet<Symbol> LexicalNames { get; }
     internal Dictionary<Symbol, bool> LexicalDeclarationKinds { get; }
     internal HashSet<Symbol> CatchParameterNames { get; }
     internal HashSet<Symbol> SimpleCatchParameterNames { get; }
+
+    /// <summary>
+    /// Names of variables declared in for-of/for-in loop heads with let/const.
+    /// These are per-iteration bindings and should NOT have TDZ bindings at function entry.
+    /// </summary>
+    internal HashSet<Symbol> ForEachVariableNames { get; }
     internal ImmutableArray<Symbol> LexicalTemplate { get; }
     internal ImmutableArray<Symbol> CatchParameterTemplate { get; }
     internal ImmutableArray<Symbol> SimpleCatchParameterTemplate { get; }
     internal ImmutableArray<Symbol> BodyLexicalTemplate { get; }
+
+    /// <summary>
+    /// Lexical names that should have TDZ bindings at function entry.
+    /// This EXCLUDES for-each variable names (which are per-iteration bindings).
+    /// </summary>
+    internal ImmutableArray<Symbol> FunctionLevelLexicalTemplate { get; }
     internal bool HasFunctionDeclarations { get; }
 
     internal bool NeedsEnvironment =>
@@ -56,9 +72,10 @@ internal sealed class HoistPlan
         var lexicalKindMap = new Dictionary<Symbol, bool>(ReferenceEqualityComparer<Symbol>.Instance);
         var catchNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         var simpleCatchNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var forEachVarNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         var hasFunctionDeclarations = false;
 
-        CollectLexical(block, lexicalNames, lexicalKindMap, ref hasFunctionDeclarations);
+        CollectLexical(block, lexicalNames, lexicalKindMap, forEachVarNames, ref hasFunctionDeclarations);
         CollectCatchNames(block, catchNames);
         CollectSimpleCatchNames(block, simpleCatchNames);
 
@@ -97,22 +114,52 @@ internal sealed class HoistPlan
                 : ImmutableArray.CreateRange(bodyLexicalNames);
         }
 
+        // Build FunctionLevelLexicalTemplate: lexical names minus for-each variables and simple catch params
+        // For-each variables are per-iteration bindings, not function-level TDZ bindings
+        ImmutableArray<Symbol> functionLevelLexicalTemplate;
+        if (lexicalTemplate.IsEmpty)
+        {
+            functionLevelLexicalTemplate = ImmutableArray<Symbol>.Empty;
+        }
+        else if (forEachVarNames.Count == 0 && simpleCatchNames.Count == 0)
+        {
+            functionLevelLexicalTemplate = lexicalTemplate;
+        }
+        else
+        {
+            var functionLevelNames = new List<Symbol>(lexicalNames.Count);
+            foreach (var name in lexicalNames)
+            {
+                if (!forEachVarNames.Contains(name) && !simpleCatchNames.Contains(name))
+                {
+                    functionLevelNames.Add(name);
+                }
+            }
+
+            functionLevelLexicalTemplate = functionLevelNames.Count == 0
+                ? ImmutableArray<Symbol>.Empty
+                : ImmutableArray.CreateRange(functionLevelNames);
+        }
+
         return new HoistPlan(
             lexicalNames,
             lexicalKindMap,
             catchNames,
             simpleCatchNames,
+            forEachVarNames,
             hasFunctionDeclarations,
             lexicalTemplate,
             catchParameterTemplate,
             simpleCatchParameterTemplate,
-            bodyLexicalTemplate);
+            bodyLexicalTemplate,
+            functionLevelLexicalTemplate);
     }
 
     private static void CollectLexical(
         StatementNode statement,
         HashSet<Symbol> names,
         Dictionary<Symbol, bool> lexicalKindMap,
+        HashSet<Symbol> forEachVarNames,
         ref bool hasFunctionDeclarations)
     {
         while (true)
@@ -122,7 +169,7 @@ internal sealed class HoistPlan
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
-                        CollectLexical(inner, names, lexicalKindMap, ref hasFunctionDeclarations);
+                        CollectLexical(inner, names, lexicalKindMap, forEachVarNames, ref hasFunctionDeclarations);
                     }
 
                     break;
@@ -152,7 +199,7 @@ internal sealed class HoistPlan
                     break;
 
                 case IfStatement ifStatement:
-                    CollectLexical(ifStatement.Then, names, lexicalKindMap, ref hasFunctionDeclarations);
+                    CollectLexical(ifStatement.Then, names, lexicalKindMap, forEachVarNames, ref hasFunctionDeclarations);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -202,7 +249,10 @@ internal sealed class HoistPlan
                     {
                         var isConstForEach = forEachStatement.DeclarationKind is VariableKind.Const
                             or VariableKind.Using or VariableKind.AwaitUsing;
+                        // Collect into names for TDZ checking during iteration,
+                        // but ALSO collect into forEachVarNames so we exclude them from function-level TDZ
                         CollectBindingSymbols(forEachStatement.Target, names, lexicalKindMap, isConstForEach);
+                        CollectBindingNamesOnly(forEachStatement.Target, forEachVarNames);
                     }
 
                     statement = forEachStatement.Body;
@@ -211,13 +261,13 @@ internal sealed class HoistPlan
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        CollectLexical(switchCase.Body, names, lexicalKindMap, ref hasFunctionDeclarations);
+                        CollectLexical(switchCase.Body, names, lexicalKindMap, forEachVarNames, ref hasFunctionDeclarations);
                     }
 
                     break;
 
                 case TryStatement tryStatement:
-                    CollectLexical(tryStatement.TryBlock, names, lexicalKindMap, ref hasFunctionDeclarations);
+                    CollectLexical(tryStatement.TryBlock, names, lexicalKindMap, forEachVarNames, ref hasFunctionDeclarations);
                     if (tryStatement.Catch is { } catchClause)
                     {
                         if (catchClause.Binding is not null)
@@ -225,7 +275,7 @@ internal sealed class HoistPlan
                             CollectBindingSymbols(catchClause.Binding, names, lexicalKindMap, true);
                         }
 
-                        CollectLexical(catchClause.Body, names, lexicalKindMap, ref hasFunctionDeclarations);
+                        CollectLexical(catchClause.Body, names, lexicalKindMap, forEachVarNames, ref hasFunctionDeclarations);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)

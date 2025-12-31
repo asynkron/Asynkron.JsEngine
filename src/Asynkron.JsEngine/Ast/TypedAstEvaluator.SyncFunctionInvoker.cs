@@ -34,6 +34,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasParameterExpressions;
         private readonly bool _isStrict;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
+        private readonly ImmutableArray<Symbol> _functionLevelLexicalTemplate;
         private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
         private readonly JsValue _lexicalThis;
         private readonly JsEnvironment? _lexicalThisEnvironment;
@@ -121,6 +122,7 @@ public static partial class TypedAstEvaluator
                 .ParameterNames;
             _parameterNames = parameterNames;
             _lexicalTemplate = hoistPlan.LexicalTemplate;
+            _functionLevelLexicalTemplate = hoistPlan.FunctionLevelLexicalTemplate;
             _lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
             _catchParameterTemplate = hoistPlan.CatchParameterTemplate;
             _simpleCatchParameterTemplate = hoistPlan.SimpleCatchParameterTemplate;
@@ -1159,7 +1161,8 @@ public static partial class TypedAstEvaluator
                     // Create TDZ bindings for lexical declarations (let/const) in the function environment.
                     // This must happen BEFORE the body is evaluated so that closures that reference these
                     // variables will find them in TDZ state and throw ReferenceError if accessed before initialization.
-                    foreach (var lexicalName in bodyLexicalNames)
+                    // Use FunctionLevelLexicalTemplate which excludes for-each variables (they are per-iteration bindings).
+                    foreach (var lexicalName in _functionLevelLexicalTemplate)
                     {
                         if (!executionEnvironment.HasBinding(lexicalName))
                         {
@@ -2044,6 +2047,21 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Create TDZ bindings for lexical declarations at function level
+            // This ensures closures see uninitialized state before let/const are initialized
+            if (_functionLevelLexicalTemplate.Length > 0)
+            {
+                foreach (var lexicalName in _functionLevelLexicalTemplate)
+                {
+                    if (!functionEnvironment.HasBinding(lexicalName))
+                    {
+                        var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                        functionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                            blocksFunctionScopeOverride: true, isConst: isConst);
+                    }
+                }
+            }
+
             // Execute body
             _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
 
@@ -2141,6 +2159,20 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Create TDZ bindings for lexical declarations at function level
+            if (_functionLevelLexicalTemplate.Length > 0)
+            {
+                foreach (var lexicalName in _functionLevelLexicalTemplate)
+                {
+                    if (!functionEnvironment.HasBinding(lexicalName))
+                    {
+                        var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                        functionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                            blocksFunctionScopeOverride: true, isConst: isConst);
+                    }
+                }
+            }
+
             _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
 
             JsValue result;
@@ -2229,6 +2261,20 @@ public static partial class TypedAstEvaluator
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
                     reuseEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                }
+            }
+
+            // Create TDZ bindings for lexical declarations at function level
+            if (_functionLevelLexicalTemplate.Length > 0)
+            {
+                foreach (var lexicalName in _functionLevelLexicalTemplate)
+                {
+                    if (!reuseEnvironment.HasBinding(lexicalName))
+                    {
+                        var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                        reuseEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                            blocksFunctionScopeOverride: true, isConst: isConst);
+                    }
                 }
             }
 
@@ -2343,6 +2389,20 @@ public static partial class TypedAstEvaluator
                 for (var i = 2; i < _parameterNames.Length; i++)
                 {
                     functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
+                }
+            }
+
+            // Create TDZ bindings for lexical declarations at function level
+            if (_functionLevelLexicalTemplate.Length > 0)
+            {
+                foreach (var lexicalName in _functionLevelLexicalTemplate)
+                {
+                    if (!functionEnvironment.HasBinding(lexicalName))
+                    {
+                        var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                        functionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                            blocksFunctionScopeOverride: true, isConst: isConst);
+                    }
                 }
             }
 

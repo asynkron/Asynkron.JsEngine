@@ -10,6 +10,8 @@ on:
 jobs:
   discover-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       test-classes: ${{ steps.discover.outputs.test-classes }}
     

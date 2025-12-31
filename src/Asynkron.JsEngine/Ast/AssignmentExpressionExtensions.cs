@@ -530,6 +530,83 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Runtime slot lookup: try to find slot index from environment's SlotMap
+            // This avoids the expensive ResolveIdentifierDirect fallback for variables
+            // declared in the current function scope when AST nodes weren't pre-stamped.
+            if (environment.TryGetSlotIndex(expression.Target, out var runtimeSlotIndex))
+            {
+                // Found slot - use direct slot-based assignment
+                if (expression.IsCompoundAssignment && expression.Value is BinaryExpression binary)
+                {
+                    // Read current value from slot
+                    var currentValue = environment.GetSlotRef(runtimeSlotIndex);
+
+                    // Short-circuit for logical operators
+                    switch (binary.Operator)
+                    {
+                        case BinaryOperator.LogicalAnd:
+                            if (!currentValue.IsTruthy)
+                            {
+                                return currentValue; // No assignment needed
+                            }
+                            break;
+                        case BinaryOperator.LogicalOr:
+                            if (currentValue.IsTruthy)
+                            {
+                                return currentValue; // No assignment needed
+                            }
+                            break;
+                        case BinaryOperator.NullishCoalescing:
+                            if (!currentValue.IsNullish)
+                            {
+                                return currentValue; // No assignment needed
+                            }
+                            break;
+                    }
+
+                    var rhsValue = binary.Right.EvaluateExpression(environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return rhsValue;
+                    }
+
+                    // Apply compound operation
+                    var compoundResult = binary.Operator switch
+                    {
+                        BinaryOperator.Add => AddValue(currentValue, rhsValue, context),
+                        BinaryOperator.Subtract => SubtractValue(currentValue, rhsValue, context),
+                        BinaryOperator.Multiply => MultiplyValue(currentValue, rhsValue, context),
+                        BinaryOperator.Divide => DivideValue(currentValue, rhsValue, context),
+                        BinaryOperator.Modulo => ModuloValue(currentValue, rhsValue, context),
+                        BinaryOperator.Power => PowerValue(currentValue, rhsValue, context),
+                        BinaryOperator.BitwiseAnd => BitwiseAndValue(currentValue, rhsValue, context),
+                        BinaryOperator.BitwiseOr => BitwiseOrValue(currentValue, rhsValue, context),
+                        BinaryOperator.BitwiseXor => BitwiseXorValue(currentValue, rhsValue, context),
+                        BinaryOperator.LeftShift => LeftShiftValue(currentValue, rhsValue, context),
+                        BinaryOperator.RightShift => RightShiftValue(currentValue, rhsValue, context),
+                        BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(currentValue, rhsValue, context),
+                        // For logical operators, the rhs value becomes the new value
+                        BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing => rhsValue,
+                        _ => throw new NotSupportedException($"Compound assignment operator '{binary.Operator}' is not supported.")
+                    };
+
+                    environment.SetSlot(runtimeSlotIndex, compoundResult);
+                    return compoundResult;
+                }
+                else
+                {
+                    // Simple assignment
+                    var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return rhsValue;
+                    }
+
+                    environment.SetSlot(runtimeSlotIndex, rhsValue);
+                    return rhsValue;
+                }
+            }
+
             // Fallback to the AssignmentReference path for other cases
             var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
                 expression.Target, environment, context);

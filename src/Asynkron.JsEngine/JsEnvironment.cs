@@ -3297,6 +3297,18 @@ public sealed class JsEnvironment : IRentable
         env._slots![slotIndex] = value;
     }
 
+    /// <summary>
+    /// Sets a variable value by slot index in the current environment.
+    /// Caller must ensure slotIndex is valid and slots are initialized.
+    /// </summary>
+    /// <param name="slotIndex">Index into the slots array.</param>
+    /// <param name="value">The value to set.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlot(int slotIndex, JsValue value)
+    {
+        _slots![slotIndex] = value;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void TrySetSlot(Symbol name, JsValue value)
     {

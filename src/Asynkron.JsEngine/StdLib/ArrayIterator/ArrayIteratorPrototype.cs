@@ -12,7 +12,6 @@ namespace Asynkron.JsEngine.StdLib;
 /// ArrayIterator prototype for array iterators
 /// </summary>
 [JsPrototype("Array Iterator", ToStringTag = "Array Iterator")]
-[JsSymbolAlias("iterator", "__selfIterator")]
 public sealed partial class ArrayIteratorPrototype : JsPrototype
 {
     [JsHostMethod("next", Length = 0d)]
@@ -26,14 +25,17 @@ public sealed partial class ArrayIteratorPrototype : JsPrototype
         return iterator.Next();
     }
 
-    [JsHostMethod("__selfIterator", Length = 0d)]
-    public static JsValue SelfIterator(JsValue thisValue) => thisValue;
-
     protected override void ConfigurePrototype()
     {
         if (Prototype is JsObject { RealmState: null } jsObj)
         {
             jsObj.RealmState = Realm;
+        }
+
+        var iteratorPrototype = Realm.IteratorPrototype ??= (JsObject)IteratorPrototype.CreatePrototype(Realm);
+        if (!ReferenceEquals(Prototype.Prototype, iteratorPrototype))
+        {
+            Prototype.SetPrototype(iteratorPrototype);
         }
 
         Realm.ArrayIteratorPrototype ??= Prototype as JsObject;

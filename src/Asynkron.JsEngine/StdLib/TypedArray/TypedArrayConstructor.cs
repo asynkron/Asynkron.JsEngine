@@ -17,6 +17,12 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
 {
     private HostFunction? _constructor;
 
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         _ = thisValue;

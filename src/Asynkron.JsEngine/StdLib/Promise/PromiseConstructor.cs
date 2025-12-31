@@ -18,6 +18,12 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 {
     private HostFunction? _constructor;
 
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
+    }
+
     private HostFunction ConstructFallback =>
         _constructor ?? throw new InvalidOperationException("Promise constructor not initialized");
 

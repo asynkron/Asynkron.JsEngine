@@ -296,6 +296,6 @@ public class TdzClosureTest
         """);
 
         _output.WriteLine($"Result: {result}");
-        Assert.True(result is JsValue jsValue && jsValue.IsTruthy);
+        Assert.True((bool)result);
     }
 }

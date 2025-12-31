@@ -1618,6 +1618,7 @@ public static partial class TypedAstEvaluator
                                             yieldStarState.PendingValue = sendValue;
                                             yieldStarState.AwaitingResume = true;
                                             _programCounter = currentIndex;
+                                            RecordYield(context, environment);
                                             _state = GeneratorState.Suspended;
                                             // Use original iterator result object to preserve done/value properties
                                             return iteratorResult.IteratorResultObject is not null
@@ -1680,6 +1681,7 @@ public static partial class TypedAstEvaluator
 
                                     yieldStarState.AwaitingResume = true;
                                     _programCounter = currentIndex;
+                                    RecordYield(context, environment);
                                     _state = GeneratorState.Suspended;
                                     // Use original iterator result object to preserve done/value properties
                                     if (iteratorResult.IteratorResultObject is { } originalResult)

@@ -57,8 +57,8 @@ Document your findings at the end of this file.
 
 ### Statements_try (6 tests)
 - completion-values-fn-finally-abrupt.js (strict + non-strict)
-- optional-catch-binding-lexical.js (strict + non-strict)
-- scope-catch-block-lex-open.js (strict + non-strict)
+- optional-catch-binding-lexical.js (strict + non-strict) - FIXED!
+- scope-catch-block-lex-open.js (strict + non-strict) - FIXED!
 
 --------
 ## Inherited Knowledge
@@ -110,5 +110,43 @@ var incNumValue = incCurrentValue.IsNumber ? incCurrentValue.NumberValue : incCu
 **TEST CASE:** `++object` where `object = {valueOf: function() {return 1}}`
 - Before fix: returned NaN
 - After fix: returns 2.0 (correct!)
+
+### FIXED: Catch Block Lexical Scope (4 tests fixed!)
+
+**ROOT CAUSE:** `TryEmitter.TryEmitCatchBlock` was emitting the catch body statements directly
+with `ctx.TryBuildStatementList(catchClause.Body.Statements, ...)` which bypassed the block's
+own environment creation. This caused `let`/`const` declarations inside catch blocks to leak
+to the outer scope.
+
+Per ECMAScript specification 14.15.2 CatchClauseEvaluation, the catch clause should create
+TWO separate lexical environments:
+1. **Catch parameter environment**: for the catch binding parameter (e.g., `e` in `catch(e)`)
+2. **Catch block environment**: child of catch parameter env, for block-scoped declarations
+
+**WRONG CODE:**
+```csharp
+// 2. Emit catch body statements (directly, not as a BlockStatement to avoid double scope)
+if (!ctx.TryBuildStatementList(catchClause.Body.Statements, popCatchEnv, out var bodyEntry))
+```
+
+**FIX:** Changed to use `BlockEmitter.TryEmitBlock` which properly:
+1. Checks if the block has lexical declarations (`HoistPlan.NeedsEnvironment`)
+2. Creates a child environment when needed
+3. Hoists `let`/`const` for TDZ (Temporal Dead Zone)
+
+**FILE CHANGED:** `src/Asynkron.JsEngine/Execution/Emitters/TryEmitter.cs`
+
+**TESTS FIXED:**
+- optional-catch-binding-lexical.js (strict + non-strict) - `catch {}` without parameter
+- scope-catch-block-lex-open.js (strict + non-strict) - catch param vs block scope separation
+
+**REMAINING ANALYSIS:**
+
+The `completion-values-fn-finally-abrupt.js` test is failing because `assert.throws` is not
+catching `Test262Error` correctly. This is unrelated to the catch scope fix.
+
+The module tests all appear to require module-specific features that are not fully implemented.
+
+The `yield-star-from-catch/try` tests involve complex generator + for-of + try/catch interactions.
 
 

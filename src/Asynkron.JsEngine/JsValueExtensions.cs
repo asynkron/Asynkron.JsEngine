@@ -130,7 +130,7 @@ internal static class JsValueExtensions
 
             switch (value)
             {
-                case Symbol or TypedAstSymbol:
+                case Symbol or JsSymbol:
                     throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
                 case bool b:
                     return b ? "true" : "false";
@@ -159,7 +159,7 @@ internal static class JsValueExtensions
                         ushort us16 => us16.ToString(CultureInfo.InvariantCulture),
                         byte b8 => b8.ToString(CultureInfo.InvariantCulture),
                         sbyte sb8 => sb8.ToString(CultureInfo.InvariantCulture),
-                        TypedAstSymbol jsSymbol => jsSymbol.ToString(),
+                        JsSymbol jsSymbol => jsSymbol.ToString(),
                         _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
                     };
             }

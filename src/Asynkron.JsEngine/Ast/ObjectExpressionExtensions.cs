@@ -233,7 +233,7 @@ public static partial class TypedAstEvaluator
 
         private static string BuildFunctionNameDisplay(string propertyName)
         {
-            if (TypedAstSymbol.TryGetByInternalKey(propertyName, out var symbol))
+            if (JsSymbol.TryGetByInternalKey(propertyName, out var symbol))
             {
                 return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
             }

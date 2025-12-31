@@ -230,7 +230,7 @@ internal static class JsOps
                 case IIsHtmlDda:
                     return JsValue.NaN;
                 case Symbol:
-                case TypedAstSymbol:
+                case JsSymbol:
                 {
                     var error = StandardLibrary.CreateTypeError("Cannot convert a Symbol value to a number", context, context?.RealmState);
                     if (context is null)
@@ -288,7 +288,7 @@ internal static class JsOps
                         // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
                         // so mixed BigInt/Symbol cases throw correctly.
                         if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
-                            symbolData.TryGetObject<TypedAstSymbol>(out var sym))
+                            symbolData.TryGetObject<JsSymbol>(out var sym))
                         {
                             value = sym;
                             continue;
@@ -441,7 +441,7 @@ internal static class JsOps
         }
 
         // Handle objects - need to convert to primitive
-        if (value.ObjectValue is TypedAstSymbol)
+        if (value.ObjectValue is JsSymbol)
         {
             return JsValue.FromObjectUnsafe(value.ObjectValue);
         }
@@ -832,7 +832,7 @@ internal static class JsOps
         // ES Spec 7.2.15 Abstract Relational Comparison
         // Step 1-3: Call ToPrimitive with hint "number" on both operands
         var leftPrimitive = left;
-        if (left is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor and not TypedAstSymbol })
+        if (left is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor and not JsSymbol })
         {
             leftPrimitive = ToPrimitive(left, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
@@ -842,7 +842,7 @@ internal static class JsOps
         }
 
         var rightPrimitive = right;
-        if (right is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor and not TypedAstSymbol })
+        if (right is { Kind: JsValueKind.Object, ObjectValue: IJsPropertyAccessor and not JsSymbol })
         {
             rightPrimitive = ToPrimitive(right, ToPrimitiveHint.Number, context);
             if (context?.IsThrow == true)
@@ -1119,7 +1119,7 @@ internal static class JsOps
                     return value.ObjectValue switch
                     {
                         Symbol sym => sym.Name,
-                        TypedAstSymbol astSym => TypedAstSymbol.PropertyKey(astSym),
+                        JsSymbol astSym => JsSymbol.PropertyKey(astSym),
                         _ => value.ObjectValue?.ToString() ?? string.Empty
                     };
                 case JsValueKind.Object:
@@ -1254,7 +1254,7 @@ internal static class JsOps
         {
             JsValueKind.Undefined or JsValueKind.Null or JsValueKind.Boolean or
                 JsValueKind.Number or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt => true,
-            JsValueKind.Object => value.ObjectValue is TypedAstSymbol or Symbol,
+            JsValueKind.Object => value.ObjectValue is JsSymbol or Symbol,
             _ => false
         };
     }
@@ -1768,11 +1768,11 @@ internal static class JsOps
                             value = JsValue.Undefined;
                             return false;
                         // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
-                        case TypedAstSymbol symbol when symbol.TryGetProperty(propertyName, out var symbolJsValue):
+                        case JsSymbol symbol when symbol.TryGetProperty(propertyName, out var symbolJsValue):
                             value = symbolJsValue;
                             return true;
                         // Look up in Symbol.prototype chain
-                        case TypedAstSymbol:
+                        case JsSymbol:
                         {
                             var symbolProto = context?.RealmState?.SymbolPrototype;
                             if (symbolProto is not null &&

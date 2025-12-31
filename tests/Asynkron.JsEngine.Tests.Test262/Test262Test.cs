@@ -621,7 +621,7 @@ try {
             return JsValue.Undefined;
         });
 
-        var toStringTagKey = $"@@symbol:{TypedAstSymbol.For("Symbol.toStringTag").GetHashCode()}";
+        var toStringTagKey = $"@@symbol:{JsSymbol.For("Symbol.toStringTag").GetHashCode()}";
         prototype.DefineProperty(toStringTagKey, new PropertyDescriptor
         {
             Get = toStringTagGetter,

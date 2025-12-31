@@ -116,7 +116,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 continue;
             }
 
-            if (!includeSymbols && TypedAstSymbol.TryGetByInternalKey(propertyName, out _))
+            if (!includeSymbols && JsSymbol.TryGetByInternalKey(propertyName, out _))
             {
                 continue;
             }
@@ -452,7 +452,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private static object DecodePropertyKey(string propertyName)
     {
-        return TypedAstSymbol.TryGetByInternalKey(propertyName, out var symbol)
+        return JsSymbol.TryGetByInternalKey(propertyName, out var symbol)
             ? symbol!
             : propertyName;
     }

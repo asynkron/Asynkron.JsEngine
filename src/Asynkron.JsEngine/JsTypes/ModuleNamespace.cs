@@ -17,7 +17,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
     private readonly bool _isDeferred;
     private readonly RealmState _realmState;
 
-    private readonly TypedAstSymbol _toStringTagSymbol = Symbols.ToStringTag;
+    private readonly JsSymbol _toStringTagSymbol = Symbols.ToStringTag;
 
     internal ModuleNamespace(
         IEnumerable<string> exportNames,
@@ -201,7 +201,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         // Match both the realm-specific key (e.g. "@@symbol:5") and a parsed well-known symbol
         var isToStringTag =
             string.Equals(name, ToStringTagKey, StringComparison.Ordinal) ||
-            (TypedAstSymbol.TryGetByInternalKey(name, out var symbol) &&
+            (JsSymbol.TryGetByInternalKey(name, out var symbol) &&
              string.Equals(symbol!.Description, "Symbol.toStringTag", StringComparison.Ordinal));
 
         // Handle Symbol.toStringTag property

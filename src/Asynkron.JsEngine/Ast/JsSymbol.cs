@@ -15,17 +15,17 @@ namespace Asynkron.JsEngine.Ast;
 ///     Symbols are unique and immutable primitive values that can be used as object property keys.
 ///     This is distinct from the internal Symbol class used for S-expression atoms.
 /// </summary>
-public sealed class TypedAstSymbol : IJsPropertyAccessor
+public sealed class JsSymbol : IJsPropertyAccessor
 {
-    private static readonly ConcurrentDictionary<string, TypedAstSymbol> GlobalRegistry = new(StringComparer.Ordinal);
-    private static readonly ConcurrentDictionary<int, TypedAstSymbol> IdRegistry = new();
+    private static readonly ConcurrentDictionary<string, JsSymbol> GlobalRegistry = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<int, JsSymbol> IdRegistry = new();
     private static readonly ConcurrentDictionary<int, string> PropertyKeyCache = new();
     private static int NextId;
 
     private static readonly HostFunction SymbolToStringFunction = new((thisValue, _) =>
     {
         // Use TryUnwrap instead of TryGetObject because Symbol JsValues have Kind=Symbol, not Object
-        if (thisValue.TryUnwrap<TypedAstSymbol>(out var typed))
+        if (thisValue.TryUnwrap<JsSymbol>(out var typed))
         {
             return new JsValue(typed.ToString());
         }
@@ -36,7 +36,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     private readonly int _id;
     private readonly string? _key; // null for non-global symbols, non-null for global symbols
 
-    private TypedAstSymbol(string? description, string? key, int id)
+    private JsSymbol(string? description, string? key, int id)
     {
         Description = description;
         _key = key;
@@ -80,10 +80,10 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         value = JsValue.Undefined;
         return false;
 
-        TypedAstSymbol Unbox(JsValue receiver)
+        JsSymbol Unbox(JsValue receiver)
         {
             // For primitive symbols: Kind=Symbol, ObjectValue=TypedAstSymbol
-            if (receiver.IsSymbol && receiver.TryUnwrap<TypedAstSymbol>(out var sym))
+            if (receiver.IsSymbol && receiver.TryUnwrap<JsSymbol>(out var sym))
             {
                 return sym;
             }
@@ -91,7 +91,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
             // For boxed symbols: Kind=Object, ObjectValue=JsObject with __value__
             if (receiver.TryGetObject<JsObject>(out var obj) &&
                 obj.TryGetProperty("__value__", out var inner) &&
-                inner.IsSymbol && inner.TryUnwrap<TypedAstSymbol>(out var innerSym))
+                inner.IsSymbol && inner.TryUnwrap<JsSymbol>(out var innerSym))
             {
                 return innerSym;
             }
@@ -115,24 +115,24 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     /// <summary>
     ///     Creates a new unique symbol with an optional description.
     /// </summary>
-    public static TypedAstSymbol Create(string? description = null)
+    public static JsSymbol Create(string? description = null)
     {
-        return new TypedAstSymbol(description, null, Interlocked.Increment(ref NextId));
+        return new JsSymbol(description, null, Interlocked.Increment(ref NextId));
     }
 
     /// <summary>
     ///     Gets or creates a global symbol for the given key.
     ///     Global symbols with the same key are the same object.
     /// </summary>
-    public static TypedAstSymbol For(string key)
+    public static JsSymbol For(string key)
     {
-        return GlobalRegistry.GetOrAdd(key, k => new TypedAstSymbol(k, k, Interlocked.Increment(ref NextId)));
+        return GlobalRegistry.GetOrAdd(key, k => new JsSymbol(k, k, Interlocked.Increment(ref NextId)));
     }
 
     /// <summary>
     ///     Gets the key for a global symbol, or null if the symbol is not global.
     /// </summary>
-    public static string? KeyFor(TypedAstSymbol symbol)
+    public static string? KeyFor(JsSymbol symbol)
     {
         return symbol._key;
     }
@@ -140,7 +140,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
     /// <summary>
     ///     Returns a stable property key string for a symbol (e.g. "@@symbol:1234"), cached per process.
     /// </summary>
-    public static string PropertyKey(TypedAstSymbol symbol)
+    public static string PropertyKey(JsSymbol symbol)
     {
         var hash = symbol.GetHashCode();
         return PropertyKeyCache.GetOrAdd(hash, h => $"@@symbol:{h}");
@@ -168,7 +168,7 @@ public sealed class TypedAstSymbol : IJsPropertyAccessor
         return _id;
     }
 
-    internal static bool TryGetByInternalKey(string propertyName, out TypedAstSymbol? symbol)
+    internal static bool TryGetByInternalKey(string propertyName, out JsSymbol? symbol)
     {
         symbol = null;
         if (!propertyName.StartsWith("@@symbol:", StringComparison.Ordinal))

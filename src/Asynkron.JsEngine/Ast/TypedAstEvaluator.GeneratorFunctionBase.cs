@@ -438,7 +438,7 @@ public static partial class TypedAstEvaluator
                 return "undefined";
             }
 
-            if (primitive.TryUnwrap(out Symbol? _) || primitive.TryUnwrap(out TypedAstSymbol? _))
+            if (primitive.TryUnwrap(out Symbol? _) || primitive.TryUnwrap(out JsSymbol? _))
             {
                 throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", evalContext, realm);
             }

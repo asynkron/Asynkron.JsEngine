@@ -187,7 +187,7 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         }
 
         // Symbol is a special case - not allowed as WeakSet value
-        if (value is TypedAstSymbol)
+        if (value is JsSymbol)
         {
             return false;
         }

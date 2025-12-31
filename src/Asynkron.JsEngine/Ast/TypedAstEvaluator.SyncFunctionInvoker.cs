@@ -520,7 +520,7 @@ public static partial class TypedAstEvaluator
                     realm: RealmState));
             }
 
-            if (thisValue.IsSymbol && thisValue.TryUnwrap<TypedAstSymbol>(out var typedSymbol))
+            if (thisValue.IsSymbol && thisValue.TryUnwrap<JsSymbol>(out var typedSymbol))
             {
                 return JsValue.FromJsObject(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: RealmState));
             }

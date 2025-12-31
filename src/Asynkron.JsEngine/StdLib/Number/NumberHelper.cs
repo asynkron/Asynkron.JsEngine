@@ -299,7 +299,7 @@ public static partial class NumberHelper
         // BigInt and Symbol are not valid indices
         if (numeric.Kind == JsValueKind.BigInt ||
             numeric.TryGetObject<Symbol>(out _) ||
-            numeric.TryGetObject<TypedAstSymbol>(out _))
+            numeric.TryGetObject<JsSymbol>(out _))
         {
             throw ThrowTypeError("Index must be a non-negative integer", context, realm);
         }

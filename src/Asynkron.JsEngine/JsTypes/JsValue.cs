@@ -673,7 +673,7 @@ public readonly struct JsValue : IEquatable<JsValue>
             long l => new JsValue((double)l),
             bool b => b ? True : False,
             Symbol sym => ReferenceEquals(sym, Symbol.Undefined) ? Undefined : new JsValue(sym),
-            TypedAstSymbol astSym => new JsValue(JsValueKind.Symbol, 0.0, astSym),
+            JsSymbol astSym => new JsValue(JsValueKind.Symbol, 0.0, astSym),
             JsBigInt bi => new JsValue(bi),
             // Non-JsObject types that are wrapped as objects
             JsPromise promise => new JsValue(JsValueKind.Object, 0.0, promise),
@@ -938,7 +938,7 @@ public readonly struct JsValue : IEquatable<JsValue>
         return new JsValue(value);
     }
 
-    public static implicit operator JsValue(TypedAstSymbol value)
+    public static implicit operator JsValue(JsSymbol value)
     {
         return new JsValue(JsValueKind.Symbol, 0.0, value);
     }

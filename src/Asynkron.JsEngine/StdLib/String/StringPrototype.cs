@@ -1406,7 +1406,7 @@ public sealed partial class StringPrototype
 
     private double ConvertToNumber(JsValue input)
     {
-        if (input.TryGetSymbol(out _) || input.TryGetObject<TypedAstSymbol>(out _))
+        if (input.TryGetSymbol(out _) || input.TryGetObject<JsSymbol>(out _))
         {
             throw new ThrowSignal(CreateTypeError("Cannot convert a Symbol value to a number",
                 null, Realm));

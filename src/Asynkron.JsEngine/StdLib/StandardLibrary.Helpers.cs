@@ -32,7 +32,7 @@ public static partial class StandardLibrary
                 case IJsObjectLike objectLike:
                     accessor = objectLike;
                     return true;
-                case TypedAstSymbol symbol:
+                case JsSymbol symbol:
                     accessor = CreateSymbolWrapper(symbol, realm: realm);
                     return true;
                 case bool b:
@@ -75,7 +75,7 @@ public static partial class StandardLibrary
                 accessor = CreateStringWrapper(candidate.ObjectValue as string ?? string.Empty, realm: realm);
                 return true;
             case JsValueKind.Symbol:
-                if (candidate.ObjectValue is TypedAstSymbol symbol)
+                if (candidate.ObjectValue is JsSymbol symbol)
                 {
                     accessor = CreateSymbolWrapper(symbol, realm: realm);
                     return true;

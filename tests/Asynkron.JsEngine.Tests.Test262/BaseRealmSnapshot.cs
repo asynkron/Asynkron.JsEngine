@@ -159,7 +159,7 @@ internal sealed class BaseRealmSnapshot
                 case TimeZoneInfo:
                 case CultureInfo:
                 case Regex:
-                case TypedAstSymbol:
+                case JsSymbol:
                 case Symbol:
                 case JsBigInt:
                     return value;

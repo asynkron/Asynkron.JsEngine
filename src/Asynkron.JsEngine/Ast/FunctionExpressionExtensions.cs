@@ -382,7 +382,7 @@ public static partial class TypedAstEvaluator
 
     extension(FunctionExpression functionExpression)
     {
-        private IJsCallable CreateFunctionValue(JsEnvironment environment,
+        internal IJsCallable CreateFunctionValue(JsEnvironment environment,
             EvaluationContext context,
             bool isConstructorFunction = true,
             bool skipInternalNameBinding = false)

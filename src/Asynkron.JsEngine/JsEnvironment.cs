@@ -524,6 +524,10 @@ public sealed class JsEnvironment : IRentable
                 context?.RealmState);
         }
 
+        var allowConfigurableGlobalBinding =
+            context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+        var varBindingConfigurable = globalVarConfigurable ?? allowConfigurableGlobalBinding;
+
         ref var existing = ref scope.Values.GetValueRefOrNullRef(name);
         if (!Unsafe.IsNullRef(ref existing))
         {
@@ -559,17 +563,64 @@ public sealed class JsEnvironment : IRentable
             {
                 TrySetSlot(name, value);
             }
-            if (isGlobalScope && globalThis is not null)
+            if (!isGlobalScope || globalThis is null)
+            {
+                return;
+            }
+
+            if (!isFunctionDeclaration)
             {
                 globalThis.SetProperty(name.Name, value);
+                return;
+            }
+
+            var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
+            if (existingDescriptor is null)
+            {
+                if (!globalThis.TryDefineProperty(
+                        name.Name,
+                        new PropertyDescriptor
+                        {
+                            JsValue = value, Writable = true, Enumerable = true, Configurable = configurable
+                        }))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot declare global function '{name.Name}'.",
+                        context,
+                        context?.RealmState);
+                }
+            }
+            else if (existingDescriptor.Configurable)
+            {
+                if (!globalThis.TryDefineProperty(
+                        name.Name,
+                        new PropertyDescriptor
+                        {
+                            JsValue = value, Writable = true, Enumerable = true, Configurable = configurable
+                        }))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot redeclare global function '{name.Name}'.",
+                        context,
+                        context?.RealmState);
+                }
+            }
+            else
+            {
+                // Existing non-configurable property: update value only (CreateGlobalFunctionBinding step 6).
+                if (!globalThis.TryDefineProperty(
+                        name.Name,
+                        new PropertyDescriptor { JsValue = value }))
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot update global function binding for '{name.Name}'.",
+                        context,
+                        context?.RealmState);
+                }
             }
 
             return;
         }
-
-        var allowConfigurableGlobalBinding =
-            context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
-        var varBindingConfigurable = globalVarConfigurable ?? allowConfigurableGlobalBinding;
 
         var initialValue = value;
         var shouldWriteGlobal = true;

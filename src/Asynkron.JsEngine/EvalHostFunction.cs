@@ -407,6 +407,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             : lexicalEnv;
 
         InstantiateLexicalDeclarations(evalEnvironment, lexicalDeclarations);
+        var functionDeclaredNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        foreach (var declaration in varFunctionDeclarations)
+        {
+            if (declaration.Function.Name is not null)
+            {
+                functionDeclaredNames.Add(declaration.Function.Name);
+            }
+        }
 
         var preexistingVarBindings = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         foreach (var name in varDeclaredNames)
@@ -428,12 +436,21 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             foreach (var name in varDeclaredNames)
             {
-                if (!varEnv.HasBinding(name))
+                if (functionDeclaredNames.Contains(name) || varEnv.HasBinding(name))
                 {
-                    // Create deletable binding per spec (D=true in CreateMutableBinding)
-                    varEnv.DefineJsValue(name, JsValue.Undefined, isLexical: false,
-                        blocksFunctionScopeOverride: false, canDelete: true);
+                    continue;
                 }
+
+                // Create deletable binding per spec (D=true in CreateMutableBinding) and ensure
+                // global object properties are created with correct attributes.
+                varEnv.DefineFunctionScoped(
+                    name,
+                    JsValue.Undefined,
+                    hasInitializer: false,
+                    isFunctionDeclaration: false,
+                    context: CallingContext,
+                    globalVarConfigurable: true,
+                    canDelete: true);
             }
         }
 

@@ -256,6 +256,119 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// Slot-based compound assignment evaluation using cached slot targets.
+    /// Avoids resolving the identifier on every iteration.
+    /// </summary>
+    private static bool TryEvaluateCompoundAssignmentCachedSlot(
+        AssignmentExpression assignment,
+        ExpressionNode candidate,
+        EvaluationContext.CachedSlotTarget cached,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue value,
+        out bool shouldAssign)
+    {
+        if (candidate is not BinaryExpression binary)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return false;
+        }
+
+        if (!cached.Environment.TryReadSlotValue(cached.Name, cached.SlotIndex, context, out var leftJs))
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return false;
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            value = leftJs;
+            shouldAssign = false;
+            return true;
+        }
+
+        switch (binary.Operator)
+        {
+            case BinaryOperator.LogicalAnd:
+                if (!leftJs.IsTruthy)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+            case BinaryOperator.LogicalOr:
+                if (leftJs.IsTruthy)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+            case BinaryOperator.NullishCoalescing:
+                if (!leftJs.IsNullish)
+                {
+                    value = leftJs;
+                    shouldAssign = false;
+                    return true;
+                }
+
+                value = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+                shouldAssign = !context.ShouldStopEvaluation;
+                return true;
+        }
+
+        var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            value = JsValue.Undefined;
+            shouldAssign = false;
+            return true;
+        }
+
+        value = binary.Operator switch
+        {
+            BinaryOperator.Add => AddValue(leftJs, rightJs, context),
+            BinaryOperator.Subtract => SubtractValue(leftJs, rightJs, context),
+            BinaryOperator.Multiply => MultiplyValue(leftJs, rightJs, context),
+            BinaryOperator.Divide => DivideValue(leftJs, rightJs, context),
+            BinaryOperator.Modulo => ModuloValue(leftJs, rightJs, context),
+            BinaryOperator.Power => PowerValue(leftJs, rightJs, context),
+            BinaryOperator.Equal => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.NotEqual => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictEqual => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictNotEqual => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+            BinaryOperator.LessThan => LessThanValue(leftJs, rightJs, context),
+            BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftJs, rightJs, context),
+            BinaryOperator.GreaterThan => GreaterThanValue(leftJs, rightJs, context),
+            BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseAnd => BitwiseAndValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseOr => BitwiseOrValue(leftJs, rightJs, context),
+            BinaryOperator.BitwiseXor => BitwiseXorValue(leftJs, rightJs, context),
+            BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
+            BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
+            BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
+            BinaryOperator.In => InOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperatorJsValue(leftJs, rightJs, context)
+                ? JsValue.True
+                : JsValue.False,
+            _ => throw new NotSupportedException(
+                $"Compound assignment operator '{binary.Operator}' is not supported yet.")
+        };
+        shouldAssign = true;
+
+        return true;
+    }
+
+    /// <summary>
     /// JsValue version of compound assignment evaluation that avoids boxing for numeric operations.
     /// </summary>
     private static bool TryEvaluateCompoundAssignmentJsValue(
@@ -605,6 +718,48 @@ public static partial class TypedAstEvaluator
                     environment.SetSlot(runtimeSlotIndex, rhsValue);
                     return rhsValue;
                 }
+            }
+
+            if (context.TryResolveAssignmentSlot(expression, environment, out var cachedSlot))
+            {
+                if (expression.IsCompoundAssignment &&
+                    TryEvaluateCompoundAssignmentCachedSlot(expression, expression.Value, cachedSlot, environment, context,
+                        out var cachedCompoundValue,
+                        out var cachedShouldAssign))
+                {
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return cachedCompoundValue;
+                    }
+
+                    if (cachedShouldAssign)
+                    {
+                        if (!cachedSlot.Environment.TryWriteSlotValue(
+                                cachedSlot.Name,
+                                cachedSlot.SlotIndex,
+                                cachedCompoundValue,
+                                context))
+                        {
+                            environment.SetIdentifierJsValue(cachedSlot.Name, cachedCompoundValue, context);
+                        }
+                    }
+
+                    return cachedCompoundValue;
+                }
+
+                var cachedValue =
+                    EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    return cachedValue;
+                }
+
+                if (!cachedSlot.Environment.TryWriteSlotValue(cachedSlot.Name, cachedSlot.SlotIndex, cachedValue, context))
+                {
+                    environment.SetIdentifierJsValue(cachedSlot.Name, cachedValue, context);
+                }
+
+                return cachedValue;
             }
 
             // Fallback to the AssignmentReference path for other cases

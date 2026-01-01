@@ -1376,6 +1376,64 @@ public sealed class JsEnvironment : IRentable
         return TryWriteIdentifierWithSlot(identifier.Name, identifier.ScopeId, identifier.SlotIndex, value, context);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryReadSlotValue(Symbol name, int slotIndex, EvaluationContext context, out JsValue value)
+    {
+        var slots = _slots;
+        if (slots is null || (uint)slotIndex >= (uint)slots.Length)
+        {
+            value = default;
+            return false;
+        }
+
+        var slotValue = slots[slotIndex];
+        if (slotValue.IsUninitialized)
+        {
+            var errorValue = StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState);
+            value = errorValue;
+            context.SetThrow(value);
+            return true;
+        }
+
+        value = slotValue;
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryWriteSlotValue(Symbol name, int slotIndex, JsValue value, EvaluationContext context)
+    {
+        var slots = _slots;
+        if (slots is null || (uint)slotIndex >= (uint)slots.Length)
+        {
+            return false;
+        }
+
+        if (_values is not null)
+        {
+            ref var binding = ref _values.GetValueRefOrNullRef(name);
+            if (!Unsafe.IsNullRef(ref binding))
+            {
+                WriteResolvedBindingJsValue(this, ref binding, name, value, context.CurrentScope.IsStrict);
+                slots[slotIndex] = value;
+                return true;
+            }
+        }
+
+        if (slots[slotIndex].IsUninitialized)
+        {
+            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState));
+        }
+
+        slots[slotIndex] = value;
+        return true;
+    }
+
     /// <summary>
     /// Direct identifier assignment that avoids creating AssignmentReference structs.
     /// This is the fast path for simple identifier assignments in loops.

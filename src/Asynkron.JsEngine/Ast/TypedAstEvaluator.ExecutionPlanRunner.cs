@@ -1276,9 +1276,6 @@ public static partial class TypedAstEvaluator
                                 // Per-iteration envs are SIBLINGS (same parent), values are COPIED between them.
                                 // This ensures closures capture separate values per iteration.
 
-                                JsEnvironment loopScope;
-                                JsEnvironment? previousIterEnv = null;
-
                                 // Detect if we're in a subsequent iteration:
                                 // 1. If ScopeId is valid, use ScopeId matching
                                 // 2. If ScopeId is -1 (scope analysis not run), check if:
@@ -1292,6 +1289,28 @@ public static partial class TypedAstEvaluator
                                     (pushEnvInstruction.ScopeId < 0 &&
                                      !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty &&
                                      environment.Description == "scope" && environment.Enclosing != null);
+
+                                // FAST PATH: For subsequent iterations with pooling enabled (no closures),
+                                // reuse the same environment in-place. The increment (i++) already updated
+                                // the binding values, so no copy or rent/return is needed.
+                                // This eliminates all pool overhead for simple loops without closures.
+                                //
+                                // Why this is safe:
+                                // 1. AllowPooling = true means no closures capture iteration variables
+                                // 2. Without closures, we don't need separate environments per iteration
+                                // 3. The loop update (i++) modifies the binding in-place
+                                // 4. The "new" iteration environment would have the same values anyway
+                                if (isSubsequentIteration &&
+                                    pushEnvInstruction.AllowPooling &&
+                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                {
+                                    // Just continue using the same environment - bindings already have correct values
+                                    _programCounter = pushEnvInstruction.Next;
+                                    continue;
+                                }
+
+                                JsEnvironment loopScope;
+                                JsEnvironment? previousIterEnv = null;
 
                                 if (isSubsequentIteration)
                                 {

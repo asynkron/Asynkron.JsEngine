@@ -39,7 +39,7 @@ public sealed class EvaluationContext(
 
     private readonly Stack<ScopeFrame> _scopeStack = new();
     private int _classFieldInitializerDepth;
-    private Dictionary<AssignmentExpression, CachedSlotTarget>? _assignmentSlotCache;
+    private Dictionary<AssignmentExpression, CachedSlotTarget?>? _assignmentSlotCache;
 
     // Fast path for returns - avoids allocating ReturnCompletionSignal
     private JsValue _returnValue;
@@ -227,9 +227,17 @@ public sealed class EvaluationContext(
     internal bool TryResolveAssignmentSlot(AssignmentExpression expression, JsEnvironment environment,
         out CachedSlotTarget cached)
     {
-        if (_assignmentSlotCache is not null && _assignmentSlotCache.TryGetValue(expression, out cached))
+        if (_assignmentSlotCache is not null &&
+            _assignmentSlotCache.TryGetValue(expression, out var cachedMaybe))
         {
-            return true;
+            if (cachedMaybe.HasValue)
+            {
+                cached = cachedMaybe.Value;
+                return true;
+            }
+
+            cached = default;
+            return false;
         }
 
         cached = default;
@@ -248,17 +256,23 @@ public sealed class EvaluationContext(
 
         if (!environment.TryFindBindingJsValue(name, allowUninitialized: true, out var bindingEnvironment, out _))
         {
+            _assignmentSlotCache ??= new Dictionary<AssignmentExpression, CachedSlotTarget?>(
+                ReferenceEqualityComparer<AssignmentExpression>.Instance);
+            _assignmentSlotCache[expression] = null;
             return false;
         }
 
         if (!bindingEnvironment.HasSlots || !bindingEnvironment.TryGetSlotIndex(name, out var slotIndex))
         {
+            _assignmentSlotCache ??= new Dictionary<AssignmentExpression, CachedSlotTarget?>(
+                ReferenceEqualityComparer<AssignmentExpression>.Instance);
+            _assignmentSlotCache[expression] = null;
             return false;
         }
 
         cached = new CachedSlotTarget(new JsVariable(bindingEnvironment, slotIndex), name);
 
-        _assignmentSlotCache ??= new Dictionary<AssignmentExpression, CachedSlotTarget>(
+        _assignmentSlotCache ??= new Dictionary<AssignmentExpression, CachedSlotTarget?>(
             ReferenceEqualityComparer<AssignmentExpression>.Instance);
         _assignmentSlotCache[expression] = cached;
         return true;

@@ -764,8 +764,17 @@ public static partial class TypedAstEvaluator
                                         leftVal = lit;
                                         break;
                                     case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var leftName } leftId:
-                                        if (!environment.TryReadSlotValue(leftName, leftId.SlotIndex, context, out leftVal))
-                                            goto slowPath;
+                                        if (leftId.ScopeId == environment.ScopeId)
+                                        {
+                                            if (!environment.TryReadSlotValue(leftName, leftId.SlotIndex, context, out leftVal))
+                                                goto slowPath;
+                                        }
+                                        else
+                                        {
+                                            if (!environment.TryReadIdentifierWithSlot(leftName, leftId.ScopeId, leftId.SlotIndex,
+                                                    context, out leftVal))
+                                                goto slowPath;
+                                        }
                                         break;
                                     default:
                                         goto slowPath;
@@ -779,8 +788,17 @@ public static partial class TypedAstEvaluator
                                         rightVal = lit;
                                         break;
                                     case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var rightName } rightId:
-                                        if (!environment.TryReadSlotValue(rightName, rightId.SlotIndex, context, out rightVal))
-                                            goto slowPath;
+                                        if (rightId.ScopeId == environment.ScopeId)
+                                        {
+                                            if (!environment.TryReadSlotValue(rightName, rightId.SlotIndex, context, out rightVal))
+                                                goto slowPath;
+                                        }
+                                        else
+                                        {
+                                            if (!environment.TryReadIdentifierWithSlot(rightName, rightId.ScopeId, rightId.SlotIndex,
+                                                    context, out rightVal))
+                                                goto slowPath;
+                                        }
                                         break;
                                     default:
                                         goto slowPath;
@@ -1240,11 +1258,17 @@ public static partial class TypedAstEvaluator
 
                                     // Fast path: identifier with slot info (direct slot read)
                                     case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var rhsName } rhsIdent:
-                                        if (environment.TryReadSlotValue(rhsName, rhsIdent.SlotIndex, context, out compRhsValue))
+                                        if (rhsIdent.ScopeId == environment.ScopeId)
                                         {
-                                            // Got value from slot
+                                            if (!environment.TryReadSlotValue(rhsName, rhsIdent.SlotIndex, context,
+                                                    out compRhsValue))
+                                            {
+                                                // Slot miss - fall back to full resolution
+                                                compRhsValue = rhsIdent.EvaluateExpression(environment, context);
+                                            }
                                         }
-                                        else
+                                        else if (!environment.TryReadIdentifierWithSlot(rhsName, rhsIdent.ScopeId, rhsIdent.SlotIndex,
+                                                     context, out compRhsValue))
                                         {
                                             // Slot miss - fall back to full resolution
                                             compRhsValue = rhsIdent.EvaluateExpression(environment, context);

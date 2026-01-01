@@ -42,11 +42,18 @@ internal sealed class IdentifierCollector : AstVisitor
             case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
                 // Only visit the initializer expression, NOT the target symbol
                 // The target symbol declares a new variable and should NOT be collected
+                // because its scope is determined by the enclosing block/loop, not the plan
                 Visit(varDecl.Initializer);
                 break;
             case IteratorInitInstruction iterInit:
                 Visit(iterInit.IterableExpression);
                 break;
+            case CompoundAssignmentSlotInstruction compoundAssign:
+                // Visit the RHS expression for any identifiers it references
+                // Don't collect target symbol - it's looked up through the scope chain
+                Visit(compoundAssign.RhsExpression);
+                break;
+            // IncrementSlotInstruction just operates on a symbol - no expressions to visit
             case EnterWithInstruction enterWith:
                 Visit(enterWith.ObjectExpression);
                 break;

@@ -2,62 +2,58 @@ When running the cpu profiler for this profile:
 
 `./tools/profile forloop --cpu --calltree-depth 30 --calltree-width 8 --root RunSync`
 
-We can see that we are now hitting the slot optimized path, which is good.
-But there is still considerable overhead in the execution pipeline.
+We are optimizing or JavaScript runtime performance.
+This specific profiler data is from a forloop that runs a large number of JavaScript assignments and expressions.
+The total execution time (on this machine) is "7816.91 ms".
+We want to reduce that number without breaking anything.
 
-Your job is to get the top number considerably lower than the current ~9500-10000ms.
+One thing that we have not yet done here is the use of "JsVariable" for local variables.
+JsVariable is a resolved slot, which you can assign to, without re-resolving the slot.
+This MIGHT be something that helps.
+It should likely get rid of "ResolveIdentifierDirect", assuming we resolve these JsVariables up front.
 
 Use the profiler.
-Use clever tricks, try to pre-allocate and reuse JsEnvironment without renting.
-as in rent before loop and return after loop, without breaking spec semantics.
+Use clever tricks.
+Use all the smartness from computer science algorithms and data structures.
+
+Make sure the entire internal testsuite passes once you are done.
+DO NOT RUN the 262 tests, they are too slow.
+
 
 ```
+                Summary
+Total Time    296603.54 ms
+Hot Functions 397 functions profiled
 Call Tree (Total Time) - root: RunSync
-9648.12 ms 100.0% 5x TypedAstEvaluator.ExecutionPlanRunner.RunSync
-└─ 9648.12 ms 100.0% 5x TypedAstEvaluator.ExecutionPlanRunner.ExecutePlan
-   ├─ 5314.11 ms 55.1% 1,683x TypedAstEvaluator.EvaluateExpression
-   │  └─ 3807.90 ms 39.5% 1,649x TypedAstEvaluator.EvaluateAssignment
-   │     ├─ 1803.31 ms 18.7% 1,062x TypedAstEvaluator.TryEvaluateCompoundAssignmentJsValue
-   │     │  ├─ 863.39 ms 8.9% 566x TypedAstEvaluator.EvaluateAssignmentRhsWithNameHintJsValue
-   │     │  │  ├─ 10.28 ms 0.1% 7x TypedAstEvaluator.EvaluateExpression
-   │     │  │  │  └─ 8.52 ms 0.1% 6x TypedAstEvaluator.EvaluateIdentifier
-   │     │  │  │     └─ 7.12 ms 0.1% 5x JsEnvironment.TryReadIdentifierWithSlot
-   │     │  │  │        └─ 2.88 ms 0.0% 2x JsEnvironment.TryReadIdentifierWithSlot
-   │     │  │  ├─ 7.10 ms 0.1% 5x TypedAstEvaluator.ShouldApplyAssignmentNameHint
-   │     │  │  │  └─ 4.39 ms 0.0% 3x TypedAstEvaluator.IsAnonymousFunctionDefinitionNode
-   │     │  │  │     └─ 4.39 ms 0.0% 3x CastHelpers.IsInstanceOfClass
-   │     │  │  └─ 1.43 ms 0.0% 1x CastHelpers.IsInstanceOfInterface
-   │     │  └─ 273.13 ms 2.8% 190x AssignmentReference.ReadDeclarativeBindingJsValue
-   │     │     └─ 1.38 ms 0.0% 1x JsEnvironment.ReadResolvedBindingJsValue
-   │     ├─ 893.08 ms 9.3% 581x AssignmentReferenceResolver.ResolveIdentifierDirect
-   │     │  ├─ 227.71 ms 2.4% 159x JsEnvironment.TryResolveWithBinding
-   │     │  └─ 30.72 ms 0.3% 19x JsEnvironment.ResolveIdentifierAssignmentReference
-   │     │     ├─ 10.17 ms 0.1% 7x AssignmentReference.ForDeclarativeBinding
-   │     │     ├─ 5.71 ms 0.1% 4x JsEnvironment.TryGetCachedDeclarativeBinding
-   │     │     ├─ 2.90 ms 0.0% 2x JsEnvironment.TryLocateBinding
-   │     │     └─ 2.77 ms 0.0% 2x JsEnvironment.CacheDeclarativeBinding
-   │     └─ 175.15 ms 1.8% 122x AssignmentReference.SetValue
-   │        └─ 14.55 ms 0.2% 10x AssignmentReference.WriteDeclarativeBinding
-   │           └─ 8.54 ms 0.1% 6x JsEnvironment.ResolvedIdentifierBinding.WriteJsValue
-   │              ├─ 1.40 ms 0.0% 1x JsEnvironment.WriteResolvedBindingJsValue
-   │              │  └─ 1.40 ms 0.0% 1x JsEnvironment.Binding.set_JsValue
-   │              └─ 1.40 ms 0.0% 1x SymbolHybridDictionary<JsEnvironment.Binding>.GetValueRefOrNullRef
-   ├─ 410.15 ms 4.3% 275x JsEnvironmentPool.Rent
-   │  ├─ 27.94 ms 0.3% 20x SpanHelpers.ClearWithReferences
-   │  ├─ 14.80 ms 0.2% 10x ObjectPool<__Canon>.Rent
-   │  └─ 8.46 ms 0.1% 6x JsEnvironment.Reset
-   │     └─ 2.83 ms 0.0% 2x SpanHelpers.ClearWithReferences
-   ├─ 349.13 ms 3.6% 237x JsEnvironmentPool.Return
-   │  ├─ 78.90 ms 0.8% 55x SpanHelpers.ClearWithReferences
-   │  ├─ 19.64 ms 0.2% 14x SpanHelpers.ClearWithoutReferences
-   │  └─ 14.19 ms 0.1% 9x IRentable.Reset
-   │     └─ 8.57 ms 0.1% 6x JsEnvironment.Reset
-   └─ 292.74 ms 3.0% 202x JsEnvironment.GetIdentifierJsValueDirect
-      ├─ 8.61 ms 0.1% 6x JsEnvironment.CacheDeclarativeBinding
-      ├─ 4.82 ms 0.0% 3x JsEnvironment.TryLocateBinding
-      ├─ 4.58 ms 0.0% 3x JsEnvironment.TryGetCachedDeclarativeBinding
-      ├─ 1.43 ms 0.0% 1x JsEnvironment.ReadResolvedBindingJsValue
-      └─ 1.42 ms 0.0% 1x JsEnvironment.ResolvedIdentifierBinding.ReadJsValue
+7816.91 ms 100.0% 4x TypedAstEvaluator.ExecutionPlanRunner.RunSync
+└─ 7816.91 ms 100.0% 4x TypedAstEvaluator.ExecutionPlanRunner.ExecutePlan
+   └─ 4952.16 ms 63.4% 1,281x TypedAstEvaluator.EvaluateExpression
+      ├─ 3313.27 ms 42.4% 1,346x TypedAstEvaluator.EvaluateAssignment
+      │  ├─ 1754.82 ms 22.4% 960x TypedAstEvaluator.TryEvaluateCompoundAssignmentJsValue
+      │  │  ├─ 771.36 ms 9.9% 488x TypedAstEvaluator.EvaluateAssignmentRhsWithNameHintJsValue
+      │  │  │  ├─ 10.04 ms 0.1% 6x TypedAstEvaluator.EvaluateExpression
+      │  │  │  │  └─ 5.57 ms 0.1% 3x TypedAstEvaluator.EvaluateIdentifier
+      │  │  │  │     └─ 4.20 ms 0.1% 3x JsEnvironment.TryReadIdentifierWithSlot
+      │  │  │  │        └─ 1.40 ms 0.0% 1x JsEnvironment.TryReadIdentifierWithSlot
+      │  │  │  ├─ 8.74 ms 0.1% 6x TypedAstEvaluator.ShouldApplyAssignmentNameHint
+      │  │  │  │  └─ 2.81 ms 0.0% 2x TypedAstEvaluator.IsAnonymousFunctionDefinitionNode
+      │  │  │  │     └─ 1.42 ms 0.0% 1x CastHelpers.IsInstanceOfClass
+      │  │  │  └─ 4.41 ms 0.1% 3x CastHelpers.IsInstanceOfInterface
+      │  │  ├─ 255.03 ms 3.3% 176x AssignmentReference.ReadDeclarativeBindingJsValue
+      │  │  └─ 44.78 ms 0.6% 32x TypedAstEvaluator.AddValue
+      │  ├─ 485.77 ms 6.2% 318x AssignmentReferenceResolver.ResolveIdentifierDirect
+      │  │  ├─ 196.20 ms 2.5% 134x JsEnvironment.TryResolveWithBinding
+      │  │  │  └─ 1.37 ms 0.0% 1x SymbolHybridDictionary<JsEnvironment.Binding>.ContainsKey
+      │  │  └─ 17.23 ms 0.2% 9x JsEnvironment.ResolveIdentifierAssignmentReference
+      │  │     ├─ 9.75 ms 0.1% 4x JsEnvironment.TryGetCachedDeclarativeBinding
+      │  │     └─ 4.65 ms 0.1% 3x AssignmentReference.ForDeclarativeBinding
+      │  ├─ 159.19 ms 2.0% 113x AssignmentReference.SetValue
+      │  │  └─ 5.81 ms 0.1% 4x AssignmentReference.WriteDeclarativeBinding
+      │  │     └─ 5.81 ms 0.1% 4x JsEnvironment.ResolvedIdentifierBinding.WriteJsValue
+      │  │        ├─ 1.45 ms 0.0% 1x JsEnvironment.WriteResolvedBindingJsValue
+      │  │        └─ 1.38 ms 0.0% 1x SymbolHybridDictionary<JsEnvironment.Binding>.GetValueRefOrNullRef
+      │  └─ 133.50 ms 1.7% 94x JsEnvironment.TryGetSlotIndex
+      └─ 170.90 ms 2.2% 117x TypedAstEvaluator.EvaluateExpression
 ```
 
 

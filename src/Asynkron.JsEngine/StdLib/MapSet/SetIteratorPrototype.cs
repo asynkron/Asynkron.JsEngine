@@ -9,7 +9,6 @@ using static Asynkron.JsEngine.StdLib.StandardLibrary;
 namespace Asynkron.JsEngine.StdLib;
 
 [JsPrototype("Set Iterator", ToStringTag = "Set Iterator")]
-[JsSymbolAlias("iterator", "__selfIterator")]
 public sealed partial class SetIteratorPrototype : JsPrototype
 {
     [JsHostMethod("next", Length = 0d)]
@@ -23,14 +22,17 @@ public sealed partial class SetIteratorPrototype : JsPrototype
         return iterator.Next();
     }
 
-    [JsHostMethod("__selfIterator", Length = 0d)]
-    public static JsValue SelfIterator(JsValue thisValue) => thisValue;
-
     protected override void ConfigurePrototype()
     {
         if (Prototype is JsObject { RealmState: null } jsObj)
         {
             jsObj.RealmState = Realm;
+        }
+
+        var iteratorPrototype = Realm.IteratorPrototype ??= (JsObject)IteratorPrototype.CreatePrototype(Realm);
+        if (!ReferenceEquals(Prototype.Prototype, iteratorPrototype))
+        {
+            Prototype.SetPrototype(iteratorPrototype);
         }
 
         Realm.SetIteratorPrototype ??= Prototype as JsObject;

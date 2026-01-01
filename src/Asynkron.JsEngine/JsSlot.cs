@@ -19,6 +19,7 @@ public enum SlotFlags : byte
     BlocksFunctionScopeOverride = 16,
     CanDelete = 32,
     ImmutableBinding = 64,
+    HasSpecialBinding = 128,
 }
 
 /// <summary>
@@ -127,6 +128,16 @@ public struct JsSlot
     }
 
     /// <summary>
+    /// Returns true if this slot holds a special binding (import/export wrapper).
+    /// When true, Value.ObjectValue is an ISpecialBinding.
+    /// </summary>
+    public readonly bool HasSpecialBinding
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (Flags & SlotFlags.HasSpecialBinding) != 0;
+    }
+
+    /// <summary>
     /// Clears the uninitialized flag (called when binding is initialized).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -143,6 +154,20 @@ public struct JsSlot
     {
         Value = value;
         Flags &= ~SlotFlags.Uninitialized;
+    }
+
+    /// <summary>
+    /// Sets the value and clears the TDZ flag if the value is not uninitialized.
+    /// Use this when assigning to a binding that might be in TDZ.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetValueAndClearTdz(JsValue value)
+    {
+        Value = value;
+        if (!value.IsUninitialized)
+        {
+            Flags &= ~SlotFlags.Uninitialized;
+        }
     }
 
     /// <summary>

@@ -351,7 +351,7 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 switch (statement)
                 {
-                    case FunctionDeclaration funcDecl when !inBlockScope:
+                    case FunctionDeclaration funcDecl:
                         sink.Add(funcDecl.Name);
                         return;
                     case BlockStatement block:

@@ -245,12 +245,6 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        // Block-scoped function declarations are lexically scoped (no hoisting to function scope)
-                        if (inBlockScope)
-                        {
-                            break;
-                        }
-
                         if (hoistFunctionValues)
                         {
                             // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create

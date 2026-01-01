@@ -1,5 +1,6 @@
 #region
 
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -1309,12 +1310,27 @@ public static partial class TypedAstEvaluator
                                 // Use different description for loop scope (empty bindings) vs per-iteration scope
                                 // This allows the subsequent iteration heuristic to correctly distinguish them
                                 var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
-                                var newIterationEnv = allowPooling
-                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
-                                    : new JsEnvironment(loopScope, false, false, null, description);
+                                var canReuseIterationEnv = allowPooling &&
+                                                           previousIterEnv is not null &&
+                                                           !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty;
+                                var canReuseWithoutReset = canReuseIterationEnv && _allowIdentifierCache;
+                                var canReuseWithReset = canReuseIterationEnv &&
+                                                        !canReuseWithoutReset &&
+                                                        previousIterEnv!.HasSlots &&
+                                                        !pushEnvInstruction.SlotMap.IsEmpty &&
+                                                        pushEnvInstruction is { SlotCount: > 0, ScopeId: >= 0 };
+
+                                var newIterationEnv = canReuseWithoutReset
+                                    ? previousIterEnv!
+                                    : canReuseWithReset
+                                        ? ReuseIterationEnvironment(previousIterEnv!, loopScope, pushEnvInstruction, description)
+                                        : allowPooling
+                                            ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
+                                            : new JsEnvironment(loopScope, false, false, null, description);
 
                                 // Initialize slots for O(1) identifier lookups
-                                if (pushEnvInstruction is { SlotCount: > 0, ScopeId: >= 0 })
+                                if (!canReuseWithoutReset && !canReuseWithReset &&
+                                    pushEnvInstruction is { SlotCount: > 0, ScopeId: >= 0 })
                                 {
                                     newIterationEnv.InitializeSlots(pushEnvInstruction.SlotCount,
                                         pushEnvInstruction.ScopeId);
@@ -1325,7 +1341,8 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Copy per-iteration bindings from appropriate source (for loop iterations)
-                                if (previousIterEnv != null && !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                if (!canReuseIterationEnv && previousIterEnv != null &&
+                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
                                 {
                                     // Copy from previous iteration (fast slot path if available)
                                     var useSlotCopy = newIterationEnv.HasSlots &&
@@ -1361,7 +1378,7 @@ public static partial class TypedAstEvaluator
                                         JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
                                     }
                                 }
-                                else if (!pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                else if (!canReuseIterationEnv && !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
                                 {
                                     // First iteration - copy from loopScope where binding was defined
                                     // Preserve const flag to ensure TypeError is thrown on reassignment
@@ -3086,6 +3103,66 @@ public static partial class TypedAstEvaluator
             // resolvedObj is already JsValue from the scheduler
             resolvedValue = resolvedObj;
             return result;
+        }
+
+        private JsEnvironment ReuseIterationEnvironment(
+            JsEnvironment iterationEnvironment,
+            JsEnvironment loopScope,
+            PushEnvironmentInstruction instruction,
+            string description)
+        {
+            var bindings = instruction.PerIterationBindings;
+            if (bindings.IsDefaultOrEmpty)
+            {
+                iterationEnvironment.ResetForReuse(loopScope, false, false, null, description);
+                if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
+                {
+                    iterationEnvironment.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
+                    if (!instruction.SlotMap.IsEmpty)
+                    {
+                        iterationEnvironment.SetSlotMap(instruction.SlotMap);
+                    }
+                }
+
+                return iterationEnvironment;
+            }
+
+            var slotMap = instruction.SlotMap;
+            var count = bindings.Length;
+
+            var rentedValues = ArrayPool<JsValue>.Shared.Rent(count);
+            var valueSpan = rentedValues.AsSpan(0, count);
+            for (var i = 0; i < count; i++)
+            {
+                var binding = bindings[i];
+                if (slotMap.TryGetValue(binding, out var slotIndex))
+                {
+                    valueSpan[i] = iterationEnvironment.GetSlotRef(slotIndex);
+                }
+            }
+
+            iterationEnvironment.ResetForReuse(loopScope, false, false, null, description);
+
+            if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
+            {
+                iterationEnvironment.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
+                if (!slotMap.IsEmpty)
+                {
+                    iterationEnvironment.SetSlotMap(slotMap);
+                }
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                if (slotMap.TryGetValue(bindings[i], out var slotIndex))
+                {
+                    iterationEnvironment.SetSlotDirect(slotIndex, valueSpan[i]);
+                }
+            }
+
+            ArrayPool<JsValue>.Shared.Return(rentedValues, true);
+
+            return iterationEnvironment;
         }
 
         private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result, JsEnvironment? currentEnvironment = null)

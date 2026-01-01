@@ -3,6 +3,14 @@
 IMPORTANT:
 Once you are done, make sure to create a pull request to github!
 
+Key findings:
+- Slots and dictionary bindings are separate storage systems
+- Closures access variables through environment chain (dictionary), not slots
+- Inner functions writing to outer variables would break if outer function uses slots
+- Would need full closure analysis to determine which variables can safely use slots
+
+The worker investigated, tried a fix (which broke 12 tests), understood the root cause, and documented the architectural constraint.
+
 ## Problem
 
 User variable identifiers (like `s`, `i` in loops) have `SlotIndex=-1` and `ScopeId=-1`, causing all lookups to use slow scope-chain traversal instead of direct slot access.

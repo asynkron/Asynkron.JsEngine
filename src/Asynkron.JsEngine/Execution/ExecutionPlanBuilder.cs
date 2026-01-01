@@ -297,9 +297,23 @@ internal sealed partial class ExecutionPlanBuilder
             var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
             var mappedScopeId = rewriter.MapScopeId(plan.IterationScopeId);
             var stampedBody = (BlockStatement)rewriter.StampNodeInScope(plan.Body, mappedScopeId);
+            var mappedSlotCount = rewriter.GetSlotCountForScope(mappedScopeId);
+            var perIterationSlotIndices = plan.PerIterationBindings.IsDefaultOrEmpty
+                ? plan.PerIterationSlotIndices
+                : plan.PerIterationBindings
+                    .Select(binding => rewriter.TryResolveSlot(binding, mappedScopeId, out var idx) ? idx : -1)
+                    .ToImmutableArray();
             if (!ReferenceEquals(stampedBody, plan.Body))
             {
-                UpdateCachedIteratorPlan(forEach, plan, stampedBody);
+                UpdateCachedIteratorPlan(forEach, plan, stampedBody, mappedScopeId, mappedSlotCount,
+                    perIterationSlotIndices);
+            }
+            else if (plan.IterationScopeId != mappedScopeId ||
+                     plan.IterationSlotCount != mappedSlotCount ||
+                     !perIterationSlotIndices.IsDefaultOrEmpty && perIterationSlotIndices != plan.PerIterationSlotIndices)
+            {
+                UpdateCachedIteratorPlan(forEach, plan, plan.Body, mappedScopeId, mappedSlotCount,
+                    perIterationSlotIndices);
             }
 
             if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
@@ -310,10 +324,23 @@ internal sealed partial class ExecutionPlanBuilder
         }
     }
 
-    private static void UpdateCachedIteratorPlan(ForEachStatement forEach, IteratorDriverPlan existingPlan,
-        BlockStatement stampedBody)
+    private static void UpdateCachedIteratorPlan(
+        ForEachStatement forEach,
+        IteratorDriverPlan existingPlan,
+        BlockStatement stampedBody,
+        int mappedScopeId,
+        int mappedSlotCount,
+        ImmutableArray<int> mappedSlotIndices)
     {
-        var updatedPlan = existingPlan with { Body = stampedBody };
+        var updatedPlan = existingPlan with
+        {
+            Body = stampedBody,
+            IterationScopeId = mappedScopeId,
+            IterationSlotCount = mappedSlotCount >= 0 ? mappedSlotCount : existingPlan.IterationSlotCount,
+            PerIterationSlotIndices = mappedSlotIndices.IsDefaultOrEmpty
+                ? existingPlan.PerIterationSlotIndices
+                : mappedSlotIndices
+        };
         var cacheField = typeof(ForEachStatement)
             .GetField("_cachedPlan", BindingFlags.Instance | BindingFlags.NonPublic);
         cacheField?.SetValue(forEach, updatedPlan);

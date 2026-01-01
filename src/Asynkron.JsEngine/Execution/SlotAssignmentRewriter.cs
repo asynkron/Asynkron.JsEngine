@@ -131,6 +131,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         return rewritten;
     }
 
+    public bool TryResolveSlot(Symbol symbol, int mappedScopeId, out int slotIndex)
+    {
+        var scopeSnapshot = _scopeStack.ToArray();
+        _scopeStack.Clear();
+        _scopeStack.Push(RootScopeId);
+        if (mappedScopeId != RootScopeId)
+        {
+            _scopeStack.Push(mappedScopeId);
+        }
+
+        var found = TryResolve(symbol, out var resolution) && resolution.slotIndex >= 0;
+        slotIndex = found ? resolution.slotIndex : -1;
+        RestoreStack(scopeSnapshot, Array.Empty<int>());
+        return found;
+    }
+
+    public int GetSlotCountForScope(int mappedScopeId)
+    {
+        return GetSlotCount(mappedScopeId);
+    }
+
     public ExecutionInstruction RewriteInstruction(ExecutionInstruction instruction)
     {
         switch (instruction)

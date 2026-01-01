@@ -2037,12 +2037,12 @@ public static partial class TypedAstEvaluator
 
             // Bind parameters to slots
             var slots = functionEnvironment._slots;
-            if (slots is not null)
+            if (slots is not null && functionEnvironment._slotCount > 0)
             {
                 for (var i = 0; i < _parameterNames.Length; i++)
                 {
                     var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                    slots[i] = value;
+                    slots[i].Value = value;
                     // When this function has closures (inner functions that capture variables),
                     // also bind to dictionary so closure lookups via TryLocateBinding work.
                     // This is needed when inner functions use dynamic scope (with/eval).
@@ -2131,9 +2131,9 @@ public static partial class TypedAstEvaluator
 
             // Bind first parameter directly - no array allocation
             var slots = functionEnvironment._slots;
-            if (slots is not null && _parameterNames.Length > 0)
+            if (slots is not null && functionEnvironment._slotCount > 0 && _parameterNames.Length > 0)
             {
-                slots[0] = arg0;
+                slots[0].Value = arg0;
                 if (_function.HasClosures)
                 {
                     functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
@@ -2141,7 +2141,7 @@ public static partial class TypedAstEvaluator
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
-                    slots[i] = JsValue.Undefined;
+                    slots[i].Value = JsValue.Undefined;
                     if (_function.HasClosures)
                     {
                         functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
@@ -2222,9 +2222,9 @@ public static partial class TypedAstEvaluator
 
             // Bind first parameter directly - no array allocation, no Array.Fill needed
             var slots = reuseEnvironment._slots;
-            if (slots is not null && _parameterNames.Length > 0)
+            if (slots is not null && reuseEnvironment._slotCount > 0 && _parameterNames.Length > 0)
             {
-                slots[0] = arg0;
+                slots[0].Value = arg0;
                 if (_function.HasClosures)
                 {
                     reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
@@ -2232,7 +2232,7 @@ public static partial class TypedAstEvaluator
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
-                    slots[i] = JsValue.Undefined;
+                    slots[i].Value = JsValue.Undefined;
                     if (_function.HasClosures)
                     {
                         reuseEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
@@ -2314,11 +2314,11 @@ public static partial class TypedAstEvaluator
 
             // Bind first two parameters directly - no array allocation
             var slots = functionEnvironment._slots;
-            if (slots is not null)
+            if (slots is not null && functionEnvironment._slotCount > 0)
             {
                 if (_parameterNames.Length > 0)
                 {
-                    slots[0] = arg0;
+                    slots[0].Value = arg0;
                     if (_function.HasClosures)
                     {
                         functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
@@ -2327,7 +2327,7 @@ public static partial class TypedAstEvaluator
 
                 if (_parameterNames.Length > 1)
                 {
-                    slots[1] = arg1;
+                    slots[1].Value = arg1;
                     if (_function.HasClosures)
                     {
                         functionEnvironment.DefineParameterFast(_parameterNames[1], arg1);
@@ -2337,7 +2337,7 @@ public static partial class TypedAstEvaluator
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 2; i < _parameterNames.Length; i++)
                 {
-                    slots[i] = JsValue.Undefined;
+                    slots[i].Value = JsValue.Undefined;
                     if (_function.HasClosures)
                     {
                         functionEnvironment.DefineParameterFast(_parameterNames[i], JsValue.Undefined);
@@ -2443,13 +2443,13 @@ public static partial class TypedAstEvaluator
 
             // Bind parameters directly to slots for O(1) access (avoids dictionary allocation)
             var slots = functionEnvironment._slots;
-            if (slots is not null)
+            if (slots is not null && functionEnvironment._slotCount > 0)
             {
                 // Fast path: use slots
                 for (var i = 0; i < _parameterNames.Length; i++)
                 {
                     var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                    slots[i] = value;
+                    slots[i].Value = value;
                     // When this function has closures (inner functions that capture variables),
                     // also bind to dictionary so closure lookups via TryLocateBinding work.
                     if (_function.HasClosures)

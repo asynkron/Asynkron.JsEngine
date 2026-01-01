@@ -432,10 +432,11 @@ public static partial class TypedAstEvaluator
                 // Also scan slots for IteratorDriverState (for-of loop state)
                 if (env.HasSlots && env._slots is { } slots)
                 {
-                    foreach (var slot in slots)
+                    for (var i = 0; i < env._slotCount; i++)
                     {
-                        if (!slot.IsNullOrUndefined &&
-                            slot.TryGetObject<IActiveIteratorState>(out var state) &&
+                        var slotValue = slots[i].Value;
+                        if (!slotValue.IsNullOrUndefined &&
+                            slotValue.TryGetObject<IActiveIteratorState>(out var state) &&
                             state.TryGetActiveIterator(out var iterator))
                         {
                             results.Add((state, iterator));

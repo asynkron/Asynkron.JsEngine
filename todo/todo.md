@@ -23,6 +23,8 @@ Good to know:
 * avoid many recursive calls.
 * avoid allocations in hot paths.
 * optimizations have been applied in recent commits, some good, some questionable, check git history for ideas.
+* JsEnvironment - look for potential optimizations, cache oportunities
+* EvaluationContext - look for potential optimizations, cache oportunities
 
 model optimizations; maybe we can flatten the AST? add more metadata to the IR model?
 New IR instructions to keep info?

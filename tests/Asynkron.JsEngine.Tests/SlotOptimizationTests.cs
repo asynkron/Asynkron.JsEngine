@@ -1,17 +1,19 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Tests.Helpers;
 
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
-/// TEST BOMB: Proves that user variable identifiers do NOT have slot info assigned.
-/// These tests document the current (broken) state. Once the slot optimization is
-/// implemented, these tests should be INVERTED to assert SlotIndex >= 0.
+/// SLOT OPTIMIZATION TESTS: Define the desired behavior for identifier slot assignment.
+/// These tests currently FAIL because user variable identifiers have SlotIndex=-1.
+/// Once the slot optimization is implemented, all tests will PASS.
 ///
 /// See todo.md and docs/identifier-slot-optimization.md for the fix plan.
 /// </summary>
-public class SlotOptimizationTestBomb : IAsyncLifetime
+[Trait("Category", "SlotOptimization")]
+public class SlotOptimizationTests : IAsyncLifetime
 {
     private JsEngine _engine = null!;
 
@@ -27,14 +29,11 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
     }
 
     /// <summary>
-    /// H1: Loop variable 'i' in condition (i &lt; 10) has NO slot info.
-    /// CURRENT: SlotIndex=-1, ScopeId=-1 (BROKEN - forces slow path)
-    /// EXPECTED AFTER FIX: SlotIndex>=0, ScopeId>=0
+    /// Loop variable 'i' in condition (i &lt; 10) should have slot info for fast lookup.
     /// </summary>
     [Fact]
-    public async Task H1_LoopVariable_InCondition_HasNoSlotInfo()
+    public async Task LoopVariable_InCondition_ShouldHaveSlotInfo()
     {
-        // Arrange
         var program = _engine.ParseProgram(@"
             function run() {
                 for (let i = 0; i < 10; i++) {
@@ -43,39 +42,33 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
             }
         ");
 
-        // Act - evaluate to trigger plan building
         await _engine.Evaluate(program);
+        await _engine.Evaluate("run()"); // Execute to trigger plan building
 
-        // Get the execution plan
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Find BranchInstruction with condition containing 'i'
         var branchInstr = cache.Plan.Instructions
             .OfType<BranchInstruction>()
             .FirstOrDefault();
         Assert.NotNull(branchInstr);
 
-        // Extract the left side of i < 10
         var condition = branchInstr.Condition as BinaryExpression;
         Assert.NotNull(condition);
         var leftId = condition.Left as IdentifierExpression;
         Assert.NotNull(leftId);
         Assert.Equal("i", leftId.Name.Name);
 
-        // Assert: CURRENTLY BROKEN - no slot info
-        // TODO: After fix, change to Assert.True(leftId.SlotIndex >= 0)
-        Assert.Equal(-1, leftId.SlotIndex); // PROVES THE BUG
-        Assert.Equal(-1, leftId.ScopeId);   // PROVES THE BUG
+        Assert.True(leftId.SlotIndex >= 0, $"Loop variable 'i' should have SlotIndex >= 0, but was {leftId.SlotIndex}");
+        Assert.True(leftId.ScopeId >= 0, $"Loop variable 'i' should have ScopeId >= 0, but was {leftId.ScopeId}");
     }
 
     /// <summary>
-    /// H2: Accumulator variable 's' in compound assignment (s += i) has NO slot info.
-    /// CURRENT: SlotIndex=-1, ScopeId=-1 (BROKEN)
+    /// RHS identifier 'i' in compound assignment (s += i) should have slot info.
     /// </summary>
     [Fact]
-    public async Task H2_AccumulatorVariable_InCompoundAssignment_HasNoSlotInfo()
+    public async Task CompoundAssignment_RhsIdentifier_ShouldHaveSlotInfo()
     {
         var program = _engine.ParseProgram(@"
             function run() {
@@ -88,34 +81,31 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         ");
 
         await _engine.Evaluate(program);
+        await _engine.Evaluate("run()"); // Execute to trigger plan building
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Find CompoundAssignmentSlotInstruction for s += i
         var compoundInstr = cache.Plan.Instructions
             .OfType<CompoundAssignmentSlotInstruction>()
             .FirstOrDefault();
         Assert.NotNull(compoundInstr);
         Assert.Equal("s", compoundInstr.TargetSymbol.Name);
 
-        // The RHS 'i' should be an IdentifierExpression
         var rhsId = compoundInstr.RhsExpression as IdentifierExpression;
         Assert.NotNull(rhsId);
         Assert.Equal("i", rhsId.Name.Name);
 
-        // Assert: CURRENTLY BROKEN - RHS 'i' has no slot info
-        Assert.Equal(-1, rhsId.SlotIndex); // PROVES THE BUG
-        Assert.Equal(-1, rhsId.ScopeId);   // PROVES THE BUG
+        Assert.True(rhsId.SlotIndex >= 0, $"RHS 'i' should have SlotIndex >= 0, but was {rhsId.SlotIndex}");
+        Assert.True(rhsId.ScopeId >= 0, $"RHS 'i' should have ScopeId >= 0, but was {rhsId.ScopeId}");
     }
 
     /// <summary>
-    /// H3: Return variable 's' has NO slot info.
-    /// CURRENT: SlotIndex=-1, ScopeId=-1 (BROKEN)
+    /// Return variable 's' should have slot info for fast lookup.
     /// </summary>
     [Fact]
-    public async Task H3_ReturnVariable_HasNoSlotInfo()
+    public async Task ReturnStatement_Identifier_ShouldHaveSlotInfo()
     {
         var program = _engine.ParseProgram(@"
             function run() {
@@ -128,12 +118,12 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         ");
 
         await _engine.Evaluate(program);
+        await _engine.Evaluate("run()"); // Execute to trigger plan building
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Find ReturnInstruction
         var returnInstr = cache.Plan.Instructions
             .OfType<ReturnInstruction>()
             .FirstOrDefault(r => r.ReturnExpression is IdentifierExpression);
@@ -143,18 +133,16 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.NotNull(returnId);
         Assert.Equal("s", returnId.Name.Name);
 
-        // Assert: CURRENTLY BROKEN
-        Assert.Equal(-1, returnId.SlotIndex); // PROVES THE BUG
-        Assert.Equal(-1, returnId.ScopeId);   // PROVES THE BUG
+        Assert.True(returnId.SlotIndex >= 0, $"Return variable 's' should have SlotIndex >= 0, but was {returnId.SlotIndex}");
+        Assert.True(returnId.ScopeId >= 0, $"Return variable 's' should have ScopeId >= 0, but was {returnId.ScopeId}");
     }
 
     /// <summary>
-    /// H4: Check if PushEnvironmentInstruction has SlotMap for loop variables.
-    /// FINDING: SlotMap may be empty depending on loop structure. The key point
-    /// is that even if PushEnv has slot info, identifiers don't reference it.
+    /// Identifiers should reference slots from PushEnvironmentInstruction.
+    /// The environment may have slot info, but identifiers must also be stamped.
     /// </summary>
     [Fact]
-    public async Task H4_PushEnvironment_Exists_ButIdentifiersHaveNoSlotInfo()
+    public async Task LoopEnvironment_Identifiers_ShouldReferenceSlots()
     {
         var program = _engine.ParseProgram(@"
             function run() {
@@ -165,17 +153,12 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         ");
 
         await _engine.Evaluate(program);
+        await _engine.Evaluate("run()"); // Execute to trigger plan building
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Find PushEnvironmentInstruction (may or may not exist for simple loops)
-        var pushEnvInstr = cache.Plan.Instructions
-            .OfType<PushEnvironmentInstruction>()
-            .FirstOrDefault();
-
-        // Find BranchInstruction
         var branchInstr = cache.Plan.Instructions
             .OfType<BranchInstruction>()
             .FirstOrDefault();
@@ -185,23 +168,15 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         var leftId = condition?.Left as IdentifierExpression;
         Assert.NotNull(leftId);
 
-        // KEY POINT: Regardless of whether PushEnv has slots,
-        // the identifier itself has no slot info
-        Assert.Equal(-1, leftId.SlotIndex); // PROVES THE BUG
-        Assert.Equal(-1, leftId.ScopeId);   // PROVES THE BUG
-
-        // Log what we found for debugging
-        var hasPushEnv = pushEnvInstr is not null;
-        var slotMapCount = pushEnvInstr?.SlotMap.Count ?? 0;
-        // This info helps understand the IR structure
+        Assert.True(leftId.SlotIndex >= 0, $"Loop variable 'i' should have SlotIndex >= 0, but was {leftId.SlotIndex}");
+        Assert.True(leftId.ScopeId >= 0, $"Loop variable 'i' should have ScopeId >= 0, but was {leftId.ScopeId}");
     }
 
     /// <summary>
-    /// H5: Nested loops - both loop variables should get slot info (currently don't).
-    /// This test collects ALL identifiers from the IR and verifies they have no slot info.
+    /// Nested loops: all loop variables (i, j, sum) should have slot info.
     /// </summary>
     [Fact]
-    public async Task H5_NestedLoops_BothVariables_HaveNoSlotInfo()
+    public async Task NestedLoops_AllVariables_ShouldHaveSlotInfo()
     {
         var program = _engine.ParseProgram(@"
             function run() {
@@ -216,39 +191,37 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         ");
 
         await _engine.Evaluate(program);
+        await _engine.Evaluate("run()"); // Execute to trigger plan building
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Collect all user variable identifiers from the plan
         var userIdentifiers = new List<IdentifierExpression>();
         foreach (var instr in cache.Plan.Instructions)
         {
             CollectIdentifiers(instr, userIdentifiers);
         }
 
-        // Filter to just loop variables i, j and sum (user variables, not compiler-generated)
         var loopVars = userIdentifiers
             .Where(id => id.Name.Name is "i" or "j" or "sum")
             .ToList();
 
         Assert.True(loopVars.Count > 0, "Should find at least one loop variable identifier");
 
-        // All user variable identifiers should have no slot info (currently)
         foreach (var id in loopVars)
         {
-            Assert.Equal(-1, id.SlotIndex); // PROVES THE BUG
-            Assert.Equal(-1, id.ScopeId);   // PROVES THE BUG
+            Assert.True(id.SlotIndex >= 0, $"Variable '{id.Name.Name}' should have SlotIndex >= 0, but was {id.SlotIndex}");
+            Assert.True(id.ScopeId >= 0, $"Variable '{id.Name.Name}' should have ScopeId >= 0, but was {id.ScopeId}");
         }
     }
 
     /// <summary>
-    /// H6: Shadowed variable - inner 'x' should get different scope than outer 'x'.
-    /// Currently both have no slot info at all.
+    /// Shadowed variables: inner 'x' and outer 'x' should have different ScopeIds.
+    /// Both should have slot info assigned.
     /// </summary>
     [Fact]
-    public async Task H6_ShadowedVariable_BothHaveNoSlotInfo()
+    public async Task ShadowedVariables_ShouldHaveDifferentScopes()
     {
         var program = _engine.ParseProgram(@"
             function run() {
@@ -261,8 +234,8 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
             }
         ");
 
-        // This should return 3 (0+1+2) + 100 = 103
-        var result = await _engine.Evaluate(program);
+        // Verify execution is correct: 3 (0+1+2) + 100 = 103
+        await _engine.Evaluate(program);
         var runResult = await _engine.Evaluate("run()");
         Assert.Equal(103.0, runResult);
 
@@ -270,29 +243,28 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Find identifiers named 'x' in the plan
         var xIdentifiers = new List<IdentifierExpression>();
         foreach (var instr in cache.Plan.Instructions)
         {
             CollectIdentifiers(instr, xIdentifiers, "x");
         }
 
-        // Currently ALL 'x' identifiers have no slot info
+        Assert.True(xIdentifiers.Count > 0, "Should find 'x' identifiers");
+
+        // All 'x' identifiers should have slot info
         foreach (var x in xIdentifiers)
         {
-            Assert.Equal(-1, x.SlotIndex); // PROVES THE BUG - can't distinguish scopes
+            Assert.True(x.SlotIndex >= 0, $"Variable 'x' should have SlotIndex >= 0, but was {x.SlotIndex}");
+            Assert.True(x.ScopeId >= 0, $"Variable 'x' should have ScopeId >= 0, but was {x.ScopeId}");
         }
     }
 
     /// <summary>
-    /// H7: Simple function with user variable (baseline contrast to H1-H6).
-    /// This test uses the simplest possible case - a function-level let variable
-    /// used in a return statement - to prove the bug exists everywhere, not just loops.
+    /// Simple function variable: even basic 'let x = 42; return x' should have slot info.
     /// </summary>
     [Fact]
-    public async Task H7_SimpleFunctionVariable_HasNoSlotInfo()
+    public async Task SimpleFunctionVariable_ShouldHaveSlotInfo()
     {
-        // Simplest possible case: function-level variable used once
         var program = _engine.ParseProgram(@"
             function run() {
                 let x = 42;
@@ -301,12 +273,12 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         ");
 
         await _engine.Evaluate(program);
+        await _engine.Evaluate("run()"); // Execute to trigger plan building
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
         Assert.NotNull(cache.Plan);
 
-        // Find the return instruction
         var returnInstr = cache.Plan.Instructions
             .OfType<ReturnInstruction>()
             .FirstOrDefault(r => r.ReturnExpression is IdentifierExpression);
@@ -316,17 +288,15 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.NotNull(returnId);
         Assert.Equal("x", returnId.Name.Name);
 
-        // Even the simplest function-level variable has no slot info
-        Assert.Equal(-1, returnId.SlotIndex); // PROVES THE BUG
-        Assert.Equal(-1, returnId.ScopeId);   // PROVES THE BUG
+        Assert.True(returnId.SlotIndex >= 0, $"Variable 'x' should have SlotIndex >= 0, but was {returnId.SlotIndex}");
+        Assert.True(returnId.ScopeId >= 0, $"Variable 'x' should have ScopeId >= 0, but was {returnId.ScopeId}");
     }
 
     /// <summary>
-    /// H8: Verify execution still works correctly (functional test).
-    /// The optimization is about speed, not correctness.
+    /// Execution correctness: loop produces correct result (sanity check).
     /// </summary>
     [Fact]
-    public async Task H8_ExecutionStillWorksCorrectly()
+    public async Task Execution_LoopWithVariables_ProducesCorrectResult()
     {
         var program = _engine.ParseProgram(@"
             function run() {
@@ -343,6 +313,48 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
 
         // 0+1+2+3+4+5+6+7+8+9 = 45
         Assert.Equal(45.0, result);
+    }
+
+    /// <summary>
+    /// PROVES SLOW PATH: Loop variables should trigger "slot read hit" when fast path is used.
+    /// Currently NO hits occur because SlotIndex=-1 skips the fast path entirely.
+    /// After the fix, this test should see "slot read hit" messages for 's' and 'i'.
+    /// </summary>
+    [Fact]
+    public async Task SlotFastPath_ShouldBeUsedForLoopVariables()
+    {
+        var logger = new TestLogger();
+        await using var engine = new JsEngine(new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        await engine.Evaluate(@"
+            function run() {
+                let s = 0;
+                for (let i = 0; i < 10; i++) {
+                    s += i;
+                }
+                return s;
+            }
+            run();
+        ");
+
+        var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
+
+        // Look for slot read hits for user variables 's' and 'i'
+        var slotHitsForS = messages.Count(m =>
+            m.Contains("slot read hit", StringComparison.Ordinal) &&
+            m.Contains("name=s", StringComparison.Ordinal));
+
+        var slotHitsForI = messages.Count(m =>
+            m.Contains("slot read hit", StringComparison.Ordinal) &&
+            m.Contains("name=i", StringComparison.Ordinal));
+
+        // After fix: these should be > 0 (fast path used)
+        Assert.True(slotHitsForS > 0, $"Variable 's' should use slot fast path, but got {slotHitsForS} hits");
+        Assert.True(slotHitsForI > 0, $"Variable 'i' should use slot fast path, but got {slotHitsForI} hits");
     }
 
     private static void CollectIdentifiers(ExecutionInstruction instr, List<IdentifierExpression> result, string? nameFilter = null)

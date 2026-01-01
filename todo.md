@@ -1,40 +1,36 @@
 # TODO: Identifier Slot Optimization
 
+IMPORTANT:
+Once you are done, make sure to create a pull request to github!
+
 ## Problem
 
 User variable identifiers (like `s`, `i` in loops) have `SlotIndex=-1` and `ScopeId=-1`, causing all lookups to use slow scope-chain traversal instead of direct slot access.
 
 See `docs/identifier-slot-optimization.md` for full investigation details.
 
-## Proof: Test Bomb
+## Failing Tests (Fix These!)
 
-The bug is proven by 8 tests in `tests/Asynkron.JsEngine.Tests/SlotOptimizationTestBomb.cs`:
+9 tests in `tests/Asynkron.JsEngine.Tests/SlotOptimizationTests.cs` define the expected behavior:
 
-| Test | What it proves |
-|------|---------------|
-| **H1** | Loop variable `i` in condition `i < 10` has `SlotIndex=-1` |
-| **H2** | RHS identifier `i` in `s += i` has `SlotIndex=-1` |
-| **H3** | Return variable `s` has `SlotIndex=-1` |
-| **H4** | Even with `PushEnvironmentInstruction`, identifiers have no slot info |
-| **H5** | Nested loops: `i`, `j`, `sum` all have `SlotIndex=-1` |
-| **H6** | Shadowed variables: both inner and outer `x` have no slot info |
-| **H7** | Simple function variable: even basic `let x = 42; return x` has no slot info |
-| **H8** | Execution works correctly (confirms it's a perf issue, not correctness) |
+| Test | Status | What it verifies |
+|------|--------|-----------------|
+| `LoopVariable_InCondition_ShouldHaveSlotInfo` | ❌ FAIL | Loop variable `i` in `i < 10` should have slot info |
+| `CompoundAssignment_RhsIdentifier_ShouldHaveSlotInfo` | ❌ FAIL | RHS `i` in `s += i` should have slot info |
+| `ReturnStatement_Identifier_ShouldHaveSlotInfo` | ❌ FAIL | Return variable `s` should have slot info |
+| `LoopEnvironment_Identifiers_ShouldReferenceSlots` | ❌ FAIL | Identifiers should reference environment slots |
+| `NestedLoops_AllVariables_ShouldHaveSlotInfo` | ❌ FAIL | All loop vars `i`, `j`, `sum` should have slots |
+| `ShadowedVariables_ShouldHaveDifferentScopes` | ❌ FAIL | Inner/outer `x` should have different ScopeIds |
+| `SimpleFunctionVariable_ShouldHaveSlotInfo` | ❌ FAIL | Basic `let x = 42; return x` should have slots |
+| `SlotFastPath_ShouldBeUsedForLoopVariables` | ❌ FAIL | **Proves slow path**: 0 "slot read hit" logs |
+| `Execution_LoopWithVariables_ProducesCorrectResult` | ✅ PASS | Sanity check - execution is correct |
 
-Run the tests:
+Run:
 ```bash
-dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SlotOptimizationTestBomb"
+dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SlotOptimizationTests"
 ```
 
-After the fix is implemented, **invert the assertions** in H1-H7 to verify slot info IS assigned:
-```csharp
-// BEFORE fix (current):
-Assert.Equal(-1, leftId.SlotIndex); // PROVES THE BUG
-
-// AFTER fix:
-Assert.True(leftId.SlotIndex >= 0); // PROVES THE FIX
-Assert.True(leftId.ScopeId >= 0);
-```
+**When the fix is complete, all 9 tests will pass.**
 
 ## Proposed Solution
 

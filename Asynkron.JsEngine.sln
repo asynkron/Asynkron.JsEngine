@@ -49,6 +49,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".meta", ".meta", "{77806389
 		todo\todo-toplevel-ir.md = todo\todo-toplevel-ir.md
 		todo\todo-ir-loops.md = todo\todo-ir-loops.md
 		todo\todo-private-arrow-function.md = todo\todo-private-arrow-function.md
+		todo.md = todo.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-AD59-4A21-A8B0-4208A190EF53}"
@@ -61,7 +62,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{CBE37AA6-A
 		docs\benchmarks\after-optimizations-2024-12-13.md = docs\benchmarks\after-optimizations-2024-12-13.md
 		docs\benchmarks\baseline-2024-12-13.md = docs\benchmarks\baseline-2024-12-13.md
 		docs\standardlibrary-source-generator.md = docs\standardlibrary-source-generator.md
-		todo-builtins.md = todo-builtins.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Asynkron.JsEngine.Tests.Test262", "tests\Asynkron.JsEngine.Tests.Test262\Asynkron.JsEngine.Tests.Test262.csproj", "{7527CADC-BF6A-4F99-846F-92122ACFB155}"

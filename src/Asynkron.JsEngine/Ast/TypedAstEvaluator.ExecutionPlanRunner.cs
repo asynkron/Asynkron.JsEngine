@@ -747,7 +747,60 @@ public static partial class TypedAstEvaluator
                         if (instructionKind == InstructionKind.Branch)
                         {
                             var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
-                            var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
+
+                            // Fast path for simple binary comparisons (e.g., i < 1000000)
+                            JsValue testValue;
+                            if (branchInstruction.Condition is BinaryExpression
+                                {
+                                    Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
+                                              BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
+                                } binCond)
+                            {
+                                // Try to get left operand without AST evaluation
+                                JsValue leftVal;
+                                switch (binCond.Left)
+                                {
+                                    case LiteralExpression { Value: var lit }:
+                                        leftVal = lit;
+                                        break;
+                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var leftName } leftId:
+                                        if (!environment.TryReadSlotValue(leftName, leftId.SlotIndex, context, out leftVal))
+                                            goto slowPath;
+                                        break;
+                                    default:
+                                        goto slowPath;
+                                }
+
+                                // Try to get right operand without AST evaluation
+                                JsValue rightVal;
+                                switch (binCond.Right)
+                                {
+                                    case LiteralExpression { Value: var lit }:
+                                        rightVal = lit;
+                                        break;
+                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var rightName } rightId:
+                                        if (!environment.TryReadSlotValue(rightName, rightId.SlotIndex, context, out rightVal))
+                                            goto slowPath;
+                                        break;
+                                    default:
+                                        goto slowPath;
+                                }
+
+                                // Apply comparison directly
+                                testValue = binCond.Operator switch
+                                {
+                                    BinaryOperator.LessThan => LessThanValue(leftVal, rightVal, context),
+                                    BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
+                                    BinaryOperator.GreaterThan => GreaterThanValue(leftVal, rightVal, context),
+                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftVal, rightVal, context),
+                                    _ => throw new InvalidOperationException()
+                                };
+                                goto afterConditionEval;
+                            }
+
+                            slowPath:
+                            testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
+                            afterConditionEval:
 
                             // Check for pending await (async code)
                             if (TryHandlePendingAwait(context, out var pendingBranchResult, environment))
@@ -1176,8 +1229,34 @@ public static partial class TypedAstEvaluator
                                     throw new ThrowSignal(compThrown);
                                 }
 
-                                // Evaluate RHS expression
-                                var compRhsValue = compoundInstruction.RhsExpression.EvaluateExpression(environment, context);
+                                // Evaluate RHS expression - inline fast path for simple cases
+                                JsValue compRhsValue;
+                                switch (compoundInstruction.RhsExpression)
+                                {
+                                    // Fast path: literal value (no evaluation needed)
+                                    case LiteralExpression { Value: var literalValue }:
+                                        compRhsValue = literalValue;
+                                        break;
+
+                                    // Fast path: identifier with slot info (direct slot read)
+                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var rhsName } rhsIdent:
+                                        if (environment.TryReadSlotValue(rhsName, rhsIdent.SlotIndex, context, out compRhsValue))
+                                        {
+                                            // Got value from slot
+                                        }
+                                        else
+                                        {
+                                            // Slot miss - fall back to full resolution
+                                            compRhsValue = rhsIdent.EvaluateExpression(environment, context);
+                                        }
+                                        break;
+
+                                    // Slow path: complex expression
+                                    default:
+                                        compRhsValue = compoundInstruction.RhsExpression.EvaluateExpression(environment, context);
+                                        break;
+                                }
+
                                 if (context.ShouldStopEvaluation)
                                 {
                                     if (TryHandlePendingAwait(context, out var pendingCompResult, environment))

@@ -93,8 +93,12 @@ public class SlotStampingTests(ITestOutputHelper output) : InternalTestBase(outp
 
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);
         var exprStmt = Assert.IsType<ExpressionStatement>(pipeline.Analyzed.Body[0]);
-        var call = Assert.IsType<CallExpression>(exprStmt.Expression);
-        var funcExpr = Assert.IsType<FunctionExpression>(call.Callee);
+        var funcExpr = exprStmt.Expression switch
+        {
+            FunctionExpression fe => fe,
+            CallExpression call => Assert.IsType<FunctionExpression>(call.Callee),
+            _ => throw new InvalidOperationException("Unexpected AST shape for IIFE")
+        };
 
         var built = ExecutionPlanBuilder.TryBuild(funcExpr, out var plan, out var failure, reportDiagnostics: false);
         Assert.True(built, failure);

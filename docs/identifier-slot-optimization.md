@@ -1,8 +1,40 @@
 # Identifier Slot Optimization Issue
 
+## Status: BLOCKED - Closure Incompatibility
+
+**Date**: 2026-01-01
+**Conclusion**: User variable slot optimization is NOT feasible without implementing full closure analysis.
+
+See [todo.md](../todo.md) for the investigation summary.
+
 ## Summary
 
 The IR execution plan fast paths check for `SlotIndex >= 0` and `ScopeId >= 0` on `IdentifierExpression` nodes, but user variable identifiers (like `s`, `i` in loops) have these set to `-1` (unresolved). This causes all user variable lookups to fall through to the slow scope-chain lookup path.
+
+## Fundamental Blocker: Closure Semantics
+
+**Slots and dictionary bindings are separate storage systems that don't share state.**
+
+When an inner function (closure) accesses a variable from an outer scope:
+- The closure resolves the variable through the **environment chain** (dictionary lookup)
+- If the outer function uses **slot-based storage** for that variable, the closure's writes are invisible to the outer function's slot reads
+
+Example failure case:
+```javascript
+(function() {
+    function f() { x = 1; }  // Writes to x via environment chain → dictionary
+    f();
+    var x;                   // If x has a slot, reads from _slots[0] = undefined
+    return x;                // Expected: 1, Actual: undefined
+}())
+```
+
+This architectural constraint means user variables can ONLY be slot-optimized if we can prove they are never captured by closures. This requires a full closure analysis pass that:
+1. Walks all nested function expressions
+2. Tracks which identifiers are referenced from inner scopes
+3. Only assigns slots to non-captured variables
+
+Without this analysis, assigning slots to user variables will break closure semantics.
 
 ## Current Architecture
 

@@ -58,6 +58,10 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
             {
                 IterableExpression = Rewrite(yieldStar.IterableExpression)
             },
+            CompoundAssignmentSlotInstruction compoundAssign => compoundAssign with
+            {
+                RhsExpression = Rewrite(compoundAssign.RhsExpression)
+            },
             _ => instruction
         };
     }

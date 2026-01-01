@@ -39,6 +39,7 @@ public sealed class EvaluationContext(
 
     private readonly Stack<ScopeFrame> _scopeStack = new();
     private int _classFieldInitializerDepth;
+    private Dictionary<AssignmentExpression, CachedSlotTarget>? _assignmentSlotCache;
 
     // Fast path for returns - avoids allocating ReturnCompletionSignal
     private JsValue _returnValue;
@@ -221,6 +222,46 @@ public sealed class EvaluationContext(
         return AllowIdentifierCache
             ? environment.GetIdentifierJsValueDirect(name, this)
             : environment.GetIdentifierJsValueWithScope(name, this);
+    }
+
+    internal bool TryResolveAssignmentSlot(AssignmentExpression expression, JsEnvironment environment,
+        out CachedSlotTarget cached)
+    {
+        if (_assignmentSlotCache is not null && _assignmentSlotCache.TryGetValue(expression, out cached))
+        {
+            return true;
+        }
+
+        cached = default;
+
+        if (!AllowIdentifierCache)
+        {
+            return false;
+        }
+
+        var name = expression.Target;
+        if (CurrentScope.IsStrict &&
+            (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments)))
+        {
+            return false;
+        }
+
+        if (!environment.TryFindBindingJsValue(name, allowUninitialized: true, out var bindingEnvironment, out _))
+        {
+            return false;
+        }
+
+        if (!bindingEnvironment.HasSlots || !bindingEnvironment.TryGetSlotIndex(name, out var slotIndex))
+        {
+            return false;
+        }
+
+        cached = new CachedSlotTarget(new JsVariable(bindingEnvironment, slotIndex), name);
+
+        _assignmentSlotCache ??= new Dictionary<AssignmentExpression, CachedSlotTarget>(
+            ReferenceEqualityComparer<AssignmentExpression>.Instance);
+        _assignmentSlotCache[expression] = cached;
+        return true;
     }
 
     public ImmutableArray<PrivateNameScope> CapturePrivateNameScopes()
@@ -478,6 +519,7 @@ public sealed class EvaluationContext(
         _scopeStack.Clear();
         _pendingClassFieldInitializers.Clear();
         _functionNameHints.Clear();
+        _assignmentSlotCache?.Clear();
         _classFieldInitializerDepth = 0;
         AllowIdentifierCache = false;
         IsStrictSource = false;
@@ -515,6 +557,20 @@ public sealed class EvaluationContext(
         {
             _pendingClassFieldInitializers.Pop();
         }
+    }
+
+    internal readonly struct CachedSlotTarget
+    {
+        public CachedSlotTarget(JsVariable variable, Symbol name)
+        {
+            Variable = variable;
+            Name = name;
+        }
+
+        public JsVariable Variable { get; }
+        public Symbol Name { get; }
+        public JsEnvironment Environment => Variable.Environment;
+        public int SlotIndex => Variable.SlotIndex;
     }
 
     /// <summary>

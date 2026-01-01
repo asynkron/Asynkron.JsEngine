@@ -73,7 +73,8 @@ public static partial class TypedAstEvaluator
             // %AsyncGeneratorPrototype% (inherits from %AsyncIteratorPrototype%)
             if (RealmState.AsyncGeneratorPrototype is null)
             {
-                var asyncGenProto = new JsObject();
+                // Use the generated prototype factory to get all required properties (Symbol.toStringTag, methods, etc.)
+                var asyncGenProto = (JsObject)AsyncGeneratorPrototype.CreatePrototype(RealmState);
                 asyncGenProto.SetPrototype(RealmState.AsyncIteratorPrototype ?? RealmState.ObjectPrototype);
                 RealmState.AsyncGeneratorPrototype = asyncGenProto;
             }

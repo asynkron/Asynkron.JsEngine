@@ -75,6 +75,36 @@ public class SlotStampingTests(ITestOutputHelper output) : InternalTestBase(outp
         Assert.True(stamped.SlotIndex >= 0);
     }
 
+    [Fact]
+    public void FunctionDeclaration_InsideTry_IsHoistedToRootSlots()
+    {
+        const string source = """
+            (function() {
+                let __r;
+                try {
+                    function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }
+                    __r = factorial(5);
+                } catch (e) {
+                    throw e;
+                }
+                return __r;
+            });
+            """;
+
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var exprStmt = Assert.IsType<ExpressionStatement>(pipeline.Analyzed.Body[0]);
+        var call = Assert.IsType<CallExpression>(exprStmt.Expression);
+        var funcExpr = Assert.IsType<FunctionExpression>(call.Callee);
+
+        var built = ExecutionPlanBuilder.TryBuild(funcExpr, out var plan, out var failure, reportDiagnostics: false);
+        Assert.True(built, failure);
+
+        var tryStmt = Assert.IsType<TryStatement>(funcExpr.Body.Statements[1]);
+        var factorialDecl = Assert.IsType<FunctionDeclaration>(tryStmt.TryBlock.Statements[0]);
+
+        Assert.True(plan.SafeRootSlotMap.TryGetValue(factorialDecl.Name, out var slot) && slot >= 0);
+    }
+
     private sealed class IdentifierCollector(Symbol match) : AstVisitor
     {
         public List<IdentifierExpression> Matches { get; } = new();

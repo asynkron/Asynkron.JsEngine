@@ -2,6 +2,16 @@
 
 ## Coding Standards
 
+### Antipatterns
+
+- **Avoid using `object`**: Always use `JsValue` when dealing with JavaScript values. Using `object` leads to boxing and performance issues.
+- **Avoid `IDictionary<Symbol, T>`**: Using dictionaries for symbol lookups is slow due to hashing. Prefer slot-based access for identifiers.
+- **Minimize allocations in hot paths**: Avoid creating new objects, arrays, or strings in frequently executed code.
+- **Avoid deep recursion**: Refactor recursive algorithms to iterative ones where possible to prevent stack overflows and improve performance.
+- **Avoid unnecessary environment activations**: Reuse `JsEnvironment` instances when possible to reduce overhead.
+- **Avoid default culture conversions**: Always specify `InvariantCulture` for number/string conversions to ensure consistent behavior.
+- **Avoid complex LINQ queries in hot paths**: LINQ can introduce overhead; use simple loops instead.
+
 ### Invariant Culture for Number/String Conversions
 
 **CRITICAL RULE**: All floating-point and double-precision number to/from string conversions **MUST** use `InvariantCulture`.
@@ -190,81 +200,6 @@ dotnet-trace convert trace.nettrace --format Speedscope
 - Allocations: 322 MB → 107.49 MB = **~67% reduction**
 - Speed: ~172 ms → 116.84 ms = **~32% faster**
 - Gap with Jint: 2.2x time, 2.1x allocations (down from 3.1x and 6.4x)
-
-### Implemented Optimizations
-
-#### Round 3 (Dec 2024)
-
-7. **NumericResult struct to avoid boxing** (`Runtime/JsOps.cs`)
-   - Replaced `(NumericKind, object?)` tuple with `NumericResult` struct
-   - Stores `double` directly in struct field (no boxing)
-   - Added `ToNumericResult()` for internal use that returns struct directly
-   - Added fast paths for already-double values (most common case)
-
-8. **Fast paths for double arithmetic** (`Ast/TypedAstEvaluator.cs`)
-   - `Add()` checks if both operands are doubles first, skips full conversion
-   - `PerformBigIntOrNumericOperation()` uses `NumericResult` internally
-   - Only boxes result at the very end via `JsValueCache.GetNumber()`
-
-9. **Fast paths for increment/decrement** (`Ast/UnaryExpressionExtensions.cs`)
-   - `++` and `--` operators check if operand is already double
-   - Avoids `ToNumeric()` call and boxing for the common case
-
-10. **Fast paths for unary and bitwise operations** (`Ast/TypedAstEvaluator.cs`)
-    - `BitwiseNot()`, `UnaryMinus()` - fast path when operand is double
-    - `LeftShift()`, `RightShift()`, `UnsignedRightShift()` - fast path for double operands
-    - `PerformBigIntOrInt32Operation()` - fast path for double operands
-
-#### Round 2 (Dec 2024)
-
-4. **Lock-free JsEnvironmentPool** (`JsEnvironmentPool.cs`)
-   - Replaced `ConcurrentBag` with fixed-size array using `Interlocked.CompareExchange`
-   - 32 pool slots for JsEnvironment reuse
-   - Reduces pool access contention in hot loops
-
-5. **Lazy `_values` dictionary in JsEnvironment** (`JsEnvironment.cs`)
-   - `SymbolHybridDictionary<Binding>` now allocated only when first binding is added
-   - Environments without bindings (some block scopes) skip allocation entirely
-   - All read paths check `_values is not null` before access
-
-6. **Lock-free argument array pooling** (`JsValueCache.cs`)
-   - Replaced `ConcurrentBag` pools with lock-free `ObjectPool<T>`
-   - 15 slots per size (1-4 element arrays)
-   - Uses `Interlocked.CompareExchange` for thread-safe, contention-free pooling
-
-#### Round 1
-
-1. **JsEnvironment pooling** (`TypedAstEvaluator.SyncFunctionInvoker.cs`)
-   - Added `ContainsInnerFunctionExpression` to `ScopeDynamicnessAnalyzer.cs` to detect functions that create closures
-   - Added `_canPoolInvocationEnvironment` flag - true when function is simple AND has no inner functions
-   - Modified `InvokeSimpleFast` to use `RentEnvironment`/`ReturnEnvironment` when safe
-   - Note: Cannot pool environments for functions with inner closures (they capture the environment reference)
-
-2. **SymbolHybridDictionary** (`Collections/SymbolHybridDictionary.cs`)
-   - Array-based storage for small binding counts (< 8 bindings)
-   - Uses reference equality for fast Symbol lookups
-   - Switches to full Dictionary only when > 8 bindings
-   - `JsEnvironment._values` now uses this instead of `Dictionary<Symbol, Binding>`
-
-3. **Cached function description string** (`TypedAstEvaluator.SyncFunctionInvoker.cs`)
-   - `_functionDescription` field cached in constructor
-   - Eliminates string allocation (`$"function {name.Name}"`) per function call
-
-### Already Optimized Areas
-
-- **Argument array pooling** - Small argument arrays (1-4 elements) pooled via lock-free `ObjectPool<T>` in `JsValueCache` (15 slots per size, using `Interlocked.CompareExchange`)
-- **Number boxing cache** - Integers 0-10239 cached in `JsValueCache.CachedIntegers`
-- **Identifier binding cache** - `ResolvedIdentifierBinding` (struct) cached per environment
-- **EvaluationContext pooling** - Pooled via `RentContext`/`ReturnContext`
-- **ToPrimitive fast path** - Primitives return immediately without object checks
-
-### Remaining Gap Analysis
-
-The remaining gap (113 MB vs Jint's 50 MB ≈ 2.3x allocations, 123 ms vs 52 ms ≈ 2.4x time) likely comes from:
-- Architectural differences in environment/scope management
-- `EvaluationContext` as class (required for async/await) vs Jint's `readonly struct ExecutionContext`
-- AST node caching strategies
-- Per-invocation Binding struct creation (even though structs, they go into collections)
 
 ## Git Worktree Workflow
 

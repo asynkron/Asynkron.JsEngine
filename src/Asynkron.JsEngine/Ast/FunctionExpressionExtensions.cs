@@ -471,9 +471,9 @@ public static partial class TypedAstEvaluator
             if (functionNameEnvironment is not null)
             {
                 // Store in slot if slots are initialized (with scope analysis)
-                if (functionNameEnvironment._slots is not null)
+                if (functionNameEnvironment._slots is not null && functionNameEnvironment._slotCount > 0)
                 {
-                    functionNameEnvironment._slots[0] = JsValue.FromObjectUnsafe(callable);
+                    functionNameEnvironment._slots[0].Value = JsValue.FromObjectUnsafe(callable);
                 }
                 // Register as immutable binding in dictionary for eval compatibility and fallback lookup
                 // Per ES spec 9.2.10, function name binding is immutable:

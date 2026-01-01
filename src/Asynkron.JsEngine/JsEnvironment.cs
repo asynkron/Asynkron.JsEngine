@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -21,13 +20,6 @@ public sealed class JsEnvironment : IRentable
     private const int MaxDepth = 1_000;
     internal static readonly object Uninitialized = new();
 
-    /// <summary>
-    /// Cached empty slot map with reference equality comparer.
-    /// Avoids allocating ImmutableDictionary + Comparers on every environment creation.
-    /// </summary>
-    private static readonly ImmutableDictionary<Symbol, int> EmptySlotMap =
-        ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
-
     private Dictionary<Symbol, List<Action<JsValue>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
     private SourceReference? _creatingSource;
@@ -40,13 +32,16 @@ public sealed class JsEnvironment : IRentable
     private bool _isDefaultDerivedConstructor;
     private HashSet<Symbol>? _simpleCatchParameters;
 
-    private ImmutableDictionary<Symbol, int> _slotMap = EmptySlotMap;
+    /// <summary>
+    /// Slot-based storage for variable access. Each slot contains name, value, and flags.
+    /// Uses linear scan for name lookup - fast for typical JS scopes (1-10 bindings).
+    /// </summary>
+    internal JsSlot[]? _slots;
 
     /// <summary>
-    /// Slot-based storage for fast variable access when scope analysis is available.
-    /// This enables O(1) array indexing instead of dictionary lookup.
+    /// Number of slots currently in use (may be less than array length due to pooling).
     /// </summary>
-    internal JsValue[]? _slots;
+    internal int _slotCount;
 
     /// <summary>
     /// Fast storage for 'this' binding in slot-only environments (InvokeSimpleFast).
@@ -226,12 +221,12 @@ public sealed class JsEnvironment : IRentable
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
         Depth = (enclosing?.Depth ?? 0) + 1;
         // Reset slot-based state - return slots array to pool
-        JsValueArrayPool.Return(_slots);
+        JsSlotArrayPool.Return(_slots);
         _slots = null;
+        _slotCount = 0;
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
-        _slotMap = EmptySlotMap;
     }
 
     /// <summary>
@@ -284,12 +279,12 @@ public sealed class JsEnvironment : IRentable
         _inheritStrictness = true;
         // Cache effective strictness - inheritStrictness is always true in ResetForReuse
         _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
-        _slotMap = EmptySlotMap;
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
         Depth = (enclosing?.Depth ?? 0) + 1;
         // Keep _slots for reuse - InitializeSlots will reuse if same size
+        // Note: _slotCount is NOT reset here - InitializeSlots will set it
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
@@ -1227,7 +1222,7 @@ public sealed class JsEnvironment : IRentable
             var slots = targetEnv?._slots;
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
-                var slotValue = slots[slotIndex];
+                ref var slot = ref slots[slotIndex];
                 if (shouldLogSlots)
                 {
                     logger?.LogInformation(
@@ -1236,10 +1231,10 @@ public sealed class JsEnvironment : IRentable
                         name.Name,
                         scopeId,
                         slotIndex,
-                        slotValue.Kind);
+                        slot.Value.Kind);
                 }
 
-                if (slotValue.IsUninitialized)
+                if (slot.IsUninitialized)
                 {
                     var errorObject = StandardLibrary.CreateReferenceError(
                         $"Cannot access '{name.Name}' before initialization",
@@ -1250,7 +1245,7 @@ public sealed class JsEnvironment : IRentable
                     return true;
                 }
 
-                value = slotValue;
+                value = slot.Value;
                 return true;
             }
 
@@ -1314,7 +1309,7 @@ public sealed class JsEnvironment : IRentable
                     {
                         targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
                             context.CurrentScope.IsStrict);
-                        slots[slotIndex] = value;
+                        slots[slotIndex].Value = value;
                         if (shouldLogSlots)
                         {
                             logger?.LogInformation(
@@ -1332,8 +1327,8 @@ public sealed class JsEnvironment : IRentable
 
                 // TDZ check for slot-only path: if the slot is uninitialized, this is a TDZ violation.
                 // This happens when trying to write to a let/const variable before its declaration.
-                var currentSlotValue = slots[slotIndex];
-                if (currentSlotValue.IsUninitialized)
+                ref var currentSlot = ref slots[slotIndex];
+                if (currentSlot.IsUninitialized)
                 {
                     throw new ThrowSignal(StandardLibrary.CreateReferenceError(
                         $"Cannot access '{name.Name}' before initialization",
@@ -1341,7 +1336,7 @@ public sealed class JsEnvironment : IRentable
                         context.RealmState));
                 }
 
-                slots[slotIndex] = value;
+                currentSlot.Value = value;
                 if (shouldLogSlots)
                 {
                     logger?.LogInformation(
@@ -1390,8 +1385,8 @@ public sealed class JsEnvironment : IRentable
             return false;
         }
 
-        var slotValue = slots[slotIndex];
-        if (slotValue.IsUninitialized)
+        ref var slot = ref slots[slotIndex];
+        if (slot.IsUninitialized)
         {
             var errorValue = StandardLibrary.CreateReferenceError(
                 $"Cannot access '{name.Name}' before initialization",
@@ -1402,7 +1397,7 @@ public sealed class JsEnvironment : IRentable
             return true;
         }
 
-        value = slotValue;
+        value = slot.Value;
         return true;
     }
 
@@ -1421,12 +1416,13 @@ public sealed class JsEnvironment : IRentable
             if (!Unsafe.IsNullRef(ref binding))
             {
                 WriteResolvedBindingJsValue(this, ref binding, name, value, context.CurrentScope.IsStrict);
-                slots[slotIndex] = value;
+                slots[slotIndex].Value = value;
                 return true;
             }
         }
 
-        if (slots[slotIndex].IsUninitialized)
+        ref var slot = ref slots[slotIndex];
+        if (slot.IsUninitialized)
         {
             throw new ThrowSignal(StandardLibrary.CreateReferenceError(
                 $"Cannot access '{name.Name}' before initialization",
@@ -1434,7 +1430,7 @@ public sealed class JsEnvironment : IRentable
                 context.RealmState));
         }
 
-        slots[slotIndex] = value;
+        slot.Value = value;
         return true;
     }
 
@@ -2822,16 +2818,16 @@ public sealed class JsEnvironment : IRentable
             var slotVars = new Dictionary<int, object?>();
             if (current._slots is not null)
             {
-                for (var i = 0; i < current._slots.Length; i++)
+                for (var i = 0; i < current._slotCount; i++)
                 {
-                    slotVars[i] = current._slots[i].ToObject();
+                    slotVars[i] = current._slots[i].Value.ToObject();
                 }
             }
 
             chain.Add(new EnvironmentInfo(
                 current.ScopeId,
                 current._slots is not null,
-                current._slots?.Length ?? 0,
+                current._slotCount,
                 dictVars,
                 slotVars,
                 current._description
@@ -3196,6 +3192,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void InitializeSlots(int slotCount)
     {
+        _slotCount = slotCount;
         if (slotCount <= 0)
         {
             return;
@@ -3205,12 +3202,12 @@ public sealed class JsEnvironment : IRentable
         if (_slots is null || _slots.Length < slotCount)
         {
             // Return old array to pool before getting new one
-            JsValueArrayPool.Return(_slots);
-            _slots = JsValueArrayPool.Rent(slotCount);
+            JsSlotArrayPool.Return(_slots);
+            _slots = JsSlotArrayPool.Rent(slotCount);
         }
 
-        // Initialize all slots to undefined (only up to slotCount, not full array)
-        Array.Fill(_slots, JsValue.Undefined, 0, slotCount);
+        // Clear all slots (set to empty)
+        Array.Clear(_slots, 0, slotCount);
     }
 
     /// <summary>
@@ -3223,6 +3220,7 @@ public sealed class JsEnvironment : IRentable
     internal void InitializeSlots(int slotCount, int scopeId)
     {
         ScopeId = scopeId;
+        _slotCount = slotCount;
         if (slotCount <= 0)
         {
             return;
@@ -3232,62 +3230,160 @@ public sealed class JsEnvironment : IRentable
         if (_slots is null || _slots.Length < slotCount)
         {
             // Return old array to pool before getting new one
-            JsValueArrayPool.Return(_slots);
-            _slots = JsValueArrayPool.Rent(slotCount);
+            JsSlotArrayPool.Return(_slots);
+            _slots = JsSlotArrayPool.Rent(slotCount);
         }
 
-        // Initialize all slots to undefined (only up to slotCount, not full array)
-        Array.Fill(_slots, JsValue.Undefined, 0, slotCount);
+        // Clear all slots (set to empty)
+        Array.Clear(_slots, 0, slotCount);
     }
 
     /// <summary>
-    /// Initializes all scope-related metadata for this environment: scope ID, slot map, and slots array.
-    /// This is the primary method to call when setting up an environment for a function or block scope.
-    /// The slot count is derived from the slot map.
+    /// Initializes all scope-related metadata for this environment using a slot map.
+    /// This converts from the old ImmutableDictionary-based approach.
     /// </summary>
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     /// <param name="slotMap">Mapping from symbol names to slot indices.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Initialize(int scopeId, ImmutableDictionary<Symbol, int> slotMap)
+    public void Initialize(int scopeId, System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
     {
         ScopeId = scopeId;
-        _slotMap = slotMap;
+        var count = slotMap.Count;
+        _slotCount = count;
 
-        var slotCount = slotMap.Count;
-        if (slotCount <= 0)
+        if (count <= 0)
         {
             return;
         }
 
-        // Reuse existing array if it's big enough, otherwise rent from pool
-        if (_slots is null || _slots.Length < slotCount)
+        // Ensure capacity
+        if (_slots is null || _slots.Length < count)
         {
-            // Return old array to pool before getting new one
-            JsValueArrayPool.Return(_slots);
-            _slots = JsValueArrayPool.Rent(slotCount);
+            JsSlotArrayPool.Return(_slots);
+            _slots = JsSlotArrayPool.Rent(count);
         }
 
-        // Initialize all slots to undefined (only up to slotCount, not full array)
-        Array.Fill(_slots, JsValue.Undefined, 0, slotCount);
+        // Populate slots from slotMap - each entry maps Symbol -> index
+        foreach (var (symbol, index) in slotMap)
+        {
+            if (index >= 0 && index < count)
+            {
+                _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
+            }
+        }
     }
 
     /// <summary>
-    /// Sets the slot map for this environment.
-    /// Internal use only - prefer Initialize() for public API.
+    /// Sets slot names from a slot map. Used for compatibility with old API.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
+    internal void SetSlotMap(System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
     {
-        _slotMap = slotMap;
+        var count = slotMap.Count;
+
+        // Ensure we have capacity
+        if (count > 0)
+        {
+            if (_slots is null || _slots.Length < count)
+            {
+                JsSlotArrayPool.Return(_slots);
+                _slots = JsSlotArrayPool.Rent(count);
+                Array.Clear(_slots, 0, count);
+            }
+
+            // Set slot names from the map (values remain as initialized)
+            foreach (var (symbol, index) in slotMap)
+            {
+                if (index >= 0 && index < _slots.Length)
+                {
+                    _slots[index].Name = symbol;
+                }
+            }
+
+            _slotCount = Math.Max(_slotCount, count);
+        }
     }
 
     /// <summary>
-    /// Tries to get the slot index for a symbol from this environment's slot map.
+    /// Finds the slot index for a given symbol name using linear scan.
+    /// Returns -1 if not found. Fast for typical JS scopes (1-10 bindings).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal int FindSlotIndex(Symbol name)
+    {
+        var slots = _slots;
+        if (slots is null)
+        {
+            return -1;
+        }
+
+        var count = _slotCount;
+        for (var i = 0; i < count; i++)
+        {
+            if (ReferenceEquals(slots[i].Name, name))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Tries to get the slot index for a symbol from this environment.
+    /// Uses linear scan over slot names.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryGetSlotIndex(Symbol name, out int slotIndex)
     {
-        return _slotMap.TryGetValue(name, out slotIndex) && slotIndex >= 0;
+        slotIndex = FindSlotIndex(name);
+        return slotIndex >= 0;
+    }
+
+    /// <summary>
+    /// Gets a reference to a slot by index. Caller must ensure index is valid.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref JsSlot GetSlotByIndex(int index)
+    {
+        return ref _slots![index];
+    }
+
+    /// <summary>
+    /// Defines a new slot with the given name, value, and flags.
+    /// Returns the index of the new slot.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal int DefineSlot(Symbol name, JsValue value, SlotFlags flags)
+    {
+        var index = _slotCount;
+
+        // Ensure we have capacity
+        if (_slots is null || index >= _slots.Length)
+        {
+            GrowSlots();
+        }
+
+        _slots![index] = new JsSlot(name, value, flags);
+        _slotCount = index + 1;
+        return index;
+    }
+
+    /// <summary>
+    /// Grows the slots array when capacity is exceeded.
+    /// </summary>
+    private void GrowSlots()
+    {
+        var newCapacity = _slots is null ? 4 : _slots.Length * 2;
+        var newSlots = JsSlotArrayPool.Rent(newCapacity);
+
+        if (_slots is not null)
+        {
+            Array.Copy(_slots, newSlots, _slotCount);
+            JsSlotArrayPool.Return(_slots);
+        }
+
+        _slots = newSlots;
     }
 
     /// <summary>
@@ -3333,7 +3429,7 @@ public sealed class JsEnvironment : IRentable
             }
         }
 
-        return env._slots![slotIndex];
+        return env._slots![slotIndex].Value;
     }
 
     /// <summary>
@@ -3356,7 +3452,7 @@ public sealed class JsEnvironment : IRentable
             }
         }
 
-        env._slots![slotIndex] = value;
+        env._slots![slotIndex].Value = value;
     }
 
     /// <summary>
@@ -3368,40 +3464,36 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlot(int slotIndex, JsValue value)
     {
-        _slots![slotIndex] = value;
+        _slots![slotIndex].Value = value;
     }
 
+    /// <summary>
+    /// Tries to set a slot value by name. Uses linear scan to find the slot.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void TrySetSlot(Symbol name, JsValue value)
     {
-        var slots = _slots;
-        if (slots is null || _slotMap.IsEmpty)
+        var slotIndex = FindSlotIndex(name);
+        if (slotIndex >= 0)
         {
-            return;
-        }
-
-        if (_slotMap.TryGetValue(name, out var slotIndex) &&
-            slotIndex >= 0 &&
-            slotIndex < slots.Length)
-        {
-            slots[slotIndex] = value;
+            _slots![slotIndex].Value = value;
         }
     }
 
     /// <summary>
     /// Checks if this environment has slot storage initialized.
     /// </summary>
-    public bool HasSlots => _slots is not null;
+    public bool HasSlots => _slots is not null && _slotCount > 0;
 
     /// <summary>
-    /// Gets a direct reference to a slot value. This enables zero-overhead read/write
+    /// Gets a direct reference to a slot's value. This enables zero-overhead read/write
     /// when the caller has already resolved the target environment.
     /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref JsValue GetSlotRef(int slotIndex)
     {
-        return ref _slots![slotIndex];
+        return ref _slots![slotIndex].Value;
     }
 
     /// <summary>
@@ -3412,7 +3504,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotDirect(int slotIndex, JsValue value)
     {
-        _slots![slotIndex] = value;
+        _slots![slotIndex].Value = value;
     }
 
     /// <summary>
@@ -3427,7 +3519,7 @@ public sealed class JsEnvironment : IRentable
             // Fast path: if current environment matches scopeId, use it directly
             // This avoids the FindByScopeId loop traversal in the common case
             targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
-            if (targetEnv?._slots is not null && slotIndex < targetEnv._slots.Length)
+            if (targetEnv?._slots is not null && slotIndex < targetEnv._slotCount)
             {
                 return true;
             }

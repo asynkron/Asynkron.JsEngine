@@ -128,7 +128,7 @@ internal sealed partial class ExecutionPlanBuilder
         // For functions, slot assignment is fine because scope analysis happens at parse time.
         if (!_isScriptLevel)
         {
-            AssignSlotsToUserVariables();
+            AssignSlotsToUserVariables(entryIndex);
         }
 
         plan = new ExecutionPlan(
@@ -140,37 +140,383 @@ internal sealed partial class ExecutionPlanBuilder
     }
 
     /// <summary>
-    /// Collects all user variable identifiers from instructions, assigns them slots,
-    /// and updates the AST nodes with ScopeId=0 and the assigned slot indices.
+    /// Collects variable declarations and scope metadata from instructions,
+    /// assigns function-scope slots, and stamps identifier nodes with scope info.
     /// </summary>
-    private void AssignSlotsToUserVariables()
+    private void AssignSlotsToUserVariables(int entryIndex)
     {
-        // Step 1: Collect all unique user variable symbols from instructions using the visitor
-        var collector = new IdentifierCollector();
-        foreach (var instruction in _instructions)
-        {
-            collector.VisitInstruction(instruction);
-        }
+        var instructionScopes = new int[_instructions.Count];
+        Array.Fill(instructionScopes, int.MinValue);
 
-        // Step 2: Build a map from symbol to (scopeId, slotIndex)
-        var symbolToScope = new Dictionary<Symbol, (int scopeId, int slotIndex)>(
-            collector.Identifiers.Count,
-            ReferenceEqualityComparer<Symbol>.Instance);
-        foreach (var symbol in collector.Identifiers)
-        {
-            // Allocate a slot for this user variable
-            var slotIndex = AllocateSlot(symbol);
-            symbolToScope[symbol] = (0, slotIndex); // ScopeId=0 for execution plan environment
-        }
+        var scopeParents = new Dictionary<int, int>();
+        var scopeDeclarations = new Dictionary<int, Dictionary<Symbol, int>>();
+        var scopeInstructionIndices = new Dictionary<int, List<int>>();
 
-        // Step 3: Update all instructions to use the new slot information using the rewriter
-        if (symbolToScope.Count > 0)
+        // Function scope (ScopeId = 0) hosts execution plan slots.
+        var functionDeclarations = new Dictionary<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        for (var i = 0; i < _slotSymbols.Count; i++)
         {
-            var rewriter = new SlotAssignmentRewriter(symbolToScope);
-            for (var i = 0; i < _instructions.Count; i++)
+            functionDeclarations[_slotSymbols[i]] = i;
+        }
+        scopeDeclarations[0] = functionDeclarations;
+
+        var scopeStacksByInstruction = new Dictionary<int, ImmutableArray<int>>();
+        var worklist = new Stack<(int index, ImmutableArray<int> scopeStack)>();
+        worklist.Push((entryIndex, ImmutableArray.Create(0)));
+
+        while (worklist.Count > 0)
+        {
+            var (index, scopeStack) = worklist.Pop();
+            if (index < 0 || index >= _instructions.Count)
             {
-                _instructions[i] = rewriter.RewriteInstruction(_instructions[i]);
+                continue;
             }
+
+            if (scopeStacksByInstruction.TryGetValue(index, out var existingStack))
+            {
+                // If the same instruction is reached with the same scope stack, we can skip it.
+                // Conflicting stacks indicate unexpected control-flow shapes; keep the first seen.
+                if (ScopeStacksEqual(existingStack, scopeStack))
+                {
+                    continue;
+                }
+                continue;
+            }
+
+            scopeStacksByInstruction[index] = scopeStack;
+
+            var currentScopeId = scopeStack[^1];
+            if (instructionScopes[index] == int.MinValue)
+            {
+                instructionScopes[index] = currentScopeId;
+            }
+
+            var instruction = _instructions[index];
+
+            if (instruction is SimpleVariableDeclarationInstruction varDecl)
+            {
+                // Var declarations always bind in function scope; let/const bind in the current scope.
+                var targetScopeId = varDecl.VarKind == VariableKind.Var ? 0 : currentScopeId;
+                RegisterVariableDeclaration(scopeDeclarations, targetScopeId, varDecl.TargetSymbol);
+            }
+
+            switch (instruction)
+            {
+                case PushEnvironmentInstruction pushEnv:
+                {
+                    TrackScopeInstruction(scopeInstructionIndices, pushEnv.ScopeId, index);
+                    RegisterScope(scopeDeclarations, scopeParents, pushEnv.ScopeId, currentScopeId, pushEnv.SlotMap,
+                        pushEnv.PerIterationBindings);
+                    worklist.Push((pushEnv.Next, scopeStack.Add(pushEnv.ScopeId)));
+                    continue;
+                }
+                case EnterCatchInstruction enterCatch:
+                {
+                    TrackScopeInstruction(scopeInstructionIndices, enterCatch.ScopeId, index);
+                    RegisterScope(scopeDeclarations, scopeParents, enterCatch.ScopeId, currentScopeId, enterCatch.SlotMap,
+                        ImmutableArray<Symbol>.Empty);
+                    worklist.Push((enterCatch.Next, scopeStack.Add(enterCatch.ScopeId)));
+                    continue;
+                }
+                case EnterCatchWithDestructuringInstruction enterCatchDestructuring:
+                {
+                    TrackScopeInstruction(scopeInstructionIndices, enterCatchDestructuring.ScopeId, index);
+                    RegisterScope(scopeDeclarations, scopeParents, enterCatchDestructuring.ScopeId, currentScopeId,
+                        enterCatchDestructuring.SlotMap, ImmutableArray<Symbol>.Empty);
+                    worklist.Push((enterCatchDestructuring.Next, scopeStack.Add(enterCatchDestructuring.ScopeId)));
+                    continue;
+                }
+                case PopEnvironmentInstruction popEnv:
+                {
+                    var nextStack = scopeStack;
+                    if (scopeStack.Length > 1 && scopeStack[^1] == popEnv.ScopeId)
+                    {
+                        nextStack = scopeStack.RemoveAt(scopeStack.Length - 1);
+                    }
+
+                    worklist.Push((popEnv.Next, nextStack));
+                    continue;
+                }
+            }
+
+            foreach (var successor in GetSuccessors(instruction))
+            {
+                worklist.Push((successor, scopeStack));
+            }
+        }
+
+        var resolver = new ScopeAwareSlotResolver(scopeDeclarations, scopeParents);
+        var rewriter = new ScopeAwareSlotRewriter(resolver);
+
+        UpdateScopeInstructions(scopeDeclarations, scopeInstructionIndices);
+
+        for (var i = 0; i < _instructions.Count; i++)
+        {
+            var currentScopeId = instructionScopes[i];
+            if (currentScopeId == int.MinValue)
+            {
+                currentScopeId = 0;
+            }
+
+            _instructions[i] = rewriter.RewriteInstruction(_instructions[i], currentScopeId);
+        }
+
+        return;
+
+        void RegisterScope(
+            Dictionary<int, Dictionary<Symbol, int>> declarations,
+            Dictionary<int, int> parents,
+            int scopeId,
+            int parentScopeId,
+            ImmutableDictionary<Symbol, int> slotMap,
+            ImmutableArray<Symbol> perIterationBindings)
+        {
+            if (!parents.TryGetValue(scopeId, out var existingParent))
+            {
+                parents[scopeId] = parentScopeId;
+            }
+            else if (existingParent != parentScopeId)
+            {
+                // Keep the first parent mapping to avoid conflicting scope graphs.
+            }
+
+            if (!declarations.TryGetValue(scopeId, out var scopeMap))
+            {
+                scopeMap = new Dictionary<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                declarations[scopeId] = scopeMap;
+            }
+
+            foreach (var (symbol, slotIndex) in slotMap)
+            {
+                if (!scopeMap.ContainsKey(symbol))
+                {
+                    scopeMap[symbol] = slotIndex;
+                }
+            }
+
+            if (!perIterationBindings.IsDefaultOrEmpty &&
+                declarations.TryGetValue(parentScopeId, out var parentScopeMap))
+            {
+                foreach (var binding in perIterationBindings)
+                {
+                    if (scopeMap.ContainsKey(binding))
+                    {
+                        continue;
+                    }
+
+                    if (parentScopeMap.TryGetValue(binding, out var parentSlotIndex))
+                    {
+                        scopeMap[binding] = parentSlotIndex;
+                    }
+                    else
+                    {
+                        scopeMap[binding] = GetNextSlotIndex(scopeMap);
+                    }
+                }
+            }
+        }
+
+        void RegisterVariableDeclaration(
+            Dictionary<int, Dictionary<Symbol, int>> declarations,
+            int scopeId,
+            Symbol symbol)
+        {
+            if (!declarations.TryGetValue(scopeId, out var scopeMap))
+            {
+                scopeMap = new Dictionary<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                declarations[scopeId] = scopeMap;
+            }
+
+            if (scopeMap.ContainsKey(symbol))
+            {
+                return;
+            }
+
+            if (scopeId == 0)
+            {
+                // Function-scope declarations become execution-plan slots.
+                var slotIndex = AllocateSlot(symbol);
+                scopeMap[symbol] = slotIndex;
+                return;
+            }
+
+            // Non-function scopes get local slots so identifiers can resolve to their environment.
+            scopeMap[symbol] = GetNextSlotIndex(scopeMap);
+        }
+
+        void TrackScopeInstruction(
+            Dictionary<int, List<int>> scopeInstructions,
+            int scopeId,
+            int instructionIndex)
+        {
+            if (!scopeInstructions.TryGetValue(scopeId, out var indices))
+            {
+                indices = [];
+                scopeInstructions[scopeId] = indices;
+            }
+
+            indices.Add(instructionIndex);
+        }
+
+        void UpdateScopeInstructions(
+            Dictionary<int, Dictionary<Symbol, int>> declarations,
+            Dictionary<int, List<int>> scopeInstructions)
+        {
+            foreach (var (scopeId, instructionIndices) in scopeInstructions)
+            {
+                if (!declarations.TryGetValue(scopeId, out var scopeMap))
+                {
+                    continue;
+                }
+
+                var slotCount = 0;
+                var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                    ReferenceEqualityComparer<Symbol>.Instance);
+                foreach (var (symbol, slotIndex) in scopeMap)
+                {
+                    slotMapBuilder[symbol] = slotIndex;
+                    if (slotIndex >= 0)
+                    {
+                        slotCount = Math.Max(slotCount, slotIndex + 1);
+                    }
+                }
+
+                var updatedSlotMap = slotMapBuilder.ToImmutable();
+                foreach (var instructionIndex in instructionIndices)
+                {
+                    switch (_instructions[instructionIndex])
+                    {
+                        case PushEnvironmentInstruction pushEnv:
+                            _instructions[instructionIndex] = pushEnv with
+                            {
+                                SlotCount = slotCount,
+                                SlotMap = updatedSlotMap
+                            };
+                            break;
+                        case EnterCatchInstruction enterCatch:
+                            _instructions[instructionIndex] = enterCatch with
+                            {
+                                SlotCount = slotCount,
+                                SlotMap = updatedSlotMap
+                            };
+                            break;
+                        case EnterCatchWithDestructuringInstruction enterCatchDestructuring:
+                            _instructions[instructionIndex] = enterCatchDestructuring with
+                            {
+                                SlotCount = slotCount,
+                                SlotMap = updatedSlotMap
+                            };
+                            break;
+                    }
+                }
+            }
+        }
+
+        static int GetNextSlotIndex(Dictionary<Symbol, int> scopeMap)
+        {
+            var nextIndex = 0;
+            foreach (var slotIndex in scopeMap.Values)
+            {
+                if (slotIndex >= nextIndex)
+                {
+                    nextIndex = slotIndex + 1;
+                }
+            }
+
+            return nextIndex;
+        }
+
+        static IEnumerable<int> GetSuccessors(ExecutionInstruction instruction)
+        {
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    if (branch.ConsequentIndex >= 0)
+                    {
+                        yield return branch.ConsequentIndex;
+                    }
+                    if (branch.AlternateIndex >= 0)
+                    {
+                        yield return branch.AlternateIndex;
+                    }
+                    yield break;
+
+                case JumpInstruction jump:
+                    if (jump.TargetIndex >= 0)
+                    {
+                        yield return jump.TargetIndex;
+                    }
+                    yield break;
+
+                case EnterTryInstruction enterTry:
+                    if (enterTry.Next >= 0)
+                    {
+                        yield return enterTry.Next;
+                    }
+                    if (enterTry.HandlerIndex >= 0)
+                    {
+                        yield return enterTry.HandlerIndex;
+                    }
+                    if (enterTry.FinallyIndex >= 0)
+                    {
+                        yield return enterTry.FinallyIndex;
+                    }
+                    if (enterTry.EndFinallyIndex >= 0)
+                    {
+                        yield return enterTry.EndFinallyIndex;
+                    }
+                    yield break;
+
+                case IteratorMoveNextInstruction moveNext:
+                    if (moveNext.Next >= 0)
+                    {
+                        yield return moveNext.Next;
+                    }
+                    if (moveNext.BreakIndex >= 0)
+                    {
+                        yield return moveNext.BreakIndex;
+                    }
+                    yield break;
+
+                case BreakInstruction breakInstruction:
+                    if (breakInstruction.TargetIndex >= 0)
+                    {
+                        yield return breakInstruction.TargetIndex;
+                    }
+                    yield break;
+
+                case ContinueInstruction continueInstruction:
+                    if (continueInstruction.TargetIndex >= 0)
+                    {
+                        yield return continueInstruction.TargetIndex;
+                    }
+                    yield break;
+
+                default:
+                    if (instruction.Next >= 0)
+                    {
+                        yield return instruction.Next;
+                    }
+                    yield break;
+            }
+        }
+
+        static bool ScopeStacksEqual(ImmutableArray<int> left, ImmutableArray<int> right)
+        {
+            if (left.Length != right.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < left.Length; i++)
+            {
+                if (left[i] != right[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 

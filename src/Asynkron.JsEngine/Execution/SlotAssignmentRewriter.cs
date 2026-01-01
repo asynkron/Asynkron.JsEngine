@@ -4,14 +4,49 @@ using Asynkron.JsEngine.Execution.Instructions;
 namespace Asynkron.JsEngine.Execution;
 
 /// <summary>
-/// Rewriter that updates AST nodes with scopeId and slotIndex information.
+/// Resolves slot metadata for identifiers based on the current scope and its parents.
+/// </summary>
+internal sealed class ScopeAwareSlotResolver(
+    Dictionary<int, Dictionary<Symbol, int>> declarations,
+    Dictionary<int, int> scopeParents)
+{
+    public bool TryResolve(Symbol symbol, int currentScopeId, out int scopeId, out int slotIndex)
+    {
+        var scopeIdToCheck = currentScopeId;
+        while (scopeIdToCheck >= 0)
+        {
+            if (declarations.TryGetValue(scopeIdToCheck, out var scopeMap) &&
+                scopeMap.TryGetValue(symbol, out slotIndex))
+            {
+                scopeId = scopeIdToCheck;
+                return true;
+            }
+
+            if (!scopeParents.TryGetValue(scopeIdToCheck, out var parentScopeId))
+            {
+                break;
+            }
+
+            scopeIdToCheck = parentScopeId;
+        }
+
+        scopeId = -1;
+        slotIndex = -1;
+        return false;
+    }
+}
+
+/// <summary>
+/// Rewriter that stamps AST nodes with scopeId and slotIndex information.
 /// Uses AstRewriter base class for consistent AST transformation.
 /// </summary>
-internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, int slotIndex)> symbolToScope)
-    : AstRewriter
+internal sealed class ScopeAwareSlotRewriter(ScopeAwareSlotResolver resolver) : AstRewriter
 {
-    public ExecutionInstruction RewriteInstruction(ExecutionInstruction instruction)
+    private int _currentScopeId;
+
+    public ExecutionInstruction RewriteInstruction(ExecutionInstruction instruction, int currentScopeId)
     {
+        _currentScopeId = currentScopeId;
         return instruction switch
         {
             StatementInstruction stmt => stmt with
@@ -68,12 +103,13 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
 
     protected override IdentifierExpression RewriteIdentifier(IdentifierExpression node)
     {
-        if (symbolToScope.TryGetValue(node.Name, out var scopeInfo))
+        if (resolver.TryResolve(node.Name, _currentScopeId, out var scopeId, out var slotIndex))
         {
             return node with
             {
-                ScopeId = scopeInfo.scopeId,
-                SlotIndex = scopeInfo.slotIndex
+                ScopeDepth = 0,
+                ScopeId = scopeId,
+                SlotIndex = slotIndex
             };
         }
         return node;
@@ -81,14 +117,30 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
 
     protected override AssignmentExpression RewriteAssignment(AssignmentExpression node)
     {
-        // Update the assignment target slot info
-        if (symbolToScope.TryGetValue(node.Target, out var targetInfo))
+        // Update the assignment target slot info.
+        if (resolver.TryResolve(node.Target, _currentScopeId, out var scopeId, out var slotIndex))
         {
+            var targetIdentifier = node.TargetIdentifier;
+            if (targetIdentifier is not null)
+            {
+                targetIdentifier = targetIdentifier with
+                {
+                    ScopeDepth = 0,
+                    ScopeId = scopeId,
+                    SlotIndex = slotIndex
+                };
+            }
+            else
+            {
+                targetIdentifier = new IdentifierExpression(node.Source, node.Target, 0, slotIndex, scopeId);
+            }
+
             return node with
             {
                 ScopeDepth = 0,
-                ScopeId = targetInfo.scopeId,
-                SlotIndex = targetInfo.slotIndex,
+                ScopeId = scopeId,
+                SlotIndex = slotIndex,
+                TargetIdentifier = targetIdentifier,
                 Value = RewriteExpression(node.Value)
             };
         }

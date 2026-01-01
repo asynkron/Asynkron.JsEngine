@@ -34,6 +34,7 @@ public sealed class JsEnvironment : IRentable
     private string? _description;
     internal bool _hasThisValue;
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
+    private Dictionary<Symbol, JsVariable>? _identifierSlotCache;
     private bool _inheritStrictness;
     private bool _isStrictEffective;
 
@@ -208,6 +209,7 @@ public sealed class JsEnvironment : IRentable
         _description = description;
         _values?.Clear();
         _identifierBindingCache?.Clear();
+        _identifierSlotCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
         _simpleCatchParameters?.Clear();
@@ -1459,6 +1461,97 @@ public sealed class JsEnvironment : IRentable
         _identifierBindingCache ??=
             new Dictionary<Symbol, ResolvedIdentifierBinding>(ReferenceEqualityComparer<Symbol>.Instance);
         _identifierBindingCache[name] = binding;
+    }
+
+    /// <summary>
+    /// Tries to resolve a symbol to a cached slot-based variable for fast repeated writes.
+    /// Only used when AllowIdentifierCache is true (no with/eval in scope).
+    /// </summary>
+    internal bool TryGetCachedSlotVariable(Symbol name, EvaluationContext context, out JsVariable variable)
+    {
+        if (!context.AllowIdentifierCache)
+        {
+            variable = default;
+            return false;
+        }
+
+        if (_identifierSlotCache is not null && _identifierSlotCache.TryGetValue(name, out variable))
+        {
+            return variable.IsValid;
+        }
+
+        if (!TryLocateBinding(name, out var bindingEnvironment, out _))
+        {
+            variable = default;
+            return false;
+        }
+
+        if (!bindingEnvironment.HasSlots ||
+            !bindingEnvironment.TryGetSlotIndex(name, out var slotIndex))
+        {
+            variable = default;
+            return false;
+        }
+
+        variable = new JsVariable(bindingEnvironment, slotIndex);
+        _identifierSlotCache ??=
+            new Dictionary<Symbol, JsVariable>(ReferenceEqualityComparer<Symbol>.Instance);
+        _identifierSlotCache[name] = variable;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads a cached slot-based identifier value using the resolved slot environment.
+    /// </summary>
+    internal bool TryReadCachedSlotValue(Symbol name, JsVariable slotVariable, EvaluationContext context,
+        out JsValue value)
+    {
+        var targetEnv = slotVariable.Environment;
+        if (targetEnv._values is null)
+        {
+            value = default;
+            return false;
+        }
+
+        ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
+        if (Unsafe.IsNullRef(ref binding))
+        {
+            value = default;
+            return false;
+        }
+
+        value = ReadResolvedBindingJsValue(targetEnv, ref binding, name, context);
+        return true;
+    }
+
+    /// <summary>
+    /// Writes a cached slot-based identifier value using the resolved slot environment.
+    /// </summary>
+    internal bool TryWriteCachedSlotValue(Symbol name, JsVariable slotVariable, JsValue value, EvaluationContext context)
+    {
+        var targetEnv = slotVariable.Environment;
+        if (targetEnv._values is null)
+        {
+            return false;
+        }
+
+        ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
+        if (Unsafe.IsNullRef(ref binding))
+        {
+            return false;
+        }
+
+        targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value, context.CurrentScope.IsStrict);
+
+        var slots = targetEnv._slots;
+        if (slots is not null &&
+            slotVariable.SlotIndex >= 0 &&
+            slotVariable.SlotIndex < slots.Length)
+        {
+            slots[slotVariable.SlotIndex] = value;
+        }
+
+        return true;
     }
 
     /// <summary>

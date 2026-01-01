@@ -23,7 +23,7 @@ internal static class AssignmentReferenceResolver
         var isStrictTarget = context.CurrentScope.IsStrict &&
                              (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments));
 
-        if (environment.TryResolveWithBinding(name, context, out var withBinding))
+        if (!context.AllowIdentifierCache && environment.TryResolveWithBinding(name, context, out var withBinding))
         {
             return AssignmentReference.ForWithBinding(
                 withBinding,

@@ -607,6 +607,93 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Cached slot resolution: resolve once, then reuse slot location for repeated assignments.
+            // This avoids ResolveIdentifierDirect in hot loops when identifier caching is allowed.
+            var isStrictRestrictedName = context.CurrentScope.IsStrict &&
+                                         (ReferenceEquals(expression.Target, Symbol.Eval) ||
+                                          ReferenceEquals(expression.Target, Symbol.Arguments));
+            if (!isStrictRestrictedName &&
+                context.AllowIdentifierCache &&
+                environment.TryGetCachedSlotVariable(expression.Target, context, out var cachedSlot))
+            {
+                if (expression.IsCompoundAssignment && expression.Value is BinaryExpression cachedBinary)
+                {
+                    if (environment.TryReadCachedSlotValue(expression.Target, cachedSlot, context,
+                            out var currentValue))
+                    {
+                        switch (cachedBinary.Operator)
+                        {
+                            case BinaryOperator.LogicalAnd:
+                                if (!currentValue.IsTruthy)
+                                {
+                                    return currentValue;
+                                }
+                                break;
+                            case BinaryOperator.LogicalOr:
+                                if (currentValue.IsTruthy)
+                                {
+                                    return currentValue;
+                                }
+                                break;
+                            case BinaryOperator.NullishCoalescing:
+                                if (!currentValue.IsNullish)
+                                {
+                                    return currentValue;
+                                }
+                                break;
+                        }
+
+                        var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(expression,
+                            cachedBinary.Right, environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return rhsValue;
+                        }
+
+                        var compoundResult = cachedBinary.Operator switch
+                        {
+                            BinaryOperator.Add => AddValue(currentValue, rhsValue, context),
+                            BinaryOperator.Subtract => SubtractValue(currentValue, rhsValue, context),
+                            BinaryOperator.Multiply => MultiplyValue(currentValue, rhsValue, context),
+                            BinaryOperator.Divide => DivideValue(currentValue, rhsValue, context),
+                            BinaryOperator.Modulo => ModuloValue(currentValue, rhsValue, context),
+                            BinaryOperator.Power => PowerValue(currentValue, rhsValue, context),
+                            BinaryOperator.BitwiseAnd => BitwiseAndValue(currentValue, rhsValue, context),
+                            BinaryOperator.BitwiseOr => BitwiseOrValue(currentValue, rhsValue, context),
+                            BinaryOperator.BitwiseXor => BitwiseXorValue(currentValue, rhsValue, context),
+                            BinaryOperator.LeftShift => LeftShiftValue(currentValue, rhsValue, context),
+                            BinaryOperator.RightShift => RightShiftValue(currentValue, rhsValue, context),
+                            BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(currentValue, rhsValue, context),
+                            BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing => rhsValue,
+                            _ => throw new NotSupportedException(
+                                $"Compound assignment operator '{cachedBinary.Operator}' is not supported.")
+                        };
+
+                        if (!environment.TryWriteCachedSlotValue(expression.Target, cachedSlot, compoundResult, context))
+                        {
+                            environment.SetIdentifierJsValue(expression.Target, compoundResult, context);
+                        }
+
+                        return compoundResult;
+                    }
+                }
+                else if (!expression.IsCompoundAssignment)
+                {
+                    var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return rhsValue;
+                    }
+
+                    if (!environment.TryWriteCachedSlotValue(expression.Target, cachedSlot, rhsValue, context))
+                    {
+                        environment.SetIdentifierJsValue(expression.Target, rhsValue, context);
+                    }
+
+                    return rhsValue;
+                }
+            }
+
             // Fallback to the AssignmentReference path for other cases
             var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
                 expression.Target, environment, context);

@@ -89,12 +89,14 @@ public static partial class TypedAstEvaluator
         private JsValue _scriptCompletionValue = JsValue.Unit;
 
         // Lazy state objects - only allocated when needed
+        // TryCatchState needs explicit backing field for hot-path null check without allocation
+        private TryCatchState? _tryCatchState;
 
         // Lazy accessors
         private AsyncState AsyncStateRef => field ??= new AsyncState();
         private YieldState YieldStateRef => field ??= new YieldState();
         private IteratorState IteratorStateRef => field ??= new IteratorState();
-        private TryCatchState TryCatchStateRef => field ??= new TryCatchState();
+        private TryCatchState TryCatchStateRef => _tryCatchState ??= new TryCatchState();
         private BreakableState BreakableStateRef => field ??= new BreakableState();
         private WithState WithStateRef => field ??= new WithState();
 
@@ -679,27 +681,33 @@ public static partial class TypedAstEvaluator
                 AsyncStateRef.PendingAwaitKey = null;
             }
 
+            // Cache debug mode check outside the hot loop - avoid virtual property access per iteration
+            var debugMode = _realmState.Options.DebugMode;
+            var instructions = _plan.Instructions;
+            var instructionsLength = instructions.Length;
+
             bool continueAfterCatch;
             do
             {
                 continueAfterCatch = false;
                 try
                 {
-                    while (_programCounter >= 0 && _programCounter < _plan.Instructions.Length)
+                    while (_programCounter >= 0 && _programCounter < instructionsLength)
                     {
                         // Check if HandleAbruptCompletion restored the environment (e.g., jumping to catch handler)
                         // This ensures block-scoped bindings from inside the try are no longer visible.
-                        if (TryCatchStateRef.RestoredEnvironmentFromTry is { } restored)
+                        // Only check when TryCatchState has been allocated (_tryCatchState is not null).
+                        if (_tryCatchState is { RestoredEnvironmentFromTry: { } restored })
                         {
                             environment = restored;
-                            TryCatchStateRef.RestoredEnvironmentFromTry = null;
+                            _tryCatchState.RestoredEnvironmentFromTry = null;
                         }
 
                         _currentInstructionIndex = _programCounter;
-                        var instruction = _plan.Instructions[_programCounter];
+                        var instruction = instructions[_programCounter];
 
                         // Trace instruction execution when debug logging is enabled
-                        if (_realmState.Options.DebugMode)
+                        if (debugMode)
                         {
                             _realmState.Logger?.LogTrace(
                                 "[IR:{PC,3}] {Instruction}",

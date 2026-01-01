@@ -64,6 +64,27 @@ Different cultures format numbers differently:
 
 JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
 
+## Build and Test (Codex Web)
+
+These are the standard commands to build and run tests in this repo:
+
+```bash
+# Restore dependencies
+dotnet restore
+
+# Build everything
+dotnet build
+
+# Run the main test suite
+dotnet test tests/Asynkron.JsEngine.Tests
+```
+
+Optional: to run a narrower test subset (replace the filter as needed):
+
+```bash
+dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
+```
+
 ## Profiling
 
 ### Profiler Script (Recommended)

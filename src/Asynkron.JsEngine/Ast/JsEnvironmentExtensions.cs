@@ -36,6 +36,22 @@ public static partial class TypedAstEvaluator
         {
             if (environment.HasFunctionScopedBinding(name))
             {
+                // Ensure slot-backed environments also have a named slot populated for IR fast paths.
+                // Do not overwrite an existing initialized value (e.g., hoisted function declaration).
+                if (environment.TryGetSlotIndex(name, out var existingSlot))
+                {
+                    ref var slot = ref environment.GetSlotByIndex(existingSlot);
+                    if (slot.Name is null)
+                    {
+                        slot.Name = name;
+                    }
+                    if (!slot.Value.IsUninitialized && slot.Value.Kind != JsValueKind.Undefined)
+                    {
+                        return;
+                    }
+
+                    environment.SetSlotDirect(existingSlot, JsValue.Undefined);
+                }
                 return;
             }
 
@@ -51,6 +67,22 @@ public static partial class TypedAstEvaluator
             }
 
             var allowDelete = context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
+            if (environment.TryGetSlotIndex(name, out var slotIndex))
+            {
+                ref var slot = ref environment.GetSlotByIndex(slotIndex);
+                if (slot.Name is null)
+                {
+                    slot.Name = name;
+                }
+                if (!slot.Value.IsUninitialized && slot.Value.Kind != JsValueKind.Undefined)
+                {
+                    return;
+                }
+
+                environment.SetSlotDirect(slotIndex, JsValue.Undefined);
+                return;
+            }
+
             environment.DefineFunctionScoped(name, JsValue.Undefined, false, context: context, canDelete: allowDelete);
         }
 

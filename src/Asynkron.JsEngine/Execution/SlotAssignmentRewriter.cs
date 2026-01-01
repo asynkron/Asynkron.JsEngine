@@ -101,6 +101,36 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         }
     }
 
+    /// <summary>
+    /// Maps a (possibly negative) scope id to the rewritten id used in instructions.
+    /// Exposed so we can stamp iterator plan bodies with consistent scope ids.
+    /// </summary>
+    public int MapScopeId(int scopeId) => RemapScopeId(scopeId);
+
+    /// <summary>
+    /// Stamps an arbitrary AST node with slot metadata using the current slot analysis.
+    /// The node is visited in the context of the provided scope (pushed on top of the stack)
+    /// and the rewritten, stamped node is returned.
+    /// </summary>
+    public T StampNodeInScope<T>(T node, int scopeId) where T : AstNode
+    {
+        var scopeSnapshot = _scopeStack.ToArray();
+        _scopeStack.Clear();
+        _scopeStack.Push(RootScopeId);
+        if (scopeId != RootScopeId)
+        {
+            _scopeStack.Push(scopeId);
+        }
+        var rewritten = node switch
+        {
+            StatementNode stmt => (T)(AstNode)Rewrite(stmt),
+            ExpressionNode expr => (T)(AstNode)Rewrite(expr),
+            _ => node
+        };
+        RestoreStack(scopeSnapshot, Array.Empty<int>());
+        return rewritten;
+    }
+
     public ExecutionInstruction RewriteInstruction(ExecutionInstruction instruction)
     {
         switch (instruction)

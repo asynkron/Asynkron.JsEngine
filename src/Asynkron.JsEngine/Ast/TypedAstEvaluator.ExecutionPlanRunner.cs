@@ -420,10 +420,20 @@ public static partial class TypedAstEvaluator
             // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
             if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
             {
-                var rootSlotCount = _plan.RootSlotCount > 0 ? _plan.RootSlotCount : _plan.SlotCount;
-                executionEnvironment.InitializeSlots(rootSlotCount, scopeId: 0);
-
+                // Ensure we allocate enough slots to cover:
+                // - Internal plan slots (SlotSymbols.Length)
+                // - Root slot map entries (indices can be sparse)
+                // - Explicit RootSlotCount from analysis (if present)
                 var rootSlotMap = _plan.SafeRootSlotMap;
+                var mapMax = rootSlotMap.Count > 0 ? rootSlotMap.Values.Max() + 1 : 0;
+                var requiredSlots = Math.Max(Math.Max(_plan.RootSlotCount, _plan.SlotSymbols.Length), mapMax);
+                if (requiredSlots == 0)
+                {
+                    requiredSlots = _plan.SlotCount;
+                }
+
+                executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
+
                 if (rootSlotMap.Count > 0)
                 {
                     executionEnvironment.SetSlotMap(rootSlotMap);
@@ -557,6 +567,7 @@ public static partial class TypedAstEvaluator
                 generatorContext.Clear();
                 throw new ThrowSignal(thrown);
             }
+            SyncParameterSlotsToPlan(executionEnvironment, parameterEnvironment, parameterNames);
 
             _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,
@@ -576,6 +587,28 @@ public static partial class TypedAstEvaluator
             }
 
             return executionEnvironment;
+        }
+
+        private static void SyncParameterSlotsToPlan(
+            JsEnvironment executionEnvironment,
+            JsEnvironment parameterEnvironment,
+            ImmutableArray<Symbol> parameterNames)
+        {
+            if (parameterNames.IsDefaultOrEmpty || executionEnvironment._slots is null)
+            {
+                return;
+            }
+
+            foreach (var name in parameterNames)
+            {
+                if (!executionEnvironment.TryGetSlotIndex(name, out var slotIndex))
+                {
+                    continue;
+                }
+
+                var value = parameterEnvironment.GetJsValue(name);
+                executionEnvironment.SetSlotDirect(slotIndex, value);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

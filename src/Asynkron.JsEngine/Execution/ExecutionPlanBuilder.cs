@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -135,7 +136,7 @@ internal sealed partial class ExecutionPlanBuilder
         ScopeSlotAnalysis? analysis = null;
         if (!_isScriptLevel)
         {
-            analysis = AssignSlotsToUserVariables(entryIndex);
+            analysis = AssignSlotsToUserVariables(entryIndex, function);
         }
 
         var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
@@ -165,13 +166,47 @@ internal sealed partial class ExecutionPlanBuilder
     /// Collects all user variable identifiers from instructions, assigns them slots,
     /// and updates the AST nodes with scope-aware slot metadata.
     /// </summary>
-    private ScopeSlotAnalysis AssignSlotsToUserVariables(int entryIndex)
+    private ScopeSlotAnalysis AssignSlotsToUserVariables(int entryIndex, FunctionExpression function)
     {
-        var collector = new ScopeSlotCollector(_instructions, _slotSymbols, AllocateSlot);
+        var parameterNames = new List<Symbol>();
+        function.CollectParameterNamesFromFunction(parameterNames);
+        var hoistedFunctions = CollectHoistedFunctionSymbols(function.Body);
+        var seedSlots = new List<Symbol>(_slotSymbols.Count + hoistedFunctions.Count + parameterNames.Count);
+        var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+
+        void AppendIfMissing(IEnumerable<Symbol> symbols)
+        {
+            foreach (var symbol in symbols)
+            {
+                if (seen.Add(symbol))
+                {
+                    seedSlots.Add(symbol);
+                }
+            }
+        }
+
+        AppendIfMissing(_slotSymbols);
+        AppendIfMissing(hoistedFunctions);
+        AppendIfMissing(parameterNames);
+
+        // Keep backing slot list aligned with the ordered seeds so future allocations
+        // get non-conflicting indices.
+        _slotSymbols.Clear();
+        _slotSymbols.AddRange(seedSlots);
+        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+        {
+            File.AppendAllText("/tmp/slotdebug.txt",
+                $"HoistedFunctions count={hoistedFunctions.Count} parameters={parameterNames.Count} seeds=[{string.Join(",", seedSlots.Select((s, i) => $"{i}:{s.Name}"))}]{Environment.NewLine}");
+        }
+
+        var collector = new ScopeSlotCollector(_instructions, seedSlots, AllocateSlot, function);
         var analysis = collector.Collect();
         _lexicalBindings = analysis.LexicalBindings;
         var rewriter = new SlotAssignmentRewriter(analysis);
         rewriter.RewriteInstructions(_instructions, entryIndex);
+
+        // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
+        StampIteratorBodies(function, rewriter);
 
         if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
         {
@@ -250,6 +285,140 @@ internal sealed partial class ExecutionPlanBuilder
         }
 
         return analysis;
+    }
+
+    private static void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)
+    {
+        var collector = new ForEachCollector();
+        collector.Visit(function.Body);
+
+        foreach (var forEach in collector.Results)
+        {
+            var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
+            var mappedScopeId = rewriter.MapScopeId(plan.IterationScopeId);
+            var stampedBody = (BlockStatement)rewriter.StampNodeInScope(plan.Body, mappedScopeId);
+            if (!ReferenceEquals(stampedBody, plan.Body))
+            {
+                UpdateCachedIteratorPlan(forEach, plan, stampedBody);
+            }
+
+            if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+            {
+                File.AppendAllText("/tmp/slotdebug.txt",
+                    $"StampIteratorBody scope={plan.IterationScopeId} mapped={mappedScopeId} bindings=[{string.Join(",", plan.PerIterationBindings)}] slots={plan.IterationSlotCount}{Environment.NewLine}");
+            }
+        }
+    }
+
+    private static void UpdateCachedIteratorPlan(ForEachStatement forEach, IteratorDriverPlan existingPlan,
+        BlockStatement stampedBody)
+    {
+        var updatedPlan = existingPlan with { Body = stampedBody };
+        var cacheField = typeof(ForEachStatement)
+            .GetField("_cachedPlan", BindingFlags.Instance | BindingFlags.NonPublic);
+        cacheField?.SetValue(forEach, updatedPlan);
+    }
+
+    private sealed class ForEachCollector : AstVisitor
+    {
+        public List<ForEachStatement> Results { get; } = new();
+
+        protected override void VisitStatement(StatementNode statement)
+        {
+            if (statement is ForEachStatement forEach)
+            {
+                Results.Add(forEach);
+            }
+
+            base.VisitStatement(statement);
+        }
+    }
+
+    private static List<Symbol> CollectHoistedFunctionSymbols(BlockStatement body)
+    {
+        var result = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+
+        foreach (var statement in body.Statements)
+        {
+            CollectFromStatement(statement, inBlockScope: false, result);
+        }
+
+        return result.ToList();
+
+        static void CollectFromStatement(StatementNode statement, bool inBlockScope, HashSet<Symbol> sink)
+        {
+            while (true)
+            {
+                switch (statement)
+                {
+                    case FunctionDeclaration funcDecl when !inBlockScope:
+                        sink.Add(funcDecl.Name);
+                        return;
+                    case BlockStatement block:
+                        foreach (var inner in block.Statements)
+                        {
+                            CollectFromStatement(inner, true, sink);
+                        }
+                        return;
+                    case IfStatement ifStatement:
+                        CollectFromStatement(ifStatement.Then, true, sink);
+                        if (ifStatement.Else is { } elseBranch)
+                        {
+                            statement = elseBranch;
+                            inBlockScope = true;
+                            continue;
+                        }
+                        return;
+                    case WhileStatement whileStatement:
+                        statement = whileStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case DoWhileStatement doWhileStatement:
+                        statement = doWhileStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case ForStatement forStatement:
+                        if (forStatement.Initializer is StatementNode initStmt)
+                        {
+                            CollectFromStatement(initStmt, true, sink);
+                        }
+                        statement = forStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case ForEachStatement forEachStatement:
+                        statement = forEachStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case SwitchStatement switchStatement:
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            CollectFromStatement(switchCase.Body, true, sink);
+                        }
+                        return;
+                    case TryStatement tryStatement:
+                        CollectFromStatement(tryStatement.TryBlock, true, sink);
+                        if (tryStatement.Catch is { Body: { } catchBody })
+                        {
+                            CollectFromStatement(catchBody, true, sink);
+                        }
+                        if (tryStatement.Finally is { } finallyBody)
+                        {
+                            CollectFromStatement(finallyBody, true, sink);
+                        }
+                        return;
+                    case LabeledStatement labeledStatement:
+                        statement = labeledStatement.Statement;
+                        inBlockScope = true;
+                        continue;
+                    case WithStatement withStatement:
+                        statement = withStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    default:
+                        return;
+                }
+            }
+        }
     }
 
     internal bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)

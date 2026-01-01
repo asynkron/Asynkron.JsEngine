@@ -170,7 +170,7 @@ public static partial class TypedAstEvaluator
                         else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                         {
                             // Fast path: direct slot write for let/const bindings
-                            iterationEnvironment.GetSlotRef(fastPathSlotIndex) = enumeratorValue;
+                            iterationEnvironment.SetSlotDirect(fastPathSlotIndex, enumeratorValue);
                         }
                         else
                         {
@@ -299,7 +299,7 @@ public static partial class TypedAstEvaluator
                             else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                             {
                                 // Fast path: direct slot write for let/const bindings
-                                iterationEnvironment.GetSlotRef(fastPathSlotIndex) = value;
+                                iterationEnvironment.SetSlotDirect(fastPathSlotIndex, value);
                             }
                             else
                             {
@@ -402,7 +402,7 @@ public static partial class TypedAstEvaluator
                                     if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                                     {
                                         // Fast path: direct slot write for let/const bindings
-                                        iterationEnvironment.GetSlotRef(fastPathSlotIndex) = nextJsValue;
+                                        iterationEnvironment.SetSlotDirect(fastPathSlotIndex, nextJsValue);
                                     }
                                     else
                                     {
@@ -519,7 +519,7 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                iterationEnvironment.GetSlotRef(slotIndex) = value;
+                iterationEnvironment.SetSlotDirect(slotIndex, value);
             }
         }
 

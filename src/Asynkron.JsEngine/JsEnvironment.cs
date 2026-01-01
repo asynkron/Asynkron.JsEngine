@@ -3859,7 +3859,10 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotDirect(int slotIndex, JsValue value)
     {
-        _slots![slotIndex].Value = value;
+        ref var slot = ref _slots![slotIndex];
+        slot.Value = value;
+        // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
+        slot.Flags &= ~SlotFlags.Uninitialized;
     }
 
     /// <summary>

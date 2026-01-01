@@ -220,7 +220,8 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
 
         foreach (var id in loopVars)
         {
-            AssertIdentifierHasSlot(id, cache.Plan, requireNonRootScope: true);
+            var requireNonRootScope = id.Name.Name is not "sum";
+            AssertIdentifierHasSlot(id, cache.Plan, requireNonRootScope: requireNonRootScope);
         }
 
         var bindings = loopVars

@@ -18,6 +18,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private const int RootScopeId = 0;
 
     private readonly Func<Symbol, int> _allocateRootSlot;
+    private readonly ImmutableArray<Symbol> _parameterSymbols;
     private readonly Dictionary<Symbol, int> _bindingScopeHints =
         new(ReferenceEqualityComparer<Symbol>.Instance);
     private readonly List<ExecutionInstruction> _instructions;
@@ -26,10 +27,12 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     public ScopeSlotCollector(IEnumerable<ExecutionInstruction> instructions,
         IReadOnlyList<Symbol> existingRootSlots,
-        Func<Symbol, int> allocateRootSlot)
+        Func<Symbol, int> allocateRootSlot,
+        FunctionExpression? function = null)
     {
         _allocateRootSlot = allocateRootSlot;
         _instructions = instructions.ToList();
+        _parameterSymbols = CollectParameterSymbols(function);
         BuildBindingScopeHints();
         SeedRootScope(existingRootSlots);
         _scopeStack.Push(RootScopeId);
@@ -77,12 +80,25 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private void SeedRootScope(IReadOnlyList<Symbol> existingSlots)
     {
         var rootInfo = GetOrCreateScopeInfo(RootScopeId);
-        rootInfo.SlotCountHint = Math.Max(rootInfo.SlotCountHint, existingSlots.Count);
+        var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var index = 0;
 
-        for (var i = 0; i < existingSlots.Count; i++)
+        void AppendOrdered(IEnumerable<Symbol> symbols)
         {
-            rootInfo.IncludeSlot(existingSlots[i], i);
+            foreach (var symbol in symbols)
+            {
+                if (seen.Add(symbol))
+                {
+                    rootInfo.IncludeSlot(symbol, index++);
+                }
+            }
         }
+
+        AppendOrdered(existingSlots);
+        AppendOrdered(_parameterSymbols);
+
+        rootInfo.SlotCountHint = Math.Max(rootInfo.SlotCountHint, index);
+        rootInfo.NextSlotIndex = Math.Max(rootInfo.NextSlotIndex, index);
     }
 
     private ScopeSlotInfo GetOrCreateScopeInfo(int scopeId)
@@ -336,6 +352,30 @@ internal sealed class ScopeSlotCollector : AstVisitor
         {
             AllocateSlotInScope(RootScopeId, node.Name);
         }
+    }
+
+    protected override void VisitStatement(StatementNode statement)
+    {
+        if (statement is FunctionDeclaration funcDecl)
+        {
+            // Function declarations are hoisted to the function/global scope.
+            AllocateSlotInScope(RootScopeId, funcDecl.Name);
+            return;
+        }
+
+        base.VisitStatement(statement);
+    }
+
+    private static ImmutableArray<Symbol> CollectParameterSymbols(FunctionExpression? function)
+    {
+        if (function is null)
+        {
+            return ImmutableArray<Symbol>.Empty;
+        }
+
+        var list = new List<Symbol>();
+        function.CollectParameterNamesFromFunction(list);
+        return list.Count == 0 ? ImmutableArray<Symbol>.Empty : [..list];
     }
 }
 

@@ -50,6 +50,7 @@ public sealed class RealmState
 
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }
+    public JsObject? AsyncFunctionPrototype { get; set; }
     public IJsObjectLike? ArrayPrototype { get; set; }
     public JsObject? DatePrototype { get; set; }
     public JsObject? ErrorPrototype { get; set; }
@@ -75,6 +76,7 @@ public sealed class RealmState
     public JsObject? WeakMapPrototype { get; set; }
     public JsObject? WeakSetPrototype { get; set; }
     public HostFunction? ArrayConstructor { get; set; }
+    public HostFunction? AsyncFunctionConstructor { get; set; }
     public HostFunction? MapConstructor { get; set; }
     public HostFunction? SetConstructor { get; set; }
     public HostFunction? WeakMapConstructor { get; set; }

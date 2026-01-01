@@ -537,6 +537,7 @@ public static class ReflectHelper
         {
             "Array" => realmState.ArrayPrototype,
             "ArrayBuffer" => realmState.ArrayBufferPrototype,
+            "AsyncFunction" => realmState.AsyncFunctionPrototype,
             "SharedArrayBuffer" => realmState.SharedArrayBufferPrototype,
             "Boolean" => realmState.BooleanPrototype,
             "Date" => realmState.DatePrototype,

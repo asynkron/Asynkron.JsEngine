@@ -170,7 +170,21 @@ public static partial class TypedAstEvaluator
 
             var paramCount = function.Parameters.GetExpectedParameterCount();
             var functionNameValue = _function.Name?.Name ?? string.Empty;
-            if (RealmState.FunctionPrototype is not null)
+            if (IsAsyncLike)
+            {
+                var asyncProto = RealmState.AsyncFunctionPrototype;
+                if (asyncProto is null)
+                {
+                    RealmState.AsyncFunctionConstructor ??= AsyncFunctionConstructor.CreateConstructor(RealmState);
+                    asyncProto = RealmState.AsyncFunctionPrototype;
+                }
+
+                if (asyncProto is not null)
+                {
+                    _properties.SetPrototype(asyncProto);
+                }
+            }
+            else if (RealmState.FunctionPrototype is not null)
             {
                 _properties.SetPrototype(RealmState.FunctionPrototype);
             }

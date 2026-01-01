@@ -91,6 +91,36 @@ internal static class ExpressionStatementEmitter
             return true;
         }
 
+        // Fast path: compound assignment on simple identifiers (e.g., s += i, s -= 1)
+        // Only handle non-short-circuit operators (+=, -=, *=, /=, %=, **=, bitwise ops)
+        // Logical operators (&&=, ||=, ??=) need special short-circuit handling
+        // NOTE: Skip this optimization for script-level code because:
+        //   1. Scripts may contain 'with' statements that require dynamic identifier resolution
+        //   2. Eval'd code runs at script level and may be inside a with-scope from caller
+        //   3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
+        if (!ctx.IsScriptLevel &&
+            expressionStatement.Expression is AssignmentExpression
+            {
+                IsCompoundAssignment: true,
+                Value: BinaryExpression compoundBinary
+            } compoundAssign &&
+            compoundBinary.Operator is
+                BinaryOperator.Add or BinaryOperator.Subtract or
+                BinaryOperator.Multiply or BinaryOperator.Divide or
+                BinaryOperator.Modulo or BinaryOperator.Power or
+                BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or
+                BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or
+                BinaryOperator.RightShift or BinaryOperator.UnsignedRightShift)
+        {
+            entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
+                nextIndex,
+                compoundAssign.Target,
+                compoundBinary.Operator,
+                compoundBinary.Right,
+                suppressCompletion));
+            return true;
+        }
+
         // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
         entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression, suppressCompletion));
         return true;

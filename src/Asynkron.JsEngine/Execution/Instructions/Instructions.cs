@@ -73,6 +73,29 @@ internal sealed record IncrementSlotInstruction(
     : ExecutionInstruction(InstructionKind.IncrementSlot, Next);
 
 /// <summary>
+///     Performs a compound assignment operation directly on an identifier slot (e.g., s += i).
+///     This avoids going through the generic AssignmentExpression AST evaluator.
+/// </summary>
+/// <remarks>
+///     This instruction provides a fast path for compound assignments like <c>s += i</c>,
+///     <c>s -= value</c>, <c>s *= expr</c>, etc. on simple identifiers. It reads the
+///     current value from the target slot, applies the binary operation with the RHS,
+///     and writes the result back to the slot.
+/// </remarks>
+/// <param name="Next">Next instruction index.</param>
+/// <param name="TargetSymbol">The target identifier symbol.</param>
+/// <param name="Operator">The compound assignment operator (Add, Subtract, etc.).</param>
+/// <param name="RhsExpression">The right-hand side expression.</param>
+/// <param name="SuppressCompletionValue">When true, the completion value is NOT updated.</param>
+internal sealed record CompoundAssignmentSlotInstruction(
+    int Next,
+    Symbol TargetSymbol,
+    BinaryOperator Operator,
+    ExpressionNode RhsExpression,
+    bool SuppressCompletionValue = false)
+    : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next);
+
+/// <summary>
 ///     Represents a function declaration in the generator.
 ///     Function declarations are hoisted, so this instruction is a no-op at runtime
 ///     that simply advances to the next instruction.

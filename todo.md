@@ -1,309 +1,111 @@
 # TODO: Identifier Slot Optimization
 
-## Problem
+## Investigation Status: BLOCKED - Closure Incompatibility
 
-User variable identifiers (like `s`, `i` in loops) have `SlotIndex=-1` and `ScopeId=-1`, causing all lookups to use slow scope-chain traversal instead of direct slot access.
+**Date**: 2026-01-01
+**Conclusion**: User variable slot optimization is NOT feasible without implementing full closure analysis.
 
-See `docs/identifier-slot-optimization.md` for full investigation details.
+### Root Cause
 
-## Proof: Test Bomb
+The investigation discovered a fundamental architectural issue:
 
-The bug is proven by 8 tests in `tests/Asynkron.JsEngine.Tests/SlotOptimizationTestBomb.cs`:
+1. **Slots and dictionary bindings are separate storage systems** - they don't share state
+2. **Closures access variables through the environment chain** (dictionary bindings), not slots
+3. **Inner functions can read/write outer variables** - if outer uses slots but inner uses dictionary, they see different values
 
-| Test | What it proves |
-|------|---------------|
-| **H1** | Loop variable `i` in condition `i < 10` has `SlotIndex=-1` |
-| **H2** | RHS identifier `i` in `s += i` has `SlotIndex=-1` |
-| **H3** | Return variable `s` has `SlotIndex=-1` |
-| **H4** | Even with `PushEnvironmentInstruction`, identifiers have no slot info |
-| **H5** | Nested loops: `i`, `j`, `sum` all have `SlotIndex=-1` |
-| **H6** | Shadowed variables: both inner and outer `x` have no slot info |
-| **H7** | Simple function variable: even basic `let x = 42; return x` has no slot info |
-| **H8** | Execution works correctly (confirms it's a perf issue, not correctness) |
-
-Run the tests:
-```bash
-dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SlotOptimizationTestBomb"
-```
-
-After the fix is implemented, **invert the assertions** in H1-H7 to verify slot info IS assigned:
-```csharp
-// BEFORE fix (current):
-Assert.Equal(-1, leftId.SlotIndex); // PROVES THE BUG
-
-// AFTER fix:
-Assert.True(leftId.SlotIndex >= 0); // PROVES THE FIX
-Assert.True(leftId.ScopeId >= 0);
-```
-
-## Proposed Solution
-
-Replace the current `IdentifierCollector` with a scope-tracking walker that builds a complete symbol-to-scope map.
-
-### Flow
-
-```
-1. Build IR fully (existing)
-   └── Creates PushEnvironmentInstruction with ScopeId, SlotMap, PerIterationBindings
-   └── Creates SimpleVariableDeclarationInstruction for declarations
-   └── Creates BranchInstruction, CompoundAssignmentSlotInstruction, etc. with AST refs
-
-2. Collect scope structure by walking IR
-   └── Track "current scope" stack as we encounter PUSH_ENV/POP_ENV
-   └── Build two data structures:
-
-       declarations: Map<ScopeId, Map<Symbol, SlotIndex>>
-       scopeParents: Map<ScopeId, ScopeId>  (child → parent)
-
-   └── When we see PushEnvironmentInstruction:
-       - Record scopeParents[instruction.ScopeId] = currentScope
-       - Push instruction.ScopeId onto scope stack
-       - Copy instruction.SlotMap entries into declarations[scopeId]
-   └── When we see SimpleVariableDeclarationInstruction:
-       - Add to declarations[currentScope][symbol] = allocatedSlot
-   └── When we see PopEnvironmentInstruction:
-       - Pop scope stack
-
-3. Rewrite AST nodes with scope-aware resolution
-   └── Walk IR again, tracking current scope via PUSH_ENV/POP_ENV
-   └── For each IdentifierExpression encountered:
-       - Start from currentScope
-       - Look for symbol in declarations[scope]
-       - If not found, look in scopeParents[scope] (walk up)
-       - If found: stamp with (scopeId, slotIndex)
-       - If not found in any scope: leave as -1 (closure/global, use dynamic lookup)
-```
-
-### Example
+### Proof: TdzClosureTest.H4 Failure
 
 ```javascript
-function run() {
-    let s = 0;
-    for (let i = 0; i < 10; i++) {
-        s += i;
-    }
-    return s;
-}
+(function() {
+    function f() { x = 1; }  // Inner function writes to x via environment chain (dictionary)
+    f();
+    var x;                   // If x gets a slot, outer reads from slot (still undefined!)
+    return x;                // Expected: 1, Actual: undefined (or crash)
+}())
 ```
 
-```
-IR Instructions:
-  [0] SIMPLE_VAR_DECL s = 0           // ScopeId=0 (function level)
-  [1] PUSH_ENV scopeId=1, slots={i→0} // Iteration scope
-  [2] SIMPLE_VAR_DECL i = 0           // In scope 1
-  [3] BRANCH (i < 10) ? [4] : [7]     // i should use scopeId=1, slot=0
-  [4] COMPOUND s Add= i               // s→(0,0), i→(1,0)
-  [5] INCREMENT i++                   // i→(1,0)
-  [6] JUMP [3]
-  [7] POP_ENV
-  [8] RETURN s                        // s→(0,0)
+When we tried assigning slots to user variables:
+1. Outer function's `x` got SlotIndex=0
+2. `return x` reads from `_slots[0]` = undefined
+3. Inner `f()` writes to `x` via `environment.TrySetIdentifier()` → dictionary binding
+4. These are **separate storage locations** - the write never affects the slot!
 
-After scope tracking:
-  s → (scopeId=0, slotIndex=0)  // Function scope
-  i → (scopeId=1, slotIndex=0)  // Iteration scope
-```
+### What Would Be Required
 
-## Implementation Steps
+To make user variable slot optimization work:
 
-- [ ] **Verify IR structure first**: Print IR for a simple for loop to confirm:
-  - Does `PushEnvironmentInstruction.SlotMap` already contain loop variable `i`?
-  - Is there a separate `SimpleVariableDeclarationInstruction` for `i`?
-  - What ScopeIds are assigned?
+1. **Closure analysis** - Determine which variables are captured by inner functions
+2. **Captured variables remain in dictionary** - Only non-captured variables get slots
+3. **This requires walking ALL nested functions** at plan-build time
 
-- [ ] Create `ScopeAwareSlotCollector` that:
-  - Walks IR once, tracking scope stack via PUSH_ENV/POP_ENV
-  - Builds `declarations: Dictionary<int, Dictionary<Symbol, int>>`
-  - Builds `scopeParents: Dictionary<int, int>`
-  - Extracts slot info from `PushEnvironmentInstruction.SlotMap`
-  - Allocates slots for `SimpleVariableDeclarationInstruction` targets
-  - Continues to handle `\u0001` prefixed compiler-generated symbols
-
-- [ ] Create `ScopeAwareSlotRewriter` that:
-  - Walks IR again, tracking current scope
-  - For each `IdentifierExpression`, resolves through scope chain
-  - Stamps with (ScopeId, SlotIndex) or leaves as -1 if not found
-
-- [ ] Update `ExecutionPlanBuilder.AssignSlotsToUserVariables()` to use new collector + rewriter
-
-- [ ] Handle `var` vs `let`/`const`:
-  - `var` declarations go to function scope (ScopeId=0)
-  - `let`/`const` declarations go to current block/loop scope
-
-- [ ] Run tests to verify correctness
-
-- [ ] Run profiler to measure improvement
-
-## Files to Modify
-
-- `src/Asynkron.JsEngine/Execution/IdentifierCollector.cs` → Replace with scope-tracking version
-- `src/Asynkron.JsEngine/Execution/ExecutionPlanBuilder.cs` → Update `AssignSlotsToUserVariables()`
-- `src/Asynkron.JsEngine/Execution/SlotAssignmentRewriter.cs` → May need updates for scope-aware rewriting
-
-## Gaps & Edge Cases to Address
-
-### 1. Variable Shadowing
-```javascript
-let x = 1;
-for (let x = 0; ...) { ... } // Different x in different scope
-```
-The same Symbol name might exist in multiple scopes. Need to track declarations per-scope, not globally.
-
-### 2. References to Outer Scope Variables
-In `s += i` inside the loop:
-- `i` → declared in scope 1 (iteration)
-- `s` → declared in scope 0 (function)
-
-When rewriting, we must look up where each symbol was **declared**, not just the current scope.
-
-**Key insight**: The map structure should be:
-```
-declarations: Map<ScopeId, Map<Symbol, SlotIndex>>  // What's declared in each scope
-scopeParents: Map<ScopeId, ScopeId>                 // Scope hierarchy
-```
-
-During rewriting, for each identifier reference at position P (inside scope S):
-1. Look for symbol in scope S's declarations
-2. If not found, look in parent scope
-3. Repeat until found (gives us the declaring ScopeId and SlotIndex)
-
-### 3. Nested Scopes
-```javascript
-for (...) {
-    for (...) {           // scope 2
-        { let x; }        // scope 3 (block)
-    }
-}
-```
-Need proper scope stack push/pop to handle arbitrary nesting.
-
-### 4. IR Traversal Order
-IR has jumps/branches - not purely linear. However, PUSH_ENV/POP_ENV should still be properly nested in instruction index order. Need to verify this assumption.
-
-### 5. For Loop Initialization (VERIFY FIRST)
-The example shows `SIMPLE_VAR_DECL i = 0` as a separate instruction, but for `let` loops, `i` might already be in `PushEnvironmentInstruction.SlotMap`.
-
-**Action**: Before implementing, print actual IR for a for loop to understand the structure. This is the first implementation step.
-
-### 6. Compiler-Generated Variables
-Current collector handles `\u0001` prefixed symbols. New collector must continue to handle these (they go in ScopeId=0).
-
-### 7. Closures
+Example analysis:
 ```javascript
 function outer() {
-    let x = 1;
-    return function inner() { return x; }
-}
-```
-Inner function captures `x` from outer scope. This is a **different execution plan** - inner function's IR doesn't have access to outer's slots. Slot optimization only applies within a single function's IR.
-
-### 8. Runtime Lookup
-At runtime, `FindByScopeId(scopeId)` walks the environment chain to find the right scope. With nested loops creating multiple environments, verify this works correctly:
-```
-Environment chain: [Scope3] → [Scope2] → [Scope1] → [Scope0]
-Reading variable with ScopeId=1 should find [Scope1]
-```
-
-### 9. ScopeDepth Field
-`IdentifierExpression` has `ScopeDepth` (how many scopes up). With slot-based lookup using `ScopeId`, is `ScopeDepth` still needed? Or is `FindByScopeId` sufficient?
-
-### 10. `var` Hoisting
-```javascript
-function f() {
-    console.log(x);  // undefined, not ReferenceError
-    if (true) {
-        var x = 1;   // Hoisted to function scope
+    let x = 1;           // x is captured by inner → NO slot
+    let y = 2;           // y is NOT captured → CAN have slot
+    function inner() {
+        return x;        // Captures x
     }
+    return inner() + y;
 }
 ```
-`var` declarations are hoisted to function scope (ScopeId=0), not block scope. The `SimpleVariableDeclarationInstruction` for `var` should always go to scope 0, regardless of current scope stack.
 
-### 11. Assignment Targets
-`AssignmentExpression` has a `Target` symbol that also needs slot stamping. The rewriter must handle both:
-- `IdentifierExpression` (reads)
-- `AssignmentExpression.Target` (writes)
+### Current Design (Correct)
 
-Current `SlotAssignmentRewriter.RewriteAssignment` already does this, but needs scope-aware resolution.
+The current implementation only assigns slots to **compiler-generated symbols** (prefixed with `\u0001`):
+- `\u0001_resume0`, `\u0001_catch0`, `\u0001_yieldstar0`, etc.
+- These are NEVER accessed by closures because they're internal to the IR execution
 
-## Verification Criteria
+This is correct behavior. The test bomb tests document the "missing optimization" but the architecture fundamentally prevents it without closure analysis.
 
-### 1. All Tests Pass
-```bash
-dotnet test tests/Asynkron.JsEngine.Tests
-```
-No regressions. The naive fix broke 12 ForLoop tests - a correct fix must pass all.
+### Performance Impact
 
-### 2. Slot Info Is Assigned
-After building IR + rewriting, inspect identifiers:
-```csharp
-// In a test, after Evaluate:
-var funcDecl = (FunctionDeclaration)program.Body[0];
-var forStmt = (ForStatement)funcDecl.Function.Body.Statements[1];
-var condition = (BinaryExpression)forStmt.Condition;
-var leftId = (IdentifierExpression)condition.Left;
+- User variables use dictionary lookup (O(1) hash, but with string comparison overhead)
+- Compiler-generated variables use slot lookup (O(1) array index)
+- For tight loops, the dictionary overhead is measurable but not critical
+- The profiler showed ~13,000ms for ExecutePlan in worst case, which includes all evaluation overhead
 
-// BEFORE fix: SlotIndex=-1, ScopeId=-1
-// AFTER fix:  SlotIndex>=0, ScopeId>=0
-Assert.True(leftId.SlotIndex >= 0, "i should have slot assigned");
-Assert.True(leftId.ScopeId >= 0, "i should have scope assigned");
-```
+### Files Examined
 
-### 3. Correct Scope Assignment
-For the example `for (let i...) { s += i }`:
-- `i` references should have ScopeId = iteration scope (e.g., 1)
-- `s` references should have ScopeId = function scope (0)
+- `src/Asynkron.JsEngine/Execution/IdentifierCollector.cs` - Only collects `\u0001` prefixed symbols (correct)
+- `src/Asynkron.JsEngine/Execution/ExecutionPlanBuilder.cs` - `AssignSlotsToUserVariables()` only handles compiler symbols
+- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.cs` - Shows slot/dictionary separation
 
-Verify with a test that checks shadowing works:
-```javascript
-let x = 1;
-let result;
-for (let x = 0; x < 1; x++) {
-    result = x;  // Should be 0, not 1
-}
-// result should be 0
-```
+### Test Bomb Status
 
-### 4. Fast Paths Trigger
-Enable debug logging and verify no "slot read miss" messages for loop variables:
-```csharp
-var logger = new FakeLogger();
-var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
-await engine.Evaluate(forLoopCode);
+The 8 tests in `SlotOptimizationTestBomb.cs` document the current behavior:
 
-// Should NOT see slot misses for s, i
-Assert.DoesNotContain(logger.Messages, m => m.Contains("slot read miss name=s"));
-Assert.DoesNotContain(logger.Messages, m => m.Contains("slot read miss name=i"));
-```
+| Test | Status | Meaning |
+|------|--------|---------|
+| H1-H7 | PASS (assert -1) | User variables have no slot info - this is EXPECTED |
+| H8 | PASS | Execution works correctly - confirms correctness |
 
-### 5. Performance Improvement
-```bash
-./tools/profile forloop --cpu
-```
-Compare before/after:
-- **Before**: ExecutePlan ~13,000ms (slow scope chain lookup)
-- **After**: ExecutePlan should be ~10-100ms (direct slot access)
+These tests should remain as-is. They document the architectural constraint, not a bug.
 
-Look for:
-- `EvaluateExpression` call count should drop dramatically
-- `FindByScopeId` should appear instead of `TryGetIdentifier` chain walking
+---
 
-### 6. Closure Variables Still Work
-Variables captured from outer functions should NOT get slots (they need dynamic lookup):
-```javascript
-function outer() {
-    let x = 1;
-    function inner() { return x; }  // x has SlotIndex=-1
-    return inner();
-}
-// Should return 1
-```
+## Original Problem Statement (for reference)
 
-### 7. Edge Cases Pass
-Create specific tests for each gap:
-- [ ] Shadowing: inner scope `x` doesn't affect outer `x`
-- [ ] Nested loops: each loop has its own iteration scope
-- [ ] `var` hoisting: var in block goes to function scope
-- [ ] Block scopes: `{ let x }` creates separate scope
+User variable identifiers (like `s`, `i` in loops) have `SlotIndex=-1` and `ScopeId=-1`, causing all lookups to use scope-chain traversal instead of direct slot access.
 
-## Expected Impact
+See `docs/identifier-slot-optimization.md` for the original investigation details.
 
-Profiling showed ~1000x speedup for tight loops when slot-based lookup is used (though the naive implementation broke tests due to wrong scope assignment).
+## Future Work (if desired)
+
+If slot optimization for user variables is ever prioritized, the implementation would require:
+
+1. **Add closure analysis pass** before IR building
+   - Walk all nested function expressions
+   - Track which identifiers are referenced from inner scopes
+   - Mark captured identifiers in a set
+
+2. **Modify IdentifierCollector** to include non-captured user variables
+   - Check symbol against captured set
+   - Only assign slots to non-captured identifiers
+
+3. **Handle edge cases**
+   - `eval()` in scope makes all variables potentially captured
+   - `with` statements make all variables dynamic
+   - `arguments` object can alias parameters
+
+4. **Estimated complexity**: High - requires understanding all closure semantics

@@ -5,6 +5,7 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -14,16 +15,49 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class DisposableStackConstructor(IJsObjectLike prototype, RealmState realm)
     : JsConstructor(prototype, realm)
 {
+    private HostFunction? _constructor;
+
+    private HostFunction ConstructFallback =>
+        _constructor ?? throw new InvalidOperationException("DisposableStack constructor not initialized");
+
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        // TODO: Implement DisposableStack constructor
-        // Creates a new DisposableStack for explicit resource management
-        var obj = PrepareThisObject(JsValue.Undefined, false);
-        if (Prototype is not null && obj.Prototype is null)
+        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true })
         {
-            obj.SetPrototype(Prototype);
+            var target = _constructor ?? ConstructFallback;
+            return JsValue.FromObjectUnsafe(ConstructStack(target, target));
         }
-        obj.RealmState ??= Realm;
-        return new JsValue(obj);
+
+        throw ThrowTypeError("Constructor DisposableStack requires 'new'", realm: Realm);
+    }
+
+    protected override void ConfigureConstructor(HostFunction constructor)
+    {
+        _constructor = constructor;
+        Realm.DisposableStackConstructor ??= constructor;
+        Realm.DisposableStackPrototype ??= Prototype as JsObject;
+
+        constructor.SetInvokeWithContext((_, _, _, newTarget) =>
+        {
+            if (!newTarget.TryGetCallable(out var callable))
+            {
+                throw ThrowTypeError("Constructor DisposableStack requires 'new'", realm: Realm);
+            }
+
+            var target = _constructor ?? constructor;
+            return JsValue.FromObjectUnsafe(ConstructStack(callable, target));
+        });
+    }
+
+    private object ConstructStack(IJsCallable newTarget, IJsCallable targetCtor)
+    {
+        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
+        var instance = new JsDisposableStack();
+        if (proto is not null)
+        {
+            instance.SetPrototype(proto);
+        }
+
+        return instance;
     }
 }

@@ -1104,6 +1104,76 @@ public static partial class TypedAstEvaluator
                                 continue;
                             }
 
+                            case InstructionKind.CompoundAssignmentSlot:
+                            {
+                                var compoundInstruction = Unsafe.As<CompoundAssignmentSlotInstruction>(instruction);
+                                // Fast path for compound assignment on identifiers (e.g., s += i)
+                                // Read current value from target
+                                var compCurrentValue = environment.GetIdentifierJsValueDirect(compoundInstruction.TargetSymbol, context);
+                                if (context.IsThrow)
+                                {
+                                    var compThrown = context.FlowValue;
+                                    context.Clear();
+                                    if (HandleAbruptCompletion(AbruptKind.Throw, compThrown, environment))
+                                    {
+                                        continue;
+                                    }
+                                    TryCatchStateRef.TryStack.Clear();
+                                    throw new ThrowSignal(compThrown);
+                                }
+
+                                // Evaluate RHS expression
+                                var compRhsValue = compoundInstruction.RhsExpression.EvaluateExpression(environment, context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    if (TryHandlePendingAwait(context, out var pendingCompResult, environment))
+                                    {
+                                        return pendingCompResult;
+                                    }
+                                    if (context.IsThrow)
+                                    {
+                                        var compRhsThrown = context.FlowValue;
+                                        context.Clear();
+                                        if (HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown, environment))
+                                        {
+                                            continue;
+                                        }
+                                        TryCatchStateRef.TryStack.Clear();
+                                        throw new ThrowSignal(compRhsThrown);
+                                    }
+                                }
+
+                                // Apply the operator using fast-path methods
+                                var compResult = compoundInstruction.Operator switch
+                                {
+                                    BinaryOperator.Add => AddValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.Subtract => SubtractValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.Multiply => MultiplyValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.Divide => DivideValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.Modulo => ModuloValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.Power => PowerValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.BitwiseAnd => BitwiseAndValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.BitwiseOr => BitwiseOrValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.BitwiseXor => BitwiseXorValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.LeftShift => LeftShiftValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.RightShift => RightShiftValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(compCurrentValue, compRhsValue, context),
+                                    _ => throw new NotSupportedException($"Compound assignment operator '{compoundInstruction.Operator}' not supported in CompoundAssignmentSlotInstruction.")
+                                };
+
+                                // Update the binding
+                                environment.AssignJsValue(compoundInstruction.TargetSymbol, compResult);
+
+                                // Track completion value for scripts
+                                if (_isScriptMode && !compoundInstruction.SuppressCompletionValue)
+                                {
+                                    _scriptCompletionValue = compResult;
+                                }
+
+                                _programCounter = compoundInstruction.Next;
+                                continue;
+                            }
+
                             case InstructionKind.FunctionDeclaration:
                             {
                                 var functionDeclInstruction = Unsafe.As<FunctionDeclarationInstruction>(instruction);

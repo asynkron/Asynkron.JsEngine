@@ -191,6 +191,9 @@ internal static class ExecutionPlanPrinter
                 $"{(inc.IsPrefix ? "" : (inc.IsIncrement ? "++" : "--"))}" +
                 $" → [{inc.Next}]",
 
+            CompoundAssignmentSlotInstruction compound =>
+                $"COMPOUND {compound.TargetSymbol.Name} {compound.Operator}= {FormatExpression(compound.RhsExpression)} → [{compound.Next}]",
+
             _ => instruction.ToString() ?? "<?>"
         };
     }

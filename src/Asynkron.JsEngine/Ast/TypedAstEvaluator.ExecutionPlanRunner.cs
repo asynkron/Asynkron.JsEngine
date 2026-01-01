@@ -705,6 +705,7 @@ public static partial class TypedAstEvaluator
 
                         _currentInstructionIndex = _programCounter;
                         var instruction = instructions[_programCounter];
+                        var instructionKind = instruction.Kind;
 
                         // Trace instruction execution when debug logging is enabled
                         if (debugMode)
@@ -730,7 +731,52 @@ public static partial class TypedAstEvaluator
                         }
 #pragma warning restore CS0162
 
-                        switch (instruction.Kind)
+                        // ═══════════════════════════════════════════════════════════════════════════
+                        // FAST PATH: Inline the hottest instructions to avoid switch dispatch overhead
+                        // For a 1M iteration loop, this saves millions of switch table lookups
+                        // ═══════════════════════════════════════════════════════════════════════════
+
+                        // Jump is the simplest - just update program counter
+                        if (instructionKind == InstructionKind.Jump)
+                        {
+                            _programCounter = Unsafe.As<JumpInstruction>(instruction).TargetIndex;
+                            continue;
+                        }
+
+                        // Branch is hot - inline the entire handler to avoid switch dispatch
+                        if (instructionKind == InstructionKind.Branch)
+                        {
+                            var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
+                            var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
+
+                            // Check for pending await (async code)
+                            if (TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+                            {
+                                return pendingBranchResult;
+                            }
+
+                            // Check for throw
+                            if (context.IsThrow)
+                            {
+                                var thrownBranch = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
+                                {
+                                    continue;
+                                }
+
+                                TryCatchStateRef.TryStack.Clear();
+                                throw new ThrowSignal(thrownBranch);
+                            }
+
+                            // Normal path: branch based on condition
+                            _programCounter = testValue.IsTruthy
+                                ? branchInstruction.ConsequentIndex
+                                : branchInstruction.AlternateIndex;
+                            continue;
+                        }
+
+                        switch (instructionKind)
                         {
                             case InstructionKind.Statement:
                             {

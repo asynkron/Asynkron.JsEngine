@@ -335,6 +335,7 @@ public sealed class JsEnvironment : IRentable
             // Upgrade lexical flags if needed
             if (isLexical) slot.Flags |= SlotFlags.Lexical;
             if (blocksFunctionScopeOverride) slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
+            if (value.IsUninitialized) slot.Flags |= SlotFlags.Uninitialized;
             // Clear uninitialized flag when setting an initialized value (TDZ completion)
             if (!value.IsUninitialized) slot.Flags &= ~SlotFlags.Uninitialized;
 
@@ -3516,7 +3517,8 @@ public sealed class JsEnvironment : IRentable
         {
             if (index >= 0 && index < count)
             {
-                _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
+                var flags = ScopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
+                _slots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
             }
         }
     }
@@ -3558,11 +3560,37 @@ public sealed class JsEnvironment : IRentable
             {
                 if (index >= 0 && index < _slots.Length && _slots[index].Name is null)
                 {
-                    _slots[index].Name = symbol;
+                    var flags = ScopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
+                    _slots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
                 }
             }
 
             _slotCount = Math.Max(_slotCount, count);
+        }
+    }
+
+    /// <summary>
+    /// Marks the provided symbols as lexical/uninitialized in the current slots (TDZ).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkSlotsLexicalUninitialized(IEnumerable<Symbol> symbols)
+    {
+        if (_slots is null)
+        {
+            return;
+        }
+
+        foreach (var symbol in symbols)
+        {
+            var index = FindSlotIndex(symbol);
+            if (index < 0 || index >= _slotCount)
+            {
+                continue;
+            }
+
+            ref var slot = ref _slots[index];
+            slot.Flags |= SlotFlags.Lexical | SlotFlags.Uninitialized | SlotFlags.BlocksFunctionScopeOverride;
+            // Preserve existing value; TDZ enforced via Uninitialized flag
         }
     }
 

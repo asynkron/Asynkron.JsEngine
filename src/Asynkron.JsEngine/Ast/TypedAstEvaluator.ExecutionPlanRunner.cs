@@ -420,14 +420,35 @@ public static partial class TypedAstEvaluator
             // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
             if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
             {
-                executionEnvironment.InitializeSlots(_plan.SlotCount, scopeId: 0);
-                var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-                for (var i = 0; i < _plan.SlotSymbols.Length; i++)
+                var rootSlotCount = _plan.RootSlotCount > 0 ? _plan.RootSlotCount : _plan.SlotCount;
+                executionEnvironment.InitializeSlots(rootSlotCount, scopeId: 0);
+
+                var rootSlotMap = _plan.SafeRootSlotMap;
+                if (rootSlotMap.Count > 0)
                 {
-                    // Use direct indices (no offset) since plan slots are allocated first
-                    slotMap[_plan.SlotSymbols[i]] = i;
+                    executionEnvironment.SetSlotMap(rootSlotMap);
                 }
-                executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+                else
+                {
+                    var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                    for (var i = 0; i < _plan.SlotSymbols.Length; i++)
+                    {
+                        // Use direct indices (no offset) since plan slots are allocated first
+                        slotMap[_plan.SlotSymbols[i]] = i;
+                    }
+                    executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+                }
+
+                var scopeLexicals = _plan.SafeScopeLexicalBindings;
+                var rootLexicals = _plan.SafeRootLexicalBindings;
+                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                {
+                    rootLexicals = fromScope0;
+                }
+                if (!rootLexicals.IsEmpty)
+                {
+                    executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
+                }
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
@@ -1366,7 +1387,10 @@ public static partial class TypedAstEvaluator
                                     : null;
 
                                 // Evaluate initializer if present
-                                var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
+                                var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context)
+                                    ?? (varDeclInstruction.VarKind == VariableKind.Var
+                                        ? JsValue.Undefined
+                                        : JsValue.Uninitialized);
 
                                 //TODO: why is this placed here!?
                                 if (TryHandlePendingAwait(context, out var pendingVarResult, environment))
@@ -1548,6 +1572,10 @@ public static partial class TypedAstEvaluator
                                     if (!pushEnvInstruction.SlotMap.IsEmpty)
                                     {
                                         newIterationEnv.SetSlotMap(pushEnvInstruction.SlotMap);
+                                    }
+                                    if (pushEnvInstruction.LexicalBindings is { Count: > 0 })
+                                    {
+                                        newIterationEnv.MarkSlotsLexicalUninitialized(pushEnvInstruction.LexicalBindings);
                                     }
                                 }
 

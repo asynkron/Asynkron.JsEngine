@@ -44,13 +44,15 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
         var immutableSlotMaps = new Dictionary<int, ImmutableDictionary<Symbol, int>>(
             _scopes.Count);
+        var lexicalBindings = new Dictionary<int, ImmutableHashSet<Symbol>>(_scopes.Count);
 
         foreach (var (scopeId, info) in _scopes)
         {
             immutableSlotMaps[scopeId] = info.ToImmutableSlotMap();
+            lexicalBindings[scopeId] = info.LexicalBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
         }
 
-        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps);
+        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings);
     }
 
     private void BuildBindingScopeHints()
@@ -66,6 +68,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                     {
                         _bindingScopeHints[binding] = push.ScopeId;
                     }
+                    GetOrCreateScopeInfo(push.ScopeId).LexicalBindings.Add(binding);
                 }
             }
         }
@@ -123,6 +126,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
             foreach (var (symbol, index) in slotMap)
             {
                 info.IncludeSlot(symbol, index);
+                // Slot maps originate from lexical scopes (loop/function bodies)
+                info.LexicalBindings.Add(symbol);
             }
         }
 
@@ -131,6 +136,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             foreach (var binding in perIterationBindings)
             {
                 AllocateSlotInScope(scopeId, binding);
+                info.LexicalBindings.Add(binding);
             }
         }
 
@@ -181,6 +187,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             {
                 case IdentifierBinding identifier:
                     AllocateSlotInScope(scopeId, identifier.Name);
+                    GetOrCreateScopeInfo(scopeId).LexicalBindings.Add(identifier.Name);
                     return;
                 case ArrayBinding arrayBinding:
                     foreach (var element in arrayBinding.Elements)
@@ -234,6 +241,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 if (enterCatch.CatchParameterSymbol is not null)
                 {
                     AllocateSlotInScope(enterCatch.ScopeId, enterCatch.CatchParameterSymbol);
+                    GetOrCreateScopeInfo(enterCatch.ScopeId).LexicalBindings.Add(enterCatch.CatchParameterSymbol);
                 }
 
                 return;
@@ -309,7 +317,16 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 ? hintedScope
                 : RootScopeId;
 
-        AllocateSlotInScope(targetScope, varDecl.TargetSymbol);
+        var slotIndex = AllocateSlotInScope(targetScope, varDecl.TargetSymbol);
+        if (varDecl.VarKind != VariableKind.Var)
+        {
+            GetOrCreateScopeInfo(targetScope).LexicalBindings.Add(varDecl.TargetSymbol);
+        }
+        else
+        {
+            // Ensure var slots are marked non-lexical
+            GetOrCreateScopeInfo(targetScope).LexicalBindings.Remove(varDecl.TargetSymbol);
+        }
     }
 
     protected override void VisitIdentifier(IdentifierExpression node)
@@ -330,10 +347,12 @@ internal sealed class ScopeSlotInfo
     {
         ScopeId = scopeId;
         Slots = new Dictionary<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        LexicalBindings = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
     }
 
     public int ScopeId { get; }
     public Dictionary<Symbol, int> Slots { get; }
+    public HashSet<Symbol> LexicalBindings { get; }
     public int SlotCountHint { get; set; }
     public int NextSlotIndex { get; set; }
 
@@ -378,12 +397,15 @@ internal sealed class ScopeSlotAnalysis
 {
     public ScopeSlotAnalysis(
         Dictionary<int, ScopeSlotInfo> scopes,
-        Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps)
+        Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps,
+        Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings)
     {
         Scopes = scopes;
         ImmutableSlotMaps = immutableSlotMaps;
+        LexicalBindings = lexicalBindings;
     }
 
     public Dictionary<int, ScopeSlotInfo> Scopes { get; }
     public Dictionary<int, ImmutableDictionary<Symbol, int>> ImmutableSlotMaps { get; }
+    public Dictionary<int, ImmutableHashSet<Symbol>> LexicalBindings { get; }
 }

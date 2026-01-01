@@ -20,6 +20,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     private readonly Dictionary<int, ScopeSlotInfo> _scopes;
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
+    private readonly Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings;
     private readonly Stack<int> _scopeStack = new();
     private readonly Stack<int> _catchScopeStack = new();
     private readonly Dictionary<int, int> _scopeIdRemap = new();
@@ -30,6 +31,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         _scopes = analysis.Scopes;
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
+        _lexicalBindings = analysis.LexicalBindings;
         _scopeStack.Push(RootScopeId);
     }
 
@@ -105,11 +107,13 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         {
             case PushEnvironmentInstruction push:
                 var mappedPushScope = RemapScopeId(push.ScopeId);
+                var lexical = GetLexicalBindings(mappedPushScope);
                 var updatedPush = push with
                 {
                     ScopeId = mappedPushScope,
                     SlotCount = GetSlotCount(mappedPushScope),
-                    SlotMap = GetSlotMap(mappedPushScope)
+                    SlotMap = GetSlotMap(mappedPushScope),
+                    LexicalBindings = lexical
                 };
                 _scopeStack.Push(mappedPushScope);
                 return updatedPush;
@@ -286,6 +290,17 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             : scopeId;
 
         return _scopes.TryGetValue(lookupScopeId, out var info) ? info.SlotCount : 0;
+    }
+
+    private ImmutableHashSet<Symbol> GetLexicalBindings(int scopeId)
+    {
+        var lookupScopeId = _reverseScopeIdRemap.TryGetValue(scopeId, out var original)
+            ? original
+            : scopeId;
+
+        return _lexicalBindings.TryGetValue(lookupScopeId, out var set)
+            ? set
+            : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
     }
 
     private int CurrentScopeId => _scopeStack.TryPeek(out var id) ? id : RootScopeId;

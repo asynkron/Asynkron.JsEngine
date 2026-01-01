@@ -37,6 +37,7 @@ internal sealed partial class ExecutionPlanBuilder
     private readonly List<ExecutionInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
     private readonly List<Symbol> _slotSymbols = [];
+    private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
     private int _catchSlotCounter;
     private string? _failureReason;
     private bool _isScriptLevel;
@@ -131,16 +132,32 @@ internal sealed partial class ExecutionPlanBuilder
         // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
         // For functions, slot assignment is fine because scope analysis happens at parse time.
+        ScopeSlotAnalysis? analysis = null;
         if (!_isScriptLevel)
         {
-            AssignSlotsToUserVariables(entryIndex);
+            analysis = AssignSlotsToUserVariables(entryIndex);
         }
+
+        var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
+            ? rootInfo.SlotCount
+            : 0;
+        var rootSlotMap = analysis is not null && analysis.ImmutableSlotMaps.TryGetValue(0, out var rootMap)
+            ? rootMap
+            : ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+        var rootLexicalBindings = analysis is not null && analysis.LexicalBindings.TryGetValue(0, out var rootLex)
+            ? rootLex
+            : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
 
         plan = new ExecutionPlan(
             [.._instructions],
             entryIndex,
             _slotSymbols.Count,
-            [.._slotSymbols]);
+            [.._slotSymbols],
+            rootSlotCount,
+            rootSlotMap,
+            rootLexicalBindings,
+            _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
+                EqualityComparer<int>.Default));
         return true;
     }
 
@@ -148,10 +165,11 @@ internal sealed partial class ExecutionPlanBuilder
     /// Collects all user variable identifiers from instructions, assigns them slots,
     /// and updates the AST nodes with scope-aware slot metadata.
     /// </summary>
-    private void AssignSlotsToUserVariables(int entryIndex)
+    private ScopeSlotAnalysis AssignSlotsToUserVariables(int entryIndex)
     {
         var collector = new ScopeSlotCollector(_instructions, _slotSymbols, AllocateSlot);
         var analysis = collector.Collect();
+        _lexicalBindings = analysis.LexicalBindings;
         var rewriter = new SlotAssignmentRewriter(analysis);
         rewriter.RewriteInstructions(_instructions, entryIndex);
 
@@ -230,6 +248,8 @@ internal sealed partial class ExecutionPlanBuilder
             Console.WriteLine(sb.ToString());
             File.AppendAllText("/tmp/slotdebug.txt", sb.ToString());
         }
+
+        return analysis;
     }
 
     internal bool TryBuildStatementList(ImmutableArray<StatementNode> statements, int nextIndex, out int entryIndex)

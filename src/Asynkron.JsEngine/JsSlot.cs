@@ -164,10 +164,9 @@ public struct JsSlot
     public void SetValueAndClearTdz(JsValue value)
     {
         Value = value;
-        if (!value.IsUninitialized)
-        {
-            Flags &= ~SlotFlags.Uninitialized;
-        }
+        Flags = value.IsUninitialized
+            ? Flags | SlotFlags.Uninitialized
+            : Flags & ~SlotFlags.Uninitialized;
     }
 
     /// <summary>

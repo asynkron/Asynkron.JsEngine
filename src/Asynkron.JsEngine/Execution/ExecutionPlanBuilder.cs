@@ -1,6 +1,11 @@
 #region
 
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
+using System.Linq;
+using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -128,7 +133,7 @@ internal sealed partial class ExecutionPlanBuilder
         // For functions, slot assignment is fine because scope analysis happens at parse time.
         if (!_isScriptLevel)
         {
-            AssignSlotsToUserVariables();
+            AssignSlotsToUserVariables(entryIndex);
         }
 
         plan = new ExecutionPlan(
@@ -141,36 +146,89 @@ internal sealed partial class ExecutionPlanBuilder
 
     /// <summary>
     /// Collects all user variable identifiers from instructions, assigns them slots,
-    /// and updates the AST nodes with ScopeId=0 and the assigned slot indices.
+    /// and updates the AST nodes with scope-aware slot metadata.
     /// </summary>
-    private void AssignSlotsToUserVariables()
+    private void AssignSlotsToUserVariables(int entryIndex)
     {
-        // Step 1: Collect all unique user variable symbols from instructions using the visitor
-        var collector = new IdentifierCollector();
-        foreach (var instruction in _instructions)
-        {
-            collector.VisitInstruction(instruction);
-        }
+        var collector = new ScopeSlotCollector(_instructions, _slotSymbols, AllocateSlot);
+        var analysis = collector.Collect();
+        var rewriter = new SlotAssignmentRewriter(analysis);
+        rewriter.RewriteInstructions(_instructions, entryIndex);
 
-        // Step 2: Build a map from symbol to (scopeId, slotIndex)
-        var symbolToScope = new Dictionary<Symbol, (int scopeId, int slotIndex)>(
-            collector.Identifiers.Count,
-            ReferenceEqualityComparer<Symbol>.Instance);
-        foreach (var symbol in collector.Identifiers)
+        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
         {
-            // Allocate a slot for this user variable
-            var slotIndex = AllocateSlot(symbol);
-            symbolToScope[symbol] = (0, slotIndex); // ScopeId=0 for execution plan environment
-        }
-
-        // Step 3: Update all instructions to use the new slot information using the rewriter
-        if (symbolToScope.Count > 0)
-        {
-            var rewriter = new SlotAssignmentRewriter(symbolToScope);
-            for (var i = 0; i < _instructions.Count; i++)
+            var sb = new StringBuilder();
+            sb.AppendLine("=== Slot Assignment Debug ===");
+            foreach (var scope in analysis.Scopes.OrderBy(kv => kv.Key))
             {
-                _instructions[i] = rewriter.RewriteInstruction(_instructions[i]);
+                var info = scope.Value;
+                sb.AppendLine($"Scope {scope.Key} count={info.SlotCount} hint={info.SlotCountHint}");
+                foreach (var kv in info.Slots.OrderBy(kv => kv.Value))
+                {
+                    sb.AppendLine($"  {kv.Key.Name} -> {kv.Value}");
+                }
             }
+
+            foreach (var instruction in _instructions)
+            {
+                switch (instruction)
+                {
+                    case Instructions.PushEnvironmentInstruction push:
+                        sb.AppendLine(
+                            $"PushEnv scope={push.ScopeId} slotCount={push.SlotCount} slots=[{string.Join(",", push.SlotMap.Select(kv => $"{kv.Key.Name}:{kv.Value}"))}]");
+                        break;
+                    case Instructions.BranchInstruction branch when branch.Condition is Ast.BinaryExpression { Left: Ast.IdentifierExpression leftId }:
+                        sb.AppendLine($"Branch condition left name={leftId.Name.Name} scope={leftId.ScopeId} slot={leftId.SlotIndex}");
+                        break;
+                }
+            }
+
+            var identifiers = new List<Ast.IdentifierExpression>();
+
+            void CollectIdentifiers(Ast.ExpressionNode expr)
+            {
+                switch (expr)
+                {
+                    case Ast.IdentifierExpression id:
+                        identifiers.Add(id);
+                        break;
+                    case Ast.BinaryExpression bin:
+                        CollectIdentifiers(bin.Left);
+                        CollectIdentifiers(bin.Right);
+                        break;
+                    case Ast.UnaryExpression unary:
+                        CollectIdentifiers(unary.Operand);
+                        break;
+                }
+            }
+
+            foreach (var instruction in _instructions)
+            {
+                switch (instruction)
+                {
+                    case Instructions.BranchInstruction branch:
+                        CollectIdentifiers(branch.Condition);
+                        break;
+                    case Instructions.CompoundAssignmentSlotInstruction compound:
+                        CollectIdentifiers(compound.RhsExpression);
+                        break;
+                    case Instructions.ReturnInstruction { ReturnExpression: { } retExpr }:
+                        CollectIdentifiers(retExpr);
+                        break;
+                    case Instructions.SimpleVariableDeclarationInstruction { Initializer: { } init }:
+                        CollectIdentifiers(init);
+                        break;
+                }
+            }
+
+            sb.AppendLine("Identifiers:");
+            foreach (var id in identifiers)
+            {
+                sb.AppendLine($"  {id.Name.Name} scope={id.ScopeId} slot={id.SlotIndex}");
+            }
+
+            Console.WriteLine(sb.ToString());
+            File.AppendAllText("/tmp/slotdebug.txt", sb.ToString());
         }
     }
 

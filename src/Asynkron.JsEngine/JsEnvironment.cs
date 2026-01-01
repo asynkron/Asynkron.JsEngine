@@ -2,6 +2,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.IO;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
@@ -1218,6 +1219,12 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
+        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+        {
+            File.AppendAllText("/tmp/slotdebug_read.txt",
+                $"DEBUG_SLOT_READ name={name.Name} scopeHint={scopeId} slotHint={slotIndex} currentEnvScope={ScopeId}{Environment.NewLine}");
+        }
+
         if (scopeId >= 0 && slotIndex >= 0)
         {
             // Fast path: if current environment matches scopeId, use it directly
@@ -1384,6 +1391,9 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryReadSlotValue(Symbol name, int slotIndex, EvaluationContext context, out JsValue value)
     {
+        var shouldLogSlots = context.RealmState.Options.DebugMode;
+        var logger = shouldLogSlots ? context.RealmState.Logger : null;
+
         var slots = _slots;
         if (slots is null || (uint)slotIndex >= (uint)slots.Length)
         {
@@ -1404,6 +1414,18 @@ public sealed class JsEnvironment : IRentable
         }
 
         value = slot.Value;
+
+        if (shouldLogSlots)
+        {
+            logger?.LogInformation(
+                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                GetHashCode(),
+                name.Name,
+                ScopeId,
+                slotIndex,
+                value.Kind);
+        }
+
         return true;
     }
 

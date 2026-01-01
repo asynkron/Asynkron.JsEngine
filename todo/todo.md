@@ -10,6 +10,9 @@ We want to reduce that number without breaking anything.
 One thing that we have not yet done here is the use of "JsVariable" for local variables.
 JsVariable is a resolved slot, which you can assign to, without re-resolving the slot.
 This MIGHT be something that helps.
+in a recent commit we introduced re-use of JsEnvironment for per iteration blocks if no closures are involved.
+In this special case, we could likely resolve JsVariables ONCE, as they are already bound to the right slots.
+
 It should likely get rid of "ResolveIdentifierDirect", assuming we resolve these JsVariables up front.
 
 Use the profiler.

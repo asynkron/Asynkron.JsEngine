@@ -138,15 +138,13 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
-    /// <summary>
-    /// Slot-based compound assignment evaluation - fastest path for resolved identifiers.
-    /// Only used when ScopeDepth=0 (local variables in the current function scope).
-    /// </summary>
     private static bool TryEvaluateCompoundAssignmentSlotBased(
         AssignmentExpression assignment,
         ExpressionNode candidate,
-        IdentifierExpression targetIdentifier,
+        Symbol name,
+        int slotIndex,
         JsEnvironment environment,
+        JsEnvironment targetEnvironment,
         EvaluationContext context,
         out JsValue value,
         out bool shouldAssign)
@@ -158,10 +156,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (!environment.TryReadIdentifierWithSlot(
-                targetIdentifier,
-                context,
-                out var leftJs))
+        if (!targetEnvironment.TryReadSlotValue(name, slotIndex, context, out var leftJs))
         {
             value = JsValue.Undefined;
             shouldAssign = false;
@@ -550,27 +545,25 @@ public static partial class TypedAstEvaluator
 
             // Fast path: slot-based assignment using ScopeId to find the declaring environment.
             // This enables O(1) slot access for variables in any scope (local or closure).
-            if ( expression is { SlotIndex: >= 0, ScopeId: >= 0 })
+            if (expression is { SlotIndex: >= 0, ScopeId: >= 0 })
             {
-                var targetIdentifier = expression.TargetIdentifier ??
-                                       new IdentifierExpression(
-                                           expression.Source,
-                                           expression.Target,
-                                           expression.ScopeDepth,
-                                           expression.SlotIndex,
-                                           expression.ScopeId);
+                var targetEnvironment =
+                    environment.ScopeId == expression.ScopeId ? environment : environment.FindByScopeId(expression.ScopeId);
 
                 if (expression.IsCompoundAssignment)
                 {
                     // Try slot-based compound assignment (fastest path)
-                    if (TryEvaluateCompoundAssignmentSlotBased(
-                        expression,
-                        expression.Value,
-                        targetIdentifier,
-                        environment,
-                        context,
-                        out var compoundJsValue,
-                        out var shouldAssignCompound))
+                    if (targetEnvironment is not null &&
+                        TryEvaluateCompoundAssignmentSlotBased(
+                            expression,
+                            expression.Value,
+                            expression.Target,
+                            expression.SlotIndex,
+                            environment,
+                            targetEnvironment,
+                            context,
+                            out var compoundJsValue,
+                            out var shouldAssignCompound))
                     {
                         if (context.ShouldStopEvaluation)
                         {
@@ -579,7 +572,17 @@ public static partial class TypedAstEvaluator
 
                         if (shouldAssignCompound)
                         {
-                            environment.TryWriteIdentifierWithSlot(targetIdentifier, compoundJsValue, context);
+                            if (targetEnvironment is null ||
+                                !targetEnvironment.TryWriteSlotValue(expression.Target, expression.SlotIndex, compoundJsValue,
+                                    context))
+                            {
+                                environment.TryWriteIdentifierWithSlot(
+                                    expression.Target,
+                                    expression.ScopeId,
+                                    expression.SlotIndex,
+                                    compoundJsValue,
+                                    context);
+                            }
                         }
 
                         return compoundJsValue;
@@ -596,7 +599,16 @@ public static partial class TypedAstEvaluator
                         return slotValueJs;
                     }
 
-                    environment.TryWriteIdentifierWithSlot(targetIdentifier, slotValueJs, context);
+                    if (targetEnvironment is null ||
+                        !targetEnvironment.TryWriteSlotValue(expression.Target, expression.SlotIndex, slotValueJs, context))
+                    {
+                        environment.TryWriteIdentifierWithSlot(
+                            expression.Target,
+                            expression.ScopeId,
+                            expression.SlotIndex,
+                            slotValueJs,
+                            context);
+                    }
                     return slotValueJs;
                 }
             }

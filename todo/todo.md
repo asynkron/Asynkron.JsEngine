@@ -24,6 +24,9 @@ Good to know:
 * avoid allocations in hot paths.
 * optimizations have been applied in recent commits, some good, some questionable, check git history for ideas.
 
+model optimizations; maybe we can flatten the AST? add more metadata to the IR model?
+New IR instructions to keep info?
+
 Use the profiler.
 Use clever tricks.
 Use all the smartness from computer science algorithms and data structures.

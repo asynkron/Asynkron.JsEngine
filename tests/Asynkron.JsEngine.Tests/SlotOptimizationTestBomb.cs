@@ -61,7 +61,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.NotNull(leftId);
         Assert.Equal("i", leftId.Name.Name);
 
-        AssertIdentifierHasSlot(leftId, cache.Plan);
+        AssertIdentifierHasSlot(leftId, cache.Plan, requireNonRootScope: true);
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.NotNull(rhsId);
         Assert.Equal("i", rhsId.Name.Name);
 
-        AssertIdentifierHasSlot(rhsId, cache.Plan);
+        AssertIdentifierHasSlot(rhsId, cache.Plan, requireNonRootScope: true);
         AssertSymbolHasSlot(compoundInstr.TargetSymbol, cache.Plan);
     }
 
@@ -172,7 +172,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         var leftId = condition?.Left as IdentifierExpression;
         Assert.NotNull(leftId);
 
-        AssertIdentifierHasSlot(leftId!, cache.Plan);
+        AssertIdentifierHasSlot(leftId!, cache.Plan, requireNonRootScope: true);
 
         // Log what we found for debugging
         var hasPushEnv = pushEnvInstr is not null;
@@ -220,7 +220,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
 
         foreach (var id in loopVars)
         {
-            AssertIdentifierHasSlot(id, cache.Plan);
+            AssertIdentifierHasSlot(id, cache.Plan, requireNonRootScope: true);
         }
 
         var bindings = loopVars
@@ -230,6 +230,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         // Ensure we stamped at least two distinct bindings (outer i vs inner j vs sum)
         Assert.True(bindings.Select(b => (b.Scope, b.Slot)).Distinct().Count() >= 2,
             "Loop variables should map to distinct slots");
+        Assert.True(bindings.Any(b => b.Scope > 0), "At least one loop binding should live in a non-root scope");
     }
 
     /// <summary>
@@ -374,10 +375,14 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         }
     }
 
-    private static void AssertIdentifierHasSlot(IdentifierExpression id, ExecutionPlan plan)
+    private static void AssertIdentifierHasSlot(IdentifierExpression id, ExecutionPlan plan, bool requireNonRootScope = false)
     {
         Assert.True(id.SlotIndex >= 0, $"Identifier '{id.Name.Name}' should have SlotIndex >= 0");
         Assert.True(id.ScopeId >= 0, $"Identifier '{id.Name.Name}' should have ScopeId >= 0");
+        if (requireNonRootScope)
+        {
+            Assert.True(id.ScopeId > 0, $"Identifier '{id.Name.Name}' should live in a non-root scope");
+        }
 
         var slotMap = GetSlotMap(plan, id.ScopeId);
         Assert.True(slotMap.TryGetValue(id.Name, out var mappedIndex),

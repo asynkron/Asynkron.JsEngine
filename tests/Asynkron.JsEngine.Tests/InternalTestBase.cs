@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Tests.Helpers;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -21,8 +22,8 @@ public class InternalTestBase(ITestOutputHelper output)
     /// </summary>
     protected JsEngine CreateEngine()
     {
-        CurrentLogger = new TestLogger(output, maxLogCount: 2000);
-        return new JsEngine(new JsEngineOptions { Logger = CurrentLogger });
+        CurrentLogger = new TestLogger(output, maxLogCount: 2000, minLogLevel: LogLevel.Debug);
+        return new JsEngine(new JsEngineOptions { Logger = CurrentLogger, DebugMode = true});
     }
 
     /// <summary>

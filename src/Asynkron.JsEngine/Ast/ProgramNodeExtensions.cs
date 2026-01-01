@@ -502,6 +502,9 @@ public static partial class TypedAstEvaluator
                 // This is needed for for-of loops and other IR constructs that store state in slots.
                 // NOTE: Skip slot initialization for scripts with dynamic scope features (with/eval)
                 // because slot-based lookup would bypass the with-scope check.
+                // NOTE: For scripts, hoisting happens before this point, so hoisted bindings
+                // are already in slots. We use direct 0-based indices and rely on the IR
+                // using different symbol names (internal __* symbols vs user variables).
                 var hasDynamicScope = !AllowsIdentifierCaching(program);
                 if (!hasDynamicScope && plan.SlotCount > 0 && !plan.SlotSymbols.IsDefaultOrEmpty)
                 {

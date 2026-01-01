@@ -550,7 +550,7 @@ public static partial class TypedAstEvaluator
 
             // Fast path: slot-based assignment using ScopeId to find the declaring environment.
             // This enables O(1) slot access for variables in any scope (local or closure).
-            if ( expression is { SlotIndex: >= 0, ScopeId: >= 0 })
+            if (expression is { SlotIndex: >= 0, ScopeId: >= 0 })
             {
                 var targetIdentifier = expression.TargetIdentifier ??
                                        new IdentifierExpression(
@@ -604,8 +604,7 @@ public static partial class TypedAstEvaluator
             // Fast path for compound assignments on simple identifiers
             // This avoids creating AssignmentReference structs entirely.
             // IMPORTANT: Only use this fast path for non-dynamic scopes (see comment below for simple assignments).
-            if (
-                expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
+            if (expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
                 TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, expression.Target,
                     environment, context, out var compoundJsValue2, out var shouldAssignCompound2))
             {
@@ -628,7 +627,7 @@ public static partial class TypedAstEvaluator
             // Dynamic scopes (with eval/with) require resolving the reference BEFORE
             // evaluating the RHS, per ES spec 13.15.2. The fast path evaluates RHS first
             // which breaks code like: with(scope) { x = (delete scope.x, 2); }
-            if ( expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
+            if (expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
             {
                 var targetValueJs =
                     EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
@@ -654,10 +653,18 @@ public static partial class TypedAstEvaluator
             // declared in the current function scope when AST nodes weren't pre-stamped.
             if (environment.TryGetSlotIndex(expression.Target, out var runtimeSlotIndex))
             {
-                // Found slot - use direct slot-based assignment
+                // Found slot - check TDZ first
+                ref var tdzdCheckSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
+                if (tdzdCheckSlot.IsUninitialized && tdzdCheckSlot.IsLexical)
+                {
+                    throw new ThrowSignal(StdLib.StandardLibrary.CreateReferenceError(
+                        $"Cannot access '{expression.Target.Name}' before initialization",
+                        context, context.RealmState));
+                }
+
                 if (expression.IsCompoundAssignment && expression.Value is BinaryExpression binary)
                 {
-                    // Read current value from slot
+                    // Read current value from slot (already TDZ-checked above)
                     var currentValue = environment.GetSlotRef(runtimeSlotIndex);
 
                     // Short-circuit for logical operators
@@ -709,7 +716,23 @@ public static partial class TypedAstEvaluator
                         _ => throw new NotSupportedException($"Compound assignment operator '{binary.Operator}' is not supported.")
                     };
 
-                    environment.SetSlot(runtimeSlotIndex, compoundResult);
+                    // Check const before assignment - const always throws per ES spec
+                    ref var compoundSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
+                    if (compoundSlot.IsConst && !compoundSlot.IsUninitialized)
+                    {
+                        throw new ThrowSignal(StdLib.StandardLibrary.CreateTypeError(
+                            $"Assignment to constant variable '{expression.Target.Name}'.",
+                            realm: context.RealmState));
+                    }
+                    compoundSlot.Value = compoundResult;
+
+                    // For non-lexical bindings (var) in global scope, also update the global object
+                    if (!compoundSlot.IsLexical && environment.IsGlobalFunctionScope)
+                    {
+                        var globalObject = environment.GetRootGlobalObject();
+                        globalObject?.SetProperty(expression.Target.Name, compoundResult);
+                    }
+
                     return compoundResult;
                 }
                 else
@@ -721,7 +744,23 @@ public static partial class TypedAstEvaluator
                         return rhsValue;
                     }
 
-                    environment.SetSlot(runtimeSlotIndex, rhsValue);
+                    // Check const before assignment - const always throws per ES spec
+                    ref var simpleSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
+                    if (simpleSlot.IsConst && !simpleSlot.IsUninitialized)
+                    {
+                        throw new ThrowSignal(StdLib.StandardLibrary.CreateTypeError(
+                            $"Assignment to constant variable '{expression.Target.Name}'.",
+                            realm: context.RealmState));
+                    }
+                    simpleSlot.Value = rhsValue;
+
+                    // For non-lexical bindings (var) in global scope, also update the global object
+                    if (!simpleSlot.IsLexical && environment.IsGlobalFunctionScope)
+                    {
+                        var globalObject = environment.GetRootGlobalObject();
+                        globalObject?.SetProperty(expression.Target.Name, rhsValue);
+                    }
+
                     return rhsValue;
                 }
             }

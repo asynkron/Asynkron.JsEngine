@@ -51,7 +51,6 @@ public sealed class JsEnvironment : IRentable
 
     private bool _treatAsGlobalFunctionScope;
 
-    private SymbolHybridDictionary<Binding>? _values;
     private JsEnvironment? _varEnvironmentOverride;
 
     private IJsObjectLike? _withObject;
@@ -99,16 +98,6 @@ public sealed class JsEnvironment : IRentable
     /// -1 means not set (use fallback to dictionary lookup).
     /// </summary>
     internal int ScopeId { get; set; } = -1;
-
-    /// <summary>
-    /// Gets the values dictionary, creating it if necessary.
-    /// Use this when you need to add bindings.
-    /// </summary>
-    private SymbolHybridDictionary<Binding> Values
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _values ??= new SymbolHybridDictionary<Binding>();
-    }
 
     internal RealmState? RealmState { get; private set; }
     internal bool IsAsyncModule { get; set; }
@@ -201,7 +190,7 @@ public sealed class JsEnvironment : IRentable
         IsStrictLocal = isStrict;
         _creatingSource = creatingSource;
         _description = description;
-        _values?.Clear();
+        ClearSlots();
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
@@ -265,7 +254,7 @@ public sealed class JsEnvironment : IRentable
         IsStrictLocal = isStrict;
         _creatingSource = creatingSource;
         _description = description;
-        _values?.Clear();
+        ClearSlots();
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
@@ -308,88 +297,95 @@ public sealed class JsEnvironment : IRentable
         bool canDelete = false,
         bool isImmutableBinding = false)
     {
-        if (_values is not null && _values.TryGetValue(name, out var existing) && existing.IsGlobalConstant)
+        // Check for existing slot first
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot))
         {
-            return;
-        }
-
-        ref var binding = ref Values.GetValueRefOrNullRef(name);
-        if (!Unsafe.IsNullRef(ref binding))
-        {
-            // Async export bindings start as promise placeholders but must accept their first
-            // initialization value even when flagged const.
-            if (binding.IsAsyncExportBinding)
+            // Can't overwrite global constants
+            if (slot.IsGlobalConstant)
             {
-                binding.JsValue = value;
+                return;
+            }
+
+            // Check for special binding (async export) stored in slot - use flag for fast detection
+            if (slot.HasSpecialBinding)
+            {
+                ((ISpecialBinding)slot.Value.ObjectValue!).SetJsValue(value);
                 if (_bindingObservers is not null)
                 {
                     NotifyBindingObservers(name, value);
                 }
-
                 return;
             }
 
-            if (binding.IsConst || binding.IsGlobalConstant)
+            // Can't overwrite const unless it's a lexical override
+            if (slot.IsConst)
             {
                 if (isLexical && blocksFunctionScopeOverride)
                 {
-                    binding = new Binding(value, isConst, isGlobalConstant, isLexical,
-                        blocksFunctionScopeOverride, canDelete, isImmutableBinding);
-                    TrySetSlot(name, value);
+                    var isUninit = value.IsUninitialized;
+                    slot = new JsSlot(name, value, BuildSlotFlags(isConst, isGlobalConstant, isLexical,
+                        blocksFunctionScopeOverride, canDelete, isImmutableBinding, isUninit));
                 }
-
                 return;
             }
 
-            binding.JsValue = value;
-            binding.UpgradeLexical(isLexical, blocksFunctionScopeOverride);
-            // Only notify if there are observers
+            slot.Value = value;
+            // Upgrade lexical flags if needed
+            if (isLexical) slot.Flags |= SlotFlags.Lexical;
+            if (blocksFunctionScopeOverride) slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
+            // Clear uninitialized flag when setting an initialized value (TDZ completion)
+            if (!value.IsUninitialized) slot.Flags &= ~SlotFlags.Uninitialized;
+
             if (_bindingObservers is not null)
             {
                 NotifyBindingObservers(name, value);
             }
-
-            TrySetSlot(name, value);
             return;
         }
 
-        Values[name] = new Binding(value, isConst, isGlobalConstant, isLexical, blocksFunctionScopeOverride,
-            canDelete, isImmutableBinding);
-        // Only notify if there are observers
+        // Create new slot - detect if value is uninitialized for TDZ support
+        var isUninitialized = value.IsUninitialized;
+        DefineSlot(name, value, BuildSlotFlags(isConst, isGlobalConstant, isLexical,
+            blocksFunctionScopeOverride, canDelete, isImmutableBinding, isUninitialized));
+
         if (_bindingObservers is not null)
         {
             NotifyBindingObservers(name, value);
         }
-
-        TrySetSlot(name, value);
     }
 
     /// <summary>
-    /// Defines or assigns a value in a single dictionary lookup.
+    /// Defines or assigns a value in a single slot lookup.
     /// Use this when you don't know if the binding exists yet and want to avoid
     /// the overhead of HasBinding + Assign/Define pattern.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void DefineOrAssignJsValue(Symbol name, JsValue value)
     {
-        ref var binding = ref Values.GetValueRefOrNullRef(name);
-        if (!Unsafe.IsNullRef(ref binding))
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot))
         {
-            // Binding exists - update it (unless it's const)
-            if (binding is not { IsConst: false, IsGlobalConstant: false })
+            // Const bindings always throw TypeError on reassignment per ES spec
+            if (slot.IsConst && !slot.IsUninitialized)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Assignment to constant variable '{name.Name}'.",
+                    realm: RealmState));
+            }
+
+            // Global constants (like undefined, NaN) are immutable
+            if (slot.IsGlobalConstant)
             {
                 return;
             }
 
-            binding.JsValue = value;
-            TrySetSlot(name, value);
+            slot.SetValueAndClearTdz(value);
         }
         else
         {
-            // Binding doesn't exist - create it as a mutable lexical binding
-            Values[name] = new Binding(value, isConst: false, isGlobalConstant: false,
-                isLexical: true, blocksFunctionScopeOverride: false, canDelete: false);
-            TrySetSlot(name, value);
+            // Slot doesn't exist - create it as a mutable lexical binding
+            DefineSlot(name, value, SlotFlags.Lexical);
         }
     }
 
@@ -403,18 +399,21 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void DefineParameterFast(Symbol name, JsValue value)
     {
-        Values[name] = new Binding(value, false, false, false,
-            false, false);
+        DefineSlot(name, value, SlotFlags.None);
     }
 
     internal void DefineExportPromiseBinding(Symbol name, JsPromise promise, bool isLexical, bool isConst)
     {
-        if (_values?.ContainsKey(name) == true)
+        if (HasBindingLocal(name))
         {
             return;
         }
 
-        Values[name] = Binding.CreateAsyncExport(promise, isConst, isLexical);
+        // Store async export binding directly in slot - use HasSpecialBinding flag for fast detection
+        var flags = SlotFlags.HasSpecialBinding;
+        if (isConst) flags |= SlotFlags.Const;
+        if (isLexical) flags |= SlotFlags.Lexical;
+        DefineSlot(name, JsValue.FromObjectUnsafe(new AsyncExportBinding(promise, isConst)), flags);
     }
 
     /// <summary>
@@ -423,7 +422,9 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal void DefineImportBinding(Symbol localName, JsEnvironment sourceEnvironment, Symbol bindingName)
     {
-        Values[localName] = Binding.CreateImport(sourceEnvironment, bindingName);
+        // Store import binding directly in slot - use HasSpecialBinding flag for fast detection
+        DefineSlot(localName, JsValue.FromObjectUnsafe(new ImportBindingWrapper(sourceEnvironment, bindingName)),
+            SlotFlags.Const | SlotFlags.Lexical | SlotFlags.ImmutableBinding | SlotFlags.HasSpecialBinding);
     }
 
     public void DefineFunctionScoped(
@@ -523,7 +524,7 @@ public sealed class JsEnvironment : IRentable
             context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false };
         var varBindingConfigurable = globalVarConfigurable ?? allowConfigurableGlobalBinding;
 
-        ref var existing = ref scope.Values.GetValueRefOrNullRef(name);
+        ref var existing = ref scope.TryGetSlotRef(name);
         if (!Unsafe.IsNullRef(ref existing))
         {
             // Also, check existing lexical bindings in the local scope
@@ -542,7 +543,7 @@ public sealed class JsEnvironment : IRentable
 
             if (blocksFunctionScopeOverride)
             {
-                existing.UpgradeLexical(existing.IsLexical, true);
+                existing.Flags |= SlotFlags.BlocksFunctionScopeOverride;
             }
 
             if (!hasInitializer)
@@ -550,14 +551,7 @@ public sealed class JsEnvironment : IRentable
                 return;
             }
 
-            existing.JsValue = value;
-            // Also update slot if one exists for this identifier (IR execution uses slots)
-            // Try both the function scope and the original environment (slots may be in either)
-            scope.TrySetSlot(name, value);
-            if (!ReferenceEquals(this, scope))
-            {
-                TrySetSlot(name, value);
-            }
+            existing.Value = value;
             if (!isGlobalScope || globalThis is null)
             {
                 return;
@@ -626,14 +620,10 @@ public sealed class JsEnvironment : IRentable
             shouldWriteGlobal = false;
         }
 
-        scope.Values[name] = new Binding(initialValue, false, false, false, blocksFunctionScopeOverride, allowDelete);
-        // Also update slot if one exists for this identifier (IR execution uses slots)
-        // Try both the function scope and the original environment (slots may be in either)
-        scope.TrySetSlot(name, initialValue);
-        if (!ReferenceEquals(this, scope))
-        {
-            TrySetSlot(name, initialValue);
-        }
+        var slotFlags = SlotFlags.None;
+        if (blocksFunctionScopeOverride) slotFlags |= SlotFlags.BlocksFunctionScopeOverride;
+        if (allowDelete) slotFlags |= SlotFlags.CanDelete;
+        scope.DefineSlot(name, initialValue, slotFlags);
         if (!isGlobalScope || globalThis is null || !shouldWriteGlobal)
         {
             return;
@@ -731,17 +721,25 @@ public sealed class JsEnvironment : IRentable
                 return current._thisValue;
             }
 
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
-                if (binding.IsUninitialized)
+                if (slot.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                if (!current.IsGlobalFunctionScope ||
-                    binding.IsLexical)
+                // Check for special binding (import/export) - use flag for fast detection
+                if (slot.HasSpecialBinding)
                 {
-                    return binding.JsValue;
+                    return ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                }
+
+                var slotValue = slot.Value;
+                if (!current.IsGlobalFunctionScope ||
+                    slot.IsLexical)
+                {
+                    return slotValue;
                 }
 
                 var globalObject = current.GetRootGlobalObject();
@@ -751,7 +749,7 @@ public sealed class JsEnvironment : IRentable
                     return globalValue;
                 }
 
-                return binding.JsValue;
+                return slotValue;
             }
 
             if (current._varEnvironmentOverride is not null &&
@@ -784,9 +782,10 @@ public sealed class JsEnvironment : IRentable
 
     internal bool IsConstBinding(Symbol name)
     {
-        if (_values is not null && _values.TryGetValue(name, out var binding))
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot))
         {
-            return binding.IsConst || binding.IsGlobalConstant;
+            return slot.IsConst || slot.IsGlobalConstant;
         }
 
         if (_withObject is not null && HasVisibleWithBinding(_withObject, name))
@@ -811,7 +810,7 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            if (current._values?.ContainsKey(name) == true)
+            if (current.FindSlotIndex(name) >= 0)
             {
                 return true;
             }
@@ -836,13 +835,14 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasOwnBinding(Symbol name)
     {
-        return _values?.ContainsKey(name) == true;
+        return FindSlotIndex(name) >= 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasOwnLexicalBinding(Symbol name)
     {
-        return _values is not null && _values.TryGetValue(name, out var binding) && binding.IsLexical;
+        var index = FindSlotIndex(name);
+        return index >= 0 && _slots![index].IsLexical;
     }
 
     /// <summary>
@@ -850,7 +850,8 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal IEnumerable<Symbol> GetBindingSymbols()
     {
-        return _values?.Keys ?? [];
+        if (_slots is null || _slotCount == 0) return [];
+        return _slots.Take(_slotCount).Select(s => s.Name);
     }
 
     internal bool TryAssignBlockedBinding(Symbol name, JsValue value)
@@ -877,23 +878,20 @@ public sealed class JsEnvironment : IRentable
                 continue;
             }
 
-            if (current._values is not null)
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot) && slot.BlocksFunctionScopeOverride)
             {
-                ref var binding = ref current._values.GetValueRefOrNullRef(name);
-                if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
+                slot.SetValueAndClearTdz(value);
+                current.NotifyBindingObservers(name, value);
+                if (!current.IsGlobalFunctionScope)
                 {
-                    binding.JsValue = value;
-                    current.NotifyBindingObservers(name, value);
-                    if (!current.IsGlobalFunctionScope)
-                    {
-                        return true;
-                    }
-
-                    var globalObject = current.GetRootGlobalObject();
-                    globalObject?.SetProperty(name.Name, value);
-
                     return true;
                 }
+
+                var globalObject = current.GetRootGlobalObject();
+                globalObject?.SetProperty(name.Name, value);
+
+                return true;
             }
 
             if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
@@ -931,23 +929,20 @@ public sealed class JsEnvironment : IRentable
                 continue;
             }
 
-            if (current._values is not null)
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot) && slot.BlocksFunctionScopeOverride)
             {
-                ref var binding = ref current._values.GetValueRefOrNullRef(name);
-                if (!Unsafe.IsNullRef(ref binding) && binding.BlocksFunctionScopeOverride)
+                slot.SetValueAndClearTdz(value);
+                current.NotifyBindingObservers(name, value);
+                if (!current.IsGlobalFunctionScope)
                 {
-                    binding.JsValue = value;
-                    current.NotifyBindingObservers(name, value);
-                    if (!current.IsGlobalFunctionScope)
-                    {
-                        return true;
-                    }
-
-                    var globalObject = current.GetRootGlobalObject();
-                    globalObject?.SetProperty(name.Name, value);
-
                     return true;
                 }
+
+                var globalObject = current.GetRootGlobalObject();
+                globalObject?.SetProperty(name.Name, value);
+
+                return true;
             }
 
             if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
@@ -988,7 +983,7 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            if (current._values?.ContainsKey(name) == true)
+            if (current.FindSlotIndex(name) >= 0)
             {
                 break;
             }
@@ -1027,7 +1022,7 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            if (current._values?.ContainsKey(name) == true)
+            if (current.FindSlotIndex(name) >= 0)
             {
                 break;
             }
@@ -1139,9 +1134,10 @@ public sealed class JsEnvironment : IRentable
     {
         // Ultra-fast path: check the current environment first for local variables
         // Most identifier lookups in functions are for local variables/parameters
-        if (_values is not null && _values.TryGetValue(name, out var localBinding))
+        ref var localSlot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref localSlot))
         {
-            if (localBinding.IsUninitialized)
+            if (localSlot.IsUninitialized)
             {
                 // TDZ violation - throw ReferenceError
                 throw new ThrowSignal(StandardLibrary.CreateReferenceError(
@@ -1150,10 +1146,18 @@ public sealed class JsEnvironment : IRentable
                     context.RealmState));
             }
 
+            // Check for special binding (import/export) - use flag for fast detection
+            if (localSlot.HasSpecialBinding)
+            {
+                value = ((ISpecialBinding)localSlot.Value.ObjectValue!).GetJsValue();
+                return true;
+            }
+
+            var slotValue = localSlot.Value;
             // For non-lexical bindings in global scope, read from global object
             // to ensure changes via this.x are visible when accessing x directly.
             // This mirrors the logic in ReadResolvedBindingJsValue.
-            if (IsGlobalFunctionScope && !localBinding.IsLexical)
+            if (IsGlobalFunctionScope && !localSlot.IsLexical)
             {
                 var globalObject = GetRootGlobalObject();
                 if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
@@ -1163,7 +1167,7 @@ public sealed class JsEnvironment : IRentable
                 }
             }
 
-            value = localBinding.JsValue;
+            value = slotValue;
             return true;
         }
 
@@ -1302,32 +1306,9 @@ public sealed class JsEnvironment : IRentable
             var slots = targetEnv?._slots;
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
-                if (targetEnv._values is not null)
-                {
-                    ref var binding = ref targetEnv._values.GetValueRefOrNullRef(name);
-                    if (!Unsafe.IsNullRef(ref binding))
-                    {
-                        targetEnv.WriteResolvedBindingJsValue(targetEnv, ref binding, name, value,
-                            context.CurrentScope.IsStrict);
-                        slots[slotIndex].Value = value;
-                        if (shouldLogSlots)
-                        {
-                            logger?.LogInformation(
-                                "Identifier slot write hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
-                                targetEnv.GetHashCode(),
-                                name.Name,
-                                scopeId,
-                                slotIndex,
-                                value.Kind);
-                        }
-
-                        return true;
-                    }
-                }
-
-                // TDZ check for slot-only path: if the slot is uninitialized, this is a TDZ violation.
-                // This happens when trying to write to a let/const variable before its declaration.
                 ref var currentSlot = ref slots[slotIndex];
+
+                // TDZ check: if the slot is uninitialized, this is a TDZ violation.
                 if (currentSlot.IsUninitialized)
                 {
                     throw new ThrowSignal(StandardLibrary.CreateReferenceError(
@@ -1336,11 +1317,36 @@ public sealed class JsEnvironment : IRentable
                         context.RealmState));
                 }
 
-                currentSlot.Value = value;
+                // Check for const assignment
+                if (currentSlot.IsConst)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        $"Cannot reassign constant '{name.Name}'.",
+                        realm: context.RealmState));
+                }
+
+                // Check for special binding (import/export) - use flag for fast detection
+                if (currentSlot.HasSpecialBinding)
+                {
+                    ((ISpecialBinding)currentSlot.Value.ObjectValue!).SetJsValue(value);
+                }
+                else
+                {
+                    currentSlot.Value = value;
+                }
+
+                // For non-lexical bindings (var) in global scope, also update the global object
+                // This mirrors the behavior of AssignJsValue which syncs with the global object
+                if (!currentSlot.IsLexical && targetEnv.IsGlobalFunctionScope)
+                {
+                    var globalObject = targetEnv.GetRootGlobalObject();
+                    globalObject?.SetProperty(name.Name, value);
+                }
+
                 if (shouldLogSlots)
                 {
                     logger?.LogInformation(
-                        "Identifier slot write hit (slot-only) env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                        "Identifier slot write hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
                         targetEnv.GetHashCode(),
                         name.Name,
                         scopeId,
@@ -1410,17 +1416,6 @@ public sealed class JsEnvironment : IRentable
             return false;
         }
 
-        if (_values is not null)
-        {
-            ref var binding = ref _values.GetValueRefOrNullRef(name);
-            if (!Unsafe.IsNullRef(ref binding))
-            {
-                WriteResolvedBindingJsValue(this, ref binding, name, value, context.CurrentScope.IsStrict);
-                slots[slotIndex].Value = value;
-                return true;
-            }
-        }
-
         ref var slot = ref slots[slotIndex];
         if (slot.IsUninitialized)
         {
@@ -1430,7 +1425,33 @@ public sealed class JsEnvironment : IRentable
                 context.RealmState));
         }
 
-        slot.Value = value;
+        // Const bindings always throw TypeError on reassignment per ES spec,
+        // regardless of strict mode
+        if (slot.IsConst && !slot.IsUninitialized)
+        {
+            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                $"Assignment to constant variable '{name.Name}'.",
+                realm: context.RealmState));
+        }
+
+        // Check for special binding (import/export) - use flag for fast detection
+        if (slot.HasSpecialBinding)
+        {
+            ((ISpecialBinding)slot.Value.ObjectValue!).SetJsValue(value);
+        }
+        else
+        {
+            slot.SetValueAndClearTdz(value);
+        }
+
+        // For non-lexical bindings (var) in global scope, also update the global object
+        // This mirrors the behavior of AssignJsValue which syncs with the global object
+        if (!slot.IsLexical && IsGlobalFunctionScope)
+        {
+            var globalObject = GetRootGlobalObject();
+            globalObject?.SetProperty(name.Name, value);
+        }
+
         return true;
     }
 
@@ -1705,7 +1726,7 @@ public sealed class JsEnvironment : IRentable
     private bool TryLocateBinding(
         Symbol name,
         out JsEnvironment bindingEnvironment,
-        out Binding binding)
+        out int slotIndex)
     {
         var current = this;
         var hops = 0;
@@ -1713,15 +1734,17 @@ public sealed class JsEnvironment : IRentable
 
         while (current is not null && hops++ < maxLookupDepth)
         {
-            if (current._values is not null && current._values.TryGetValue(name, out binding))
+            var idx = current.FindSlotIndex(name);
+            if (idx >= 0)
             {
                 bindingEnvironment = current;
+                slotIndex = idx;
                 return true;
             }
 
             if (current._varEnvironmentOverride is not null &&
                 current._varEnvironmentOverride != current &&
-                current._varEnvironmentOverride.TryLocateBinding(name, out bindingEnvironment, out binding))
+                current._varEnvironmentOverride.TryLocateBinding(name, out bindingEnvironment, out slotIndex))
             {
                 return true;
             }
@@ -1730,7 +1753,7 @@ public sealed class JsEnvironment : IRentable
         }
 
         bindingEnvironment = null!;
-        binding = default;
+        slotIndex = -1;
         return false;
     }
 
@@ -1741,9 +1764,14 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal JsValue GetBindingValueDirect(Symbol name)
     {
-        if (_values is not null && _values.TryGetValue(name, out var binding))
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot))
         {
-            return binding.JsValue;
+            if (slot.HasSpecialBinding)
+            {
+                return ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+            }
+            return slot.Value;
         }
         return JsValue.Undefined;
     }
@@ -1755,12 +1783,16 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetBindingValueDirect(Symbol name, JsValue value)
     {
-        if (_values is not null)
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot))
         {
-            ref var binding = ref _values.GetValueRefOrNullRef(name);
-            if (!Unsafe.IsNullRef(ref binding))
+            if (slot.HasSpecialBinding)
             {
-                binding.JsValue = value;
+                ((ISpecialBinding)slot.Value.ObjectValue!).SetJsValue(value);
+            }
+            else
+            {
+                slot.SetValueAndClearTdz(value);
             }
         }
     }
@@ -1778,7 +1810,7 @@ public sealed class JsEnvironment : IRentable
 
         while (current is not null && hops++ < maxLookupDepth)
         {
-            if (current._values is not null && current._values.ContainsKey(name))
+            if (current.HasBindingLocal(name))
             {
                 bindingEnvironment = current;
                 return true;
@@ -1808,11 +1840,19 @@ public sealed class JsEnvironment : IRentable
         var globalObject = GetRootGlobalObject();
         if (globalObject is null)
         {
+            // Debug: Log when global object is null
+            RealmState?.Logger?.LogWarning(
+                "TryResolveGlobalObjectBinding: globalObject is null for name={Name}",
+                name.Name);
             return false;
         }
 
         if (!HasProperty(globalObject, name.Name))
         {
+            // Debug: Log when property is not found
+            RealmState?.Logger?.LogWarning(
+                "TryResolveGlobalObjectBinding: property not found name={Name}",
+                name.Name);
             return false;
         }
 
@@ -1823,7 +1863,8 @@ public sealed class JsEnvironment : IRentable
 
     internal bool HasLexicalBinding(Symbol name)
     {
-        if (_values is not null && _values.TryGetValue(name, out var binding) && binding.IsLexical)
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical)
         {
             return true;
         }
@@ -1836,7 +1877,7 @@ public sealed class JsEnvironment : IRentable
         var current = this;
         while (current is not null)
         {
-            if (current._withObject is null && current._values?.ContainsKey(name) == true)
+            if (current._withObject is null && current.HasBindingLocal(name))
             {
                 return true;
             }
@@ -1880,8 +1921,8 @@ public sealed class JsEnvironment : IRentable
         var current = this;
         while (current?.IsFunctionScope == false)
         {
-            if (current._values is not null && current._values.TryGetValue(name, out var binding) &&
-                binding.IsLexical)
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical)
             {
                 return true;
             }
@@ -1931,15 +1972,16 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     public bool HasVarDeclaration(Symbol name)
     {
-        // Check if there's a non-lexical binding in _values
-        if (_values is null || !_values.TryGetValue(name, out var binding) || binding.IsLexical)
+        // Check if there's a non-lexical binding in slots
+        ref var slot = ref TryGetSlotRef(name);
+        if (Unsafe.IsNullRef(ref slot) || slot.IsLexical)
         {
             return false;
         }
 
         // Non-strict direct eval creates deletable global var bindings (configurable properties)
         // which should not block future lexical declarations in GlobalDeclarationInstantiation.
-        return !binding.CanDelete || !IsGlobalFunctionScope;
+        return !slot.CanDelete || !IsGlobalFunctionScope;
     }
 
     /// <summary>
@@ -1959,8 +2001,9 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            // Also check if there's a lexical binding in _values
-            if (current._values is not null && current._values.TryGetValue(name, out var binding) && binding.IsLexical)
+            // Also check if there's a lexical binding in slots
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical)
             {
                 return true;
             }
@@ -1986,8 +2029,9 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            // Also check if there's a lexical binding in _values
-            if (current._values is not null && current._values.TryGetValue(name, out var binding) && binding.IsLexical)
+            // Also check if there's a lexical binding in slots
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical)
             {
                 return true;
             }
@@ -2016,10 +2060,11 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal bool TryGetJsValueLocalSafe(Symbol name, out JsValue value)
     {
-        if (_values is not null && _values.TryGetValue(name, out var binding))
+        ref var slot = ref TryGetSlotRef(name);
+        if (!Unsafe.IsNullRef(ref slot))
         {
             // Return false for uninitialized bindings instead of throwing
-            if (binding.IsUninitialized)
+            if (slot.IsUninitialized)
             {
                 value = default;
                 return false;
@@ -2029,7 +2074,14 @@ public sealed class JsEnvironment : IRentable
             // (e.g., self-importing module with *default* export not yet evaluated)
             try
             {
-                value = binding.JsValue;
+                if (slot.HasSpecialBinding)
+                {
+                    value = ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                }
+                else
+                {
+                    value = slot.Value;
+                }
                 return true;
             }
             catch (InvalidOperationException)
@@ -2062,10 +2114,11 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
                 // Check IsUninitialized before reading
-                if (binding.IsUninitialized)
+                if (slot.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
@@ -2081,7 +2134,14 @@ public sealed class JsEnvironment : IRentable
                     }
                 }
 
-                value = binding.JsValue;
+                if (slot.HasSpecialBinding)
+                {
+                    value = ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                }
+                else
+                {
+                    value = slot.Value;
+                }
                 return true;
             }
 
@@ -2123,15 +2183,23 @@ public sealed class JsEnvironment : IRentable
 
         while (current is not null && hops++ < maxLookupDepth)
         {
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
-                if (binding.IsUninitialized)
+                if (slot.IsUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
-                value = binding.JsValue;
-                isConst = binding.IsConst;
+                if (slot.HasSpecialBinding)
+                {
+                    value = ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                }
+                else
+                {
+                    value = slot.Value;
+                }
+                isConst = slot.IsConst;
                 return true;
             }
 
@@ -2179,15 +2247,23 @@ public sealed class JsEnvironment : IRentable
                 return true;
             }
 
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
-                if (binding.IsUninitialized && !allowUninitialized)
+                if (slot.IsUninitialized && !allowUninitialized)
                 {
                     throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
                 }
 
                 environment = current;
-                value = binding.JsValue;
+                if (slot.HasSpecialBinding)
+                {
+                    value = ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                }
+                else
+                {
+                    value = slot.Value;
+                }
                 return true;
             }
 
@@ -2233,62 +2309,66 @@ public sealed class JsEnvironment : IRentable
 
             var realm = current.RealmState ?? current.Enclosing?.RealmState;
 
-            if (current._values is not null)
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
-                ref var binding = ref current._values.GetValueRefOrNullRef(name);
-                if (!Unsafe.IsNullRef(ref binding))
+                // TDZ check: uninitialized lexical bindings should throw ReferenceError
+                if (slot.IsUninitialized && slot.IsLexical && !Equals(name, Symbol.This))
                 {
-                    // Check IsUninitialized before reading
-                    if (binding is { IsUninitialized: true, IsLexical: true } && !Equals(name, Symbol.This))
-                    {
-                        throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null,
-                            realm);
-                    }
+                    throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined", null,
+                        realm);
+                }
 
-                    if (binding.IsConst)
+                if (slot.IsConst)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        $"Cannot reassign constant '{name.Name}'.",
+                        realm: realm));
+                }
+
+                if (slot.IsImmutableBinding)
+                {
+                    // Immutable bindings (named function expression names) throw in strict mode
+                    // but silently fail in non-strict mode
+                    if (isStrictContext)
                     {
                         throw new ThrowSignal(StandardLibrary.CreateTypeError(
                             $"Cannot reassign constant '{name.Name}'.",
                             realm: realm));
                     }
 
-                    if (binding.IsImmutableBinding)
-                    {
-                        // Immutable bindings (named function expression names) throw in strict mode
-                        // but silently fail in non-strict mode
-                        if (isStrictContext)
-                        {
-                            throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                                $"Cannot reassign constant '{name.Name}'.",
-                                realm: realm));
-                        }
-
-                        return;
-                    }
-
-                    if (!binding.IsGlobalConstant)
-                    {
-                        binding.JsValue = value;
-                        current.TrySetSlot(name, value);
-                        if (!binding.IsLexical)
-                        {
-                            globalObject?.SetProperty(name.Name, value);
-                        }
-
-                        current.NotifyBindingObservers(name, value);
-                        return;
-                    }
-
-                    // Handle case where the value is already a boxed JsValue
-                    if (isStrictContext)
-                    {
-                        throw new ThrowSignal(
-                            StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable",
-                                realm: realm));
-                    }
-
                     return;
                 }
+
+                if (!slot.IsGlobalConstant)
+                {
+                    // Check for special binding (import/export) - use flag for fast detection
+                    if (slot.HasSpecialBinding)
+                    {
+                        ((ISpecialBinding)slot.Value.ObjectValue!).SetJsValue(value);
+                    }
+                    else
+                    {
+                        slot.SetValueAndClearTdz(value);
+                    }
+                    if (!slot.IsLexical)
+                    {
+                        globalObject?.SetProperty(name.Name, value);
+                    }
+
+                    current.NotifyBindingObservers(name, value);
+                    return;
+                }
+
+                // Handle case where the value is already a boxed JsValue
+                if (isStrictContext)
+                {
+                    throw new ThrowSignal(
+                        StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable",
+                            realm: realm));
+                }
+
+                return;
             }
 
             if (current._varEnvironmentOverride is not null &&
@@ -2373,9 +2453,10 @@ public sealed class JsEnvironment : IRentable
                     : DeleteBindingResult.NotDeletable;
             }
 
-            if (current._values is not null && current._values.TryGetValue(name, out var binding))
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
-                return current.TryDeleteDeclarativeBinding(name, binding)
+                return current.TryDeleteDeclarativeBinding(name, ref slot)
                     ? DeleteBindingResult.Deleted
                     : DeleteBindingResult.NotDeletable;
             }
@@ -2399,16 +2480,16 @@ public sealed class JsEnvironment : IRentable
         return DeleteBindingResult.Deleted;
     }
 
-    private bool TryDeleteDeclarativeBinding(Symbol name, Binding binding)
+    private bool TryDeleteDeclarativeBinding(Symbol name, ref JsSlot slot)
     {
-        if (binding.IsLexical || binding.IsConst || binding.IsGlobalConstant || binding.BlocksFunctionScopeOverride)
+        if (slot.IsLexical || slot.IsConst || slot.IsGlobalConstant || slot.BlocksFunctionScopeOverride)
         {
             return false;
         }
 
-        if (binding.CanDelete)
+        if (slot.CanDelete)
         {
-            _values?.Remove(name);
+            RemoveSlot(name);
             return true;
         }
 
@@ -2436,11 +2517,36 @@ public sealed class JsEnvironment : IRentable
         }
 
         globalObject.Delete(name.Name);
-        _values?.Remove(name);
+        RemoveSlot(name);
         return true;
     }
 
-    private JsObject? GetRootGlobalObject()
+    /// <summary>
+    /// Removes a slot by name (used for delete operation).
+    /// </summary>
+    private void RemoveSlot(Symbol name)
+    {
+        var slots = _slots;
+        if (slots is null) return;
+
+        var count = _slotCount;
+        for (var i = 0; i < count; i++)
+        {
+            if (ReferenceEquals(slots[i].Name, name))
+            {
+                // Move last slot to this position (swap-remove)
+                if (i < count - 1)
+                {
+                    slots[i] = slots[count - 1];
+                }
+                slots[count - 1] = default;
+                _slotCount = count - 1;
+                return;
+            }
+        }
+    }
+
+    internal JsObject? GetRootGlobalObject()
     {
         var current = this;
         var hops = 0;
@@ -2450,11 +2556,39 @@ public sealed class JsEnvironment : IRentable
             current = current.Enclosing;
         }
 
-        if (current._values is not null &&
-            current._values.TryGetValue(Symbol.This, out var thisBinding) &&
-            thisBinding.JsValue.TryGetObject<JsObject>(out var globalObject))
+        ref var slot = ref current.TryGetSlotRef(Symbol.This);
+        if (!Unsafe.IsNullRef(ref slot))
         {
-            return globalObject;
+            var slotValue = slot.HasSpecialBinding
+                ? ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue()
+                : slot.Value;
+            if (slotValue.TryGetObject<JsObject>(out var globalObject))
+            {
+                return globalObject;
+            }
+        }
+
+        // Debug: Log when we can't find Symbol.This
+        // This helps diagnose "JSON is not defined" type errors
+        if (RealmState?.Logger is { } logger)
+        {
+            var slot0Name = current._slots?[0].Name;
+            var isRefEqual = ReferenceEquals(slot0Name, Symbol.This);
+            logger.LogWarning(
+                "GetRootGlobalObject: Could not find Symbol.This. SlotCount={SlotCount}, Hops={Hops}, " +
+                "Slot0NameRef={Slot0Ref}, SymbolThisRef={ThisRef}, RefEqual={RefEqual}, " +
+                "Slot0NameStr={Slot0Str}, SymbolThisStr={ThisStr}",
+                current._slotCount, hops,
+                slot0Name?.GetHashCode() ?? -1, Symbol.This.GetHashCode(), isRefEqual,
+                slot0Name?.Name ?? "(null)", Symbol.This.Name);
+            // Log first few slots
+            for (var i = 0; i < current._slotCount && i < 5; i++)
+            {
+                var slotName = current._slots?[i].Name;
+                logger.LogWarning(
+                    "  Slot[{Index}] = '{Name}' (hash={Hash})",
+                    i, slotName?.Name ?? "(null)", slotName?.GetHashCode() ?? -1);
+            }
         }
 
         return null;
@@ -2709,7 +2843,8 @@ public sealed class JsEnvironment : IRentable
     internal bool HasFunctionScopedBinding(Symbol name)
     {
         var scope = GetFunctionScope();
-        return scope._values is not null && scope._values.TryGetValue(name, out var binding) && !binding.IsLexical;
+        ref var slot = ref scope.TryGetSlotRef(name);
+        return !Unsafe.IsNullRef(ref slot) && !slot.IsLexical;
     }
 
     internal JsEnvironment GetFunctionScope()
@@ -2758,23 +2893,24 @@ public sealed class JsEnvironment : IRentable
         while (current is not null)
         {
             // Add variables from current scope (only if not already present from inner scope)
-            if (current._values is null)
+            var slots = current._slots;
+            if (slots is not null)
             {
-                current = current.Enclosing;
-                continue;
-            }
-
-            foreach (var kvp in current._values)
-            {
-                // Skip uninitialized TDZ bindings - they exist but can't be accessed
-                if (kvp.Value.IsUninitialized)
+                for (var i = 0; i < current._slotCount; i++)
                 {
-                    continue;
-                }
+                    ref var slot = ref slots[i];
+                    if (slot.Name is null) continue;
 
-                if (!result.ContainsKey(kvp.Key.Name))
-                {
-                    result[kvp.Key.Name] = kvp.Value.JsValue.ToObject();
+                    // Skip uninitialized TDZ bindings - they exist but can't be accessed
+                    if (slot.IsUninitialized) continue;
+
+                    if (!result.ContainsKey(slot.Name.Name))
+                    {
+                        var value = slot.HasSpecialBinding
+                            ? ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue()
+                            : slot.Value;
+                        result[slot.Name.Name] = value.ToObject();
+                    }
                 }
             }
 
@@ -2804,23 +2940,22 @@ public sealed class JsEnvironment : IRentable
         {
             iterations++;
 
-            // Collect dictionary variables
+            // Collect slot variables (both named and by index)
             var dictVars = new Dictionary<string, object?>(StringComparer.Ordinal);
-            if (current._values is not null)
-            {
-                foreach (var kvp in current._values)
-                {
-                    dictVars[kvp.Key.Name] = kvp.Value.JsValue.ToObject();
-                }
-            }
-
-            // Collect slot variables
             var slotVars = new Dictionary<int, object?>();
             if (current._slots is not null)
             {
                 for (var i = 0; i < current._slotCount; i++)
                 {
-                    slotVars[i] = current._slots[i].Value.ToObject();
+                    ref var slot = ref current._slots[i];
+                    var value = slot.HasSpecialBinding
+                        ? ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue()
+                        : slot.Value;
+                    slotVars[i] = value.ToObject();
+                    if (slot.Name is not null)
+                    {
+                        dictVars[slot.Name.Name] = value.ToObject();
+                    }
                 }
             }
 
@@ -2908,18 +3043,36 @@ public sealed class JsEnvironment : IRentable
         /// </summary>
         internal JsValue ReadJsValue(EvaluationContext context)
         {
-            if (_environment._values is null)
+            ref var slot = ref _environment.TryGetSlotRef(_name);
+            if (Unsafe.IsNullRef(ref slot))
             {
                 throw new InvalidOperationException($"Binding for {_name.Name} not found");
             }
 
-            ref var binding = ref _environment._values.GetValueRefOrNullRef(_name);
-            if (!Unsafe.IsNullRef(ref binding))
+            if (slot.IsUninitialized)
             {
-                return ReadResolvedBindingJsValue(_environment, ref binding, _name, context);
+                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{_name.Name}' before initialization",
+                    context,
+                    context.RealmState));
             }
 
-            throw new InvalidOperationException($"Binding for {_name.Name} not found");
+            if (slot.HasSpecialBinding)
+            {
+                return ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+            }
+
+            // For global scope non-lexical bindings, check global object
+            if (_environment.IsGlobalFunctionScope && !slot.IsLexical)
+            {
+                var globalObject = _environment.GetRootGlobalObject();
+                if (globalObject is not null && globalObject.TryGetProperty(_name.Name, out var globalValue))
+                {
+                    return globalValue;
+                }
+            }
+
+            return slot.Value;
         }
 
         /// <summary>
@@ -2928,18 +3081,45 @@ public sealed class JsEnvironment : IRentable
         /// </summary>
         internal void WriteJsValue(JsValue value, bool isStrictContext)
         {
-            if (_environment._values is null)
+            ref var slot = ref _environment.TryGetSlotRef(_name);
+            if (Unsafe.IsNullRef(ref slot))
             {
                 throw new InvalidOperationException($"Binding for {_name.Name} not found");
             }
 
-            ref var binding = ref _environment._values.GetValueRefOrNullRef(_name);
-            if (Unsafe.IsNullRef(ref binding))
+            if (slot.IsUninitialized && slot.IsLexical)
             {
-                throw new InvalidOperationException($"Binding for {_name.Name} not found");
+                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{_name.Name}' before initialization",
+                    null,
+                    _environment.RealmState));
             }
 
-            _environment.WriteResolvedBindingJsValue(_environment, ref binding, _name, value, isStrictContext);
+            // Const bindings always throw TypeError on reassignment per ES spec,
+            // regardless of strict mode
+            if (slot.IsConst && !slot.IsUninitialized)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Assignment to constant variable '{_name.Name}'.",
+                    realm: _environment.RealmState));
+            }
+
+            if (slot.HasSpecialBinding)
+            {
+                ((ISpecialBinding)slot.Value.ObjectValue!).SetJsValue(value);
+            }
+            else
+            {
+                slot.SetValueAndClearTdz(value);
+            }
+
+            // For non-lexical bindings (var) in global scope, also update the global object
+            // This mirrors the behavior of AssignJsValue which syncs with the global object
+            if (!slot.IsLexical && _environment.IsGlobalFunctionScope)
+            {
+                var globalObject = _environment.GetRootGlobalObject();
+                globalObject?.SetProperty(_name.Name, value);
+            }
         }
     }
 
@@ -3185,6 +3365,23 @@ public sealed class JsEnvironment : IRentable
     #region Slot-based Variable Access
 
     /// <summary>
+    /// Clears all slot values without deallocating the array.
+    /// Used during Reset/ResetForReuse.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ClearSlots()
+    {
+        var slots = _slots;
+        if (slots is null) return;
+        var count = _slotCount;
+        for (var i = 0; i < count; i++)
+        {
+            slots[i] = default;
+        }
+        _slotCount = 0;
+    }
+
+    /// <summary>
     /// Initializes slot storage for this environment.
     /// Internal use only - prefer Initialize() for public API.
     /// </summary>
@@ -3220,6 +3417,35 @@ public sealed class JsEnvironment : IRentable
     internal void InitializeSlots(int slotCount, int scopeId)
     {
         ScopeId = scopeId;
+
+        // If we already have slots (from hoisting), preserve them and ensure capacity
+        // This is important for scripts where hoisted declarations are stored in slots
+        // before the execution plan internal slots are needed.
+        var existingCount = _slotCount;
+        if (existingCount > 0)
+        {
+            // Ensure we have capacity for existing slots + new slots
+            var neededCapacity = existingCount + slotCount;
+            if (_slots is null || _slots.Length < neededCapacity)
+            {
+                var oldSlots = _slots;
+                _slots = JsSlotArrayPool.Rent(neededCapacity);
+                if (oldSlots is not null)
+                {
+                    Array.Copy(oldSlots, _slots, existingCount);
+                    JsSlotArrayPool.Return(oldSlots);
+                }
+            }
+            // Clear only the new slots (after existing ones)
+            if (slotCount > 0)
+            {
+                Array.Clear(_slots, existingCount, slotCount);
+            }
+            // Keep _slotCount as the sum of existing + new
+            _slotCount = neededCapacity;
+            return;
+        }
+
         _slotCount = slotCount;
         if (slotCount <= 0)
         {
@@ -3234,7 +3460,7 @@ public sealed class JsEnvironment : IRentable
             _slots = JsSlotArrayPool.Rent(slotCount);
         }
 
-        // Clear all slots (set to empty)
+        // Clear all slots (set to empty) - only when starting fresh
         Array.Clear(_slots, 0, slotCount);
     }
 
@@ -3275,6 +3501,7 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     /// Sets slot names from a slot map. Used for compatibility with old API.
+    /// Preserves existing slots that already have names (e.g., Symbol.This from GlobalEnvironment).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotMap(System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
@@ -3286,15 +3513,28 @@ public sealed class JsEnvironment : IRentable
         {
             if (_slots is null || _slots.Length < count)
             {
-                JsSlotArrayPool.Return(_slots);
+                // Preserve existing slots when reallocating
+                var oldSlots = _slots;
+                var existingCount = _slotCount;
                 _slots = JsSlotArrayPool.Rent(count);
-                Array.Clear(_slots, 0, count);
+
+                if (oldSlots is not null && existingCount > 0)
+                {
+                    // Copy existing slots to preserve their names and values
+                    Array.Copy(oldSlots, _slots, Math.Min(existingCount, count));
+                    JsSlotArrayPool.Return(oldSlots);
+                }
+                else
+                {
+                    Array.Clear(_slots, 0, count);
+                }
             }
 
-            // Set slot names from the map (values remain as initialized)
+            // Set slot names from the map, but only for slots that don't already have names.
+            // This prevents overwriting existing bindings like Symbol.This on the GlobalEnvironment.
             foreach (var (symbol, index) in slotMap)
             {
-                if (index >= 0 && index < _slots.Length)
+                if (index >= 0 && index < _slots.Length && _slots[index].Name is null)
                 {
                     _slots[index].Name = symbol;
                 }
@@ -3384,6 +3624,71 @@ public sealed class JsEnvironment : IRentable
         }
 
         _slots = newSlots;
+    }
+
+    /// <summary>
+    /// Gets a reference to an existing slot by name, or adds a new slot if not found.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref JsSlot GetOrDefineSlotRef(Symbol name, JsValue value, SlotFlags flags)
+    {
+        var index = FindSlotIndex(name);
+        if (index >= 0)
+        {
+            return ref _slots![index];
+        }
+
+        index = DefineSlot(name, value, flags);
+        return ref _slots![index];
+    }
+
+    /// <summary>
+    /// Tries to get a reference to an existing slot by name.
+    /// Returns Unsafe.NullRef if not found.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ref JsSlot TryGetSlotRef(Symbol name)
+    {
+        var index = FindSlotIndex(name);
+        if (index >= 0)
+        {
+            return ref _slots![index];
+        }
+
+        return ref Unsafe.NullRef<JsSlot>();
+    }
+
+    /// <summary>
+    /// Checks if a binding exists in this environment.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool HasBindingLocal(Symbol name)
+    {
+        return FindSlotIndex(name) >= 0;
+    }
+
+    /// <summary>
+    /// Builds SlotFlags from individual boolean parameters.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static SlotFlags BuildSlotFlags(
+        bool isConst,
+        bool isGlobalConstant,
+        bool isLexical,
+        bool blocksFunctionScopeOverride,
+        bool canDelete,
+        bool isImmutableBinding = false,
+        bool uninitialized = false)
+    {
+        var flags = SlotFlags.None;
+        if (isConst) flags |= SlotFlags.Const;
+        if (isGlobalConstant) flags |= SlotFlags.GlobalConstant;
+        if (isLexical) flags |= SlotFlags.Lexical;
+        if (blocksFunctionScopeOverride) flags |= SlotFlags.BlocksFunctionScopeOverride;
+        if (canDelete) flags |= SlotFlags.CanDelete;
+        if (isImmutableBinding) flags |= SlotFlags.ImmutableBinding;
+        if (uninitialized) flags |= SlotFlags.Uninitialized;
+        return flags;
     }
 
     /// <summary>

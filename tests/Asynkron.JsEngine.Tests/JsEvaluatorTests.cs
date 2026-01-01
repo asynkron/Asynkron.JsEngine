@@ -224,6 +224,19 @@ public class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBase(outpu
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ConstAssignmentThrows2()
+    {
+        // Per ES spec, const reassignment always throws TypeError regardless of strict mode
+        await using var engine = CreateEngine();
+
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await engine.Evaluate("""
+                                  const fixed = 1;
+                                  fixed = 2;
+                                  """));
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task TryCatchFinallyBindsThrownValueAndRunsCleanup()
     {
         await using var engine = CreateEngine();

@@ -243,31 +243,21 @@ public sealed partial class TypedArrayPrototype
     private JsValue Values(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.values");
-        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray,
-            idx => typedArray.GetValueForIndex((int)idx), Realm));
+        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, ArrayIteratorKind.Values, Realm));
     }
 
     [JsHostMethod("keys", Length = 0d)]
     private JsValue Keys(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.keys");
-        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, idx => new JsValue((double)idx), Realm));
+        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, ArrayIteratorKind.Keys, Realm));
     }
 
     [JsHostMethod("entries", Length = 0d)]
     private JsValue Entries(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
         var typedArray = ValidateReceiver(thisValue, "%TypedArray%.prototype.entries");
-        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(
-            typedArray,
-            idx =>
-            {
-                var pair = new JsArray(Realm);
-                pair.Push((double)idx);
-                pair.Push(typedArray.GetValueForIndex((int)idx));
-                return JsValue.FromJsArray(pair);
-            },
-            Realm));
+        return JsValue.FromObjectUnsafe(CreateArrayIteratorObject(typedArray, ArrayIteratorKind.Entries, Realm));
     }
 
     [JsHostMethod("join", Length = 1d)]

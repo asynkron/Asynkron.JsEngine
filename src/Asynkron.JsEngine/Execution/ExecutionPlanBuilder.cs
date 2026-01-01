@@ -128,7 +128,7 @@ internal sealed partial class ExecutionPlanBuilder
         // For functions, slot assignment is fine because scope analysis happens at parse time.
         if (!_isScriptLevel)
         {
-            AssignSlotsToUserVariables();
+            AssignSlotsToUserVariables(function, entryIndex);
         }
 
         plan = new ExecutionPlan(
@@ -143,34 +143,42 @@ internal sealed partial class ExecutionPlanBuilder
     /// Collects all user variable identifiers from instructions, assigns them slots,
     /// and updates the AST nodes with ScopeId=0 and the assigned slot indices.
     /// </summary>
-    private void AssignSlotsToUserVariables()
+    private void AssignSlotsToUserVariables(FunctionExpression function, int entryIndex)
     {
-        // Step 1: Collect all unique user variable symbols from instructions using the visitor
-        var collector = new IdentifierCollector();
-        foreach (var instruction in _instructions)
-        {
-            collector.VisitInstruction(instruction);
-        }
+        // Collect scope slot maps from instructions (per-iteration, block, catch, etc.).
+        // These are stamped during scope analysis and IR emission, so we can reuse them.
+        var scopeSlotMaps = SlotAssignmentTableBuilder.CollectScopeSlotMaps(_instructions);
 
-        // Step 2: Build a map from symbol to (scopeId, slotIndex)
-        var symbolToScope = new Dictionary<Symbol, (int scopeId, int slotIndex)>(
-            collector.Identifiers.Count,
+        // Track existing plan slots (compiler-generated) so we don't re-allocate them.
+        var planSlotIndices = new Dictionary<Symbol, int>(
+            _slotSymbols.Count,
             ReferenceEqualityComparer<Symbol>.Instance);
-        foreach (var symbol in collector.Identifiers)
+        for (var i = 0; i < _slotSymbols.Count; i++)
         {
-            // Allocate a slot for this user variable
-            var slotIndex = AllocateSlot(symbol);
-            symbolToScope[symbol] = (0, slotIndex); // ScopeId=0 for execution plan environment
+            planSlotIndices[_slotSymbols[i]] = i;
         }
 
-        // Step 3: Update all instructions to use the new slot information using the rewriter
-        if (symbolToScope.Count > 0)
+        // Walk the IR to resolve identifiers to their declaring scopes.
+        var tableBuilder = new SlotAssignmentTableBuilder(
+            entryIndex,
+            _instructions,
+            scopeSlotMaps,
+            planSlotIndices,
+            AllocateSlot);
+        tableBuilder.Build();
+
+        if (tableBuilder.IdentifierSlots.Count == 0 && tableBuilder.AssignmentSlots.Count == 0)
         {
-            var rewriter = new SlotAssignmentRewriter(symbolToScope);
-            for (var i = 0; i < _instructions.Count; i++)
-            {
-                _instructions[i] = rewriter.RewriteInstruction(_instructions[i]);
-            }
+            return;
+        }
+
+        // Rewrite instructions to stamp SlotIndex/ScopeId for fast-path lookups.
+        var rewriter = new SlotAssignmentRewriter(
+            tableBuilder.IdentifierSlots,
+            tableBuilder.AssignmentSlots);
+        for (var i = 0; i < _instructions.Count; i++)
+        {
+            _instructions[i] = rewriter.RewriteInstruction(_instructions[i]);
         }
     }
 

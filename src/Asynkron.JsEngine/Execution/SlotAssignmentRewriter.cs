@@ -7,7 +7,9 @@ namespace Asynkron.JsEngine.Execution;
 /// Rewriter that updates AST nodes with scopeId and slotIndex information.
 /// Uses AstRewriter base class for consistent AST transformation.
 /// </summary>
-internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, int slotIndex)> symbolToScope)
+internal sealed class SlotAssignmentRewriter(
+    IReadOnlyDictionary<IdentifierExpression, (int scopeId, int slotIndex)> identifierSlots,
+    IReadOnlyDictionary<AssignmentExpression, (int scopeId, int slotIndex)> assignmentSlots)
     : AstRewriter
 {
     public ExecutionInstruction RewriteInstruction(ExecutionInstruction instruction)
@@ -68,7 +70,7 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
 
     protected override IdentifierExpression RewriteIdentifier(IdentifierExpression node)
     {
-        if (symbolToScope.TryGetValue(node.Name, out var scopeInfo))
+        if (identifierSlots.TryGetValue(node, out var scopeInfo))
         {
             return node with
             {
@@ -82,7 +84,7 @@ internal sealed class SlotAssignmentRewriter(Dictionary<Symbol, (int scopeId, in
     protected override AssignmentExpression RewriteAssignment(AssignmentExpression node)
     {
         // Update the assignment target slot info
-        if (symbolToScope.TryGetValue(node.Target, out var targetInfo))
+        if (assignmentSlots.TryGetValue(node, out var targetInfo))
         {
             return node with
             {

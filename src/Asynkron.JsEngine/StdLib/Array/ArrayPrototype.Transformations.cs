@@ -479,9 +479,15 @@ public sealed partial class ArrayPrototype
             throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
         }
 
+        // Per spec step 1: If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError.
+        // This MUST happen BEFORE getting the length (step 3).
         IJsCallable? compareFn = null;
-        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var callable))
+        if (args.Count > 0 && !args[0].IsUndefined)
         {
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
+            {
+                throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+            }
             compareFn = callable;
         }
 
@@ -605,10 +611,21 @@ public sealed partial class ArrayPrototype
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
+        // Per spec step 8: If start is not present, then actualDeleteCount = 0.
+        // Per spec step 9: Else if deleteCount is not present, use len - actualStart.
+        // NOTE: "not present" means the argument wasn't passed at all, NOT that it's undefined.
+        // If deleteCount is passed as undefined, we use ToIntegerOrInfinity(undefined) = 0.
+        var startIsNotPresent = args.Count == 0;
+        var deleteCountIsNotPresent = args.Count == 1;  // Only when deleteCount arg is truly missing
         long actualDeleteCount;
-        if (deleteCountIsUndefined)
+        if (startIsNotPresent)
         {
+            // Per spec step 8: If start is not present, actualDeleteCount = 0
+            actualDeleteCount = 0;
+        }
+        else if (deleteCountIsNotPresent)
+        {
+            // Per spec step 9: Else if deleteCount is not present, actualDeleteCount = len - actualStart
             actualDeleteCount = length - actualStart;
         }
         else

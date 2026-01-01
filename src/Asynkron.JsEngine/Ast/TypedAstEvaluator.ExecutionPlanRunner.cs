@@ -1388,9 +1388,7 @@ public static partial class TypedAstEvaluator
 
                                 // Evaluate initializer if present
                                 var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context)
-                                    ?? (varDeclInstruction.VarKind == VariableKind.Var
-                                        ? JsValue.Undefined
-                                        : JsValue.Uninitialized);
+                                    ?? JsValue.Undefined;
 
                                 //TODO: why is this placed here!?
                                 if (TryHandlePendingAwait(context, out var pendingVarResult, environment))

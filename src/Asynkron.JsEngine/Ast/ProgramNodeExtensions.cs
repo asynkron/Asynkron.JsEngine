@@ -488,6 +488,14 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
+            // Dynamic scope constructs (with/eval) require dictionary-based lookups; skip IR/slot stamping.
+            var hasDynamicScope = !AllowsIdentifierCaching(program);
+            if (hasDynamicScope)
+            {
+                context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval).");
+                return programBlock.EvaluateStatementJsValue(executionEnvironment, context);
+            }
+
             // Try IR execution path first (unified execution model)
             // Fall back to AST walking if IR building fails or encounters unsupported constructs
             var scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
@@ -505,8 +513,7 @@ public static partial class TypedAstEvaluator
                 // NOTE: For scripts, hoisting happens before this point, so hoisted bindings
                 // are already in slots. We use direct 0-based indices and rely on the IR
                 // using different symbol names (internal __* symbols vs user variables).
-                var hasDynamicScope = !AllowsIdentifierCaching(program);
-                if (!hasDynamicScope && plan.SlotCount > 0 && !plan.SlotSymbols.IsDefaultOrEmpty)
+                if (plan.SlotCount > 0 && !plan.SlotSymbols.IsDefaultOrEmpty)
                 {
                     executionEnvironment.InitializeSlots(plan.SlotCount, scopeId: 0);
                     var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(

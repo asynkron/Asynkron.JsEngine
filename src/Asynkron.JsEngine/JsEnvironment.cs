@@ -34,6 +34,7 @@ public sealed class JsEnvironment : IRentable
     private string? _description;
     internal bool _hasThisValue;
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
+    private Dictionary<Symbol, JsVariable>? _slotVariableCache;
     private bool _inheritStrictness;
     private bool _isStrictEffective;
 
@@ -208,6 +209,7 @@ public sealed class JsEnvironment : IRentable
         _description = description;
         _values?.Clear();
         _identifierBindingCache?.Clear();
+        _slotVariableCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
         _simpleCatchParameters?.Clear();
@@ -272,6 +274,7 @@ public sealed class JsEnvironment : IRentable
         _description = description;
         _values?.Clear();
         _identifierBindingCache?.Clear();
+        _slotVariableCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
         _simpleCatchParameters?.Clear();
@@ -1110,6 +1113,12 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal JsValue GetIdentifierJsValueDirect(Symbol name, EvaluationContext context)
     {
+        if (TryResolveSlotVariable(name, out var cachedVariable) &&
+            cachedVariable.Environment.TryReadSlotValue(name, cachedVariable.SlotIndex, context, out var slotValue))
+        {
+            return slotValue;
+        }
+
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
             return cached.ReadJsValue(context);
@@ -1169,6 +1178,14 @@ public sealed class JsEnvironment : IRentable
             }
 
             value = localBinding.JsValue;
+            return true;
+        }
+
+        if (context.AllowIdentifierCache &&
+            TryResolveSlotVariable(name, out var cachedVariable) &&
+            cachedVariable.Environment.TryReadSlotValue(name, cachedVariable.SlotIndex, context, out var slotValue))
+        {
+            value = slotValue;
             return true;
         }
 
@@ -1383,6 +1400,12 @@ public sealed class JsEnvironment : IRentable
     internal void SetIdentifierJsValue(Symbol name, JsValue value, EvaluationContext context)
     {
         var isStrictContext = context.CurrentScope.IsStrict;
+
+        if (context.AllowIdentifierCache && TryResolveSlotVariable(name, out var cachedVariable))
+        {
+            cachedVariable.Environment.WriteSlotValue(name, cachedVariable.SlotIndex, value, context);
+            return;
+        }
 
         if (TryGetCachedDeclarativeBinding(name, context, out var cached))
         {
@@ -3226,6 +3249,112 @@ public sealed class JsEnvironment : IRentable
     internal bool TryGetSlotIndex(Symbol name, out int slotIndex)
     {
         return _slotMap.TryGetValue(name, out slotIndex) && slotIndex >= 0;
+    }
+
+    /// <summary>
+    /// Resolves a symbol to a cached slot variable by walking the environment chain.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryResolveSlotVariable(Symbol name, out JsVariable variable)
+    {
+        if (_slotVariableCache is not null && _slotVariableCache.TryGetValue(name, out variable))
+        {
+            return true;
+        }
+
+        var current = this;
+        var hops = 0;
+        const int maxLookupDepth = 10_000;
+
+        while (current is not null && hops++ < maxLookupDepth)
+        {
+            if (!current._slotMap.IsEmpty &&
+                current._slotMap.TryGetValue(name, out var slotIndex) &&
+                slotIndex >= 0 &&
+                current._slots is not null &&
+                slotIndex < current._slots.Length)
+            {
+                variable = new JsVariable(current, slotIndex);
+                _slotVariableCache ??=
+                    new Dictionary<Symbol, JsVariable>(ReferenceEqualityComparer<Symbol>.Instance);
+                _slotVariableCache[name] = variable;
+                return true;
+            }
+
+            if (current._varEnvironmentOverride is not null &&
+                current._varEnvironmentOverride != current &&
+                current._varEnvironmentOverride.TryResolveSlotVariable(name, out variable))
+            {
+                _slotVariableCache ??=
+                    new Dictionary<Symbol, JsVariable>(ReferenceEqualityComparer<Symbol>.Instance);
+                _slotVariableCache[name] = variable;
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        variable = default;
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryReadSlotValue(Symbol name, int slotIndex, EvaluationContext context, out JsValue value)
+    {
+        value = default;
+        var slots = _slots;
+        if (slots is null || slotIndex < 0 || slotIndex >= slots.Length)
+        {
+            return false;
+        }
+
+        var slotValue = slots[slotIndex];
+        if (slotValue.IsUninitialized)
+        {
+            var errorObject = StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState);
+            value = errorObject;
+            context.SetThrow(errorObject);
+            return true;
+        }
+
+        value = slotValue;
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void WriteSlotValue(Symbol name, int slotIndex, JsValue value, EvaluationContext context)
+    {
+        var slots = _slots;
+        if (slots is null || slotIndex < 0 || slotIndex >= slots.Length)
+        {
+            SetIdentifierJsValue(name, value, context);
+            return;
+        }
+
+        if (_values is not null)
+        {
+            ref var binding = ref _values.GetValueRefOrNullRef(name);
+            if (!Unsafe.IsNullRef(ref binding))
+            {
+                WriteResolvedBindingJsValue(this, ref binding, name, value, context.CurrentScope.IsStrict);
+                slots[slotIndex] = value;
+                return;
+            }
+        }
+
+        var currentSlotValue = slots[slotIndex];
+        if (currentSlotValue.IsUninitialized)
+        {
+            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState));
+        }
+
+        slots[slotIndex] = value;
     }
 
     /// <summary>

@@ -607,6 +607,145 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            if (context.AllowIdentifierCache &&
+                environment.TryResolveSlotVariable(expression.Target, out var cachedVariable))
+            {
+                if (expression.IsCompoundAssignment && expression.Value is BinaryExpression cachedBinary &&
+                    cachedVariable.Environment.TryReadSlotValue(expression.Target, cachedVariable.SlotIndex, context,
+                        out var leftJs))
+                {
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return leftJs;
+                    }
+
+                    switch (cachedBinary.Operator)
+                    {
+                        case BinaryOperator.LogicalAnd:
+                            if (!leftJs.IsTruthy)
+                            {
+                                return leftJs;
+                            }
+
+                            {
+                                var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(
+                                    expression,
+                                    cachedBinary.Right,
+                                    environment,
+                                    context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return rhsValue;
+                                }
+
+                                cachedVariable.Environment.WriteSlotValue(expression.Target, cachedVariable.SlotIndex,
+                                    rhsValue, context);
+                                return rhsValue;
+                            }
+                        case BinaryOperator.LogicalOr:
+                            if (leftJs.IsTruthy)
+                            {
+                                return leftJs;
+                            }
+
+                            {
+                                var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(
+                                    expression,
+                                    cachedBinary.Right,
+                                    environment,
+                                    context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return rhsValue;
+                                }
+
+                                cachedVariable.Environment.WriteSlotValue(expression.Target, cachedVariable.SlotIndex,
+                                    rhsValue, context);
+                                return rhsValue;
+                            }
+                        case BinaryOperator.NullishCoalescing:
+                            if (!leftJs.IsNullish)
+                            {
+                                return leftJs;
+                            }
+
+                            {
+                                var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(
+                                    expression,
+                                    cachedBinary.Right,
+                                    environment,
+                                    context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return rhsValue;
+                                }
+
+                                cachedVariable.Environment.WriteSlotValue(expression.Target, cachedVariable.SlotIndex,
+                                    rhsValue, context);
+                                return rhsValue;
+                            }
+                    }
+
+                    var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(
+                        expression,
+                        cachedBinary.Right,
+                        environment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return rightJs;
+                    }
+
+                    var compoundResult = cachedBinary.Operator switch
+                    {
+                        BinaryOperator.Add => AddValue(leftJs, rightJs, context),
+                        BinaryOperator.Subtract => SubtractValue(leftJs, rightJs, context),
+                        BinaryOperator.Multiply => MultiplyValue(leftJs, rightJs, context),
+                        BinaryOperator.Divide => DivideValue(leftJs, rightJs, context),
+                        BinaryOperator.Modulo => ModuloValue(leftJs, rightJs, context),
+                        BinaryOperator.Power => PowerValue(leftJs, rightJs, context),
+                        BinaryOperator.Equal => LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+                        BinaryOperator.NotEqual => !LooseEqualsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+                        BinaryOperator.StrictEqual => StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+                        BinaryOperator.StrictNotEqual => !StrictEqualsValue(leftJs, rightJs) ? JsValue.True : JsValue.False,
+                        BinaryOperator.LessThan => LessThanValue(leftJs, rightJs, context),
+                        BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftJs, rightJs, context),
+                        BinaryOperator.GreaterThan => GreaterThanValue(leftJs, rightJs, context),
+                        BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftJs, rightJs, context),
+                        BinaryOperator.BitwiseAnd => BitwiseAndValue(leftJs, rightJs, context),
+                        BinaryOperator.BitwiseOr => BitwiseOrValue(leftJs, rightJs, context),
+                        BinaryOperator.BitwiseXor => BitwiseXorValue(leftJs, rightJs, context),
+                        BinaryOperator.LeftShift => LeftShiftValue(leftJs, rightJs, context),
+                        BinaryOperator.RightShift => RightShiftValue(leftJs, rightJs, context),
+                        BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(leftJs, rightJs, context),
+                        BinaryOperator.In => InOperatorJsValue(leftJs, rightJs, context) ? JsValue.True : JsValue.False,
+                        BinaryOperator.InstanceOf => InstanceofOperatorJsValue(leftJs, rightJs, context)
+                            ? JsValue.True
+                            : JsValue.False,
+                        _ => throw new NotSupportedException(
+                            $"Compound assignment operator '{cachedBinary.Operator}' is not supported yet.")
+                    };
+
+                    cachedVariable.Environment.WriteSlotValue(expression.Target, cachedVariable.SlotIndex, compoundResult,
+                        context);
+                    return compoundResult;
+                }
+
+                if (!expression.IsCompoundAssignment)
+                {
+                    var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return rhsValue;
+                    }
+
+                    cachedVariable.Environment.WriteSlotValue(expression.Target, cachedVariable.SlotIndex, rhsValue,
+                        context);
+                    return rhsValue;
+                }
+            }
+
             // Fallback to the AssignmentReference path for other cases
             var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
                 expression.Target, environment, context);

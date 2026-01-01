@@ -447,8 +447,10 @@ public static partial class TypedAstEvaluator
                                            expression.SlotIndex,
                                            expression.ScopeId);
 
-                if (expression.IsCompoundAssignment &&
-                    TryEvaluateCompoundAssignmentSlotBased(
+                if (expression.IsCompoundAssignment)
+                {
+                    // Try slot-based compound assignment (fastest path)
+                    if (TryEvaluateCompoundAssignmentSlotBased(
                         expression,
                         expression.Value,
                         targetIdentifier,
@@ -456,30 +458,34 @@ public static partial class TypedAstEvaluator
                         context,
                         out var compoundJsValue,
                         out var shouldAssignCompound))
-                {
-                    if (context.ShouldStopEvaluation)
                     {
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return compoundJsValue;
+                        }
+
+                        if (shouldAssignCompound)
+                        {
+                            environment.TryWriteIdentifierWithSlot(targetIdentifier, compoundJsValue, context);
+                        }
+
                         return compoundJsValue;
                     }
-
-                    if (shouldAssignCompound)
+                    // If slot-based compound fails, fall through to other compound handlers below
+                }
+                else
+                {
+                    // Simple slot-based assignment (not compound)
+                    var slotValueJs =
+                        EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                    if (context.ShouldStopEvaluation)
                     {
-                        environment.TryWriteIdentifierWithSlot(targetIdentifier, compoundJsValue, context);
+                        return slotValueJs;
                     }
 
-                    return compoundJsValue;
-                }
-
-                // Simple slot-based assignment (not compound)
-                var slotValueJs =
-                    EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
-                if (context.ShouldStopEvaluation)
-                {
+                    environment.TryWriteIdentifierWithSlot(targetIdentifier, slotValueJs, context);
                     return slotValueJs;
                 }
-
-                environment.TryWriteIdentifierWithSlot(targetIdentifier, slotValueJs, context);
-                return slotValueJs;
             }
 
             // Fast path for compound assignments on simple identifiers

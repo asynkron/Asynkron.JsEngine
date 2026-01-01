@@ -1221,7 +1221,9 @@ public sealed class JsEnvironment : IRentable
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            var targetEnv = FindByScopeId(scopeId);
+            // Fast path: if current environment matches scopeId, use it directly
+            // This avoids the FindByScopeId loop traversal in the common case
+            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
             var slots = targetEnv?._slots;
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
@@ -1299,7 +1301,9 @@ public sealed class JsEnvironment : IRentable
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            var targetEnv = FindByScopeId(scopeId);
+            // Fast path: if current environment matches scopeId, use it directly
+            // This avoids the FindByScopeId loop traversal in the common case
+            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
             var slots = targetEnv?._slots;
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
@@ -3362,7 +3366,9 @@ public sealed class JsEnvironment : IRentable
     {
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            targetEnv = FindByScopeId(scopeId);
+            // Fast path: if current environment matches scopeId, use it directly
+            // This avoids the FindByScopeId loop traversal in the common case
+            targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
             if (targetEnv?._slots is not null && slotIndex < targetEnv._slots.Length)
             {
                 return true;

@@ -212,12 +212,35 @@ public static partial class TypedAstEvaluator
                 return true;
         }
 
-        var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
-        if (context.ShouldStopEvaluation)
+        // Fast path: evaluate RHS directly for simple expressions to avoid function call overhead
+        JsValue rightJs;
+        if (binary.Right is LiteralExpression rhsLiteral)
         {
-            value = JsValue.Undefined;
-            shouldAssign = false;
-            return true;
+            // Literal - use pre-computed value directly (no evaluation needed)
+            rightJs = rhsLiteral.Value;
+        }
+        else if (binary.Right is IdentifierExpression rhsIdentifier &&
+                 environment.TryReadIdentifierWithSlot(rhsIdentifier, context, out var rhsSlotValue))
+        {
+            // Identifier with slot - read directly
+            rightJs = rhsSlotValue;
+            if (context.ShouldStopEvaluation)
+            {
+                value = JsValue.Undefined;
+                shouldAssign = false;
+                return true;
+            }
+        }
+        else
+        {
+            // Fall back to full evaluation for complex expressions
+            rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                value = JsValue.Undefined;
+                shouldAssign = false;
+                return true;
+            }
         }
 
         // Use JsValue arithmetic operations to avoid boxing
@@ -326,12 +349,35 @@ public static partial class TypedAstEvaluator
                 return true;
         }
 
-        var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
-        if (context.ShouldStopEvaluation)
+        // Fast path: evaluate RHS directly for simple expressions to avoid function call overhead
+        JsValue rightJs;
+        if (binary.Right is LiteralExpression rhsLiteral)
         {
-            value = JsValue.Undefined;
-            shouldAssign = false;
-            return true;
+            // Literal - use pre-computed value directly (no evaluation needed)
+            rightJs = rhsLiteral.Value;
+        }
+        else if (binary.Right is IdentifierExpression rhsIdentifier &&
+                 environment.TryReadIdentifierWithSlot(rhsIdentifier, context, out var rhsSlotValue))
+        {
+            // Identifier with slot - read directly
+            rightJs = rhsSlotValue;
+            if (context.ShouldStopEvaluation)
+            {
+                value = JsValue.Undefined;
+                shouldAssign = false;
+                return true;
+            }
+        }
+        else
+        {
+            // Fall back to full evaluation for complex expressions
+            rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                value = JsValue.Undefined;
+                shouldAssign = false;
+                return true;
+            }
         }
 
         value = binary.Operator switch
@@ -433,12 +479,35 @@ public static partial class TypedAstEvaluator
                 return true;
         }
 
-        var rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
-        if (context.ShouldStopEvaluation)
+        // Fast path: evaluate RHS directly for simple expressions to avoid function call overhead
+        JsValue rightJs;
+        if (binary.Right is LiteralExpression rhsLiteral)
         {
-            value = JsValue.Undefined;
-            shouldAssign = false;
-            return true;
+            // Literal - use pre-computed value directly (no evaluation needed)
+            rightJs = rhsLiteral.Value;
+        }
+        else if (binary.Right is IdentifierExpression rhsIdentifier &&
+                 environment.TryReadIdentifierWithSlot(rhsIdentifier, context, out var rhsSlotValue))
+        {
+            // Identifier with slot - read directly
+            rightJs = rhsSlotValue;
+            if (context.ShouldStopEvaluation)
+            {
+                value = JsValue.Undefined;
+                shouldAssign = false;
+                return true;
+            }
+        }
+        else
+        {
+            // Fall back to full evaluation for complex expressions
+            rightJs = EvaluateAssignmentRhsWithNameHintJsValue(assignment, binary.Right, environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                value = JsValue.Undefined;
+                shouldAssign = false;
+                return true;
+            }
         }
 
         // Use JsValue arithmetic operations to avoid boxing

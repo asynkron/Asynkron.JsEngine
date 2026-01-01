@@ -537,6 +537,7 @@ public static class ReflectHelper
         {
             "Array" => realmState.ArrayPrototype,
             "ArrayBuffer" => realmState.ArrayBufferPrototype,
+            "AsyncFunction" => realmState.AsyncFunctionPrototype,
             "SharedArrayBuffer" => realmState.SharedArrayBufferPrototype,
             "Boolean" => realmState.BooleanPrototype,
             "Date" => realmState.DatePrototype,
@@ -548,6 +549,8 @@ public static class ReflectHelper
             "WeakMap" => realmState.WeakMapPrototype,
             "WeakSet" => realmState.WeakSetPrototype,
             "String" => realmState.StringPrototype,
+            "DisposableStack" => realmState.DisposableStackPrototype,
+            "AsyncDisposableStack" => realmState.AsyncDisposableStackPrototype,
             _ => null
         };
 

@@ -272,13 +272,17 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot freeze a typed array backed by a resizable ArrayBuffer", realm: realmState);
         }
 
-        if (target is not JsObject obj)
+        switch (target)
         {
-            return args[0];
+            case JsArray array:
+                array.Freeze();
+                return JsValue.FromJsArray(array);
+            case JsObject obj:
+                obj.Freeze();
+                return JsValue.FromJsObject(obj);
+            default:
+                return args[0];
         }
-
-        obj.Freeze();
-        return JsValue.FromJsObject(obj);
     }
 
     [JsConstructorMethod("seal", Length = 1d)]
@@ -289,13 +293,18 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.Undefined;
         }
 
-        if (args[0].ObjectValue is not JsObject obj)
+        var target = args[0].ObjectValue;
+        switch (target)
         {
-            return args[0];
+            case JsArray array:
+                array.Seal();
+                return JsValue.FromJsArray(array);
+            case JsObject obj:
+                obj.Seal();
+                return JsValue.FromJsObject(obj);
+            default:
+                return args[0];
         }
-
-        obj.Seal();
-        return JsValue.FromJsObject(obj);
     }
 
     [JsConstructorMethod("isFrozen", Length = 1d)]
@@ -312,12 +321,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.False;
         }
 
-        if (target is not JsObject obj)
+        if (target is not IJsObjectLike objectLike)
         {
             return JsValue.True;
         }
 
-        return new JsValue(obj.IsFrozen);
+        return new JsValue(objectLike.IsFrozen);
     }
 
     [JsConstructorMethod("isSealed", Length = 1d)]
@@ -328,12 +337,12 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.True;
         }
 
-        if (args[0].ObjectValue is not JsObject obj)
+        if (args[0].ObjectValue is not IJsObjectLike objectLike)
         {
             return JsValue.True;
         }
 
-        return new JsValue(obj.IsSealed);
+        return new JsValue(objectLike.IsSealed);
     }
 
     [JsConstructorMethod("is", Length = 2d)]

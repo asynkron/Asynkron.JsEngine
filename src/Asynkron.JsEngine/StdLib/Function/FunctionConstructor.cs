@@ -96,7 +96,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         return JsValue.FromObjectUnsafe(created);
     }
 
-    private static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realmState)
+    internal static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realmState)
     {
         return value.Kind switch
         {
@@ -116,7 +116,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         };
     }
 
-    private static string NumberToString(double d)
+    internal static string NumberToString(double d)
     {
         if (double.IsNaN(d))
         {
@@ -136,7 +136,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         return d.ToString(CultureInfo.InvariantCulture);
     }
 
-    private static string ToFunctionArgumentStringFromObject(JsValue value, EvaluationContext evalContext,
+    internal static string ToFunctionArgumentStringFromObject(JsValue value, EvaluationContext evalContext,
         RealmState realmState)
     {
         var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.String, evalContext);
@@ -159,7 +159,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         };
     }
 
-    private static bool ContainsHtmlCloseCommentWithoutLineTerminator(string text)
+    internal static bool ContainsHtmlCloseCommentWithoutLineTerminator(string text)
     {
         var index = text.IndexOf("-->", StringComparison.Ordinal);
         if (index < 0)

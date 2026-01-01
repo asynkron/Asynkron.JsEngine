@@ -1221,7 +1221,9 @@ public sealed class JsEnvironment : IRentable
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            var targetEnv = FindByScopeId(scopeId);
+            // Fast path: if current environment matches scopeId, use it directly
+            // This avoids the FindByScopeId loop traversal in the common case
+            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
             var slots = targetEnv?._slots;
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
@@ -1299,7 +1301,9 @@ public sealed class JsEnvironment : IRentable
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            var targetEnv = FindByScopeId(scopeId);
+            // Fast path: if current environment matches scopeId, use it directly
+            // This avoids the FindByScopeId loop traversal in the common case
+            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
             var slots = targetEnv?._slots;
             if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
             {
@@ -1374,6 +1378,64 @@ public sealed class JsEnvironment : IRentable
     internal bool TryWriteIdentifierWithSlot(IdentifierExpression identifier, JsValue value, EvaluationContext context)
     {
         return TryWriteIdentifierWithSlot(identifier.Name, identifier.ScopeId, identifier.SlotIndex, value, context);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryReadSlotValue(Symbol name, int slotIndex, EvaluationContext context, out JsValue value)
+    {
+        var slots = _slots;
+        if (slots is null || (uint)slotIndex >= (uint)slots.Length)
+        {
+            value = default;
+            return false;
+        }
+
+        var slotValue = slots[slotIndex];
+        if (slotValue.IsUninitialized)
+        {
+            var errorValue = StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState);
+            value = errorValue;
+            context.SetThrow(value);
+            return true;
+        }
+
+        value = slotValue;
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryWriteSlotValue(Symbol name, int slotIndex, JsValue value, EvaluationContext context)
+    {
+        var slots = _slots;
+        if (slots is null || (uint)slotIndex >= (uint)slots.Length)
+        {
+            return false;
+        }
+
+        if (_values is not null)
+        {
+            ref var binding = ref _values.GetValueRefOrNullRef(name);
+            if (!Unsafe.IsNullRef(ref binding))
+            {
+                WriteResolvedBindingJsValue(this, ref binding, name, value, context.CurrentScope.IsStrict);
+                slots[slotIndex] = value;
+                return true;
+            }
+        }
+
+        if (slots[slotIndex].IsUninitialized)
+        {
+            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                $"Cannot access '{name.Name}' before initialization",
+                context,
+                context.RealmState));
+        }
+
+        slots[slotIndex] = value;
+        return true;
     }
 
     /// <summary>
@@ -3297,6 +3359,18 @@ public sealed class JsEnvironment : IRentable
         env._slots![slotIndex] = value;
     }
 
+    /// <summary>
+    /// Sets a variable value by slot index in the current environment.
+    /// Caller must ensure slotIndex is valid and slots are initialized.
+    /// </summary>
+    /// <param name="slotIndex">Index into the slots array.</param>
+    /// <param name="value">The value to set.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlot(int slotIndex, JsValue value)
+    {
+        _slots![slotIndex] = value;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void TrySetSlot(Symbol name, JsValue value)
     {
@@ -3350,7 +3424,9 @@ public sealed class JsEnvironment : IRentable
     {
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            targetEnv = FindByScopeId(scopeId);
+            // Fast path: if current environment matches scopeId, use it directly
+            // This avoids the FindByScopeId loop traversal in the common case
+            targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
             if (targetEnv?._slots is not null && slotIndex < targetEnv._slots.Length)
             {
                 return true;

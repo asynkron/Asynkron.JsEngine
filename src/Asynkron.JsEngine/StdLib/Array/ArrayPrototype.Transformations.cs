@@ -472,20 +472,35 @@ public sealed partial class ArrayPrototype
     {
         const string MethodName = "Array.prototype.toSorted";
         var accessor = EnsureArrayLikeReceiver(thisValue, MethodName, Realm);
-        var evalContext = Realm?.CreateContext();
-        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
-        var length = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
 
+        // Per spec: Step 2 - check compareFn is callable BEFORE reading length (Step 3)
         if (args.Count > 0 && !args[0].IsUndefined && !args[0].TryGetObject<IJsCallable>(out _))
         {
             throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
         }
 
+        // Per spec step 1: If comparefn is not undefined and IsCallable(comparefn) is false, throw a TypeError.
+        // This MUST happen BEFORE getting the length (step 3).
         IJsCallable? compareFn = null;
-        if (args.Count > 0 && args[0].TryGetObject<IJsCallable>(out var callable))
+        if (args.Count > 0 && !args[0].IsUndefined)
         {
+            if (!args[0].TryGetObject<IJsCallable>(out var callable))
+            {
+                throw ThrowTypeError($"{MethodName} comparefn must be callable", realm: Realm);
+            }
             compareFn = callable;
+        }
+
+        // Per spec: Step 3 - Get length AFTER checking compareFn
+        var evalContext = Realm?.CreateContext();
+        var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
+        var length = (long)ToLengthOrZero(lengthValue, evalContext);
+        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+
+        // Per spec: ArrayCreate throws RangeError if length > 2^32 - 1
+        if (length > MaxConcreteArrayLength)
+        {
+            throw ThrowRangeError($"{MethodName} array length exceeds maximum (2^32 - 1)", realm: Realm);
         }
 
         // Per spec SortIndexedProperties with skipHoles=true: read all existing elements first.
@@ -596,10 +611,21 @@ public sealed partial class ArrayPrototype
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
 
-        var deleteCountIsUndefined = args.Count <= 1 || args[1].IsUndefined;
+        // Per spec step 8: If start is not present, then actualDeleteCount = 0.
+        // Per spec step 9: Else if deleteCount is not present, use len - actualStart.
+        // NOTE: "not present" means the argument wasn't passed at all, NOT that it's undefined.
+        // If deleteCount is passed as undefined, we use ToIntegerOrInfinity(undefined) = 0.
+        var startIsNotPresent = args.Count == 0;
+        var deleteCountIsNotPresent = args.Count == 1;  // Only when deleteCount arg is truly missing
         long actualDeleteCount;
-        if (deleteCountIsUndefined)
+        if (startIsNotPresent)
         {
+            // Per spec step 8: If start is not present, actualDeleteCount = 0
+            actualDeleteCount = 0;
+        }
+        else if (deleteCountIsNotPresent)
+        {
+            // Per spec step 9: Else if deleteCount is not present, actualDeleteCount = len - actualStart
             actualDeleteCount = length - actualStart;
         }
         else

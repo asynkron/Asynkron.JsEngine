@@ -305,6 +305,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void Seal()
     {
+        ApplyIntegrityLevelToIndexedProperties(freeze: false);
         _properties.Seal();
     }
 
@@ -317,6 +318,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         var descriptor = _properties.GetOwnPropertyDescriptor(name);
         if (descriptor?.Configurable == false)
+        {
+            return false;
+        }
+
+        if (IsSealed && TryGetOwnIndex(index, out _))
         {
             return false;
         }
@@ -360,6 +366,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     public void Freeze()
     {
+        ApplyIntegrityLevelToIndexedProperties(freeze: true);
         _properties.Freeze();
     }
 
@@ -576,6 +583,58 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// </summary>
     public void SetElement(uint index, JsValue value)
     {
+        if (_properties.HasNumericDescriptorKeys())
+        {
+            var key = index.ToString(CultureInfo.InvariantCulture);
+            var descriptor = _properties.GetOwnPropertyDescriptor(key);
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor)
+                {
+                    if (descriptor.Set is null)
+                    {
+                        return;
+                    }
+
+                    descriptor.Set.Invoke([value], JsValue.FromJsArray(this));
+                    return;
+                }
+
+                if (!descriptor.Writable)
+                {
+                    return;
+                }
+
+                _properties.SetProperty(key, value, JsValue.FromJsArray(this));
+                var existingExtended = StoreElement(index, value);
+                if (existingExtended)
+                {
+                    BumpLength((uint)_items.Count);
+                    return;
+                }
+
+                BumpLength(index + 1);
+                return;
+            }
+        }
+
+        if (!IsExtensible && !HasOwnIndex(index))
+        {
+            return;
+        }
+
+        var extended = StoreElement(index, value);
+        if (extended)
+        {
+            BumpLength((uint)_items.Count);
+            return;
+        }
+
+        BumpLength(index + 1);
+    }
+
+    private bool StoreElement(uint index, JsValue value)
+    {
         var extended = false;
         if (index < DenseIndexLimit)
         {
@@ -588,20 +647,69 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             _items[denseIndex] = value;
-        }
-        else
-        {
-            _sparseItems ??= new Dictionary<uint, JsValue>();
-            _sparseItems[index] = value;
+            return extended;
         }
 
-        if (extended)
+        _sparseItems ??= new Dictionary<uint, JsValue>();
+        _sparseItems[index] = value;
+        return false;
+    }
+
+    private void ApplyIntegrityLevelToIndexedProperties(bool freeze)
+    {
+        foreach (var key in _properties.GetOwnPropertyNames())
         {
-            BumpLength((uint)_items.Count);
-            return;
+            if (!TryParseArrayIndex(key, out var index))
+            {
+                continue;
+            }
+
+            var descriptor = _properties.GetOwnPropertyDescriptor(key);
+            if (descriptor is null)
+            {
+                continue;
+            }
+
+            if (descriptor.IsAccessorDescriptor)
+            {
+                descriptor.Configurable = false;
+            }
+            else
+            {
+                if (!descriptor.HasValue)
+                {
+                    descriptor.JsValue = GetElement(index);
+                }
+
+                if (freeze)
+                {
+                    descriptor.Writable = false;
+                }
+
+                descriptor.Configurable = false;
+            }
+
+            _properties.TryDefineProperty(key, descriptor);
         }
 
-        BumpLength(index + 1);
+        foreach (var index in GetOwnIndices())
+        {
+            var key = index.ToString(CultureInfo.InvariantCulture);
+            if (_properties.GetOwnPropertyDescriptor(key) is not null)
+            {
+                continue;
+            }
+
+            var descriptor = new PropertyDescriptor
+            {
+                JsValue = GetElement(index),
+                Writable = !freeze,
+                Enumerable = true,
+                Configurable = false
+            };
+
+            _properties.TryDefineProperty(key, descriptor);
+        }
     }
 
     /// <summary>

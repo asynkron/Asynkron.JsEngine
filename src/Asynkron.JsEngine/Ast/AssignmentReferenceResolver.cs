@@ -23,7 +23,8 @@ internal static class AssignmentReferenceResolver
         var isStrictTarget = context.CurrentScope.IsStrict &&
                              (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments));
 
-        if (environment.TryResolveWithBinding(name, context, out var withBinding))
+        // Fast path: skip with-binding check when AllowIdentifierCache is true (no with/eval in scope)
+        if (!context.AllowIdentifierCache && environment.TryResolveWithBinding(name, context, out var withBinding))
         {
             return AssignmentReference.ForWithBinding(
                 withBinding,
@@ -39,12 +40,9 @@ internal static class AssignmentReferenceResolver
             return reference;
         }
 
-        // Wrap in delegate for strict restricted names (eval/arguments)
-        return AssignmentReference.ForDelegate(
-            reference.GetJsValue,
-            _ => throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                "Assignment to eval or arguments is not allowed in strict mode.", context,
-                context.RealmState)));
+        // For strict restricted names (eval/arguments), use a specialized reference kind
+        // that throws on write. This avoids closure allocation.
+        return AssignmentReference.ForStrictRestrictedName(reference, name, context);
     }
 
     /// <summary>

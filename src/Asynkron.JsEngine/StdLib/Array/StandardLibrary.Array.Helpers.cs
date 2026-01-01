@@ -437,6 +437,40 @@ public static partial class StandardLibrary
         target.DefineProperty(propertyKey, descriptor);
     }
 
+    internal static void SetPropertyOrThrow(IJsPropertyAccessor accessor, string propertyKey, JsValue value,
+        RealmState? realm, string methodName)
+    {
+        if (accessor is not JsProxy && accessor is IJsObjectLike objectLike)
+        {
+            var descriptor = objectLike.GetOwnPropertyDescriptor(propertyKey);
+            if (descriptor is not null)
+            {
+                if (descriptor.IsAccessorDescriptor)
+                {
+                    if (descriptor.Set is null)
+                    {
+                        throw ThrowTypeError($"{methodName} could not set property '{propertyKey}'", realm: realm);
+                    }
+
+                    descriptor.Set.Invoke([value], JsValue.FromObjectUnsafe(objectLike));
+                    return;
+                }
+
+                if (!descriptor.Writable)
+                {
+                    throw ThrowTypeError($"{methodName} could not set property '{propertyKey}'", realm: realm);
+                }
+            }
+            else if (objectLike is IExtensibilityControl { IsExtensible: false } &&
+                     !HasProperty(accessor, propertyKey))
+            {
+                throw ThrowTypeError($"{methodName} could not set property '{propertyKey}'", realm: realm);
+            }
+        }
+
+        accessor.SetProperty(propertyKey, value);
+    }
+
     internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out JsValue value)
     {
         return TryGetExistingElement(accessor, ToIndexString(index), out value);

@@ -245,8 +245,12 @@ public static partial class StandardLibrary
 
         accessor = propertyAccessor;
 
+        // Per spec step 4: If spreadable is not undefined, return ToBoolean(spreadable).
+        // Note: We must check if the VALUE is undefined (spreadable.IsUndefined), not whether
+        // the property exists. When @@isConcatSpreadable is explicitly set to undefined,
+        // we should fall through to step 5 (IsArray check).
         if (accessor.TryGetProperty(SymbolIsConcatSpreadableKey, out var spreadable) &&
-            !ReferenceEquals(spreadable, Symbol.Undefined))
+            !spreadable.IsUndefined)
         {
             return JsOps.ToBoolean(spreadable);
         }

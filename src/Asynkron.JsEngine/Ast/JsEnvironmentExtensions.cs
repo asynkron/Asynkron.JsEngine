@@ -185,7 +185,7 @@ public static partial class TypedAstEvaluator
             IJsPropertyAccessor? prototypeForSuper;
             IJsEnvironmentAwareCallable? superConstructor = null;
 
-            if (thisObject is IJsEnvironmentAwareCallable ctorLike)
+            if (thisObject is IJsEnvironmentAwareCallable)
             {
                 // Static method path: base resolves from constructor prototype (__proto__)
                 prototypeForSuper = thisObject.Prototype;

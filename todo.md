@@ -1,13 +1,38 @@
 There are a few test failures right now:
+All tests in internal test suite pass.
 
+But the 262 test suite has 500+ failures, here is a subset of those:
 -----
-     EnvironmentPoolingTests
-      ForOfLoop_WithClosureInsideBody_ClosuresCaptureEnvironments
-      LabeledLoop_WithBreak_EnvironmentsReturned
-      NestedForOfLoops_IndependentPooling
-     SlotStampingTests
-      ForAwait_PerIteration_Bindings_Are_Stamped_With_Slots
-
+       ArgumentsObject
+        ArgumentsObject("language/arguments-object/10.6-10-c-ii-1.js",False)
+        ArgumentsObject("language/arguments-object/10.6-10-c-ii-2.js",False)
+       ArgumentsObject_mapped
+        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-3.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-4.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-5.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-2.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-3.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-4.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-define-failure.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-set-value-by-arguments.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-set-value-with-define-property.js",False)
+        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-with-param-assign.js",False)
+       BlockScope_shadowing
+        BlockScope_shadowing("language/block-scope/shadowing/const-declarations-shadowing-parameter-name-let-const-and-var-variables.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/const-declarations-shadowing-parameter-name-let-const-and-var-variables.js",True)
+        BlockScope_shadowing("language/block-scope/shadowing/dynamic-lookup-from-closure.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/dynamic-lookup-from-closure.js",True)
+        BlockScope_shadowing("language/block-scope/shadowing/let-declarations-shadowing-parameter-name-let-const-and-var.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/let-declarations-shadowing-parameter-name-let-const-and-var.js",True)
+        BlockScope_shadowing("language/block-scope/shadowing/lookup-from-closure.js",False)
+        BlockScope_shadowing("language/block-scope/shadowing/lookup-from-closure.js",True)
+       Comments_hashbang
+        Comments_hashbang("language/comments/hashbang/function-constructor.js",False)
+       Destructuring_binding
+        Destructuring_binding("language/destructuring/binding/typedarray-backed-by-resizable-buffer.js",False)
+       EvalCode_direct
+        EvalCode_direct("language/eval-code/direct/strict-caller-global.js",True)
+        EvalCode_direct("language/eval-code/direct/var-env-global-lex-non-strict.js",False)
 -----
 
 

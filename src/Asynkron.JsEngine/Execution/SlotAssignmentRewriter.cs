@@ -16,7 +16,6 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class SlotAssignmentRewriter : AstRewriter
 {
     private const int RootScopeId = 0;
-    private static readonly bool SlotDebugEnabled = Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1";
 
     private readonly Dictionary<int, ScopeSlotInfo> _scopes;
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
@@ -234,11 +233,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return thr with { Expression = Rewrite(thr.Expression) };
 
             case BranchInstruction branch:
-                if (SlotDebugEnabled)
-                {
-                    File.AppendAllText("/tmp/slotdebug.txt",
-                        $"BRANCH stack=[{string.Join(",", _scopeStack)}]{Environment.NewLine}");
-                }
                 return branch with { Condition = Rewrite(branch.Condition) };
 
             case SimpleVariableDeclarationInstruction { Initializer: not null } varDecl:
@@ -362,8 +356,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             ? set
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
     }
-
-    private int CurrentScopeId => _scopeStack.TryPeek(out var id) ? id : RootScopeId;
 
     private void LeaveScope(int scopeId)
     {

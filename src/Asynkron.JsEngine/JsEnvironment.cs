@@ -1220,12 +1220,6 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
-        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
-        {
-            File.AppendAllText("/tmp/slotdebug_read.txt",
-                $"DEBUG_SLOT_READ name={name.Name} scopeHint={scopeId} slotHint={slotIndex} currentEnvScope={ScopeId}{Environment.NewLine}");
-        }
-
         if (scopeId >= 0 && slotIndex >= 0)
         {
             // Fast path: if current environment matches scopeId, use it directly

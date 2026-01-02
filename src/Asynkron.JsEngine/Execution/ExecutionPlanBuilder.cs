@@ -193,11 +193,6 @@ internal sealed partial class ExecutionPlanBuilder
         // get non-conflicting indices.
         _slotSymbols.Clear();
         _slotSymbols.AddRange(seedSlots);
-        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
-        {
-            File.AppendAllText("/tmp/slotdebug.txt",
-                $"HoistedFunctions count={hoistedFunctions.Count} parameters={parameterNames.Count} seeds=[{string.Join(",", seedSlots.Select((s, i) => $"{i}:{s.Name}"))}]{Environment.NewLine}");
-        }
 
         var collector = new ScopeSlotCollector(_instructions, seedSlots, AllocateSlot, entryIndex, function);
         var analysis = collector.Collect();
@@ -207,82 +202,6 @@ internal sealed partial class ExecutionPlanBuilder
 
         // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
         StampIteratorBodies(function, rewriter);
-
-        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("=== Slot Assignment Debug ===");
-            foreach (var scope in analysis.Scopes.OrderBy(kv => kv.Key))
-            {
-                var info = scope.Value;
-                sb.AppendLine($"Scope {scope.Key} count={info.SlotCount} hint={info.SlotCountHint}");
-                foreach (var kv in info.Slots.OrderBy(kv => kv.Value))
-                {
-                    sb.AppendLine($"  {kv.Key.Name} -> {kv.Value}");
-                }
-            }
-
-            foreach (var instruction in _instructions)
-            {
-                switch (instruction)
-                {
-                    case Instructions.PushEnvironmentInstruction push:
-                        sb.AppendLine(
-                            $"PushEnv scope={push.ScopeId} slotCount={push.SlotCount} slots=[{string.Join(",", push.SlotMap.Select(kv => $"{kv.Key.Name}:{kv.Value}"))}]");
-                        break;
-                    case Instructions.BranchInstruction branch when branch.Condition is Ast.BinaryExpression { Left: Ast.IdentifierExpression leftId }:
-                        sb.AppendLine($"Branch condition left name={leftId.Name.Name} scope={leftId.ScopeId} slot={leftId.SlotIndex}");
-                        break;
-                }
-            }
-
-            var identifiers = new List<Ast.IdentifierExpression>();
-
-            void CollectIdentifiers(Ast.ExpressionNode expr)
-            {
-                switch (expr)
-                {
-                    case Ast.IdentifierExpression id:
-                        identifiers.Add(id);
-                        break;
-                    case Ast.BinaryExpression bin:
-                        CollectIdentifiers(bin.Left);
-                        CollectIdentifiers(bin.Right);
-                        break;
-                    case Ast.UnaryExpression unary:
-                        CollectIdentifiers(unary.Operand);
-                        break;
-                }
-            }
-
-            foreach (var instruction in _instructions)
-            {
-                switch (instruction)
-                {
-                    case Instructions.BranchInstruction branch:
-                        CollectIdentifiers(branch.Condition);
-                        break;
-                    case Instructions.CompoundAssignmentSlotInstruction compound:
-                        CollectIdentifiers(compound.RhsExpression);
-                        break;
-                    case Instructions.ReturnInstruction { ReturnExpression: { } retExpr }:
-                        CollectIdentifiers(retExpr);
-                        break;
-                    case Instructions.SimpleVariableDeclarationInstruction { Initializer: { } init }:
-                        CollectIdentifiers(init);
-                        break;
-                }
-            }
-
-            sb.AppendLine("Identifiers:");
-            foreach (var id in identifiers)
-            {
-                sb.AppendLine($"  {id.Name.Name} scope={id.ScopeId} slot={id.SlotIndex}");
-            }
-
-            Console.WriteLine(sb.ToString());
-            File.AppendAllText("/tmp/slotdebug.txt", sb.ToString());
-        }
 
         return analysis;
     }
@@ -314,12 +233,6 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 UpdateCachedIteratorPlan(forEach, plan, plan.Body, mappedScopeId, mappedSlotCount,
                     perIterationSlotIndices);
-            }
-
-            if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
-            {
-                File.AppendAllText("/tmp/slotdebug.txt",
-                    $"StampIteratorBody scope={plan.IterationScopeId} mapped={mappedScopeId} bindings=[{string.Join(",", plan.PerIterationBindings)}] slots={plan.IterationSlotCount}{Environment.NewLine}");
             }
         }
     }

@@ -253,11 +253,7 @@ public static partial class TypedAstEvaluator
                             var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
                                 skipInternalNameBinding: true);
                             var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
-                            if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
-                            {
-                                File.AppendAllText("/tmp/slotdebug.txt",
-                                    $"HoistFunction enter scope={environment.ScopeId} name={functionDeclaration.Name.Name}{Environment.NewLine}");
-                            }
+
                             var slotIndex = -1;
                             if (environment.TryGetSlotIndex(functionDeclaration.Name, out var directSlotIndex))
                             {
@@ -280,11 +276,6 @@ public static partial class TypedAstEvaluator
                             {
                                 // Slot-backed scope (IR path): populate slot directly for fast lookup
                                 environment.SetSlotDirect(slotIndex, fnValueJs);
-                                if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
-                                {
-                                    File.AppendAllText("/tmp/slotdebug.txt",
-                                        $"HoistFunction slot scope={environment.ScopeId} name={functionDeclaration.Name.Name} slot={slotIndex}{Environment.NewLine}");
-                                }
                             }
                             else
                             {

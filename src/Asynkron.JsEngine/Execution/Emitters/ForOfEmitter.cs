@@ -28,10 +28,9 @@ internal static class ForOfEmitter
             return false;
         }
 
-        var planBody = statement.Body is BlockStatement blockBody
-            ? blockBody
-            : new BlockStatement(statement.Source, [statement.Body], EmitContext.IsStrictBlock(statement.Body));
-        var iteratorPlan = IteratorDriverFactory.CreatePlan(statement, planBody);
+        // Use the cached iterator plan to ensure any synthetic scope ids (for per-iteration bindings)
+        // are stable across IR emission, slot analysis, and later plan stamping.
+        var iteratorPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
 
         var instructionStart = ctx.InstructionCount;
 

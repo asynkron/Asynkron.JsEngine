@@ -189,10 +189,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
         var info = GetOrCreateScopeInfo(scopeId);
         if (!slotMap.IsEmpty)
         {
-            foreach (var (symbol, index) in slotMap)
+            foreach (var symbol in slotMap.Keys)
             {
-                info.IncludeSlot(symbol, index);
-                // Slot maps originate from lexical scopes (loop/function bodies)
+                AllocateSlotInScope(scopeId, symbol);
+                // Slot maps originate from lexical scopes (loop/function bodies).
                 info.LexicalBindings.Add(symbol);
             }
         }
@@ -209,7 +209,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
         if (slotCount > 0)
         {
             info.SlotCountHint = Math.Max(info.SlotCountHint, slotCount);
-            info.NextSlotIndex = Math.Max(info.NextSlotIndex, slotCount);
         }
 
         _scopeStack.Push(scopeId);

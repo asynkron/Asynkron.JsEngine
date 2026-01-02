@@ -1547,11 +1547,12 @@ public static partial class TypedAstEvaluator
                                 // The PerIterationBindings check is CRITICAL: it distinguishes loop iteration
                                 // scopes from nested block scopes within the loop body. Without it, nested
                                 // blocks would incorrectly become siblings of their parent iteration scope.
+                                var hasIterationBindings = !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty;
                                 var isSubsequentIteration =
-                                    (pushEnvInstruction.ScopeId >= 0 && environment.ScopeId == pushEnvInstruction.ScopeId) ||
-                                    (pushEnvInstruction.ScopeId < 0 &&
-                                     !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty &&
-                                     environment.Description == "scope" && environment.Enclosing != null);
+                                    hasIterationBindings &&
+                                    ((pushEnvInstruction.ScopeId >= 0 && environment.ScopeId == pushEnvInstruction.ScopeId) ||
+                                     (pushEnvInstruction.ScopeId < 0 &&
+                                      environment.Description == "scope" && environment.Enclosing != null));
 
                                 // FAST PATH: For subsequent iterations with pooling enabled (no closures),
                                 // reuse the same environment in-place. The increment (i++) already updated

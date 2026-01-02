@@ -33,6 +33,12 @@ internal static class IteratorDriverFactory
             perIterationBindings = [..bindingNames];
         }
 
+        var iterationScopeId = statement.PerIterationScopeId;
+        if (iterationScopeId < 0 && !perIterationBindings.IsDefaultOrEmpty)
+        {
+            iterationScopeId = SyntheticScopeIdAllocator.Next();
+        }
+
         var perIterationSlotCount = statement.PerIterationSlotCount >= 0
             ? statement.PerIterationSlotCount
             : (!perIterationBindings.IsDefaultOrEmpty ? perIterationBindings.Length : -1);
@@ -49,7 +55,7 @@ internal static class IteratorDriverFactory
             statement.Target,
             statement.DeclarationKind,
             rewrittenBody,
-            statement.PerIterationScopeId,
+            iterationScopeId,
             statement.PerIterationParentScopeId,
             perIterationSlotCount,
             perIterationSlotIndices,

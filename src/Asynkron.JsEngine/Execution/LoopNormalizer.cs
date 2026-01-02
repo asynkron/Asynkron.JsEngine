@@ -168,6 +168,11 @@ internal static class LoopNormalizer
             !StatementsContainInnerFunctionExpression(conditionPrologue) &&
             !StatementsContainInnerFunctionExpression(postIteration);
 
+        if (iterationScopeId < 0 && !perIterationBindings.IsDefaultOrEmpty)
+        {
+            iterationScopeId = SyntheticScopeIdAllocator.Next();
+        }
+
         return new LoopPlan(
             kind,
             leading,

@@ -22,16 +22,21 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private readonly Dictionary<Symbol, int> _bindingScopeHints =
         new(ReferenceEqualityComparer<Symbol>.Instance);
     private readonly List<ExecutionInstruction> _instructions;
+    private readonly int _entryIndex;
+    private readonly bool[] _visited;
     private readonly Dictionary<int, ScopeSlotInfo> _scopes = new();
     private readonly Stack<int> _scopeStack = new();
 
     public ScopeSlotCollector(IEnumerable<ExecutionInstruction> instructions,
         IReadOnlyList<Symbol> existingRootSlots,
         Func<Symbol, int> allocateRootSlot,
+        int entryIndex,
         FunctionExpression? function = null)
     {
         _allocateRootSlot = allocateRootSlot;
         _instructions = instructions.ToList();
+        _entryIndex = entryIndex;
+        _visited = new bool[_instructions.Count];
         _parameterSymbols = CollectParameterSymbols(function);
         BuildBindingScopeHints();
         SeedRootScope(existingRootSlots);
@@ -40,10 +45,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     public ScopeSlotAnalysis Collect()
     {
-        foreach (var instruction in _instructions)
-        {
-            VisitInstruction(instruction);
-        }
+        TraverseFrom(_entryIndex);
 
         var immutableSlotMaps = new Dictionary<int, ImmutableDictionary<Symbol, int>>(
             _scopes.Count);
@@ -56,6 +58,54 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
 
         return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings);
+    }
+
+    private void TraverseFrom(int index)
+    {
+        if (index < 0 || index >= _instructions.Count || _visited[index])
+        {
+            return;
+        }
+
+        VisitInstruction(_instructions[index]);
+        _visited[index] = true;
+
+        var scopeSnapshot = _scopeStack.ToArray();
+        foreach (var successor in GetSuccessors(_instructions[index]))
+        {
+            RestoreStack(scopeSnapshot);
+            TraverseFrom(successor);
+        }
+    }
+
+    private static IEnumerable<int> GetSuccessors(ExecutionInstruction instruction)
+    {
+        switch (instruction)
+        {
+            case BranchInstruction branch:
+                yield return branch.ConsequentIndex;
+                yield return branch.AlternateIndex;
+                yield break;
+            case JumpInstruction jump:
+                yield return jump.TargetIndex;
+                yield break;
+            default:
+                if (instruction.Next >= 0)
+                {
+                    yield return instruction.Next;
+                }
+
+                yield break;
+        }
+    }
+
+    private void RestoreStack(int[] scopeSnapshot)
+    {
+        _scopeStack.Clear();
+        for (var i = scopeSnapshot.Length - 1; i >= 0; i--)
+        {
+            _scopeStack.Push(scopeSnapshot[i]);
+        }
     }
 
     private void BuildBindingScopeHints()
@@ -327,11 +377,21 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     private void RegisterDeclaration(SimpleVariableDeclarationInstruction varDecl)
     {
-        var targetScope = varDecl.VarKind == VariableKind.Var
-            ? RootScopeId
-            : _bindingScopeHints.TryGetValue(varDecl.TargetSymbol, out var hintedScope)
-                ? hintedScope
-                : RootScopeId;
+        int targetScope;
+        if (varDecl.VarKind == VariableKind.Var)
+        {
+            targetScope = RootScopeId;
+        }
+        else
+        {
+            // Prefer the current lexical scope; fall back to any binding hint we discovered.
+            targetScope = CurrentScopeId;
+            if (targetScope == RootScopeId &&
+                _bindingScopeHints.TryGetValue(varDecl.TargetSymbol, out var hintedScope))
+            {
+                targetScope = hintedScope;
+            }
+        }
 
         var slotIndex = AllocateSlotInScope(targetScope, varDecl.TargetSymbol);
         if (varDecl.VarKind != VariableKind.Var)

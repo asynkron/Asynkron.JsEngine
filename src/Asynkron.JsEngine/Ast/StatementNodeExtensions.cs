@@ -194,7 +194,7 @@ public static partial class TypedAstEvaluator
                         statement = labeled.Statement;
                         continue;
                     case TryStatement tryStatement:
-                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, false,
+                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                             tryStatement.TryBlock.MergeLexicalNames(lexicalNames),
                             tryStatement.TryBlock.MergeCatchNames(catchParameterNames),
                             tryStatement.TryBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
@@ -202,7 +202,7 @@ public static partial class TypedAstEvaluator
                             true);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            catchClause.Body.HoistVarDeclarationsPass(environment, context, false,
+                            catchClause.Body.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                                 catchClause.Body.MergeLexicalNames(lexicalNames),
                                 catchClause.Body.MergeCatchNames(catchParameterNames),
                                 catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
@@ -212,7 +212,7 @@ public static partial class TypedAstEvaluator
 
                         if (tryStatement.Finally is { } finallyBlock)
                         {
-                            finallyBlock.HoistVarDeclarationsPass(environment, context, false,
+                            finallyBlock.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                                 finallyBlock.MergeLexicalNames(lexicalNames),
                                 finallyBlock.MergeCatchNames(catchParameterNames),
                                 finallyBlock.MergeSimpleCatchNames(simpleCatchParameterNames),

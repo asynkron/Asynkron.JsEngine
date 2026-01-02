@@ -52,11 +52,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             return;
         }
 
-        var scopeSnapshot = _scopeStack.ToArray();
-        var catchSnapshot = _catchScopeStack.ToArray();
-
         instructions[index] = RewriteInstruction(instructions[index]);
         visited[index] = true;
+
+        var scopeSnapshot = _scopeStack.ToArray();
+        var catchSnapshot = _catchScopeStack.ToArray();
 
         foreach (var successor in GetSuccessors(instructions[index]))
         {

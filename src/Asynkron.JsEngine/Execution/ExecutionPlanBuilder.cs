@@ -199,7 +199,7 @@ internal sealed partial class ExecutionPlanBuilder
                 $"HoistedFunctions count={hoistedFunctions.Count} parameters={parameterNames.Count} seeds=[{string.Join(",", seedSlots.Select((s, i) => $"{i}:{s.Name}"))}]{Environment.NewLine}");
         }
 
-        var collector = new ScopeSlotCollector(_instructions, seedSlots, AllocateSlot, function);
+        var collector = new ScopeSlotCollector(_instructions, seedSlots, AllocateSlot, entryIndex, function);
         var analysis = collector.Collect();
         _lexicalBindings = analysis.LexicalBindings;
         var rewriter = new SlotAssignmentRewriter(analysis);

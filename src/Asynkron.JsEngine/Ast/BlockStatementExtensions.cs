@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -129,12 +130,10 @@ public static partial class TypedAstEvaluator
             // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
             // which doesn't override previous statement completion values
             var resultJs = JsValue.Unit;
-            scope.ScopeId = block.ScopeId;
-            scope.SetSlotMap(block.SlotMap);
-            if (block is { SlotCount: > 0, ScopeId: >= 0 })
-            {
-                scope.InitializeSlots(block.SlotCount, block.ScopeId);
-            }
+
+            // Use unified Initialize method that properly sets slot names from the map
+            // This ensures name-based lookups (TryLocateBinding) can find block-scoped variables
+            scope.Initialize(block.ScopeId, block.SlotMap);
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, mode);

@@ -1,38 +1,19 @@
 There are a few test failures right now:
-All tests in internal test suite pass.
+1 internal test fails now, and ~550 Language Tests (262 tests) fail.
+Many many of those are ForOf tests.
+Not all ForOf tests, but a large subset.
 
 But the 262 test suite has 500+ failures, here is a subset of those:
 -----
-       ArgumentsObject
-        ArgumentsObject("language/arguments-object/10.6-10-c-ii-1.js",False)
-        ArgumentsObject("language/arguments-object/10.6-10-c-ii-2.js",False)
-       ArgumentsObject_mapped
-        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-3.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-4.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-nonwritable-5.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-2.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-3.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/mapped-arguments-nonconfigurable-strict-delete-4.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-define-failure.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-set-value-by-arguments.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-set-value-with-define-property.js",False)
-        ArgumentsObject_mapped("language/arguments-object/mapped/nonconfigurable-descriptors-with-param-assign.js",False)
-       BlockScope_shadowing
-        BlockScope_shadowing("language/block-scope/shadowing/const-declarations-shadowing-parameter-name-let-const-and-var-variables.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/const-declarations-shadowing-parameter-name-let-const-and-var-variables.js",True)
-        BlockScope_shadowing("language/block-scope/shadowing/dynamic-lookup-from-closure.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/dynamic-lookup-from-closure.js",True)
-        BlockScope_shadowing("language/block-scope/shadowing/let-declarations-shadowing-parameter-name-let-const-and-var.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/let-declarations-shadowing-parameter-name-let-const-and-var.js",True)
-        BlockScope_shadowing("language/block-scope/shadowing/lookup-from-closure.js",False)
-        BlockScope_shadowing("language/block-scope/shadowing/lookup-from-closure.js",True)
-       Comments_hashbang
-        Comments_hashbang("language/comments/hashbang/function-constructor.js",False)
-       Destructuring_binding
-        Destructuring_binding("language/destructuring/binding/typedarray-backed-by-resizable-buffer.js",False)
-       EvalCode_direct
-        EvalCode_direct("language/eval-code/direct/strict-caller-global.js",True)
-        EvalCode_direct("language/eval-code/direct/var-env-global-lex-non-strict.js",False)
+        Statements_forOf("language/statements/for-of/arguments-mapped-aliasing.js",False)
+        Statements_forOf("language/statements/for-of/array-contract-expand.js",False)
+        Statements_forOf("language/statements/for-of/head-lhs-cover.js",False)
+        Statements_forOf("language/statements/for-of/head-lhs-member.js",False)
+        Statements_forOf_dstr("language/statements/for-of/dstr/array-rest-yield-ident-valid.js",False)
+        Statements_forOf_dstr("language/statements/for-of/dstr/const-ary-init-iter-close.js",False)
+        Statements_forOf_dstr("language/statements/for-of/dstr/const-ary-ptrn-elem-ary-elem-init.js",False)
+        Statements_forOf_dstr("language/statements/for-of/dstr/const-ary-ptrn-elem-ary-elem-iter.js",False)
+        Statements_forOf_dstr("language/statements/for-of/dstr/const-ary-ptrn-elem-ary-elision-init.js",False)
 -----
 
 

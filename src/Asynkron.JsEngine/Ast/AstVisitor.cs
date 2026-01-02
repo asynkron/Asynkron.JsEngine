@@ -29,11 +29,7 @@ public abstract class AstVisitor
                 }
                 case BlockStatement node:
                 {
-                    foreach (var stmt in node.Statements)
-                    {
-                        VisitStatement(stmt);
-                    }
-
+                    VisitBlockStatement(node);
                     break;
                 }
                 case ReturnStatement node:
@@ -293,9 +289,9 @@ public abstract class AstVisitor
 
                     break;
                 }
-                case FunctionExpression:
+                case FunctionExpression node:
                 {
-                    // Functions create their own scope, don't traverse body by default
+                    VisitFunctionExpression(node);
                     break;
                 }
             }
@@ -324,6 +320,12 @@ public abstract class AstVisitor
     protected virtual void VisitContinue(ContinueStatement node)
     {
         // Override in derived class to process continue statements and their labels
+    }
+
+    protected virtual void VisitFunctionExpression(FunctionExpression node)
+    {
+        // Functions create their own scope, don't traverse body by default
+        // Override in derived class if you need to process function expressions
     }
 
     protected virtual void VisitBindingTarget(BindingTarget target)

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run only the failing tests mentioned in todo.md
-dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~EnvironmentPoolingTests.ForOfLoop_WithClosureInsideBody_ClosuresCaptureEnvironments|FullyQualifiedName~EnvironmentPoolingTests.LabeledLoop_WithBreak_EnvironmentsReturned|FullyQualifiedName~EnvironmentPoolingTests.NestedForOfLoops_IndependentPooling|FullyQualifiedName~SlotStampingTests.ForAwait_PerIteration_Bindings_Are_Stamped_With_Slots"
+echo "=== Running Internal Tests ==="
+dotnet test tests/Asynkron.JsEngine.Tests --no-restore --verbosity minimal
+
+echo ""
+echo "=== Running Test262 ForOf Tests ==="
+dotnet test tests/Asynkron.JsEngine.Tests.Test262 --no-restore --verbosity minimal --filter "FullyQualifiedName~Statements_forOf"

@@ -79,6 +79,8 @@ public static partial class TypedAstEvaluator
         private readonly JsValue _newTarget;
         private readonly JsEnvironment? _lexicalThisEnvironment;
         private readonly bool _isScriptMode;
+        private readonly bool _isAsync;
+        private readonly bool _isGenerator;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
         private bool _done;
@@ -128,6 +130,8 @@ public static partial class TypedAstEvaluator
             _capturedPrivateNameScopes = capturedPrivateNameScopes;
             _lexicalThisEnvironment = lexicalThisEnvironment;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            _isAsync = function.IsAsync;
+            _isGenerator = function.IsGenerator;
             _allowIdentifierCache = AllowsIdentifierCaching(function);
 
             var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
@@ -163,6 +167,8 @@ public static partial class TypedAstEvaluator
                 ? new JsValue(go)
                 : JsValue.Undefined;
             _isStrict = environment.IsStrict;
+            _isAsync = false; // Scripts run via RunScript are synchronous
+            _isGenerator = false; // Scripts are not generators
             _allowIdentifierCache = context.AllowIdentifierCache;
             _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
             _isScriptMode = true;
@@ -619,124 +625,137 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("No generator plan available.");
             }
 
-            if (_state == GeneratorState.Executing)
+            JsEnvironment environment;
+            EvaluationContext context;
+
+            // Fast path for non-generator, non-async functions - skip all generator/async machinery
+            if (!_isGenerator && !_isAsync)
             {
-                _state = GeneratorState.Completed;
-                _done = true;
-                _programCounter = -1;
-                TryCatchStateRef.TryStack.Clear();
-                YieldStateRef.ResumeContext.Clear();
-                var throwContext = _context ??= _realmState.CreateContext(
-                    ScopeKind.Function,
-                    DetermineGeneratorScopeMode());
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", throwContext, _realmState);
+                environment = EnsureExecutionEnvironment();
+                context = EnsureEvaluationContext();
             }
-
-            var wasStart = _state == GeneratorState.Start;
-            if (_done || _state == GeneratorState.Completed)
+            else
             {
-                _done = true;
-                return FinishExternalCompletion(mode, resumeValue);
-            }
-
-            if (mode is ResumeMode.Throw or ResumeMode.Return && wasStart)
-            {
-                _state = GeneratorState.Completed;
-                _done = true;
-                return FinishExternalCompletion(mode, resumeValue);
-            }
-
-            _state = GeneratorState.Executing;
-            PreparePendingResumeValue(mode, resumeValue, wasStart);
-
-            var environment = EnsureExecutionEnvironment();
-
-            // Track the environment we resumed with (if resuming from suspend).
-            // This prevents returning it to the pool while we're still using it.
-            IteratorStateRef.ResumedWithEnvironment = wasStart ? null : environment;
-            var context = EnsureEvaluationContext();
-
-            // If we're resuming from a yield that happened during AST evaluation
-            // (via StatementInstruction), handle based on the resume mode.
-            _realmState.Logger?.LogInformation(
-                "ExecutePlan resume check: wasStart={WasStart} mode={Mode} YieldStateRef.LastYieldSourceStart={Start}",
-                wasStart, mode, YieldStateRef.LastYieldSourceStart);
-
-            if (!wasStart && YieldStateRef.LastYieldSourceStart >= 0)
-            {
-                switch (mode)
+                // Full generator/async path with state machine support
+                if (_state == GeneratorState.Executing)
                 {
-                    case ResumeMode.Next:
-                        // For next(), set up resume state so the yield expression returns the resume value
-                        SetYieldResumeValue(environment, resumeValue, YieldStateRef.LastYieldSourceStart, YieldStateRef.LastYieldSourceEnd);
-                        break;
-                    case ResumeMode.Return:
-                        // For return(), close any active iterators and complete the generator.
-                        // Don't re-evaluate the statement - just close and return.
-                        _realmState.Logger?.LogInformation("ExecutePlan: early CompleteReturn for Return mode");
-                        YieldStateRef.LastYieldSourceStart = -1;
-                        YieldStateRef.LastYieldSourceEnd = -1;
-                        return CompleteReturn(resumeValue);
+                    _state = GeneratorState.Completed;
+                    _done = true;
+                    _programCounter = -1;
+                    TryCatchStateRef.TryStack.Clear();
+                    YieldStateRef.ResumeContext.Clear();
+                    var throwContext = _context ??= _realmState.CreateContext(
+                        ScopeKind.Function,
+                        DetermineGeneratorScopeMode());
+                    throw StandardLibrary.ThrowTypeError("Generator is already executing", throwContext, _realmState);
                 }
-                // For Throw mode, we'll let the normal flow handle it via AsyncStateRef.PendingResumeKind
 
-                YieldStateRef.LastYieldSourceStart = -1;
-                YieldStateRef.LastYieldSourceEnd = -1;
-            }
-
-            // Restore active with-scopes when resuming
-            // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
-            // We need to restore environments from bottom to top
-            if (WithStateRef.ActiveWithScopes.Count > 0)
-            {
-                var scopesToRestore = WithStateRef.ActiveWithScopes.ToArray();
-                // The array is in stack order (top first), so reverse to get bottom-to-top order
-                for (var i = scopesToRestore.Length - 1; i >= 0; i--)
+                var wasStart = _state == GeneratorState.Start;
+                if (_done || _state == GeneratorState.Completed)
                 {
-                    var slot = scopesToRestore[i];
-                    if (TryGetSymbolValueJsValue(environment, slot, out var storedEnvValue) &&
-                        storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
-                    {
-                        environment = storedWithEnv;
-                    }
+                    _done = true;
+                    return FinishExternalCompletion(mode, resumeValue);
                 }
-            }
 
-            // If we are resuming after a pending await, thread the resolved
-            // value into the per-site await state so subsequent evaluations
-            // of the AwaitExpression see the fulfilled value instead of the
-            // original promise object.
-            if (AsyncStateRef.PendingAwaitKey is { } awaitKey)
-            {
-                var (kind, value) = ConsumeResumeValue();
-                var isThrow = kind == ResumePayloadKind.Throw;
-
-                // Store the resolved value (or thrown error) in AwaitState so
-                // EvaluateAwaitInGenerator can retrieve it when re-evaluated.
-                if (kind == ResumePayloadKind.Value || isThrow)
+                if (mode is ResumeMode.Throw or ResumeMode.Return && wasStart)
                 {
-                    if (environment.TryGetObject<AwaitState>(awaitKey, out var state))
+                    _state = GeneratorState.Completed;
+                    _done = true;
+                    return FinishExternalCompletion(mode, resumeValue);
+                }
+
+                _state = GeneratorState.Executing;
+                PreparePendingResumeValue(mode, resumeValue, wasStart);
+
+                environment = EnsureExecutionEnvironment();
+
+                // Track the environment we resumed with (if resuming from suspend).
+                // This prevents returning it to the pool while we're still using it.
+                IteratorStateRef.ResumedWithEnvironment = wasStart ? null : environment;
+                context = EnsureEvaluationContext();
+
+                // If we're resuming from a yield that happened during AST evaluation
+                // (via StatementInstruction), handle based on the resume mode.
+                _realmState.Logger?.LogInformation(
+                    "ExecutePlan resume check: wasStart={WasStart} mode={Mode} YieldStateRef.LastYieldSourceStart={Start}",
+                    wasStart, mode, YieldStateRef.LastYieldSourceStart);
+
+                if (!wasStart && YieldStateRef.LastYieldSourceStart >= 0)
+                {
+                    switch (mode)
                     {
-                        state.HasResult = true;
-                        state.IsThrow = isThrow;
-                        state.Result = value;
-                        environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(state));
+                        case ResumeMode.Next:
+                            // For next(), set up resume state so the yield expression returns the resume value
+                            SetYieldResumeValue(environment, resumeValue, YieldStateRef.LastYieldSourceStart, YieldStateRef.LastYieldSourceEnd);
+                            break;
+                        case ResumeMode.Return:
+                            // For return(), close any active iterators and complete the generator.
+                            // Don't re-evaluate the statement - just close and return.
+                            _realmState.Logger?.LogInformation("ExecutePlan: early CompleteReturn for Return mode");
+                            YieldStateRef.LastYieldSourceStart = -1;
+                            YieldStateRef.LastYieldSourceEnd = -1;
+                            return CompleteReturn(resumeValue);
                     }
-                    else
+                    // For Throw mode, we'll let the normal flow handle it via AsyncStateRef.PendingResumeKind
+
+                    YieldStateRef.LastYieldSourceStart = -1;
+                    YieldStateRef.LastYieldSourceEnd = -1;
+                }
+
+                // Restore active with-scopes when resuming
+                // The _activeWithScopes stack contains the slots in reverse order (bottom to top)
+                // We need to restore environments from bottom to top
+                if (WithStateRef.ActiveWithScopes.Count > 0)
+                {
+                    var scopesToRestore = WithStateRef.ActiveWithScopes.ToArray();
+                    // The array is in stack order (top first), so reverse to get bottom-to-top order
+                    for (var i = scopesToRestore.Length - 1; i >= 0; i--)
                     {
-                        var newState = new AwaitState { HasResult = true, IsThrow = isThrow, Result = value };
-                        if (environment.HasBinding(awaitKey))
+                        var slot = scopesToRestore[i];
+                        if (TryGetSymbolValueJsValue(environment, slot, out var storedEnvValue) &&
+                            storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
                         {
-                            environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
+                            environment = storedWithEnv;
+                        }
+                    }
+                }
+
+                // If we are resuming after a pending await, thread the resolved
+                // value into the per-site await state so subsequent evaluations
+                // of the AwaitExpression see the fulfilled value instead of the
+                // original promise object.
+                if (AsyncStateRef.PendingAwaitKey is { } awaitKey)
+                {
+                    var (kind, value) = ConsumeResumeValue();
+                    var isThrow = kind == ResumePayloadKind.Throw;
+
+                    // Store the resolved value (or thrown error) in AwaitState so
+                    // EvaluateAwaitInGenerator can retrieve it when re-evaluated.
+                    if (kind == ResumePayloadKind.Value || isThrow)
+                    {
+                        if (environment.TryGetObject<AwaitState>(awaitKey, out var state))
+                        {
+                            state.HasResult = true;
+                            state.IsThrow = isThrow;
+                            state.Result = value;
+                            environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(state));
                         }
                         else
                         {
-                            environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
+                            var newState = new AwaitState { HasResult = true, IsThrow = isThrow, Result = value };
+                            if (environment.HasBinding(awaitKey))
+                            {
+                                environment.AssignJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
+                            }
+                            else
+                            {
+                                environment.DefineJsValue(awaitKey, JsValue.FromObjectUnsafe(newState));
+                            }
                         }
                     }
-                }
 
-                AsyncStateRef.PendingAwaitKey = null;
+                    AsyncStateRef.PendingAwaitKey = null;
+                }
             }
 
             // Cache debug mode check outside the hot loop - avoid virtual property access per iteration
@@ -860,8 +879,8 @@ public static partial class TypedAstEvaluator
                             testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
                             afterConditionEval:
 
-                            // Check for pending await (async code)
-                            if (TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+                            // Check for pending await (async code) - skip entirely for sync functions
+                            if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
                             {
                                 return pendingBranchResult;
                             }
@@ -901,7 +920,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     _scriptCompletionValue = stmtResult;
                                 }
-                                if (TryHandlePendingAwait(context, out var pendingResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingResult, environment))
                                 {
                                     return pendingResult;
                                 }
@@ -983,7 +1002,7 @@ public static partial class TypedAstEvaluator
                                 var throwInstruction = Unsafe.As<ThrowInstruction>(instruction);
                                 // Evaluate the throw expression and throw it
                                 var throwValue = throwInstruction.Expression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingThrowResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingThrowResult, environment))
                                 {
                                     return pendingThrowResult;
                                 }
@@ -1053,7 +1072,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     _scriptCompletionValue = evaluatedValue;
                                 }
-                                if (TryHandlePendingAwait(context, out var pendingEvalResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingEvalResult, environment))
                                 {
                                     return pendingEvalResult;
                                 }
@@ -1119,7 +1138,7 @@ public static partial class TypedAstEvaluator
                                 var binLeft = binaryOpInstruction.Left.EvaluateExpression(environment, context);
                                 if (context.ShouldStopEvaluation)
                                 {
-                                    if (TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
                                     {
                                         return pendingBinLeftResult;
                                     }
@@ -1138,7 +1157,7 @@ public static partial class TypedAstEvaluator
                                 var binRight = binaryOpInstruction.Right.EvaluateExpression(environment, context);
                                 if (context.ShouldStopEvaluation)
                                 {
-                                    if (TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
                                     {
                                         return pendingBinRightResult;
                                     }
@@ -1317,7 +1336,7 @@ public static partial class TypedAstEvaluator
 
                                 if (context.ShouldStopEvaluation)
                                 {
-                                    if (TryHandlePendingAwait(context, out var pendingCompResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingCompResult, environment))
                                     {
                                         return pendingCompResult;
                                     }
@@ -1380,7 +1399,7 @@ public static partial class TypedAstEvaluator
                                 var classValue = classDeclInstruction.Declaration.Definition.CreateClassValue(
                                     environment, context, classDeclInstruction.Declaration.Name);
 
-                                if (TryHandlePendingAwait(context, out var pendingClassResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingClassResult, environment))
                                 {
                                     return pendingClassResult;
                                 }
@@ -1424,7 +1443,7 @@ public static partial class TypedAstEvaluator
                                     ?? JsValue.Undefined;
 
                                 //TODO: why is this placed here!?
-                                if (TryHandlePendingAwait(context, out var pendingVarResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingVarResult, environment))
                                 {
                                     return pendingVarResult;
                                 }
@@ -1713,7 +1732,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
                                         context);
-                                    if (TryHandlePendingAwait(context, out var pendingYieldResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldResult, environment))
                                     {
                                         return pendingYieldResult;
                                     }
@@ -1804,7 +1823,7 @@ public static partial class TypedAstEvaluator
                                     var yieldStarIterableValue =
                                         yieldStarInstruction.IterableExpression
                                             .EvaluateExpression(environment, context);
-                                    if (TryHandlePendingAwait(context, out var pendingYieldStarResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldStarResult, environment))
                                     {
                                         return pendingYieldStarResult;
                                     }
@@ -2273,7 +2292,7 @@ public static partial class TypedAstEvaluator
                                 }
                                 var iterableValue =
                                     iteratorInitInstruction.IterableExpression.EvaluateExpression(iterableEnv, context);
-                                if (TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
                                 {
                                     return pendingIteratorResult;
                                 }
@@ -2854,7 +2873,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
                                 var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
                                 {
                                     return pendingBranchResult;
                                 }
@@ -2957,7 +2976,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var returnInstruction = Unsafe.As<ReturnInstruction>(instruction);
                                 var returnValue = returnInstruction.ReturnExpression?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
-                                if (TryHandlePendingAwait(context, out var pendingReturnResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingReturnResult, environment))
                                 {
                                     return pendingReturnResult;
                                 }
@@ -3017,7 +3036,7 @@ public static partial class TypedAstEvaluator
                                 var enterWithInstruction = Unsafe.As<EnterWithInstruction>(instruction);
                                 var objValueJs =
                                     enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context);
-                                if (TryHandlePendingAwait(context, out var pendingWithResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingWithResult, environment))
                                 {
                                     return pendingWithResult;
                                 }

@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
     /// Adds two JsValue operands without boxing intermediate results.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue AddValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue AddValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both operands are already numbers (very common in loops)
         if ( left.IsNumber && right.IsNumber)
@@ -151,7 +151,7 @@ public static partial class TypedAstEvaluator
     /// Subtracts two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue SubtractValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue SubtractValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -166,7 +166,7 @@ public static partial class TypedAstEvaluator
     /// Multiplies two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue MultiplyValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue MultiplyValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -280,7 +280,7 @@ public static partial class TypedAstEvaluator
     /// Converts a JsValue to a numeric JsValue (Number or BigInt).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue ToNumericValue(in JsValue value, EvaluationContext context)
+    private static JsValue ToNumericValue(in JsValue value, EvaluationContext context)
     {
         // Fast path for already-numeric values
         if (value.IsNumber || value.IsBigInt)
@@ -317,7 +317,7 @@ public static partial class TypedAstEvaluator
     /// Converts a JsValue to a double (ToNumber).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static double ToNumberValue(in JsValue value, EvaluationContext context)
+    private static double ToNumberValue(in JsValue value, EvaluationContext context)
     {
         if (value.IsNumber)
         {
@@ -343,7 +343,7 @@ public static partial class TypedAstEvaluator
     /// Converts a JsValue to a string (ToString).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static string ToStringValue(in JsValue value, EvaluationContext context)
+    private static string ToStringValue(in JsValue value, EvaluationContext context)
     {
         if (value.IsString)
         {
@@ -368,7 +368,7 @@ public static partial class TypedAstEvaluator
     /// Increments a JsValue by 1.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue IncrementValue(in JsValue value, EvaluationContext context)
+    private static JsValue IncrementValue(in JsValue value, EvaluationContext context)
     {
         if (value.IsNumber)
         {
@@ -399,7 +399,7 @@ public static partial class TypedAstEvaluator
     /// Decrements a JsValue by 1.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue DecrementValue(in JsValue value, EvaluationContext context)
+    private static JsValue DecrementValue(in JsValue value, EvaluationContext context)
     {
         if (value.IsNumber)
         {
@@ -460,7 +460,7 @@ public static partial class TypedAstEvaluator
     /// Compares two JsValue operands for less-than.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue LessThanValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue LessThanValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -476,7 +476,7 @@ public static partial class TypedAstEvaluator
     /// Compares two JsValue operands for less-than-or-equal.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue LessThanOrEqualValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue LessThanOrEqualValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -492,7 +492,7 @@ public static partial class TypedAstEvaluator
     /// Compares two JsValue operands for greater-than.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue GreaterThanValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue GreaterThanValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -508,7 +508,7 @@ public static partial class TypedAstEvaluator
     /// Compares two JsValue operands for greater-than-or-equal.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue GreaterThanOrEqualValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue GreaterThanOrEqualValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -576,7 +576,7 @@ public static partial class TypedAstEvaluator
     /// Strict equality comparison for JsValue.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static bool StrictEqualsValue(in JsValue left, in JsValue right)
+    private static bool StrictEqualsValue(in JsValue left, in JsValue right)
     {
         // Different types are never strictly equal
         if (left.Kind != right.Kind)
@@ -602,7 +602,7 @@ public static partial class TypedAstEvaluator
     /// Bitwise AND of two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue BitwiseAndValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue BitwiseAndValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -622,7 +622,7 @@ public static partial class TypedAstEvaluator
     /// Bitwise OR of two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue BitwiseOrValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue BitwiseOrValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -642,7 +642,7 @@ public static partial class TypedAstEvaluator
     /// Bitwise XOR of two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue BitwiseXorValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue BitwiseXorValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -662,7 +662,7 @@ public static partial class TypedAstEvaluator
     /// Left shift of two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue LeftShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue LeftShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -679,7 +679,7 @@ public static partial class TypedAstEvaluator
     /// Right shift of two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue RightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue RightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)
@@ -696,7 +696,7 @@ public static partial class TypedAstEvaluator
     /// Unsigned right shift of two JsValue operands.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static JsValue UnsignedRightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
+    private static JsValue UnsignedRightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if ( left.IsNumber && right.IsNumber)

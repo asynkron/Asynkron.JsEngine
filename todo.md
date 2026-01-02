@@ -1,21 +1,13 @@
 There are a few test failures right now:
 
 -----
-     AsyncGeneratorTests
-      AsyncGenerator_SwitchInBody
-     AsyncIterationTests
-      ForAwaitOf_WithPromiseArray
-      RegularForOf_WithAwaitInBody
-      RegularForOf_WithAwaitInBodyWithDebug
-     CpsTransformDebugTests
-      ForOf_WithConsoleLog_Debug
-      SimpleForOf_WithAwait_Debug
      EnvironmentPoolingTests
       ForOfLoop_WithClosureInsideBody_ClosuresCaptureEnvironments
       LabeledLoop_WithBreak_EnvironmentsReturned
       NestedForOfLoops_IndependentPooling
-     GeneratorTests
-      Generator_ForAwaitPromiseValuesAreAwaitedIr
+     SlotStampingTests
+      ForAwait_PerIteration_Bindings_Are_Stamped_With_Slots
+
 -----
 
 

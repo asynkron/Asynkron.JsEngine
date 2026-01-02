@@ -42,6 +42,7 @@ internal sealed partial class ExecutionPlanBuilder
     private int _catchSlotCounter;
     private string? _failureReason;
     private bool _isScriptLevel;
+    private int _initialSlotOffset; // Offset for slot indices at script level (to avoid collision with hoisted bindings)
     private int _resumeSlotCounter;
     private int _scopeIdCounter = 1; // Start at 1 because 0 is reserved for function-level scope
     private int _withScopeSlotCounter;
@@ -49,10 +50,12 @@ internal sealed partial class ExecutionPlanBuilder
 
     /// <summary>
     /// Allocates a new slot index for a generator-internal symbol.
+    /// At script level, indices are offset by _initialSlotOffset to avoid collision
+    /// with hoisted lexical bindings that already occupy slots 0..N-1.
     /// </summary>
     internal int AllocateSlot(Symbol symbol)
     {
-        var index = _slotSymbols.Count;
+        var index = _slotSymbols.Count + _initialSlotOffset;
         _slotSymbols.Add(symbol);
         return index;
     }
@@ -86,8 +89,13 @@ internal sealed partial class ExecutionPlanBuilder
     ///     When true, indicates this is a top-level script (not a function body).
     ///     Script-level var declarations must update the global object.
     /// </param>
+    /// <param name="initialSlotOffset">
+    ///     At script level, hoisting creates slots for lexical declarations before IR building.
+    ///     This offset ensures IR slot indices start after hoisted slots to avoid collision.
+    ///     For functions, this should be 0.
+    /// </param>
     public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
-        bool reportDiagnostics = true, bool isScriptLevel = false)
+        bool reportDiagnostics = true, bool isScriptLevel = false, int initialSlotOffset = 0)
     {
         // First run the yield-lowering pre-pass so that ExecutionPlanBuilder
         // can assume a simplified, pauseable-function-friendly AST. The lowerer currently acts
@@ -105,7 +113,7 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        var builder = new ExecutionPlanBuilder { _isScriptLevel = isScriptLevel };
+        var builder = new ExecutionPlanBuilder { _isScriptLevel = isScriptLevel, _initialSlotOffset = initialSlotOffset };
         var succeeded = builder.TryBuildInternal(lowered, out plan);
         failureReason = builder._failureReason ?? lowerFailure;
 

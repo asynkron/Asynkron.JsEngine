@@ -25,7 +25,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private readonly Stack<int> _catchScopeStack = new();
     private readonly Dictionary<int, int> _scopeIdRemap = new();
     private readonly Dictionary<int, int> _reverseScopeIdRemap = new();
-    private int _nextSyntheticScopeId = 1;
+    private int _nextSyntheticScopeId;
 
     public SlotAssignmentRewriter(ScopeSlotAnalysis analysis)
     {
@@ -33,6 +33,21 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
         _lexicalBindings = analysis.LexicalBindings;
         _scopeStack.Push(RootScopeId);
+        _nextSyntheticScopeId = GetNextSyntheticScopeId(_scopes);
+    }
+
+    private static int GetNextSyntheticScopeId(Dictionary<int, ScopeSlotInfo> scopes)
+    {
+        var maxScopeId = 0;
+        foreach (var scopeId in scopes.Keys)
+        {
+            if (scopeId > maxScopeId)
+            {
+                maxScopeId = scopeId;
+            }
+        }
+
+        return maxScopeId + 1;
     }
 
     public void RewriteInstructions(IList<ExecutionInstruction> instructions, int entryIndex)

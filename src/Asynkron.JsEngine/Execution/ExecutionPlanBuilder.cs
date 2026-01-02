@@ -203,9 +203,11 @@ internal sealed partial class ExecutionPlanBuilder
         // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
         StampIteratorBodies(function, rewriter);
 
-        // Stamp nested function bodies so that closures can reference outer scope variables.
-        // This is critical for closures accessing block-scoped variables.
-        StampNestedFunctionBodies(function, rewriter, analysis);
+        // Nested function stamping disabled - scope IDs in IR plans are not globally unique
+        // across nested functions (all use RootScopeId=0). Unresolved identifiers in nested
+        // functions fall back to dynamic lookup which correctly traverses the closure chain.
+        // See issue #351 for details. Re-enable once unique scope IDs are implemented (PR #355).
+        // StampNestedFunctionBodies(function, rewriter, analysis);
 
         return analysis;
     }

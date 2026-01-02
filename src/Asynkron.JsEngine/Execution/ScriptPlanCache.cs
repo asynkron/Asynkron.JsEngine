@@ -36,6 +36,7 @@ internal sealed class ScriptPlanCache
     {
         // Create a synthetic function expression that wraps the script body.
         // This allows us to reuse the existing ExecutionPlanBuilder infrastructure.
+        var allowSlotAnalysis = TypedAstEvaluator.AllowsIdentifierCaching(program);
         var syntheticFunction = new FunctionExpression(
             program.Source,
             Name: null, // Scripts don't have a function name
@@ -56,7 +57,7 @@ internal sealed class ScriptPlanCache
         // function IR builds that tests track via ExecutionPlanDiagnostics.
         // Pass isScriptLevel: true so var declarations will update the global object.
         if (ExecutionPlanBuilder.TryBuild(syntheticFunction, out var plan, out var failureReason,
-            reportDiagnostics: false, isScriptLevel: true))
+            reportDiagnostics: false, isScriptLevel: true, allowScriptSlotAnalysis: allowSlotAnalysis))
         {
             return new ScriptPlanCache(plan, syntheticFunction, null);
         }

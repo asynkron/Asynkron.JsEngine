@@ -41,6 +41,7 @@ internal sealed partial class ExecutionPlanBuilder
     private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
     private int _catchSlotCounter;
     private string? _failureReason;
+    private bool _allowScriptSlotAnalysis;
     private bool _isScriptLevel;
     private int _resumeSlotCounter;
     private int _scopeIdCounter = 1; // Start at 1 because 0 is reserved for function-level scope
@@ -86,8 +87,12 @@ internal sealed partial class ExecutionPlanBuilder
     ///     When true, indicates this is a top-level script (not a function body).
     ///     Script-level var declarations must update the global object.
     /// </param>
+    /// <param name="allowScriptSlotAnalysis">
+    ///     When true, runs slot analysis even for scripts (when dynamic scope features are absent).
+    ///     This enables unified slot layout between IR internal symbols and user bindings.
+    /// </param>
     public static bool TryBuild(FunctionExpression function, out ExecutionPlan plan, out string? failureReason,
-        bool reportDiagnostics = true, bool isScriptLevel = false)
+        bool reportDiagnostics = true, bool isScriptLevel = false, bool allowScriptSlotAnalysis = false)
     {
         // First run the yield-lowering pre-pass so that ExecutionPlanBuilder
         // can assume a simplified, pauseable-function-friendly AST. The lowerer currently acts
@@ -105,7 +110,11 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        var builder = new ExecutionPlanBuilder { _isScriptLevel = isScriptLevel };
+        var builder = new ExecutionPlanBuilder
+        {
+            _isScriptLevel = isScriptLevel,
+            _allowScriptSlotAnalysis = allowScriptSlotAnalysis
+        };
         var succeeded = builder.TryBuildInternal(lowered, out plan);
         failureReason = builder._failureReason ?? lowerFailure;
 
@@ -132,9 +141,10 @@ internal sealed partial class ExecutionPlanBuilder
         // 1. Script hoisting already created dictionary-based bindings for var/let/const declarations
         // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
+        // Slot analysis can be enabled for scripts when dynamic scope is absent (allows identifier caching).
         // For functions, slot assignment is fine because scope analysis happens at parse time.
         ScopeSlotAnalysis? analysis = null;
-        if (!_isScriptLevel)
+        if (!_isScriptLevel || _allowScriptSlotAnalysis)
         {
             analysis = AssignSlotsToUserVariables(entryIndex, function);
         }

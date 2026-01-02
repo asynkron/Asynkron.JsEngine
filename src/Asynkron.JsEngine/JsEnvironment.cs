@@ -1222,11 +1222,9 @@ public sealed class JsEnvironment : IRentable
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            // Fast path: if current environment matches scopeId, use it directly
-            // This avoids the FindByScopeId loop traversal in the common case
-            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
+            var targetEnv = FindSlotEnvironment(name, scopeId, slotIndex);
             var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            if (targetEnv is not null && slots is not null && slotIndex < targetEnv._slotCount)
             {
                 ref var slot = ref slots[slotIndex];
                 if (shouldLogSlots)
@@ -1302,11 +1300,9 @@ public sealed class JsEnvironment : IRentable
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
-            // Fast path: if current environment matches scopeId, use it directly
-            // This avoids the FindByScopeId loop traversal in the common case
-            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
+            var targetEnv = FindSlotEnvironment(name, scopeId, slotIndex);
             var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            if (targetEnv is not null && slots is not null && slotIndex < targetEnv._slotCount)
             {
                 ref var currentSlot = ref slots[slotIndex];
 
@@ -3879,6 +3875,25 @@ public sealed class JsEnvironment : IRentable
 
         targetEnv = null;
         return false;
+    }
+
+    private JsEnvironment? FindSlotEnvironment(Symbol name, int scopeId, int slotIndex)
+    {
+        var env = this;
+        while (env is not null)
+        {
+            if (env.ScopeId == scopeId &&
+                env._slots is { } slots &&
+                (uint)slotIndex < (uint)env._slotCount &&
+                ReferenceEquals(slots[slotIndex].Name, name))
+            {
+                return env;
+            }
+
+            env = env.Enclosing;
+        }
+
+        return null;
     }
 
     #endregion

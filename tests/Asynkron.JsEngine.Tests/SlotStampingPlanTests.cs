@@ -109,4 +109,26 @@ public class SlotStampingPlanTests : IAsyncLifetime
             Assert.Equal(matching.Value, id.SlotIndex);
         }
     }
+
+    [Fact]
+    public async Task BranchFastPath_UsesScopeAwareIdentifierRead()
+    {
+        var result = await _engine.Evaluate(@"
+            let x = 1;
+            function run() {
+                let hit = 0;
+                {
+                    let y = 0;
+                    if (x < 1) {
+                        hit = 1;
+                    }
+                }
+                return hit;
+            }
+            run();
+        ");
+
+        var numericResult = Assert.IsType<double>(result);
+        Assert.Equal(0.0, numericResult);
+    }
 }

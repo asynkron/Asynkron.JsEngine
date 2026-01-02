@@ -1,14 +1,8 @@
-There are a few test failures right now:
+No known test failures right now (slot stamping / environment pooling).
 
------
-     EnvironmentPoolingTests
-      ForOfLoop_WithClosureInsideBody_ClosuresCaptureEnvironments
-      LabeledLoop_WithBreak_EnvironmentsReturned
-      NestedForOfLoops_IndependentPooling
-     SlotStampingTests
-      ForAwait_PerIteration_Bindings_Are_Stamped_With_Slots
-
------
+Verified with:
+- `./test.sh`
+- `dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~EnvironmentPoolingTests|FullyQualifiedName~SlotStampingTests"`
 
 
 These are the result of our recent work on "slot stamping", we are trying to get our scope and slot analyzis to work and correctly stamp slots on identifiers.

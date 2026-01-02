@@ -1226,7 +1226,10 @@ public sealed class JsEnvironment : IRentable
                 $"DEBUG_SLOT_READ name={name.Name} scopeHint={scopeId} slotHint={slotIndex} currentEnvScope={ScopeId}{Environment.NewLine}");
         }
 
-        if (scopeId >= 0 && slotIndex >= 0)
+        // Slot hints are only valid when the surrounding program/function has no dynamic scope
+        // constructs (with/direct eval) in scope. Otherwise, slot access would bypass with-object
+        // resolution and produce incorrect semantics.
+        if (context.AllowIdentifierCache && scopeId >= 0 && slotIndex >= 0)
         {
             // Fast path: if current environment matches scopeId, use it directly
             // This avoids the FindByScopeId loop traversal in the common case
@@ -1306,7 +1309,10 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
-        if (scopeId >= 0 && slotIndex >= 0)
+        // Slot hints are only valid when the surrounding program/function has no dynamic scope
+        // constructs (with/direct eval) in scope. Otherwise, slot writes would bypass with-object
+        // resolution and produce incorrect semantics.
+        if (context.AllowIdentifierCache && scopeId >= 0 && slotIndex >= 0)
         {
             // Fast path: if current environment matches scopeId, use it directly
             // This avoids the FindByScopeId loop traversal in the common case

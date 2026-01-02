@@ -11,7 +11,8 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a Temporal.Instant - an exact point in time (nanoseconds from Unix epoch).
 ///     Maps to DateTimeOffset in .NET but with nanosecond precision.
 /// </summary>
-public sealed class JsTemporalInstant : IEquatable<JsTemporalInstant>, IComparable<JsTemporalInstant>
+public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
+    : IEquatable<JsTemporalInstant>, IComparable<JsTemporalInstant>
 {
     private const long NanosecondsPerMillisecond = 1_000_000L;
     private const long NanosecondsPerSecond = 1_000_000_000L;
@@ -22,11 +23,6 @@ public sealed class JsTemporalInstant : IEquatable<JsTemporalInstant>, IComparab
 
     // Unix epoch: 1970-01-01T00:00:00Z
     private static readonly DateTimeOffset UnixEpoch = DateTimeOffset.UnixEpoch;
-
-    public JsTemporalInstant(BigInteger epochNanoseconds)
-    {
-        EpochNanoseconds = epochNanoseconds;
-    }
 
     public JsTemporalInstant(long epochMilliseconds)
         : this(new BigInteger(epochMilliseconds) * NanosecondsPerMillisecond)
@@ -42,7 +38,7 @@ public sealed class JsTemporalInstant : IEquatable<JsTemporalInstant>, IComparab
     ///     The number of nanoseconds since the Unix epoch (1970-01-01T00:00:00Z).
     ///     Can be negative for dates before the epoch.
     /// </summary>
-    public BigInteger EpochNanoseconds { get; }
+    public BigInteger EpochNanoseconds { get; } = epochNanoseconds;
 
     /// <summary>
     ///     The number of milliseconds since the Unix epoch, truncated toward zero.

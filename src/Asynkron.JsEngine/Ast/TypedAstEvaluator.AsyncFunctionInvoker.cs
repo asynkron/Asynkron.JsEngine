@@ -15,47 +15,20 @@ public static partial class TypedAstEvaluator
     ///     Unlike AsyncGeneratorInvoker which exposes .next()/.return()/.throw() methods,
     ///     this class drives execution automatically and returns a single Promise.
     /// </summary>
-    internal sealed class AsyncFunctionInvoker
+    internal sealed class AsyncFunctionInvoker(
+        FunctionExpression function,
+        JsEnvironment closure,
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue,
+        IJsCallable callable,
+        RealmState realmState,
+        bool isLexicallyStrict,
+        bool hasFunctionNameEnvironment,
+        IJsObjectLike? homeObject,
+        PrivateNameScope? privateNameScope,
+        ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
     {
-        private readonly IReadOnlyList<JsValue> _arguments;
-        private readonly IJsCallable _callable;
-        private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
-        private readonly JsEnvironment _closure;
-        private readonly FunctionExpression _function;
-        private readonly bool _hasFunctionNameEnvironment;
-        private readonly IJsObjectLike? _homeObject;
-        private readonly bool _isLexicallyStrict;
-        private readonly PrivateNameScope? _privateNameScope;
-        private readonly RealmState _realmState;
-        private readonly JsValue _thisValue;
-
         private ExecutionPlanRunner? _inner;
-
-        public AsyncFunctionInvoker(
-            FunctionExpression function,
-            JsEnvironment closure,
-            IReadOnlyList<JsValue> arguments,
-            JsValue thisValue,
-            IJsCallable callable,
-            RealmState realmState,
-            bool isLexicallyStrict,
-            bool hasFunctionNameEnvironment,
-            IJsObjectLike? homeObject,
-            PrivateNameScope? privateNameScope,
-            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
-        {
-            _function = function;
-            _closure = closure;
-            _arguments = arguments;
-            _thisValue = thisValue;
-            _callable = callable;
-            _realmState = realmState;
-            _isLexicallyStrict = isLexicallyStrict;
-            _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
-            _homeObject = homeObject;
-            _privateNameScope = privateNameScope;
-            _capturedPrivateNameScopes = capturedPrivateNameScopes;
-        }
 
         /// <summary>
         ///     Executes the async function and returns a Promise that resolves/rejects
@@ -63,7 +36,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         public JsValue Execute()
         {
-            var promiseCtor = _realmState.PromiseConstructor;
+            var promiseCtor = realmState.PromiseConstructor;
             if (promiseCtor is null)
             {
                 throw new InvalidOperationException("Promise constructor is not available.");
@@ -93,17 +66,17 @@ public static partial class TypedAstEvaluator
                 {
                     // Initialize generator inside Promise to capture any early errors
                     _inner = new ExecutionPlanRunner(
-                        _function,
-                        _closure,
-                        _arguments,
-                        _thisValue,
-                        _callable,
-                        _realmState,
-                        _isLexicallyStrict,
-                        _hasFunctionNameEnvironment,
-                        _homeObject,
-                        _privateNameScope,
-                        _capturedPrivateNameScopes);
+                        function,
+                        closure,
+                        arguments,
+                        thisValue,
+                        callable,
+                        realmState,
+                        isLexicallyStrict,
+                        hasFunctionNameEnvironment,
+                        homeObject,
+                        privateNameScope,
+                        capturedPrivateNameScopes);
                     _inner.Initialize();
 
                     // Start execution - async functions don't receive an argument on first call

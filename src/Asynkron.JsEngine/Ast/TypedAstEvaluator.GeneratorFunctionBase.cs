@@ -17,41 +17,32 @@ public static partial class TypedAstEvaluator
     /// Contains all shared infrastructure: property management, call/apply/bind, private slots, etc.
     /// Subclasses only need to implement Invoke() and intrinsic setup.
     /// </summary>
-    private abstract class GeneratorFunctionBase : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
-        IExtensibilityControl,
-        IFunctionNameTarget, ICallableMetadata
+    private abstract class GeneratorFunctionBase(
+        FunctionExpression function,
+        JsEnvironment closure,
+        RealmState realmState,
+        bool isLexicallyStrict,
+        bool hasFunctionNameEnvironment,
+        bool isConstructorFunction)
+        : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
+            IExtensibilityControl,
+            IFunctionNameTarget, ICallableMetadata
     {
-        private protected readonly JsEnvironment _closure;
-        private protected readonly FunctionExpression _function;
-        private protected readonly bool _hasFunctionNameEnvironment;
-        private protected readonly bool _isLexicallyStrict;
+        private protected readonly JsEnvironment _closure = closure;
+        private protected readonly FunctionExpression _function = function;
+        private protected readonly bool _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
+        private protected readonly bool _isLexicallyStrict = isLexicallyStrict;
         private readonly Dictionary<string, JsValue> _privateSlots = new(StringComparer.Ordinal);
         private protected readonly JsObject _properties = new();
         private protected ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private protected IJsObjectLike? _homeObject;
-        private protected bool _isConstructorEnabled;
-
-        protected GeneratorFunctionBase(
-            FunctionExpression function,
-            JsEnvironment closure,
-            RealmState realmState,
-            bool isLexicallyStrict,
-            bool hasFunctionNameEnvironment,
-            bool isConstructorFunction)
-        {
-            _function = function;
-            _closure = closure;
-            RealmState = realmState;
-            _isLexicallyStrict = isLexicallyStrict;
-            _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
-            _isConstructorEnabled = isConstructorFunction;
-        }
+        private protected bool _isConstructorEnabled = isConstructorFunction;
 
         public PrivateNameScope? PrivateNameScope { get; private set; }
 
         public bool IsArrowFunction => false;
         public bool DisallowConstruct => true;
-        public RealmState RealmState { get; }
+        public RealmState RealmState { get; } = realmState;
 
         public bool IsExtensible => _properties.IsExtensible;
 

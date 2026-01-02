@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine.JsTypes;
 /// to iterator results (e.g., <c>let result = iterator.next(); saved = result;</c>).
 /// This means instances CANNOT be pooled.
 /// </remarks>
-internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfacedMutable
+internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObjectLike, IAsJsValue, IJsSurfacedMutable
 {
     private static readonly string[] PropertyNames = ["value", "done"];
 
@@ -22,15 +22,9 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     /// </summary>
     public static readonly IteratorResultObject DoneUndefined = new(JsValue.Undefined, true);
 
-    private JsValue _value;
-    private bool _done;
+    private JsValue _value = value;
+    private bool _done = done;
     private JsValue _cachedJsValue;
-
-    public IteratorResultObject(JsValue value, bool done)
-    {
-        _value = value;
-        _done = done;
-    }
 
     /// <summary>
     /// Creates an iterator result. For done=true with undefined value, returns a cached singleton.

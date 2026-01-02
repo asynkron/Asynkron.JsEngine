@@ -573,16 +573,10 @@ public sealed class EvaluationContext(
         }
     }
 
-    internal readonly struct CachedSlotTarget
+    internal readonly struct CachedSlotTarget(JsVariable variable, Symbol name)
     {
-        public CachedSlotTarget(JsVariable variable, Symbol name)
-        {
-            Variable = variable;
-            Name = name;
-        }
-
-        public JsVariable Variable { get; }
-        public Symbol Name { get; }
+        public JsVariable Variable { get; } = variable;
+        public Symbol Name { get; } = name;
         public JsEnvironment Environment => Variable.Environment;
         public int SlotIndex => Variable.SlotIndex;
     }

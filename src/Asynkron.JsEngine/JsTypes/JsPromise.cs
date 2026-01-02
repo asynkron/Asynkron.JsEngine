@@ -10,11 +10,11 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a JavaScript Promise object that can be resolved or rejected.
 ///     Implements IMicrotask directly to avoid delegate allocation when scheduling handler processing.
 /// </summary>
-public sealed class JsPromise : IMicrotask
+public sealed class JsPromise(JsEngine engine) : IMicrotask
 {
     internal const string InternalPromiseKey = "__promise__";
 
-    private readonly JsEngine _engine;
+    private readonly JsEngine _engine = engine ?? throw new ArgumentNullException(nameof(engine));
     private List<(IJsCallable? onFulfilled, IJsCallable? onRejected, JsPromise next)>? _handlers;
 
     private bool _handlersScheduled;
@@ -32,11 +32,7 @@ public sealed class JsPromise : IMicrotask
     /// </summary>
     int IMicrotask.Epoch { get; set; }
 
-    public JsPromise(JsEngine engine)
-    {
-        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        // JsObject is now created lazily to avoid allocation when not needed
-    }
+    // JsObject is now created lazily to avoid allocation when not needed
 
     // Debug helpers for instrumentation
     internal int DebugHandlerCount => _handlers?.Count ?? 0;

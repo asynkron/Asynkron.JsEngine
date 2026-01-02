@@ -87,43 +87,34 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     /// <summary>
     ///     Lightweight 'then' method for resolved promises.
     /// </summary>
-    private sealed class ThenMethod : IJsCallable
+    private sealed class ThenMethod(ResolvedPromiseValue resolved, JsEngine engine) : IJsCallable
     {
-        private readonly ResolvedPromiseValue _resolved;
-        private readonly JsEngine _engine;
-
-        public ThenMethod(ResolvedPromiseValue resolved, JsEngine engine)
-        {
-            _resolved = resolved;
-            _engine = engine;
-        }
-
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
             var onFulfilled = args.Count > 0 ? args[0] : JsValue.Undefined;
 
             // Capture value before returning to pool (JsValue is a struct, so this is a copy)
-            var resolvedValue = _resolved._value;
+            var resolvedValue = resolved._value;
 
             // Create a new promise for chaining
-            var nextPromise = new JsPromise(_engine);
+            var nextPromise = new JsPromise(engine);
 
             if (onFulfilled.TryGetCallable(out var fulfilledCallback))
             {
                 // Use pooled microtask to avoid lambda closure allocation
-                _engine.QueueMicrotask(
+                engine.QueueMicrotask(
                     ResolvedPromiseFulfilledMicrotask.Rent(fulfilledCallback, resolvedValue, nextPromise));
             }
             else
             {
                 // No onFulfilled callback - pass through the value
-                _engine.QueueMicrotask(
+                engine.QueueMicrotask(
                     ResolvedPromisePassthroughMicrotask.Rent(resolvedValue, nextPromise));
             }
 
             // Return the ResolvedPromiseValue to pool - it's no longer needed after .then()
             // The value has been captured and passed to the microtask
-            _resolved.Return();
+            resolved.Return();
 
             // Return the JsPromise directly without forcing JsObject creation
             // The await machinery can find the promise via TryGetInternalPromise

@@ -10,25 +10,18 @@ namespace Asynkron.JsEngine.JsTypes;
 ///     Represents a Temporal.PlainDate - a calendar date without time or timezone.
 ///     Maps to DateOnly in .NET.
 /// </summary>
-public sealed class JsTemporalPlainDate : IEquatable<JsTemporalPlainDate>, IComparable<JsTemporalPlainDate>
+public sealed class JsTemporalPlainDate(int year, int month, int day, string calendar = "iso8601")
+    : IEquatable<JsTemporalPlainDate>, IComparable<JsTemporalPlainDate>
 {
-    public JsTemporalPlainDate(int year, int month, int day, string calendar = "iso8601")
-    {
-        Year = year;
-        Month = month;
-        Day = day;
-        Calendar = calendar;
-    }
-
     public JsTemporalPlainDate(DateOnly date, string calendar = "iso8601")
         : this(date.Year, date.Month, date.Day, calendar)
     {
     }
 
-    public int Year { get; }
-    public int Month { get; }
-    public int Day { get; }
-    public string Calendar { get; }
+    public int Year { get; } = year;
+    public int Month { get; } = month;
+    public int Day { get; } = day;
+    public string Calendar { get; } = calendar;
 
     /// <summary>
     ///     The month code (e.g., "M01" for January).

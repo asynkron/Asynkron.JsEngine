@@ -495,20 +495,13 @@ internal sealed class ScopeSlotCollector : AstVisitor
     }
 }
 
-internal sealed class ScopeSlotInfo
+internal sealed class ScopeSlotInfo(int scopeId)
 {
     private int _maxSlotIndex = -1;
 
-    public ScopeSlotInfo(int scopeId)
-    {
-        ScopeId = scopeId;
-        Slots = new Dictionary<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-        LexicalBindings = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-    }
-
-    public int ScopeId { get; }
-    public Dictionary<Symbol, int> Slots { get; }
-    public HashSet<Symbol> LexicalBindings { get; }
+    public int ScopeId { get; } = scopeId;
+    public Dictionary<Symbol, int> Slots { get; } = new(ReferenceEqualityComparer<Symbol>.Instance);
+    public HashSet<Symbol> LexicalBindings { get; } = new(ReferenceEqualityComparer<Symbol>.Instance);
     public int SlotCountHint { get; set; }
     public int NextSlotIndex { get; set; }
 
@@ -549,22 +542,14 @@ internal sealed class ScopeSlotInfo
     }
 }
 
-internal sealed class ScopeSlotAnalysis
+internal sealed class ScopeSlotAnalysis(
+    Dictionary<int, ScopeSlotInfo> scopes,
+    Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps,
+    Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings,
+    Dictionary<BlockStatement, int> blockScopeIds)
 {
-    public ScopeSlotAnalysis(
-        Dictionary<int, ScopeSlotInfo> scopes,
-        Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps,
-        Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings,
-        Dictionary<BlockStatement, int> blockScopeIds)
-    {
-        Scopes = scopes;
-        ImmutableSlotMaps = immutableSlotMaps;
-        LexicalBindings = lexicalBindings;
-        BlockScopeIds = blockScopeIds;
-    }
-
-    public Dictionary<int, ScopeSlotInfo> Scopes { get; }
-    public Dictionary<int, ImmutableDictionary<Symbol, int>> ImmutableSlotMaps { get; }
-    public Dictionary<int, ImmutableHashSet<Symbol>> LexicalBindings { get; }
-    public Dictionary<BlockStatement, int> BlockScopeIds { get; }
+    public Dictionary<int, ScopeSlotInfo> Scopes { get; } = scopes;
+    public Dictionary<int, ImmutableDictionary<Symbol, int>> ImmutableSlotMaps { get; } = immutableSlotMaps;
+    public Dictionary<int, ImmutableHashSet<Symbol>> LexicalBindings { get; } = lexicalBindings;
+    public Dictionary<BlockStatement, int> BlockScopeIds { get; } = blockScopeIds;
 }

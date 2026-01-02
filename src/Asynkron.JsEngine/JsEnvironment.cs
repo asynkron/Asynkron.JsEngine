@@ -3564,6 +3564,91 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Rebuilds the slot array to match a plan slot map while preserving existing bindings.
+    /// Used for script execution on the global environment which already has slots.
+    /// </summary>
+    internal void RebuildSlotLayout(
+        int slotCount,
+        int scopeId,
+        System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
+    {
+        ScopeId = scopeId;
+        if (_slots is null || _slotCount == 0)
+        {
+            InitializeSlots(slotCount, scopeId);
+            if (!slotMap.IsEmpty)
+            {
+                SetSlotMap(slotMap);
+            }
+            return;
+        }
+
+        var existing = new Dictionary<Symbol, JsSlot>(ReferenceEqualityComparer<Symbol>.Instance);
+        for (var i = 0; i < _slotCount; i++)
+        {
+            var name = _slots[i].Name;
+            if (name is null)
+            {
+                continue;
+            }
+            existing[name] = _slots[i];
+        }
+
+        var extraCount = 0;
+        foreach (var symbol in existing.Keys)
+        {
+            if (!slotMap.ContainsKey(symbol))
+            {
+                extraCount++;
+            }
+        }
+
+        var newCount = slotCount + extraCount;
+        if (newCount == 0)
+        {
+            return;
+        }
+
+        var newSlots = JsSlotArrayPool.Rent(newCount);
+        Array.Clear(newSlots, 0, newCount);
+
+        foreach (var (symbol, index) in slotMap)
+        {
+            if (index < 0 || index >= newCount)
+            {
+                continue;
+            }
+
+            if (existing.TryGetValue(symbol, out var existingSlot))
+            {
+                newSlots[index] = existingSlot;
+                existing.Remove(symbol);
+            }
+            else
+            {
+                var flags = scopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
+                newSlots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
+            }
+        }
+
+        var nextIndex = slotCount;
+        foreach (var slot in existing.Values)
+        {
+            if (nextIndex >= newCount)
+            {
+                break;
+            }
+
+            newSlots[nextIndex++] = slot;
+        }
+
+        JsSlotArrayPool.Return(_slots);
+        _slots = newSlots;
+        _slotCount = newCount;
+        _identifierBindingCache?.Clear();
+    }
+
+    /// <summary>
     /// Marks the provided symbols as lexical/uninitialized in the current slots (TDZ).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

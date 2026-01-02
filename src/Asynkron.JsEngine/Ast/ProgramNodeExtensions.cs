@@ -472,53 +472,59 @@ public static partial class TypedAstEvaluator
                     // allocated slots (e.g. strict-wrapper script environments). For true GlobalEnvironment
                     // runs, existing slots (Symbol.This, prior script bindings) may already exist and would
                     // require an index offset to remain correct.
-                    if (!executionEnvironment.HasSlots)
+                    var rootSlotMap = scriptPlan.SafeRootSlotMap;
+                    var mapMax = 0;
+                    foreach (var idx in rootSlotMap.Values)
                     {
-                        var rootSlotMap = scriptPlan.SafeRootSlotMap;
-                        var mapMax = 0;
-                        foreach (var idx in rootSlotMap.Values)
+                        if (idx >= mapMax)
                         {
-                            if (idx >= mapMax)
+                            mapMax = idx + 1;
+                        }
+                    }
+
+                    var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
+                        mapMax);
+                    if (requiredSlots == 0)
+                    {
+                        requiredSlots = scriptPlan.SlotCount;
+                    }
+
+                    if (requiredSlots > 0)
+                    {
+                        var slotMap = rootSlotMap;
+                        if (slotMap.Count == 0 && !scriptPlan.SlotSymbols.IsDefaultOrEmpty)
+                        {
+                            var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                                ReferenceEqualityComparer<Symbol>.Instance);
+                            for (var i = 0; i < scriptPlan.SlotSymbols.Length; i++)
                             {
-                                mapMax = idx + 1;
+                                slotMapBuilder[scriptPlan.SlotSymbols[i]] = i;
                             }
+                            slotMap = slotMapBuilder.ToImmutable();
                         }
 
-                        var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
-                            mapMax);
-                        if (requiredSlots == 0)
-                        {
-                            requiredSlots = scriptPlan.SlotCount;
-                        }
-
-                        if (requiredSlots > 0)
+                        if (!executionEnvironment.HasSlots)
                         {
                             executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
-                            if (rootSlotMap.Count > 0)
+                            if (!slotMap.IsEmpty)
                             {
-                                executionEnvironment.SetSlotMap(rootSlotMap);
+                                executionEnvironment.SetSlotMap(slotMap);
                             }
-                            else if (!scriptPlan.SlotSymbols.IsDefaultOrEmpty)
-                            {
-                                var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
-                                    ReferenceEqualityComparer<Symbol>.Instance);
-                                for (var i = 0; i < scriptPlan.SlotSymbols.Length; i++)
-                                {
-                                    slotMap[scriptPlan.SlotSymbols[i]] = i;
-                                }
-                                executionEnvironment.SetSlotMap(slotMap.ToImmutable());
-                            }
+                        }
+                        else if (!slotMap.IsEmpty)
+                        {
+                            executionEnvironment.RebuildSlotLayout(requiredSlots, scopeId: 0, slotMap);
+                        }
 
-                            var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
-                            var rootLexicals = scriptPlan.SafeRootLexicalBindings;
-                            if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
-                            {
-                                rootLexicals = fromScope0;
-                            }
-                            if (!rootLexicals.IsEmpty)
-                            {
-                                executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
-                            }
+                        var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
+                        var rootLexicals = scriptPlan.SafeRootLexicalBindings;
+                        if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                        {
+                            rootLexicals = fromScope0;
+                        }
+                        if (!rootLexicals.IsEmpty)
+                        {
+                            executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
                         }
                     }
                 }

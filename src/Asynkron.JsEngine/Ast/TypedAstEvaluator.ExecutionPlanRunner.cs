@@ -424,13 +424,16 @@ public static partial class TypedAstEvaluator
             // Plan slots get indices 0, 1, 2... and hoisted lexical bindings get subsequent indices.
             // This enables O(1) slot-based access instead of dictionary lookups.
             // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
-            if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
+            var rootSlotMap = _plan.SafeRootSlotMap;
+            var hasPlanSlots = _plan.RootSlotCount > 0 ||
+                               !rootSlotMap.IsEmpty ||
+                               !_plan.SlotSymbols.IsDefaultOrEmpty;
+            if (hasPlanSlots)
             {
                 // Ensure we allocate enough slots to cover:
                 // - Internal plan slots (SlotSymbols.Length)
                 // - Root slot map entries (indices can be sparse)
                 // - Explicit RootSlotCount from analysis (if present)
-                var rootSlotMap = _plan.SafeRootSlotMap;
                 var mapMax = rootSlotMap.Count > 0 ? rootSlotMap.Values.Max() + 1 : 0;
                 var requiredSlots = Math.Max(Math.Max(_plan.RootSlotCount, _plan.SlotSymbols.Length), mapMax);
                 if (requiredSlots == 0)

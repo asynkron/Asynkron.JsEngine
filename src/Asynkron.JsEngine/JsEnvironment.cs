@@ -1220,6 +1220,11 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
+        if (!context.AllowIdentifierCache)
+        {
+            return TryGetIdentifierJsValue(name, context, out value);
+        }
+
         if (scopeId >= 0 && slotIndex >= 0)
         {
             // Fast path: if current environment matches scopeId, use it directly
@@ -1299,6 +1304,12 @@ public sealed class JsEnvironment : IRentable
         var realmState = context.RealmState;
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
+
+        if (!context.AllowIdentifierCache)
+        {
+            SetIdentifierJsValue(name, value, context);
+            return true;
+        }
 
         if (scopeId >= 0 && slotIndex >= 0)
         {
@@ -3479,6 +3490,55 @@ public sealed class JsEnvironment : IRentable
 
         // Clear all slots (set to empty) - only when starting fresh
         Array.Clear(_slots, 0, slotCount);
+    }
+
+    /// <summary>
+    /// Initializes slot storage and scope ID for this environment, optionally prepending new slots
+    /// ahead of existing bindings to keep plan slot indices stable.
+    /// </summary>
+    /// <param name="slotCount">Number of slots needed for this scope.</param>
+    /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
+    /// <param name="prependExisting">When true, shift existing slots after the new slots.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void InitializeSlots(int slotCount, int scopeId, bool prependExisting)
+    {
+        if (!prependExisting)
+        {
+            InitializeSlots(slotCount, scopeId);
+            return;
+        }
+
+        ScopeId = scopeId;
+        if (slotCount <= 0)
+        {
+            return;
+        }
+
+        var existingCount = _slotCount;
+        if (existingCount <= 0)
+        {
+            InitializeSlots(slotCount, scopeId);
+            return;
+        }
+
+        var neededCapacity = existingCount + slotCount;
+        if (_slots is null || _slots.Length < neededCapacity)
+        {
+            var oldSlots = _slots;
+            _slots = JsSlotArrayPool.Rent(neededCapacity);
+            if (oldSlots is not null)
+            {
+                Array.Copy(oldSlots, 0, _slots, slotCount, existingCount);
+                JsSlotArrayPool.Return(oldSlots);
+            }
+        }
+        else
+        {
+            Array.Copy(_slots, 0, _slots, slotCount, existingCount);
+        }
+
+        Array.Clear(_slots!, 0, slotCount);
+        _slotCount = neededCapacity;
     }
 
     /// <summary>

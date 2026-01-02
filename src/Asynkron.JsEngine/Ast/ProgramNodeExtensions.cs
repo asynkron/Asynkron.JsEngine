@@ -468,57 +468,53 @@ public static partial class TypedAstEvaluator
                 {
                     scriptPlan = scriptPlanCache.Plan!;
 
-                    // Only initialize slot layout up-front when this execution environment hasn't already
-                    // allocated slots (e.g. strict-wrapper script environments). For true GlobalEnvironment
-                    // runs, existing slots (Symbol.This, prior script bindings) may already exist and would
-                    // require an index offset to remain correct.
-                    if (!executionEnvironment.HasSlots)
+                    // Initialize slot layout up-front. When slots already exist (e.g. GlobalEnvironment),
+                    // prepend new slots so the plan's 0-based slot indices stay stable.
+                    var rootSlotMap = scriptPlan.SafeRootSlotMap;
+                    var mapMax = 0;
+                    foreach (var idx in rootSlotMap.Values)
                     {
-                        var rootSlotMap = scriptPlan.SafeRootSlotMap;
-                        var mapMax = 0;
-                        foreach (var idx in rootSlotMap.Values)
+                        if (idx >= mapMax)
                         {
-                            if (idx >= mapMax)
+                            mapMax = idx + 1;
+                        }
+                    }
+
+                    var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
+                        mapMax);
+                    if (requiredSlots == 0)
+                    {
+                        requiredSlots = scriptPlan.SlotCount;
+                    }
+
+                    if (requiredSlots > 0)
+                    {
+                        executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0,
+                            prependExisting: executionEnvironment.HasSlots);
+                        if (rootSlotMap.Count > 0)
+                        {
+                            executionEnvironment.SetSlotMap(rootSlotMap);
+                        }
+                        else if (!scriptPlan.SlotSymbols.IsDefaultOrEmpty)
+                        {
+                            var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                                ReferenceEqualityComparer<Symbol>.Instance);
+                            for (var i = 0; i < scriptPlan.SlotSymbols.Length; i++)
                             {
-                                mapMax = idx + 1;
+                                slotMap[scriptPlan.SlotSymbols[i]] = i;
                             }
+                            executionEnvironment.SetSlotMap(slotMap.ToImmutable());
                         }
 
-                        var requiredSlots = Math.Max(Math.Max(scriptPlan.RootSlotCount, scriptPlan.SlotSymbols.Length),
-                            mapMax);
-                        if (requiredSlots == 0)
+                        var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
+                        var rootLexicals = scriptPlan.SafeRootLexicalBindings;
+                        if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
                         {
-                            requiredSlots = scriptPlan.SlotCount;
+                            rootLexicals = fromScope0;
                         }
-
-                        if (requiredSlots > 0)
+                        if (!rootLexicals.IsEmpty)
                         {
-                            executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
-                            if (rootSlotMap.Count > 0)
-                            {
-                                executionEnvironment.SetSlotMap(rootSlotMap);
-                            }
-                            else if (!scriptPlan.SlotSymbols.IsDefaultOrEmpty)
-                            {
-                                var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
-                                    ReferenceEqualityComparer<Symbol>.Instance);
-                                for (var i = 0; i < scriptPlan.SlotSymbols.Length; i++)
-                                {
-                                    slotMap[scriptPlan.SlotSymbols[i]] = i;
-                                }
-                                executionEnvironment.SetSlotMap(slotMap.ToImmutable());
-                            }
-
-                            var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
-                            var rootLexicals = scriptPlan.SafeRootLexicalBindings;
-                            if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
-                            {
-                                rootLexicals = fromScope0;
-                            }
-                            if (!rootLexicals.IsEmpty)
-                            {
-                                executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
-                            }
+                            executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
                         }
                     }
                 }

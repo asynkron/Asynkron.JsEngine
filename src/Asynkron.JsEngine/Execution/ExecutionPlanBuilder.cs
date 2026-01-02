@@ -127,17 +127,9 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        // After building all instructions, assign slots to user variables and update AST nodes
-        // NOTE: For scripts (IsScriptLevel=true), we do NOT assign slots to user variables because:
-        // 1. Script hoisting already created dictionary-based bindings for var/let/const declarations
-        // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
-        // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
-        // For functions, slot assignment is fine because scope analysis happens at parse time.
-        ScopeSlotAnalysis? analysis = null;
-        if (!_isScriptLevel)
-        {
-            analysis = AssignSlotsToUserVariables(entryIndex, function);
-        }
+        // After building all instructions, assign slots to user variables and update AST nodes.
+        // Script IR is only built when identifier caching is allowed, so slot-based lookup is safe here.
+        var analysis = AssignSlotsToUserVariables(entryIndex, function);
 
         var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
             ? rootInfo.SlotCount

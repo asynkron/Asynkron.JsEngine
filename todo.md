@@ -30,9 +30,6 @@ But the 262 test suite has 500+ failures, here is a subset of those:
         Comments_hashbang("language/comments/hashbang/function-constructor.js",False)
        Destructuring_binding
         Destructuring_binding("language/destructuring/binding/typedarray-backed-by-resizable-buffer.js",False)
-       EvalCode_direct
-        EvalCode_direct("language/eval-code/direct/strict-caller-global.js",True)
-        EvalCode_direct("language/eval-code/direct/var-env-global-lex-non-strict.js",False)
 -----
 
 

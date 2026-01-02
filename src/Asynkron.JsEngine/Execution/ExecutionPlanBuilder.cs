@@ -203,6 +203,10 @@ internal sealed partial class ExecutionPlanBuilder
         // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
         StampIteratorBodies(function, rewriter);
 
+        // Stamp nested function bodies so that closures can reference outer scope variables.
+        // This is critical for closures accessing block-scoped variables.
+        StampNestedFunctionBodies(function, rewriter, analysis);
+
         return analysis;
     }
 
@@ -271,6 +275,156 @@ internal sealed partial class ExecutionPlanBuilder
             }
 
             base.VisitStatement(statement);
+        }
+    }
+
+    /// <summary>
+    /// Stamps nested function execution plans with slot metadata so closures can reference outer scope variables.
+    /// This walks the function body, finds all nested FunctionExpression/FunctionDeclaration nodes,
+    /// builds their execution plans (if possible), and stamps those plans with the parent's slot analysis.
+    /// </summary>
+    private static void StampNestedFunctionBodies(FunctionExpression function, SlotAssignmentRewriter rewriter, ScopeSlotAnalysis analysis)
+    {
+        var collector = new NestedFunctionCollector(analysis.BlockScopeIds);
+        collector.Visit(function.Body);
+
+        foreach (var (funcExpr, scopeId) in collector.Results)
+        {
+            // Trigger building the nested function's execution plan
+            var nestedCache = ((IAstCacheable<ExecutionPlanCache>)funcExpr).GetOrCreateCache();
+            if (!nestedCache.Succeeded || nestedCache.Plan is null)
+            {
+                // If we can't build an execution plan, stamp the body AST for AST-based evaluation
+                var mappedScopeId = rewriter.MapScopeId(scopeId);
+                var stampedBody = (BlockStatement)rewriter.StampNodeInScope(funcExpr.Body, mappedScopeId);
+                if (!ReferenceEquals(stampedBody, funcExpr.Body))
+                {
+                    UpdateFunctionBody(funcExpr, stampedBody);
+                }
+                continue;
+            }
+
+            // Stamp the nested function's execution plan instructions with outer scope slot info
+            var mappedScope = rewriter.MapScopeId(scopeId);
+            StampNestedExecutionPlan(funcExpr, nestedCache.Plan, rewriter, mappedScope);
+        }
+    }
+
+    private static void StampNestedExecutionPlan(
+        FunctionExpression funcExpr,
+        ExecutionPlan plan,
+        SlotAssignmentRewriter rewriter,
+        int enclosingScopeId)
+    {
+        // Create a copy of the instructions list so we can stamp them
+        var instructions = plan.Instructions.ToList();
+
+        // Stamp each instruction in the nested plan with outer scope slot info
+        for (var i = 0; i < instructions.Count; i++)
+        {
+            instructions[i] = rewriter.StampInstructionInScope(instructions[i], enclosingScopeId);
+        }
+
+        // Create an updated plan with stamped instructions
+        var stampedPlan = new ExecutionPlan(
+            [..instructions],
+            plan.EntryPoint,
+            plan.SlotCount,
+            plan.SlotSymbols,
+            plan.RootSlotCount,
+            plan.RootSlotMap,
+            plan.RootLexicalBindings,
+            plan.ScopeLexicalBindings);
+
+        // Update the cached plan on the FunctionExpression
+        UpdateCachedExecutionPlan(funcExpr, stampedPlan);
+    }
+
+    private static void UpdateCachedExecutionPlan(FunctionExpression funcExpr, ExecutionPlan stampedPlan)
+    {
+        var cacheField = typeof(FunctionExpression)
+            .GetField("_cachedExecutionPlan", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (cacheField is not null)
+        {
+            // Create a new ExecutionPlanCache with the stamped plan
+            var cacheType = typeof(ExecutionPlanCache);
+            var ctor = cacheType.GetConstructor(
+                BindingFlags.NonPublic | BindingFlags.Instance,
+                null,
+                [typeof(ExecutionPlan), typeof(string)],
+                null);
+            if (ctor is not null)
+            {
+                var newCache = ctor.Invoke([stampedPlan, null]);
+                cacheField.SetValue(funcExpr, newCache);
+            }
+        }
+    }
+
+    private static void UpdateFunctionBody(FunctionExpression funcExpr, BlockStatement stampedBody)
+    {
+        // Use reflection to update the cached Body property
+        // FunctionExpression is a record, so we need to update the backing field
+        var backingField = typeof(FunctionExpression)
+            .GetField("<Body>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+        backingField?.SetValue(funcExpr, stampedBody);
+    }
+
+    private sealed class NestedFunctionCollector : AstVisitor
+    {
+        private readonly Stack<int> _scopeStack = new();
+        private readonly Dictionary<BlockStatement, int> _analysisBlockScopes;
+
+        /// <summary>
+        /// Collected functions with their enclosing scope ID.
+        /// </summary>
+        public List<(FunctionExpression Function, int EnclosingScopeId)> Results { get; } = new();
+
+        public NestedFunctionCollector(Dictionary<BlockStatement, int> blockScopeIds)
+        {
+            _analysisBlockScopes = blockScopeIds;
+            _scopeStack.Push(0); // Root scope
+        }
+
+        protected override void VisitBlockStatement(BlockStatement node)
+        {
+            // Use the scope ID from the analysis if this block was assigned one
+            if (_analysisBlockScopes.TryGetValue(node, out var scopeId))
+            {
+                _scopeStack.Push(scopeId);
+                base.VisitBlockStatement(node);
+                _scopeStack.Pop();
+            }
+            else
+            {
+                base.VisitBlockStatement(node);
+            }
+        }
+
+        protected override void VisitStatement(StatementNode statement)
+        {
+            if (statement is FunctionDeclaration funcDecl)
+            {
+                // Capture the nested function with its enclosing scope
+                Results.Add((funcDecl.Function, _scopeStack.Peek()));
+                // Don't traverse into the function body here - it will be stamped separately
+                return;
+            }
+
+            base.VisitStatement(statement);
+        }
+
+        protected override void VisitExpression(ExpressionNode expression)
+        {
+            if (expression is FunctionExpression funcExpr)
+            {
+                // Capture the nested function with its enclosing scope
+                Results.Add((funcExpr, _scopeStack.Peek()));
+                // Don't traverse into the function body here - it will be stamped separately
+                return;
+            }
+
+            base.VisitExpression(expression);
         }
     }
 

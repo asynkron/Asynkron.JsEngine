@@ -29,11 +29,7 @@ public abstract class AstVisitor
                 }
                 case BlockStatement node:
                 {
-                    foreach (var stmt in node.Statements)
-                    {
-                        VisitStatement(stmt);
-                    }
-
+                    VisitBlockStatement(node);
                     break;
                 }
                 case ReturnStatement node:

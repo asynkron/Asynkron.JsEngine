@@ -20,6 +20,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private readonly Dictionary<int, ScopeSlotInfo> _scopes;
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
     private readonly Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings;
+    private readonly Dictionary<BlockStatement, int> _blockScopeIds;
     private readonly Stack<int> _scopeStack = new();
     private readonly Stack<int> _catchScopeStack = new();
     private readonly Dictionary<int, int> _scopeIdRemap = new();
@@ -31,6 +32,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _scopes = analysis.Scopes;
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
         _lexicalBindings = analysis.LexicalBindings;
+        _blockScopeIds = analysis.BlockScopeIds;
         var maxScopeId = 0;
         foreach (var scopeId in _scopes.Keys)
         {
@@ -155,6 +157,25 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         return found;
     }
 
+    /// <summary>
+    /// Stamps an instruction with slot metadata from the enclosing scope.
+    /// Used to stamp nested function execution plan instructions with outer scope slot info.
+    /// </summary>
+    public ExecutionInstruction StampInstructionInScope(ExecutionInstruction instruction, int enclosingScopeId)
+    {
+        var scopeSnapshot = _scopeStack.ToArray();
+        _scopeStack.Clear();
+        _scopeStack.Push(RootScopeId);
+        if (enclosingScopeId != RootScopeId)
+        {
+            _scopeStack.Push(enclosingScopeId);
+        }
+
+        var result = RewriteInstruction(instruction);
+        RestoreStack(scopeSnapshot, Array.Empty<int>());
+        return result;
+    }
+
     public int GetSlotCountForScope(int mappedScopeId)
     {
         return GetSlotCount(mappedScopeId);
@@ -253,6 +274,36 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             default:
                 return instruction;
         }
+    }
+
+    protected override StatementNode RewriteStatement(StatementNode statement)
+    {
+        // Handle BlockStatement specially to stamp with scope metadata
+        if (statement is BlockStatement block && _blockScopeIds.TryGetValue(block, out var scopeId))
+        {
+            // Push the block's scope onto the stack for rewriting children
+            _scopeStack.Push(scopeId);
+            try
+            {
+                // Rewrite children in this scope
+                var rewrittenStatements = RewriteStatementList(block.Statements);
+
+                // Stamp the block with its scope metadata
+                return block with
+                {
+                    Statements = rewrittenStatements,
+                    ScopeId = scopeId,
+                    SlotCount = GetSlotCount(scopeId),
+                    SlotMap = GetSlotMap(scopeId)
+                };
+            }
+            finally
+            {
+                _scopeStack.Pop();
+            }
+        }
+
+        return base.RewriteStatement(statement);
     }
 
     protected override IdentifierExpression RewriteIdentifier(IdentifierExpression node)

@@ -16,6 +16,7 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class ScopeSlotCollector : AstVisitor
 {
     private const int RootScopeId = 0;
+    private const int FirstBlockScopeId = 1000; // Reserve lower IDs for IR-generated scopes
 
     private readonly Func<Symbol, int> _allocateRootSlot;
     private readonly ImmutableArray<Symbol> _parameterSymbols;
@@ -26,6 +27,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private readonly bool[] _visited;
     private readonly Dictionary<int, ScopeSlotInfo> _scopes = new();
     private readonly Stack<int> _scopeStack = new();
+    private readonly Dictionary<BlockStatement, int> _blockScopeIds = new(ReferenceEqualityComparer<BlockStatement>.Instance);
+    private int _nextBlockScopeId = FirstBlockScopeId;
 
     public ScopeSlotCollector(IEnumerable<ExecutionInstruction> instructions,
         IReadOnlyList<Symbol> existingRootSlots,
@@ -57,7 +60,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             lexicalBindings[scopeId] = info.LexicalBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
         }
 
-        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings);
+        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings, _blockScopeIds);
     }
 
     private void TraverseFrom(int index)
@@ -419,10 +422,50 @@ internal sealed class ScopeSlotCollector : AstVisitor
         {
             // Function declarations are hoisted to the function/global scope.
             AllocateSlotInScope(RootScopeId, funcDecl.Name);
-            return;
+            // Continue visiting to collect closure references from the function body
         }
 
         base.VisitStatement(statement);
+    }
+
+    protected override void VisitBlockStatement(BlockStatement block)
+    {
+        // Check if this block needs its own lexical scope (has let/const declarations or functions)
+        var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+        if (!hoistPlan.NeedsEnvironment)
+        {
+            // No lexical bindings - just visit children without creating a scope
+            base.VisitBlockStatement(block);
+            return;
+        }
+
+        // Create a new scope for this block
+        var blockScopeId = _nextBlockScopeId++;
+        _blockScopeIds[block] = blockScopeId;
+
+        // Enter the block scope
+        var info = GetOrCreateScopeInfo(blockScopeId);
+
+        // Pre-allocate slots for lexical bindings in this block (using TopLevelLexicalNames
+        // to get only direct declarations, not nested ones)
+        foreach (var lexName in hoistPlan.TopLevelLexicalNames)
+        {
+            var slotIndex = info.NextSlotIndex++;
+            info.IncludeSlot(lexName, slotIndex);
+            info.LexicalBindings.Add(lexName);
+        }
+
+        info.SlotCountHint = Math.Max(info.SlotCountHint, hoistPlan.TopLevelLexicalNames.Count);
+
+        _scopeStack.Push(blockScopeId);
+        try
+        {
+            base.VisitBlockStatement(block);
+        }
+        finally
+        {
+            _scopeStack.Pop();
+        }
     }
 
     private static ImmutableArray<Symbol> CollectParameterSymbols(FunctionExpression? function)
@@ -497,14 +540,17 @@ internal sealed class ScopeSlotAnalysis
     public ScopeSlotAnalysis(
         Dictionary<int, ScopeSlotInfo> scopes,
         Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps,
-        Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings)
+        Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings,
+        Dictionary<BlockStatement, int> blockScopeIds)
     {
         Scopes = scopes;
         ImmutableSlotMaps = immutableSlotMaps;
         LexicalBindings = lexicalBindings;
+        BlockScopeIds = blockScopeIds;
     }
 
     public Dictionary<int, ScopeSlotInfo> Scopes { get; }
     public Dictionary<int, ImmutableDictionary<Symbol, int>> ImmutableSlotMaps { get; }
     public Dictionary<int, ImmutableHashSet<Symbol>> LexicalBindings { get; }
+    public Dictionary<BlockStatement, int> BlockScopeIds { get; }
 }

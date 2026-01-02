@@ -1,6 +1,9 @@
 #region
 
+using System;
+using System.IO;
 using System.Collections.Immutable;
+using System.Linq;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -450,6 +453,79 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            var hasDynamicScope = !AllowsIdentifierCaching(program);
+            ExecutionPlan? plan = null;
+            if (!hasDynamicScope)
+            {
+                var scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+                if (scriptPlanCache.Succeeded)
+                {
+                    plan = scriptPlanCache.Plan!;
+                    // Initialize slots before hoisting so hoisted bindings use stamped slot indices
+                    var rootSlotMap = plan.SafeRootSlotMap;
+                    var mapMax = 0;
+                    foreach (var index in rootSlotMap.Values)
+                    {
+                        var nextIndex = index + 1;
+                        if (nextIndex > mapMax)
+                        {
+                            mapMax = nextIndex;
+                        }
+                    }
+
+                    var requiredSlots = Math.Max(Math.Max(plan.RootSlotCount, mapMax),
+                        plan.SlotSymbols.IsDefaultOrEmpty ? 0 : plan.SlotSymbols.Length);
+                    if (requiredSlots > 0)
+                    {
+                        var rootScopeId = program.ScopeId >= 0 ? program.ScopeId : 0;
+                        executionEnvironment.InitializeSlots(requiredSlots, scopeId: rootScopeId, prependExisting: true);
+                        if (!rootSlotMap.IsEmpty)
+                        {
+                            executionEnvironment.SetSlotMap(rootSlotMap);
+                        }
+                        else if (!plan.SlotSymbols.IsDefaultOrEmpty)
+                        {
+                            var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                                ReferenceEqualityComparer<Symbol>.Instance);
+                            for (var i = 0; i < plan.SlotSymbols.Length; i++)
+                            {
+                                slotMap[plan.SlotSymbols[i]] = i;
+                            }
+
+                            executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+                        }
+
+                        var rootLexicals = plan.SafeRootLexicalBindings;
+                        if (!rootLexicals.IsEmpty)
+                        {
+                            executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
+                        }
+
+                        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+                        {
+                            var slotMapText = string.Join(",", rootSlotMap.Select(kv => $"{kv.Key.Name}:{kv.Value}"));
+                            var slotSymbolsText = plan.SlotSymbols.IsDefaultOrEmpty
+                                ? "<none>"
+                                : string.Join(",", plan.SlotSymbols.Select(s => s.Name));
+                            var lexicalText = rootLexicals.IsEmpty
+                                ? "<none>"
+                                : string.Join(",", rootLexicals.Select(l => l.Name));
+                            var planDump = ExecutionPlanPrinter.Print(plan.Instructions, plan.EntryPoint);
+                            File.AppendAllText("/tmp/slotdebug.txt",
+                                $"=== Script Plan IR ==={Environment.NewLine}" +
+                                $"RootSlotCount={plan.RootSlotCount} RootSlotMap=[{slotMapText}] SlotSymbols=[{slotSymbolsText}] Lexicals=[{lexicalText}]{Environment.NewLine}" +
+                                $"{planDump}{Environment.NewLine}");
+                        }
+                    }
+                }
+                else
+                {
+                    context.RealmState.Logger?.LogInformation(
+                        "Script IR building failed: {Reason}. Using AST walking.",
+                        scriptPlanCache.FailureReason ?? "unknown");
+                }
+            }
+
             // Per ES spec, lexical declarations (let/const/class) must be hoisted to create
             // bindings in the TDZ (Temporal Dead Zone) BEFORE function hoisting.
             // This ensures closures that reference lexical variables will find TDZ bindings
@@ -488,8 +564,6 @@ public static partial class TypedAstEvaluator
                 catchParameterNames: catchParameterNames,
                 simpleCatchParameterNames: simpleCatchParameterNames);
 
-            // Dynamic scope constructs (with/eval) require dictionary-based lookups; skip IR/slot stamping.
-            var hasDynamicScope = !AllowsIdentifierCaching(program);
             if (hasDynamicScope)
             {
                 context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval).");
@@ -498,32 +572,11 @@ public static partial class TypedAstEvaluator
 
             // Try IR execution path first (unified execution model)
             // Fall back to AST walking if IR building fails or encounters unsupported constructs
-            var scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
-            if (scriptPlanCache.Succeeded)
+            if (plan is not null)
             {
-                var plan = scriptPlanCache.Plan!;
                 context.RealmState.Logger?.LogInformation(
                     "Executing script via IR path ({InstructionCount} instructions)",
                     plan.Instructions.Length);
-
-                // Initialize slots for execution plan internal variables (iterator states, etc.)
-                // This is needed for for-of loops and other IR constructs that store state in slots.
-                // NOTE: Skip slot initialization for scripts with dynamic scope features (with/eval)
-                // because slot-based lookup would bypass the with-scope check.
-                // NOTE: For scripts, hoisting happens before this point, so hoisted bindings
-                // are already in slots. We use direct 0-based indices and rely on the IR
-                // using different symbol names (internal __* symbols vs user variables).
-                if (plan.SlotCount > 0 && !plan.SlotSymbols.IsDefaultOrEmpty)
-                {
-                    executionEnvironment.InitializeSlots(plan.SlotCount, scopeId: 0);
-                    var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
-                        ReferenceEqualityComparer<Symbol>.Instance);
-                    for (var i = 0; i < plan.SlotSymbols.Length; i++)
-                    {
-                        slotMap[plan.SlotSymbols[i]] = i;
-                    }
-                    executionEnvironment.SetSlotMap(slotMap.ToImmutable());
-                }
 
                 try
                 {
@@ -551,13 +604,6 @@ public static partial class TypedAstEvaluator
                     // Continue to AST walking path below
                 }
             }
-            else
-            {
-                context.RealmState.Logger?.LogInformation(
-                    "Script IR building failed: {Reason}. Using AST walking.",
-                    scriptPlanCache.FailureReason ?? "unknown");
-            }
-
             // AST walking fallback path
             var resultJs = JsValue.Unit;
             foreach (var statement in program.Body)

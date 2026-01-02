@@ -332,12 +332,18 @@ public sealed class JsEnvironment : IRentable
             }
 
             slot.Value = value;
-            // Upgrade lexical flags if needed
-            if (isLexical) slot.Flags |= SlotFlags.Lexical;
-            if (blocksFunctionScopeOverride) slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
-            if (value.IsUninitialized) slot.Flags |= SlotFlags.Uninitialized;
-            // Clear uninitialized flag when setting an initialized value (TDZ completion)
-            if (!value.IsUninitialized) slot.Flags &= ~SlotFlags.Uninitialized;
+            // Upgrade flags when the slot was pre-created (e.g., via SetSlotMap).
+            var updatedFlags = slot.Flags;
+            if (isConst) updatedFlags |= SlotFlags.Const;
+            if (isGlobalConstant) updatedFlags |= SlotFlags.GlobalConstant;
+            if (isLexical) updatedFlags |= SlotFlags.Lexical;
+            if (blocksFunctionScopeOverride) updatedFlags |= SlotFlags.BlocksFunctionScopeOverride;
+            if (canDelete) updatedFlags |= SlotFlags.CanDelete;
+            if (isImmutableBinding) updatedFlags |= SlotFlags.ImmutableBinding;
+            updatedFlags = value.IsUninitialized
+                ? updatedFlags | SlotFlags.Uninitialized
+                : updatedFlags & ~SlotFlags.Uninitialized;
+            slot.Flags = updatedFlags;
 
             if (_bindingObservers is not null)
             {
@@ -3437,7 +3443,7 @@ public sealed class JsEnvironment : IRentable
     /// <param name="slotCount">Number of slots needed for this scope.</param>
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void InitializeSlots(int slotCount, int scopeId)
+    internal void InitializeSlots(int slotCount, int scopeId, bool prependExisting = false)
     {
         ScopeId = scopeId;
 
@@ -3447,26 +3453,55 @@ public sealed class JsEnvironment : IRentable
         var existingCount = _slotCount;
         if (existingCount > 0)
         {
-            // Ensure we have capacity for existing slots + new slots
-            var neededCapacity = existingCount + slotCount;
-            if (_slots is null || _slots.Length < neededCapacity)
+            if (prependExisting)
             {
-                var oldSlots = _slots;
-                _slots = JsSlotArrayPool.Rent(neededCapacity);
-                if (oldSlots is not null)
+                var neededCapacity = existingCount + slotCount;
+                if (_slots is null || _slots.Length < neededCapacity)
                 {
-                    Array.Copy(oldSlots, _slots, existingCount);
-                    JsSlotArrayPool.Return(oldSlots);
+                    var oldSlots = _slots;
+                    _slots = JsSlotArrayPool.Rent(neededCapacity);
+                    if (oldSlots is not null && existingCount > 0)
+                    {
+                        Array.Copy(oldSlots, 0, _slots, slotCount, existingCount);
+                        JsSlotArrayPool.Return(oldSlots);
+                    }
                 }
+                else if (existingCount > 0 && slotCount > 0)
+                {
+                    Array.Copy(_slots, 0, _slots, slotCount, existingCount);
+                }
+
+                if (slotCount > 0)
+                {
+                    Array.Clear(_slots!, 0, slotCount);
+                }
+
+                _slotCount = neededCapacity;
+                return;
             }
-            // Clear only the new slots (after existing ones)
-            if (slotCount > 0)
+            else
             {
-                Array.Clear(_slots, existingCount, slotCount);
+                // Ensure we have capacity for existing slots + new slots
+                var neededCapacity = existingCount + slotCount;
+                if (_slots is null || _slots.Length < neededCapacity)
+                {
+                    var oldSlots = _slots;
+                    _slots = JsSlotArrayPool.Rent(neededCapacity);
+                    if (oldSlots is not null)
+                    {
+                        Array.Copy(oldSlots, _slots, existingCount);
+                        JsSlotArrayPool.Return(oldSlots);
+                    }
+                }
+                // Clear only the new slots (after existing ones)
+                if (slotCount > 0)
+                {
+                    Array.Clear(_slots, existingCount, slotCount);
+                }
+                // Keep _slotCount as the sum of existing + new
+                _slotCount = neededCapacity;
+                return;
             }
-            // Keep _slotCount as the sum of existing + new
-            _slotCount = neededCapacity;
-            return;
         }
 
         _slotCount = slotCount;

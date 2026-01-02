@@ -133,11 +133,7 @@ internal sealed partial class ExecutionPlanBuilder
         // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
         // For functions, slot assignment is fine because scope analysis happens at parse time.
-        ScopeSlotAnalysis? analysis = null;
-        if (!_isScriptLevel)
-        {
-            analysis = AssignSlotsToUserVariables(entryIndex, function);
-        }
+        ScopeSlotAnalysis? analysis = AssignSlotsToUserVariables(entryIndex, function);
 
         var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
             ? rootInfo.SlotCount
@@ -279,6 +275,10 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 sb.AppendLine($"  {id.Name.Name} scope={id.ScopeId} slot={id.SlotIndex}");
             }
+
+            sb.AppendLine(
+                $"=== Plan IR ({function.Name?.Name ?? "<anonymous>"}) ==={Environment.NewLine}{ExecutionPlanPrinter.Print(_instructions, entryIndex)}");
+            sb.AppendLine("=== End Plan ===");
 
             Console.WriteLine(sb.ToString());
             File.AppendAllText("/tmp/slotdebug.txt", sb.ToString());

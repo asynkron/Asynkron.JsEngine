@@ -43,13 +43,19 @@ internal static class IteratorDriverFactory
                 ? Enumerable.Repeat(-1, perIterationBindings.Length).ToImmutableArray()
                 : ImmutableArray<int>.Empty);
 
+        var iterationScopeId = statement.PerIterationScopeId;
+        if (!perIterationBindings.IsDefaultOrEmpty && iterationScopeId < 0)
+        {
+            iterationScopeId = SyntheticScopeIdAllocator.Next();
+        }
+
         return new IteratorDriverPlan(
             kind,
             statement.Iterable,
             statement.Target,
             statement.DeclarationKind,
             rewrittenBody,
-            statement.PerIterationScopeId,
+            iterationScopeId,
             statement.PerIterationParentScopeId,
             perIterationSlotCount,
             perIterationSlotIndices,

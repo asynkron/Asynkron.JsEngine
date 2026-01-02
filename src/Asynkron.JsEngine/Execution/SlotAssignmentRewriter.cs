@@ -33,6 +33,26 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
         _lexicalBindings = analysis.LexicalBindings;
         _scopeStack.Push(RootScopeId);
+        // Start synthetic scope ids after the max existing id to avoid collisions
+        var maxExistingScopeId = _scopes.Count > 0 ? _scopes.Keys.Max() : RootScopeId;
+        _nextSyntheticScopeId = maxExistingScopeId + 1;
+    }
+
+    protected override StatementNode RewriteStatement(StatementNode statement)
+    {
+        if (statement is BlockStatement block)
+        {
+            var mappedScope = RemapScopeId(block.ScopeId);
+            return block with
+            {
+                ScopeId = mappedScope,
+                SlotCount = GetSlotCount(mappedScope),
+                SlotMap = GetSlotMap(mappedScope),
+                Statements = RewriteStatementList(block.Statements)
+            };
+        }
+
+        return base.RewriteStatement(statement);
     }
 
     public void RewriteInstructions(IList<ExecutionInstruction> instructions, int entryIndex)

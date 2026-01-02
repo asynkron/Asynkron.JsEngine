@@ -1547,11 +1547,16 @@ public static partial class TypedAstEvaluator
                                 // The PerIterationBindings check is CRITICAL: it distinguishes loop iteration
                                 // scopes from nested block scopes within the loop body. Without it, nested
                                 // blocks would incorrectly become siblings of their parent iteration scope.
-                                var isSubsequentIteration =
-                                    (pushEnvInstruction.ScopeId >= 0 && environment.ScopeId == pushEnvInstruction.ScopeId) ||
-                                    (pushEnvInstruction.ScopeId < 0 &&
-                                     !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty &&
-                                     environment.Description == "scope" && environment.Enclosing != null);
+                                var hasIterationBindings = !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty;
+                                var isScopeMatch = hasIterationBindings &&
+                                                   pushEnvInstruction.ScopeId >= 0 &&
+                                                   environment.ScopeId == pushEnvInstruction.ScopeId &&
+                                                   environment.Description == "scope";
+                                var isHeuristicMatch = hasIterationBindings &&
+                                                       pushEnvInstruction.ScopeId < 0 &&
+                                                       environment.Description == "scope" &&
+                                                       environment.Enclosing != null;
+                                var isSubsequentIteration = isScopeMatch || isHeuristicMatch;
 
                                 // FAST PATH: For subsequent iterations with pooling enabled (no closures),
                                 // reuse the same environment in-place. The increment (i++) already updated
@@ -1565,7 +1570,7 @@ public static partial class TypedAstEvaluator
                                 // 4. The "new" iteration environment would have the same values anyway
                                 if (isSubsequentIteration &&
                                     pushEnvInstruction.AllowPooling &&
-                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                    hasIterationBindings)
                                 {
                                     // Just continue using the same environment - bindings already have correct values
                                     _programCounter = pushEnvInstruction.Next;
@@ -1590,7 +1595,7 @@ public static partial class TypedAstEvaluator
                                 var allowPooling = pushEnvInstruction.AllowPooling;
                                 // Use different description for loop scope (empty bindings) vs per-iteration scope
                                 // This allows the subsequent iteration heuristic to correctly distinguish them
-                                var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
+                                var description = hasIterationBindings ? "scope" : "loop-scope";
                                 var newIterationEnv = allowPooling
                                     ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
                                     : new JsEnvironment(loopScope, false, false, null, description);
@@ -1611,7 +1616,7 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 // Copy per-iteration bindings from appropriate source (for loop iterations)
-                                if (previousIterEnv != null && !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                if (previousIterEnv != null && hasIterationBindings)
                                 {
                                     // Copy from previous iteration (fast slot path if available)
                                     var useSlotCopy = newIterationEnv.HasSlots &&
@@ -1647,7 +1652,7 @@ public static partial class TypedAstEvaluator
                                         JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
                                     }
                                 }
-                                else if (!pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                else if (hasIterationBindings)
                                 {
                                     // First iteration - copy from loopScope where binding was defined
                                     // Preserve const flag to ensure TypeError is thrown on reassignment

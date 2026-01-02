@@ -290,6 +290,74 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
+    private void RegisterDeclaration(VariableKind kind, BindingTarget binding)
+    {
+        var targetScope = kind == VariableKind.Var ? RootScopeId : CurrentScopeId;
+        if (kind == VariableKind.Var &&
+            targetScope == RootScopeId &&
+            binding is IdentifierBinding idBinding &&
+            _bindingScopeHints.TryGetValue(idBinding.Name, out var hintedScope))
+        {
+            targetScope = hintedScope;
+        }
+
+        RegisterBindingTargetSlots(binding, targetScope, kind);
+    }
+
+    private void RegisterBindingTargetSlots(BindingTarget target, int scopeId, VariableKind kind)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier:
+                    AllocateSlotInScope(scopeId, identifier.Name);
+                    var scopeInfo = GetOrCreateScopeInfo(scopeId);
+                    if (kind == VariableKind.Var)
+                    {
+                        scopeInfo.LexicalBindings.Remove(identifier.Name);
+                    }
+                    else
+                    {
+                        scopeInfo.LexicalBindings.Add(identifier.Name);
+                    }
+
+                    return;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            RegisterBindingTargetSlots(element.Target, scopeId, kind);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    return;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        RegisterBindingTargetSlots(property.Target, scopeId, kind);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    return;
+                default:
+                    return;
+            }
+        }
+    }
+
     public void VisitInstruction(ExecutionInstruction instruction)
     {
         switch (instruction)
@@ -405,17 +473,22 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
-    protected override void VisitIdentifier(IdentifierExpression node)
-    {
-        // Compiler-generated identifiers (resume slots, iterator state, etc.) live in the root scope.
-        if (node.Name.Name.StartsWith('\u0001'))
-        {
-            AllocateSlotInScope(RootScopeId, node.Name);
-        }
-    }
-
     protected override void VisitStatement(StatementNode statement)
     {
+        if (statement is VariableDeclaration varDecl)
+        {
+            foreach (var declarator in varDecl.Declarators)
+            {
+                RegisterDeclaration(varDecl.Kind, declarator.Target);
+                if (declarator.Initializer is not null)
+                {
+                    VisitExpression(declarator.Initializer);
+                }
+            }
+
+            return;
+        }
+
         if (statement is FunctionDeclaration funcDecl)
         {
             // Function declarations are hoisted to the function/global scope.
@@ -424,6 +497,15 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
 
         base.VisitStatement(statement);
+    }
+
+    protected override void VisitIdentifier(IdentifierExpression node)
+    {
+        // Compiler-generated identifiers (resume slots, iterator state, etc.) live in the root scope.
+        if (node.Name.Name.StartsWith('\u0001'))
+        {
+            AllocateSlotInScope(RootScopeId, node.Name);
+        }
     }
 
     private static ImmutableArray<Symbol> CollectParameterSymbols(FunctionExpression? function)

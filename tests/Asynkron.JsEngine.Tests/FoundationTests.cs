@@ -643,6 +643,22 @@ public class FoundationTests(ITestOutputHelper output) : InternalTestBase(output
     }
 
     [Fact]
+    public async Task Function_ArgumentsMappedNonStrict()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function foo(a, b, c) {
+                arguments[0] = 1;
+                arguments[1] = 'str';
+                arguments[2] = 2.1;
+                return a === 1 && b === 'str' && c === 2.1;
+            }
+            foo(10, 'sss', 1);
+        ");
+        Assert.True((bool)result!);
+    }
+
+    [Fact]
     public async Task Function_IIFE()
     {
         await using var engine = CreateEngine();
@@ -2428,4 +2444,3 @@ public class FoundationTests(ITestOutputHelper output) : InternalTestBase(output
 
     #endregion
 }
-

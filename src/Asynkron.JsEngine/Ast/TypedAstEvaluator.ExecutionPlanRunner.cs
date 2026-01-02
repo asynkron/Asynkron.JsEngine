@@ -547,7 +547,7 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding));
             }
 
-            var argumentsObject = _function.CreateArgumentsObject(_arguments, parameterEnvironment, _realmState,
+            var argumentsObject = _function.CreateArgumentsObject(_arguments, executionEnvironment, _realmState,
                 _callable,
                 _isStrict);
             parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),

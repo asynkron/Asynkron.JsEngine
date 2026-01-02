@@ -25,13 +25,26 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private readonly Stack<int> _catchScopeStack = new();
     private readonly Dictionary<int, int> _scopeIdRemap = new();
     private readonly Dictionary<int, int> _reverseScopeIdRemap = new();
-    private int _nextSyntheticScopeId = 1;
+    private int _nextSyntheticScopeId;
 
     public SlotAssignmentRewriter(ScopeSlotAnalysis analysis)
     {
         _scopes = analysis.Scopes;
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
         _lexicalBindings = analysis.LexicalBindings;
+
+        // IMPORTANT: synthetic scope ids must not collide with existing scope ids from analysis.
+        // Scope ids from the analyzer are non-negative, so allocate synthetic ids after the max.
+        var maxScopeId = RootScopeId;
+        foreach (var scopeId in _scopes.Keys)
+        {
+            if (scopeId > maxScopeId)
+            {
+                maxScopeId = scopeId;
+            }
+        }
+        _nextSyntheticScopeId = maxScopeId + 1;
+
         _scopeStack.Push(RootScopeId);
     }
 

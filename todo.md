@@ -2,8 +2,6 @@ There are a few test failures right now:
 
 -----
      AsyncGeneratorTests
-      AsyncGenerator_DelayedAwaitInLoopBody
-      AsyncGenerator_ForLoopWithYield
       AsyncGenerator_SwitchInBody
      AsyncIterationTests
       ForAwaitOf_WithPromiseArray
@@ -18,10 +16,6 @@ There are a few test failures right now:
       NestedForOfLoops_IndependentPooling
      GeneratorTests
       Generator_ForAwaitPromiseValuesAreAwaitedIr
-      Generator_ForLoopContinueRunsIncrement
-      Generator_ForLoopsExecuteWithIrPlan
-     NpmPackageTests
-      Fibonacci_IterativeVersion
 -----
 
 

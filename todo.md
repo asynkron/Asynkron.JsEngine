@@ -1,3 +1,13 @@
+## PRIORITY SUBTASKS (current focus)
+
+1. Implement Unified SlotAnalyzer pass post-IR build (params → IR internals → user vars)
+2. Remove early AST scope/slot stamping; ensure IR build is independent
+3. Update evaluator/env to use new slot layout; fix iterator temp env resolution via plan.RootScopeId
+4. Add logging asserts for slot hits/misses in loops/functions; validate no collisions
+5. Run ./test.sh, then targeted for-of Test262 subset; iterate until failures drop
+
+---
+
 There are a few test failures right now:
 1 internal test fails now, and ~550 Language Tests (262 tests) fail.
 Many many of those are ForOf tests.

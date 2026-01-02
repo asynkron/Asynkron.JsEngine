@@ -821,8 +821,8 @@ public static partial class TypedAstEvaluator
                                     case LiteralExpression { Value: var lit }:
                                         leftVal = lit;
                                         break;
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var leftName } leftId:
-                                        if (!environment.TryReadSlotValue(leftName, leftId.SlotIndex, context, out leftVal))
+                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } leftId:
+                                        if (!environment.TryReadIdentifierWithSlot(leftId, context, out leftVal))
                                             goto slowPath;
                                         break;
                                     default:
@@ -836,8 +836,8 @@ public static partial class TypedAstEvaluator
                                     case LiteralExpression { Value: var lit }:
                                         rightVal = lit;
                                         break;
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var rightName } rightId:
-                                        if (!environment.TryReadSlotValue(rightName, rightId.SlotIndex, context, out rightVal))
+                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rightId:
+                                        if (!environment.TryReadIdentifierWithSlot(rightId, context, out rightVal))
                                             goto slowPath;
                                         break;
                                     default:
@@ -1297,8 +1297,8 @@ public static partial class TypedAstEvaluator
                                         break;
 
                                     // Fast path: identifier with slot info (direct slot read)
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0, Name: var rhsName } rhsIdent:
-                                        if (environment.TryReadSlotValue(rhsName, rhsIdent.SlotIndex, context, out compRhsValue))
+                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
+                                        if (environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
                                         {
                                             // Got value from slot
                                         }

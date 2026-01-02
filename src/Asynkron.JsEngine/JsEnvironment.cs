@@ -1748,10 +1748,27 @@ public sealed class JsEnvironment : IRentable
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
+        var logger = RealmState?.Logger;
+        var debugMode = RealmState?.Options.DebugMode ?? false;
 
         while (current is not null && hops++ < maxLookupDepth)
         {
             var idx = current.FindSlotIndex(name);
+            if (debugMode && logger is not null)
+            {
+                // Log each environment we check
+                var slotNames = current._slots is not null
+                    ? string.Join(", ", current._slots.Take(current._slotCount).Select(s => s.Name?.Name ?? "null"))
+                    : "no slots";
+                logger.LogInformation(
+                    "TryLocateBinding: checking env={Env} depth={Depth} scopeId={ScopeId} for name={Name} idx={Idx} slots=[{Slots}]",
+                    current.GetHashCode(),
+                    current.Depth,
+                    current.ScopeId,
+                    name.Name,
+                    idx,
+                    slotNames);
+            }
             if (idx >= 0)
             {
                 bindingEnvironment = current;

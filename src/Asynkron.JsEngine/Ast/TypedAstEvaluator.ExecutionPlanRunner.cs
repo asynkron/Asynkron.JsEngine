@@ -438,7 +438,8 @@ public static partial class TypedAstEvaluator
                     requiredSlots = _plan.SlotCount;
                 }
 
-                executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
+                var rootScopeId = _plan.RootScopeId;
+                executionEnvironment.InitializeSlots(requiredSlots, scopeId: rootScopeId);
 
                 if (rootSlotMap.Count > 0)
                 {
@@ -457,7 +458,7 @@ public static partial class TypedAstEvaluator
 
                 var scopeLexicals = _plan.SafeScopeLexicalBindings;
                 var rootLexicals = _plan.SafeRootLexicalBindings;
-                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(rootScopeId, out var fromScope0))
                 {
                     rootLexicals = fromScope0;
                 }

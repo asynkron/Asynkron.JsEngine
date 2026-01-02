@@ -43,7 +43,6 @@ internal sealed partial class ExecutionPlanBuilder
     private string? _failureReason;
     private bool _isScriptLevel;
     private int _resumeSlotCounter;
-    private int _scopeIdCounter = 1; // Start at 1 because 0 is reserved for function-level scope
     private int _withScopeSlotCounter;
     private int _yieldStarStateCounter;
 
@@ -62,7 +61,9 @@ internal sealed partial class ExecutionPlanBuilder
     /// </summary>
     internal int AllocateScopeId()
     {
-        return _scopeIdCounter++;
+        // Use a globally unique, negative scope id. SlotAssignmentRewriter will remap these
+        // to stable, non-colliding positive ids within the plan.
+        return SyntheticScopeIdAllocator.Next();
     }
 
     /// <summary>
@@ -139,13 +140,14 @@ internal sealed partial class ExecutionPlanBuilder
             analysis = AssignSlotsToUserVariables(entryIndex, function);
         }
 
-        var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
+        var rootScopeId = analysis?.RootScopeId ?? 0;
+        var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(rootScopeId, out var rootInfo)
             ? rootInfo.SlotCount
             : 0;
-        var rootSlotMap = analysis is not null && analysis.ImmutableSlotMaps.TryGetValue(0, out var rootMap)
+        var rootSlotMap = analysis is not null && analysis.ImmutableSlotMaps.TryGetValue(rootScopeId, out var rootMap)
             ? rootMap
             : ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
-        var rootLexicalBindings = analysis is not null && analysis.LexicalBindings.TryGetValue(0, out var rootLex)
+        var rootLexicalBindings = analysis is not null && analysis.LexicalBindings.TryGetValue(rootScopeId, out var rootLex)
             ? rootLex
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
 
@@ -154,6 +156,7 @@ internal sealed partial class ExecutionPlanBuilder
             entryIndex,
             _slotSymbols.Count,
             [.._slotSymbols],
+            rootScopeId,
             rootSlotCount,
             rootSlotMap,
             rootLexicalBindings,
@@ -285,7 +288,7 @@ internal sealed partial class ExecutionPlanBuilder
     /// </summary>
     private static void StampNestedFunctionBodies(FunctionExpression function, SlotAssignmentRewriter rewriter, ScopeSlotAnalysis analysis)
     {
-        var collector = new NestedFunctionCollector(analysis.BlockScopeIds);
+        var collector = new NestedFunctionCollector(analysis.BlockScopeIds, analysis.RootScopeId);
         collector.Visit(function.Body);
 
         System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] Found {collector.Results.Count} nested functions");
@@ -325,13 +328,13 @@ internal sealed partial class ExecutionPlanBuilder
         SlotAssignmentRewriter rewriter,
         int enclosingScopeId)
     {
-        // Create a copy of the instructions list so we can stamp them
+        // Only stamp the embedded AST nodes (expressions/statements) with outer scope slot info.
+        // Do NOT rewrite scope-carrying IR instructions (Push/Pop env, catch env, etc.) using the parent
+        // scope analysis, since those scopes belong to the nested function itself.
         var instructions = plan.Instructions.ToList();
-
-        // Stamp each instruction in the nested plan with outer scope slot info
         for (var i = 0; i < instructions.Count; i++)
         {
-            instructions[i] = rewriter.StampInstructionInScope(instructions[i], enclosingScopeId);
+            instructions[i] = StampNestedInstruction(instructions[i], rewriter, enclosingScopeId);
         }
 
         // Create an updated plan with stamped instructions
@@ -340,6 +343,7 @@ internal sealed partial class ExecutionPlanBuilder
             plan.EntryPoint,
             plan.SlotCount,
             plan.SlotSymbols,
+            plan.RootScopeId,
             plan.RootSlotCount,
             plan.RootSlotMap,
             plan.RootLexicalBindings,
@@ -347,6 +351,41 @@ internal sealed partial class ExecutionPlanBuilder
 
         // Update the cached plan on the FunctionExpression
         UpdateCachedExecutionPlan(funcExpr, stampedPlan);
+    }
+
+    private static ExecutionInstruction StampNestedInstruction(
+        ExecutionInstruction instruction,
+        SlotAssignmentRewriter rewriter,
+        int enclosingScopeId)
+    {
+        return instruction switch
+        {
+            StatementInstruction stmt =>
+                stmt with { Statement = rewriter.StampNodeInScope(stmt.Statement, enclosingScopeId) },
+            ExpressionInstruction expr =>
+                expr with { Expression = rewriter.StampNodeInScope(expr.Expression, enclosingScopeId) },
+            EvaluateAndDiscardInstruction eval =>
+                eval with { Expression = rewriter.StampNodeInScope(eval.Expression, enclosingScopeId) },
+            YieldInstruction { YieldExpression: not null } yield =>
+                yield with { YieldExpression = rewriter.StampNodeInScope(yield.YieldExpression, enclosingScopeId) },
+            ReturnInstruction { ReturnExpression: not null } ret =>
+                ret with { ReturnExpression = rewriter.StampNodeInScope(ret.ReturnExpression, enclosingScopeId) },
+            ThrowInstruction thr =>
+                thr with { Expression = rewriter.StampNodeInScope(thr.Expression, enclosingScopeId) },
+            BranchInstruction branch =>
+                branch with { Condition = rewriter.StampNodeInScope(branch.Condition, enclosingScopeId) },
+            SimpleVariableDeclarationInstruction { Initializer: not null } varDecl =>
+                varDecl with { Initializer = rewriter.StampNodeInScope(varDecl.Initializer, enclosingScopeId) },
+            IteratorInitInstruction iterInit =>
+                iterInit with { IterableExpression = rewriter.StampNodeInScope(iterInit.IterableExpression, enclosingScopeId) },
+            EnterWithInstruction enterWith =>
+                enterWith with { ObjectExpression = rewriter.StampNodeInScope(enterWith.ObjectExpression, enclosingScopeId) },
+            YieldStarInstruction yieldStar =>
+                yieldStar with { IterableExpression = rewriter.StampNodeInScope(yieldStar.IterableExpression, enclosingScopeId) },
+            CompoundAssignmentSlotInstruction compoundAssign =>
+                compoundAssign with { RhsExpression = rewriter.StampNodeInScope(compoundAssign.RhsExpression, enclosingScopeId) },
+            _ => instruction
+        };
     }
 
     private static void UpdateCachedExecutionPlan(FunctionExpression funcExpr, ExecutionPlan stampedPlan)
@@ -400,10 +439,10 @@ internal sealed partial class ExecutionPlanBuilder
         /// </summary>
         public List<(FunctionExpression Function, int EnclosingScopeId)> Results { get; } = new();
 
-        public NestedFunctionCollector(Dictionary<BlockStatement, int> blockScopeIds)
+        public NestedFunctionCollector(Dictionary<BlockStatement, int> blockScopeIds, int rootScopeId)
         {
             _analysisBlockScopes = blockScopeIds;
-            _scopeStack.Push(0); // Root scope
+            _scopeStack.Push(rootScopeId);
         }
 
         protected override void VisitBlockStatement(BlockStatement node)

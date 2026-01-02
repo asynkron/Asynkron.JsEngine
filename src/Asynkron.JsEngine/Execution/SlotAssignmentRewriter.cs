@@ -15,12 +15,11 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal sealed class SlotAssignmentRewriter : AstRewriter
 {
-    private const int RootScopeId = 0;
-
     private readonly Dictionary<int, ScopeSlotInfo> _scopes;
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
     private readonly Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings;
     private readonly Dictionary<BlockStatement, int> _blockScopeIds;
+    private readonly int _rootScopeId;
     private readonly Stack<int> _scopeStack = new();
     private readonly Stack<int> _catchScopeStack = new();
     private readonly Dictionary<int, int> _scopeIdRemap = new();
@@ -33,6 +32,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
         _lexicalBindings = analysis.LexicalBindings;
         _blockScopeIds = analysis.BlockScopeIds;
+        _rootScopeId = analysis.RootScopeId;
         var maxScopeId = 0;
         foreach (var scopeId in _scopes.Keys)
         {
@@ -42,14 +42,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             }
         }
         _nextSyntheticScopeId = maxScopeId + 1;
-        _scopeStack.Push(RootScopeId);
+        _scopeStack.Push(_rootScopeId);
     }
 
     public void RewriteInstructions(IList<ExecutionInstruction> instructions, int entryIndex)
     {
         _scopeStack.Clear();
         _catchScopeStack.Clear();
-        _scopeStack.Push(RootScopeId);
+        _scopeStack.Push(_rootScopeId);
 
         var visited = new bool[instructions.Count];
         RewriteFrom(entryIndex, instructions, visited);
@@ -126,8 +126,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         var scopeSnapshot = _scopeStack.ToArray();
         _scopeStack.Clear();
-        _scopeStack.Push(RootScopeId);
-        if (scopeId != RootScopeId)
+        _scopeStack.Push(_rootScopeId);
+        if (scopeId != _rootScopeId)
         {
             _scopeStack.Push(scopeId);
         }
@@ -145,8 +145,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         var scopeSnapshot = _scopeStack.ToArray();
         _scopeStack.Clear();
-        _scopeStack.Push(RootScopeId);
-        if (mappedScopeId != RootScopeId)
+        _scopeStack.Push(_rootScopeId);
+        if (mappedScopeId != _rootScopeId)
         {
             _scopeStack.Push(mappedScopeId);
         }
@@ -165,8 +165,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         var scopeSnapshot = _scopeStack.ToArray();
         _scopeStack.Clear();
-        _scopeStack.Push(RootScopeId);
-        if (enclosingScopeId != RootScopeId)
+        _scopeStack.Push(_rootScopeId);
+        if (enclosingScopeId != _rootScopeId)
         {
             _scopeStack.Push(enclosingScopeId);
         }

@@ -15,11 +15,11 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal sealed class ScopeSlotCollector : AstVisitor
 {
-    private const int RootScopeId = 0;
     private const int FirstBlockScopeId = 1000; // Reserve lower IDs for IR-generated scopes
 
     private readonly Func<Symbol, int> _allocateRootSlot;
     private readonly ImmutableArray<Symbol> _parameterSymbols;
+    private readonly int _rootScopeId;
     private readonly Dictionary<Symbol, int> _bindingScopeHints =
         new(ReferenceEqualityComparer<Symbol>.Instance);
     private readonly List<ExecutionInstruction> _instructions;
@@ -40,10 +40,13 @@ internal sealed class ScopeSlotCollector : AstVisitor
         _instructions = instructions.ToList();
         _entryIndex = entryIndex;
         _visited = new bool[_instructions.Count];
+        _rootScopeId = function is { ScopeId: >= 0 }
+            ? function.ScopeId
+            : SyntheticScopeIdAllocator.NextPositive();
         _parameterSymbols = CollectParameterSymbols(function);
         BuildBindingScopeHints();
         SeedRootScope(existingRootSlots);
-        _scopeStack.Push(RootScopeId);
+        _scopeStack.Push(_rootScopeId);
     }
 
     public ScopeSlotAnalysis Collect()
@@ -60,7 +63,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             lexicalBindings[scopeId] = info.LexicalBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
         }
 
-        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings, _blockScopeIds);
+        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings, _blockScopeIds, _rootScopeId);
     }
 
     private void TraverseFrom(int index)
@@ -132,7 +135,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     private void SeedRootScope(IReadOnlyList<Symbol> existingSlots)
     {
-        var rootInfo = GetOrCreateScopeInfo(RootScopeId);
+        var rootInfo = GetOrCreateScopeInfo(_rootScopeId);
         var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         var index = 0;
 
@@ -166,7 +169,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         return info;
     }
 
-    private int CurrentScopeId => _scopeStack.TryPeek(out var id) ? id : RootScopeId;
+    private int CurrentScopeId => _scopeStack.TryPeek(out var id) ? id : _rootScopeId;
 
     private int AllocateSlotInScope(int scopeId, Symbol symbol)
     {
@@ -176,7 +179,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             return existing;
         }
 
-        var slotIndex = scopeId == RootScopeId
+        var slotIndex = scopeId == _rootScopeId
             ? _allocateRootSlot(symbol)
             : scopeInfo.NextSlotIndex;
 
@@ -382,13 +385,13 @@ internal sealed class ScopeSlotCollector : AstVisitor
         int targetScope;
         if (varDecl.VarKind == VariableKind.Var)
         {
-            targetScope = RootScopeId;
+            targetScope = _rootScopeId;
         }
         else
         {
             // Prefer the current lexical scope; fall back to any binding hint we discovered.
             targetScope = CurrentScopeId;
-            if (targetScope == RootScopeId &&
+            if (targetScope == _rootScopeId &&
                 _bindingScopeHints.TryGetValue(varDecl.TargetSymbol, out var hintedScope))
             {
                 targetScope = hintedScope;
@@ -412,7 +415,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         // Compiler-generated identifiers (resume slots, iterator state, etc.) live in the root scope.
         if (node.Name.Name.StartsWith('\u0001'))
         {
-            AllocateSlotInScope(RootScopeId, node.Name);
+            AllocateSlotInScope(_rootScopeId, node.Name);
         }
     }
 
@@ -426,7 +429,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             // Note: _scopeStack always has at least RootScopeId (pushed in constructor), so:
             // - Count == 1 means we're at function body level → RootScopeId
             // - Count > 1 means we're in a nested block → block's scope
-            var targetScope = _scopeStack.Count > 1 ? _scopeStack.Peek() : RootScopeId;
+            var targetScope = _scopeStack.Count > 1 ? _scopeStack.Peek() : _rootScopeId;
             AllocateSlotInScope(targetScope, funcDecl.Name);
             // Continue visiting to collect closure references from the function body
         }
@@ -445,8 +448,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
             return;
         }
 
-        // Create a new scope for this nested block
-        var blockScopeId = _nextBlockScopeId++;
+        // Prefer scope ids stamped by scope analysis, falling back to a local synthetic id.
+        // (Blocks are only visited when they appear in AST-backed instructions.)
+        var blockScopeId = block.ScopeId >= 0 ? block.ScopeId : _nextBlockScopeId++;
         _blockScopeIds[block] = blockScopeId;
 
         // Enter the block scope
@@ -555,16 +559,19 @@ internal sealed class ScopeSlotAnalysis
         Dictionary<int, ScopeSlotInfo> scopes,
         Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps,
         Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings,
-        Dictionary<BlockStatement, int> blockScopeIds)
+        Dictionary<BlockStatement, int> blockScopeIds,
+        int rootScopeId)
     {
         Scopes = scopes;
         ImmutableSlotMaps = immutableSlotMaps;
         LexicalBindings = lexicalBindings;
         BlockScopeIds = blockScopeIds;
+        RootScopeId = rootScopeId;
     }
 
     public Dictionary<int, ScopeSlotInfo> Scopes { get; }
     public Dictionary<int, ImmutableDictionary<Symbol, int>> ImmutableSlotMaps { get; }
     public Dictionary<int, ImmutableHashSet<Symbol>> LexicalBindings { get; }
     public Dictionary<BlockStatement, int> BlockScopeIds { get; }
+    public int RootScopeId { get; }
 }

@@ -493,7 +493,8 @@ public static partial class TypedAstEvaluator
 
                         if (requiredSlots > 0)
                         {
-                            executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
+                            var rootScopeId = scriptPlan.RootScopeId;
+                            executionEnvironment.InitializeSlots(requiredSlots, scopeId: rootScopeId);
                             if (rootSlotMap.Count > 0)
                             {
                                 executionEnvironment.SetSlotMap(rootSlotMap);
@@ -511,7 +512,7 @@ public static partial class TypedAstEvaluator
 
                             var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
                             var rootLexicals = scriptPlan.SafeRootLexicalBindings;
-                            if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                            if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(rootScopeId, out var fromScope0))
                             {
                                 rootLexicals = fromScope0;
                             }

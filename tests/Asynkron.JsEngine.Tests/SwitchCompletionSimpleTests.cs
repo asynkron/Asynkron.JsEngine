@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class SwitchCompletionSimpleTests(ITestOutputHelper output)
+public sealed class SwitchCompletionSimpleTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task Test1_EmptyDefaultCase()

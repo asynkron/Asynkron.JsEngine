@@ -26,7 +26,8 @@ internal static class IteratorDriverFactory
         // Collect per-iteration bindings from Target if DeclarationKind is let/const/using/await using
         // (independent of ScopeAnalyzer which may not have run)
         var perIterationBindings = statement.PerIterationBindings;
-        if (perIterationBindings.IsDefaultOrEmpty && statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing)
+        if (perIterationBindings.IsDefaultOrEmpty && statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                or VariableKind.Using or VariableKind.AwaitUsing)
         {
             var bindingNames = new List<Symbol>();
             CollectBindingNames(statement.Target, bindingNames);
@@ -41,13 +42,15 @@ internal static class IteratorDriverFactory
 
         var perIterationSlotCount = statement.PerIterationSlotCount >= 0
             ? statement.PerIterationSlotCount
-            : (!perIterationBindings.IsDefaultOrEmpty ? perIterationBindings.Length : -1);
+            : !perIterationBindings.IsDefaultOrEmpty
+                ? perIterationBindings.Length
+                : -1;
 
         var perIterationSlotIndices = !statement.PerIterationSlotIndices.IsDefaultOrEmpty
             ? statement.PerIterationSlotIndices
-            : (!perIterationBindings.IsDefaultOrEmpty
-                ? Enumerable.Repeat(-1, perIterationBindings.Length).ToImmutableArray()
-                : ImmutableArray<int>.Empty);
+            : !perIterationBindings.IsDefaultOrEmpty
+                ? [..Enumerable.Repeat(-1, perIterationBindings.Length)]
+                : ImmutableArray<int>.Empty;
 
         return new IteratorDriverPlan(
             kind,

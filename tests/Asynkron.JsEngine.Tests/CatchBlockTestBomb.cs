@@ -20,15 +20,8 @@ namespace Asynkron.JsEngine.Tests;
 /// - eval('1; try { throw null; } catch (err) { }') returns 1 instead of undefined
 /// - break-from-finally causes infinite loop
 /// </summary>
-public class CatchBlockTestBomb
+public sealed class CatchBlockTestBomb(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public CatchBlockTestBomb(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     // ============================================================================
     // SECTION 1: TRY/CATCH COMPLETION VALUES
     // ============================================================================
@@ -40,11 +33,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H1_EmptyTryBlockReturnsUndefined()
     {
-        var logger = new TestLogger(_output, "H1", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H1", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { } catch (e) { }')");
-        _output.WriteLine($"H1 Result: {result} (expected: undefined)");
+        output.WriteLine($"H1 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Empty try block should return undefined, got: {result}");
@@ -57,11 +50,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H2_TryBlockWithValueReturnsValue()
     {
-        var logger = new TestLogger(_output, "H2", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H2", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { 42; } catch (e) { }')");
-        _output.WriteLine($"H2 Result: {result} (expected: 42)");
+        output.WriteLine($"H2 Result: {result} (expected: 42)");
 
         Assert.Equal(42.0, result);
     }
@@ -74,11 +67,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H3_EmptyCatchBlockReturnsUndefined()
     {
-        var logger = new TestLogger(_output, "H3", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H3", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { throw null; } catch (e) { }')");
-        _output.WriteLine($"H3 Result: {result} (expected: undefined)");
+        output.WriteLine($"H3 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Empty catch block should return undefined, got: {result}");
@@ -91,11 +84,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H4_CatchBlockWithValueReturnsValue()
     {
-        var logger = new TestLogger(_output, "H4", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H4", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { throw null; } catch (e) { 99; }')");
-        _output.WriteLine($"H4 Result: {result} (expected: 99)");
+        output.WriteLine($"H4 Result: {result} (expected: 99)");
 
         Assert.Equal(99.0, result);
     }
@@ -108,11 +101,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H5_PreviousStatementDoesNotAffectEmptyCatch()
     {
-        var logger = new TestLogger(_output, "H5", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H5", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; try { throw null; } catch (e) { }')");
-        _output.WriteLine($"H5 Result: {result} (expected: undefined)");
+        output.WriteLine($"H5 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Previous statement should not affect empty catch, got: {result}");
@@ -125,11 +118,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H6_PreviousStatementDoesNotAffectEmptyTry()
     {
-        var logger = new TestLogger(_output, "H6", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H6", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; try { } catch (e) { }')");
-        _output.WriteLine($"H6 Result: {result} (expected: undefined)");
+        output.WriteLine($"H6 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Previous statement should not affect empty try, got: {result}");
@@ -146,11 +139,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H7_FinallyPreservesTryCompletionValue()
     {
-        var logger = new TestLogger(_output, "H7", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H7", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { 7; } finally { }')");
-        _output.WriteLine($"H7 Result: {result} (expected: 7)");
+        output.WriteLine($"H7 Result: {result} (expected: 7)");
 
         Assert.Equal(7.0, result);
     }
@@ -162,11 +155,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H8_FinallyPreservesCatchCompletionValue()
     {
-        var logger = new TestLogger(_output, "H8", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H8", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { throw 1; } catch (e) { 8; } finally { }')");
-        _output.WriteLine($"H8 Result: {result} (expected: 8)");
+        output.WriteLine($"H8 Result: {result} (expected: 8)");
 
         Assert.Equal(8.0, result);
     }
@@ -181,14 +174,14 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H9_FinallyNormalCompletionPreservesTryValue()
     {
-        var logger = new TestLogger(_output, "H9", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H9", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         // Per ECMAScript spec 13.15.8:
         // "If F.[[Type]] is normal, set F to C" - finally's normal completion
         // preserves the previous completion value from try/catch
         var result = await engine.Evaluate("eval('try { 1; } finally { 9; }')");
-        _output.WriteLine($"H9 Result: {result} (expected: 1, because finally is normal completion)");
+        output.WriteLine($"H9 Result: {result} (expected: 1, because finally is normal completion)");
 
         Assert.Equal(1.0, result);
     }
@@ -204,11 +197,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H10_IfTrueReturnsValue()
     {
-        var logger = new TestLogger(_output, "H10", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H10", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('if (true) { 10; }')");
-        _output.WriteLine($"H10 Result: {result} (expected: 10)");
+        output.WriteLine($"H10 Result: {result} (expected: 10)");
 
         Assert.Equal(10.0, result);
     }
@@ -220,11 +213,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H11_IfFalseElseReturnsValue()
     {
-        var logger = new TestLogger(_output, "H11", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H11", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('if (false) { 1; } else { 11; }')");
-        _output.WriteLine($"H11 Result: {result} (expected: 11)");
+        output.WriteLine($"H11 Result: {result} (expected: 11)");
 
         Assert.Equal(11.0, result);
     }
@@ -236,11 +229,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H12_EmptyElseReturnsUndefined()
     {
-        var logger = new TestLogger(_output, "H12", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H12", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('if (false) { 1; } else { }')");
-        _output.WriteLine($"H12 Result: {result} (expected: undefined)");
+        output.WriteLine($"H12 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Empty else should return undefined, got: {result}");
@@ -253,11 +246,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H13_PreviousStatementDoesNotAffectEmptyElse()
     {
-        var logger = new TestLogger(_output, "H13", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H13", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('5; if (false) { 1; } else { }')");
-        _output.WriteLine($"H13 Result: {result} (expected: undefined)");
+        output.WriteLine($"H13 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Previous statement should not affect empty else, got: {result}");
@@ -274,11 +267,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H14_ForLoopReturnsLastIterationValue()
     {
-        var logger = new TestLogger(_output, "H14", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H14", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('for (var i = 0; i < 3; i++) { i; }')");
-        _output.WriteLine($"H14 Result: {result} (expected: 2)");
+        output.WriteLine($"H14 Result: {result} (expected: 2)");
 
         Assert.Equal(2.0, result);
     }
@@ -291,11 +284,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H15_EmptyForLoopBodyReturnsUndefined()
     {
-        var logger = new TestLogger(_output, "H15", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H15", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; for (var i = 0; i < 1; i++) { }')");
-        _output.WriteLine($"H15 Result: {result} (expected: undefined)");
+        output.WriteLine($"H15 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Empty for loop body should return undefined, got: {result}");
@@ -312,11 +305,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H16_SwitchCaseReturnsValue()
     {
-        var logger = new TestLogger(_output, "H16", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H16", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('switch (1) { case 1: 16; }')");
-        _output.WriteLine($"H16 Result: {result} (expected: 16)");
+        output.WriteLine($"H16 Result: {result} (expected: 16)");
 
         Assert.Equal(16.0, result);
     }
@@ -328,11 +321,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H17_EmptySwitchCaseWithBreakReturnsUndefined()
     {
-        var logger = new TestLogger(_output, "H17", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H17", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; switch (1) { case 1: break; }')");
-        _output.WriteLine($"H17 Result: {result} (expected: undefined)");
+        output.WriteLine($"H17 Result: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Asynkron.JsEngine.Ast.Symbol.Undefined),
             $"Empty switch case with break should return undefined, got: {result}");
@@ -349,7 +342,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H18_CatchParameterIsAccessible()
     {
-        var logger = new TestLogger(_output, "H18", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H18", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -361,7 +354,7 @@ public class CatchBlockTestBomb
             }
             caught;
         """);
-        _output.WriteLine($"H18 Result: {result} (expected: 'hello')");
+        output.WriteLine($"H18 Result: {result} (expected: 'hello')");
 
         Assert.Equal("hello", result);
     }
@@ -373,7 +366,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H19_CatchParameterDoesNotLeak()
     {
-        var logger = new TestLogger(_output, "H19", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H19", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -385,7 +378,7 @@ public class CatchBlockTestBomb
             }
             e; // Should still be 'outer'
         """);
-        _output.WriteLine($"H19 Result: {result} (expected: 'outer')");
+        output.WriteLine($"H19 Result: {result} (expected: 'outer')");
 
         Assert.Equal("outer", result);
     }
@@ -396,7 +389,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H20_CatchWithDestructuringWorks()
     {
-        var logger = new TestLogger(_output, "H20", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H20", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -409,7 +402,7 @@ public class CatchBlockTestBomb
             }
             a + b;
         """);
-        _output.WriteLine($"H20 Result: {result} (expected: 3)");
+        output.WriteLine($"H20 Result: {result} (expected: 3)");
 
         Assert.Equal(3.0, result);
     }
@@ -424,7 +417,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H21_ContinueFromCatch()
     {
-        var logger = new TestLogger(_output, "H21", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H21", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -440,7 +433,7 @@ public class CatchBlockTestBomb
             }
             count;
         """);
-        _output.WriteLine($"H21 Result: {result} (expected: 3)");
+        output.WriteLine($"H21 Result: {result} (expected: 3)");
 
         Assert.Equal(3.0, result);
     }
@@ -451,7 +444,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H22_ReturnFromCatch()
     {
-        var logger = new TestLogger(_output, "H22", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H22", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -465,7 +458,7 @@ public class CatchBlockTestBomb
             }
             test();
         """);
-        _output.WriteLine($"H22 Result: {result} (expected: 22)");
+        output.WriteLine($"H22 Result: {result} (expected: 22)");
 
         Assert.Equal(22.0, result);
     }
@@ -476,7 +469,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H23_BreakFromCatch()
     {
-        var logger = new TestLogger(_output, "H23", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H23", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -492,7 +485,7 @@ public class CatchBlockTestBomb
             }
             count;
         """);
-        _output.WriteLine($"H23 Result: {result} (expected: 1)");
+        output.WriteLine($"H23 Result: {result} (expected: 1)");
 
         Assert.Equal(1.0, result);
     }
@@ -507,7 +500,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H24_NestedTryCatch()
     {
-        var logger = new TestLogger(_output, "H24", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H24", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -524,7 +517,7 @@ public class CatchBlockTestBomb
             }
             result;
         """);
-        _output.WriteLine($"H24 Result: {result} (expected: 'inner|outer')");
+        output.WriteLine($"H24 Result: {result} (expected: 'inner|outer')");
 
         Assert.Equal("inner|outer", result);
     }
@@ -535,7 +528,7 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H25_TryWithOnlyFinally()
     {
-        var logger = new TestLogger(_output, "H25", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H25", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -547,7 +540,7 @@ public class CatchBlockTestBomb
             }
             ran;
         """);
-        _output.WriteLine($"H25 Result: {result} (expected: true)");
+        output.WriteLine($"H25 Result: {result} (expected: true)");
 
         Assert.Equal(true, result);
     }
@@ -562,11 +555,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H26_EvalWorksAtAll()
     {
-        var logger = new TestLogger(_output, "H26", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H26", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1 + 2')");
-        _output.WriteLine($"H26 Result: {result} (expected: 3)");
+        output.WriteLine($"H26 Result: {result} (expected: 3)");
 
         Assert.Equal(3.0, result);
     }
@@ -577,11 +570,11 @@ public class CatchBlockTestBomb
     [Fact(Timeout = 10000)]
     public async Task H27_EvalReturnsLastExpression()
     {
-        var logger = new TestLogger(_output, "H27", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H27", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; 2; 3')");
-        _output.WriteLine($"H27 Result: {result} (expected: 3)");
+        output.WriteLine($"H27 Result: {result} (expected: 3)");
 
         Assert.Equal(3.0, result);
     }

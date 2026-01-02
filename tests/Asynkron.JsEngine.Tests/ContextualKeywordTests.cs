@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests for contextual keywords (async, await, yield, get, set) being used as identifiers.
 /// In JavaScript, these keywords can be used as identifiers in many contexts.
 /// </summary>
-public class ContextualKeywordTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class ContextualKeywordTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Async_CanBeUsedAsParameterName()

@@ -524,9 +524,9 @@ public sealed class JsEngine : IAsyncDisposable
         bool allowHtmlComments = true,
         IJsEngineOptions? options = null)
     {
-        var lexer = new Lexer(source, allowHtmlComments);
+        var lexer = new JsLexer(source, allowHtmlComments);
         var tokens = lexer.Tokenize();
-        var typedParser = new TypedAstParser(tokens, source, forceStrict, allowTopLevelAwait, options);
+        var typedParser = new JsAstParser(tokens, source, forceStrict, allowTopLevelAwait, options);
         return typedParser.ParseProgram();
     }
 

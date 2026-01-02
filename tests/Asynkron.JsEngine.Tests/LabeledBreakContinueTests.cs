@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for labeled break and continue statements with runtime execution.
 /// </summary>
-public class LabeledBreakContinueTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class LabeledBreakContinueTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task LabeledBreakExitsOuterLoop()

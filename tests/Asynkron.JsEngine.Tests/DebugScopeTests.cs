@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests for scope and closure behavior in for-of loops, especially with destructuring defaults and eval.
 /// These tests verify that closures correctly capture their lexical environment.
 /// </summary>
-public class DebugScopeTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class DebugScopeTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Step1_ProbeBeforeSimple()

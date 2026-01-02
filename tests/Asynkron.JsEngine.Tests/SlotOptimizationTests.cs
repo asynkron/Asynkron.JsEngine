@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine.Tests;
 /// See todo.md and docs/identifier-slot-optimization.md for the fix plan.
 /// </summary>
 [Trait("Category", "SlotOptimization")]
-public class SlotOptimizationTests : IAsyncLifetime
+public sealed class SlotOptimizationTests : IAsyncLifetime
 {
     private JsEngine _engine = null!;
 
@@ -378,18 +378,23 @@ public class SlotOptimizationTests : IAsyncLifetime
 
     private static void CollectIdentifiersFromExpression(ExpressionNode expr, List<IdentifierExpression> result, string? nameFilter)
     {
-        switch (expr)
+        while (true)
         {
-            case IdentifierExpression id when nameFilter is null || id.Name.Name == nameFilter:
-                result.Add(id);
-                break;
-            case BinaryExpression bin:
-                CollectIdentifiersFromExpression(bin.Left, result, nameFilter);
-                CollectIdentifiersFromExpression(bin.Right, result, nameFilter);
-                break;
-            case UnaryExpression unary:
-                CollectIdentifiersFromExpression(unary.Operand, result, nameFilter);
-                break;
+            switch (expr)
+            {
+                case IdentifierExpression id when nameFilter is null || id.Name.Name == nameFilter:
+                    result.Add(id);
+                    break;
+                case BinaryExpression bin:
+                    CollectIdentifiersFromExpression(bin.Left, result, nameFilter);
+                    expr = bin.Right;
+                    continue;
+                case UnaryExpression unary:
+                    expr = unary.Operand;
+                    continue;
+            }
+
+            break;
         }
     }
 }

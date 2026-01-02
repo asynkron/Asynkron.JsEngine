@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TemporalTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Temporal_Object_Exists()

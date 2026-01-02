@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AssignmentReferenceTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class AssignmentReferenceTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task InheritedNonWritableDataProperty_Sloppy_IgnoresWrite()

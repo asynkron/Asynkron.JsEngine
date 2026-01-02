@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for Regular Expression support.
 /// </summary>
-public class RegExpTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
@@ -305,11 +305,11 @@ public class RegExpTests(ITestOutputHelper output) : InternalTestBase(output)
     public async Task RegexLiteral_MultipleFlags()
     {
         await using var engine = CreateEngine();
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     let regex = /hello/gi;
+                                          let regex = /hello/gi;
 
-                                         """);
+                              """);
         var ignoreCase = await engine.Evaluate("regex.ignoreCase;");
         var global = await engine.Evaluate("regex.global;");
         Assert.True((bool)ignoreCase!);

@@ -20,15 +20,8 @@ namespace Asynkron.JsEngine.Tests;
 /// - Both FAIL = Multiple issues or root cause affects both
 /// - Both PASS = Our hypothesis list is incomplete
 /// </summary>
-public class StrictModeEvalTestBomb
+public sealed class StrictModeEvalTestBomb(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public StrictModeEvalTestBomb(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     /// <summary>
     /// H1: Does 'use strict' work AT ALL in our engine?
     /// Test: Assign to undeclared variable - should throw ReferenceError in strict mode.
@@ -36,7 +29,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H1_UseStrictWorksAtAll()
     {
-        var logger = new TestLogger(_output, "H1", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H1", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -52,7 +45,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H1 Result: {result}");
+        output.WriteLine($"H1 Result: {result}");
         // Expected: "true | ReferenceError" - strict mode prevents implicit globals
         Assert.Equal("true | ReferenceError", result?.ToString());
     }
@@ -64,7 +57,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H2_UseStrictWorksInFunction()
     {
-        var logger = new TestLogger(_output, "H2", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H2", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -83,7 +76,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H2 Result: {result}");
+        output.WriteLine($"H2 Result: {result}");
         Assert.Equal("true | ReferenceError", result?.ToString());
     }
 
@@ -94,7 +87,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H3_UseStrictInsideTryBlock()
     {
-        var logger = new TestLogger(_output, "H3", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H3", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         // Note: 'use strict' must be at the TOP of script/function, not inside try block
@@ -112,7 +105,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H3 Result: {result}");
+        output.WriteLine($"H3 Result: {result}");
         Assert.Equal("true | ReferenceError", result?.ToString());
     }
 
@@ -123,14 +116,14 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H4_EvalWorksAtAll()
     {
-        var logger = new TestLogger(_output, "H4", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H4", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
             eval('1 + 2');
         """);
 
-        _output.WriteLine($"H4 Result: {result}");
+        output.WriteLine($"H4 Result: {result}");
         Assert.Equal(3.0, result);
     }
 
@@ -141,7 +134,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H5_DirectEvalInheritsStrictMode()
     {
-        var logger = new TestLogger(_output, "H5", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H5", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -157,7 +150,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H5 Result: {result}");
+        output.WriteLine($"H5 Result: {result}");
         // Direct eval in strict mode should throw ReferenceError for undeclared assignment
         Assert.Equal("true | ReferenceError", result?.ToString());
     }
@@ -169,7 +162,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H6_UseStrictInsideEvalWorks()
     {
-        var logger = new TestLogger(_output, "H6", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H6", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -184,7 +177,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H6 Result: {result}");
+        output.WriteLine($"H6 Result: {result}");
         Assert.Equal("true | ReferenceError", result?.ToString());
     }
 
@@ -195,7 +188,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H7_ArgumentsAssignmentIsSyntaxError()
     {
-        var logger = new TestLogger(_output, "H7", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H7", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         // This should be caught at PARSE time, not runtime
@@ -213,7 +206,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H7 Result: {result}");
+        output.WriteLine($"H7 Result: {result}");
         // Should be SyntaxError - this is an early error in strict mode
         Assert.Equal("true | SyntaxError", result?.ToString());
     }
@@ -225,7 +218,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H8_EvalAssignmentIsSyntaxError()
     {
-        var logger = new TestLogger(_output, "H8", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H8", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -240,7 +233,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H8 Result: {result}");
+        output.WriteLine($"H8 Result: {result}");
         Assert.Equal("true | SyntaxError", result?.ToString());
     }
 
@@ -251,7 +244,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H9_CallerStrictEvalInheritsIt()
     {
-        var logger = new TestLogger(_output, "H9", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H9", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -268,7 +261,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H9 Result: {result}");
+        output.WriteLine($"H9 Result: {result}");
         // THIS IS THE BUG: Should be SyntaxError because caller is strict
         Assert.Equal("true | SyntaxError", result?.ToString());
     }
@@ -280,7 +273,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H10_OtherReservedWordAssignment()
     {
-        var logger = new TestLogger(_output, "H10", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H10", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -297,7 +290,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H10 Result: {result}");
+        output.WriteLine($"H10 Result: {result}");
         Assert.Equal("true | SyntaxError", result?.ToString());
     }
 
@@ -308,7 +301,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H11_IndirectEvalDoesNotInheritStrict()
     {
-        var logger = new TestLogger(_output, "H11", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H11", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -327,7 +320,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + globalExists;
         """);
 
-        _output.WriteLine($"H11 Result: {result}");
+        output.WriteLine($"H11 Result: {result}");
         // Indirect eval should NOT be strict, so no error and global is created
         Assert.Equal("false | true", result?.ToString());
     }
@@ -339,7 +332,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H12_EvalFromStrictFunction()
     {
-        var logger = new TestLogger(_output, "H12", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H12", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -358,7 +351,7 @@ public class StrictModeEvalTestBomb
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"H12 Result: {result}");
+        output.WriteLine($"H12 Result: {result}");
         Assert.Equal("true | SyntaxError", result?.ToString());
     }
 
@@ -369,7 +362,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H13_UseStrictInsideTryIsNotDirective()
     {
-        var logger = new TestLogger(_output, "H13", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H13", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         // This is the EXACT pattern from the failing test - 'use strict' is INSIDE try
@@ -385,7 +378,7 @@ public class StrictModeEvalTestBomb
             thrownType;
         """);
 
-        _output.WriteLine($"H13 Result: {result}");
+        output.WriteLine($"H13 Result: {result}");
         // The script is NOT strict, so eval is sloppy, so no error is thrown
         // This should return "not-set" because catch is never entered
         Assert.Equal("not-set", result?.ToString());
@@ -397,7 +390,7 @@ public class StrictModeEvalTestBomb
     [Fact(Timeout = 10000)]
     public async Task H14_UseStrictAtTopWithTry()
     {
-        var logger = new TestLogger(_output, "H14", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "H14", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("""
@@ -411,7 +404,7 @@ public class StrictModeEvalTestBomb
             thrownType;
         """);
 
-        _output.WriteLine($"H14 Result: {result}");
+        output.WriteLine($"H14 Result: {result}");
         // NOW it's strict, so eval throws SyntaxError
         Assert.Equal("object | true | true", result?.ToString());
     }

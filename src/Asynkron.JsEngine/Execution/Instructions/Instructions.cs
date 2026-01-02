@@ -28,7 +28,10 @@ internal sealed record ThrowInstruction(ExpressionNode Expression)
 ///     When true, the completion value is NOT updated (used for loop update expressions).
 ///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
 /// </param>
-internal sealed record EvaluateAndDiscardInstruction(int Next, ExpressionNode Expression, bool SuppressCompletionValue = false)
+internal sealed record EvaluateAndDiscardInstruction(
+    int Next,
+    ExpressionNode Expression,
+    bool SuppressCompletionValue = false)
     : ExecutionInstruction(InstructionKind.EvaluateAndDiscard, Next);
 
 /// <summary>

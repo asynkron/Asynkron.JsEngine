@@ -1,7 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -159,7 +162,7 @@ internal static class ControlFlowEmitter
 
         // Push scope so that labeled break can be resolved during IR building.
         // ContinueTarget is -1 because continue is not valid for non-loop labeled statements.
-        ctx.PushLoopScope(labeled.Label, continueTarget: -1, breakTarget: breakableExitIndex, targetScopeId: -1);
+        ctx.PushLoopScope(labeled.Label, -1, breakableExitIndex, -1);
 
         var bodyBuilt = ctx.TryBuildStatement(labeled.Statement, breakableExitIndex, out var bodyEntry);
         ctx.PopLoopScope();
@@ -179,8 +182,8 @@ internal static class ControlFlowEmitter
             bodyEntry,
             labeled.Label,
             breakableExitIndex,
-            ContinueTarget: -1,
-            ConstructKind: BreakableKind.ResetsCompletionValue));
+            -1,
+            BreakableKind.ResetsCompletionValue));
 
         return true;
     }

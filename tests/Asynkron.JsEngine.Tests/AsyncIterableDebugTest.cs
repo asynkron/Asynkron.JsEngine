@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Focused test to debug the global iterable issue with detailed error logging
 /// </summary>
-public class AsyncIterableDebugTest(ITestOutputHelper output): InternalTestBase(output)
+public sealed class AsyncIterableDebugTest(ITestOutputHelper output): InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_CatchRejections()

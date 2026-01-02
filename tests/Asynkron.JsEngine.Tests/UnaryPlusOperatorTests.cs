@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for the unary plus operator which converts values to numbers
 /// </summary>
-public class UnaryPlusOperatorTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class UnaryPlusOperatorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task UnaryPlus_Number_ShouldReturnNumber()

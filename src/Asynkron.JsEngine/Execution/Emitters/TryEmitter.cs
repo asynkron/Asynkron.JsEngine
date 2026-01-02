@@ -1,7 +1,10 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -54,7 +57,7 @@ internal static class TryEmitter
         var catchEntry = -1;
         if (hasCatch && statement.Catch is not null)
         {
-            if (!TryEmitCatchBlock(ctx, statement.Catch, leaveTryIndex, activeLabel, out catchEntry))
+            if (!TryEmitCatchBlock(ctx, statement.Catch, leaveTryIndex, out catchEntry))
             {
                 ctx.Rollback(instructionStart);
                 entryIndex = -1;
@@ -84,7 +87,6 @@ internal static class TryEmitter
         EmitContext ctx,
         CatchClause catchClause,
         int leaveTryIndex,
-        Symbol? activeLabel,
         out int catchEntry)
     {
         // Allocate a scope ID for the catch environment
@@ -175,49 +177,58 @@ internal static class TryEmitter
     /// <summary>
     /// Recursively collects all identifier symbols from a binding target.
     /// </summary>
-    private static void CollectBindingIdentifiers(
-        BindingTarget target,
-        ImmutableDictionary<Symbol, int>.Builder builder,
-        ref int index)
+    private static void CollectBindingIdentifiers(BindingTarget target, ImmutableDictionary<Symbol, int>.Builder builder, ref int index)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                if (!builder.ContainsKey(id.Name))
-                {
-                    builder.Add(id.Name, index++);
-                }
-                break;
-
-            case ArrayBinding array:
-                foreach (var element in array.Elements)
-                {
-                    if (element.Target is not null)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (!builder.ContainsKey(id.Name))
                     {
-                        CollectBindingIdentifiers(element.Target, builder, ref index);
+                        builder.Add(id.Name, index++);
                     }
-                }
-                if (array.RestElement is not null)
-                {
-                    CollectBindingIdentifiers(array.RestElement, builder, ref index);
-                }
-                break;
 
-            case ObjectBinding obj:
-                foreach (var prop in obj.Properties)
-                {
-                    CollectBindingIdentifiers(prop.Target, builder, ref index);
-                }
-                if (obj.RestElement is not null)
-                {
-                    CollectBindingIdentifiers(obj.RestElement, builder, ref index);
-                }
-                break;
+                    break;
 
-            case AssignmentTargetBinding:
-                // AssignmentTargetBinding is used for assignment patterns like [x.y] = ...
-                // These don't create new bindings in the catch scope
-                break;
+                case ArrayBinding array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingIdentifiers(element.Target, builder, ref index);
+                        }
+                    }
+
+                    if (array.RestElement is not null)
+                    {
+                        target = array.RestElement;
+                        continue;
+                    }
+
+                    break;
+
+                case ObjectBinding obj:
+                    foreach (var prop in obj.Properties)
+                    {
+                        CollectBindingIdentifiers(prop.Target, builder, ref index);
+                    }
+
+                    if (obj.RestElement is not null)
+                    {
+                        target = obj.RestElement;
+                        continue;
+                    }
+
+                    break;
+
+                case AssignmentTargetBinding:
+                    // AssignmentTargetBinding is used for assignment patterns like [x.y] = ...
+                    // These don't create new bindings in the catch scope
+                    break;
+            }
+
+            break;
         }
     }
 }

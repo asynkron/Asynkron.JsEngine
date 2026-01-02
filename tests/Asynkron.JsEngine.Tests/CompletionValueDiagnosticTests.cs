@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Diagnostic tests for completion value semantics.
 /// </summary>
-public class CompletionValueDiagnosticTests(ITestOutputHelper output)
+public sealed class CompletionValueDiagnosticTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task Switch_BreakEmpty_ReturnsUndefined()

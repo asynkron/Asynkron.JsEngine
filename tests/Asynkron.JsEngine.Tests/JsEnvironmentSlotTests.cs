@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Direct tests for JsEnvironment slot operations without evaluation.
 /// This isolates slot storage behavior from the evaluation pipeline.
 /// </summary>
-public class JsEnvironmentSlotTests(ITestOutputHelper output)
+public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
 {
     [Fact]
     public void DefineSlot_CreatesSlot()

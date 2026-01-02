@@ -296,69 +296,69 @@ public class ParserBenchmarks
             """;
 
         // Pre-tokenize all sources
-        _simpleExpressionTokens = new Lexer(_simpleExpression).Tokenize();
-        _functionDefinitionTokens = new Lexer(_functionDefinition).Tokenize();
-        _classDefinitionTokens = new Lexer(_classDefinition).Tokenize();
-        _loopHeavyTokens = new Lexer(_loopHeavy).Tokenize();
-        _arrowFunctionsTokens = new Lexer(_arrowFunctions).Tokenize();
-        _destructuringTokens = new Lexer(_destructuring).Tokenize();
-        _asyncAwaitTokens = new Lexer(_asyncAwait).Tokenize();
-        _complexProgramTokens = new Lexer(_complexProgram).Tokenize();
+        _simpleExpressionTokens = new JsLexer(_simpleExpression).Tokenize();
+        _functionDefinitionTokens = new JsLexer(_functionDefinition).Tokenize();
+        _classDefinitionTokens = new JsLexer(_classDefinition).Tokenize();
+        _loopHeavyTokens = new JsLexer(_loopHeavy).Tokenize();
+        _arrowFunctionsTokens = new JsLexer(_arrowFunctions).Tokenize();
+        _destructuringTokens = new JsLexer(_destructuring).Tokenize();
+        _asyncAwaitTokens = new JsLexer(_asyncAwait).Tokenize();
+        _complexProgramTokens = new JsLexer(_complexProgram).Tokenize();
     }
 
     [Benchmark(Baseline = true)]
     public ProgramNode SimpleExpression()
     {
-        var parser = new TypedAstParser(_simpleExpressionTokens, _simpleExpression);
+        var parser = new JsAstParser(_simpleExpressionTokens, _simpleExpression);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode FunctionDefinition()
     {
-        var parser = new TypedAstParser(_functionDefinitionTokens, _functionDefinition);
+        var parser = new JsAstParser(_functionDefinitionTokens, _functionDefinition);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode ClassDefinition()
     {
-        var parser = new TypedAstParser(_classDefinitionTokens, _classDefinition);
+        var parser = new JsAstParser(_classDefinitionTokens, _classDefinition);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode LoopHeavy()
     {
-        var parser = new TypedAstParser(_loopHeavyTokens, _loopHeavy);
+        var parser = new JsAstParser(_loopHeavyTokens, _loopHeavy);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode ArrowFunctions()
     {
-        var parser = new TypedAstParser(_arrowFunctionsTokens, _arrowFunctions);
+        var parser = new JsAstParser(_arrowFunctionsTokens, _arrowFunctions);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode Destructuring()
     {
-        var parser = new TypedAstParser(_destructuringTokens, _destructuring);
+        var parser = new JsAstParser(_destructuringTokens, _destructuring);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode AsyncAwait()
     {
-        var parser = new TypedAstParser(_asyncAwaitTokens, _asyncAwait);
+        var parser = new JsAstParser(_asyncAwaitTokens, _asyncAwait);
         return parser.ParseProgram();
     }
 
     [Benchmark]
     public ProgramNode ComplexProgram()
     {
-        var parser = new TypedAstParser(_complexProgramTokens, _complexProgram);
+        var parser = new JsAstParser(_complexProgramTokens, _complexProgram);
         return parser.ParseProgram();
     }
 }

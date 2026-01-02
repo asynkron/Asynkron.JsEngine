@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class LoopDebugTest(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class LoopDebugTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Debug_SimpleLoop()

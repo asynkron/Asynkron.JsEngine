@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestOptionalCatchBinding(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TestOptionalCatchBinding(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task OptionalCatchBinding_BasicTest_ShouldCatchError()

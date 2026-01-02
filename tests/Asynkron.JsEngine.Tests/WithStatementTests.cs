@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class WithStatementTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task With_UnscopablesGetterCalledOnceForIncrement()

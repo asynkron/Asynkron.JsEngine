@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine.Tests;
 
-public class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(fixture)
+public sealed class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(fixture)
 {
     // Const assignment error tests
     [Fact(Timeout = 2000)]

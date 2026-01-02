@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedArrayResizableTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TypedArrayResizableTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public void LastIndexOfReturnsMinusOneWhenFixedLengthViewShrinksOutOfBounds()

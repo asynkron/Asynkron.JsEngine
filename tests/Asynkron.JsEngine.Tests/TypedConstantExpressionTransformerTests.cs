@@ -2,7 +2,7 @@ using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedConstantExpressionTransformerTests
+public sealed class TypedConstantExpressionTransformerTests
 {
     [Fact]
     public void Folds_nested_binary_expressions()

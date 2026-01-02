@@ -1,8 +1,11 @@
+#region
+
 using System.Collections.Immutable;
-using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -19,15 +22,19 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private const int FirstBlockScopeId = 1000; // Reserve lower IDs for IR-generated scopes
 
     private readonly Func<Symbol, int> _allocateRootSlot;
-    private readonly ImmutableArray<Symbol> _parameterSymbols;
+
     private readonly Dictionary<Symbol, int> _bindingScopeHints =
         new(ReferenceEqualityComparer<Symbol>.Instance);
-    private readonly List<ExecutionInstruction> _instructions;
+
+    private readonly Dictionary<BlockStatement, int> _blockScopeIds =
+        new(ReferenceEqualityComparer<BlockStatement>.Instance);
+
     private readonly int _entryIndex;
-    private readonly bool[] _visited;
+    private readonly List<ExecutionInstruction> _instructions;
+    private readonly ImmutableArray<Symbol> _parameterSymbols;
     private readonly Dictionary<int, ScopeSlotInfo> _scopes = new();
     private readonly Stack<int> _scopeStack = new();
-    private readonly Dictionary<BlockStatement, int> _blockScopeIds = new(ReferenceEqualityComparer<BlockStatement>.Instance);
+    private readonly bool[] _visited;
     private int _nextBlockScopeId = FirstBlockScopeId;
 
     public ScopeSlotCollector(IEnumerable<ExecutionInstruction> instructions,
@@ -46,6 +53,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
         _scopeStack.Push(RootScopeId);
     }
 
+    private int CurrentScopeId => _scopeStack.TryPeek(out var id) ? id : RootScopeId;
+
     public ScopeSlotAnalysis Collect()
     {
         TraverseFrom(_entryIndex);
@@ -57,7 +66,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
         foreach (var (scopeId, info) in _scopes)
         {
             immutableSlotMaps[scopeId] = info.ToImmutableSlotMap();
-            lexicalBindings[scopeId] = info.LexicalBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
+            lexicalBindings[scopeId] =
+                info.LexicalBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
         }
 
         return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings, _blockScopeIds);
@@ -124,6 +134,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
                     {
                         _bindingScopeHints[binding] = push.ScopeId;
                     }
+
                     GetOrCreateScopeInfo(push.ScopeId).LexicalBindings.Add(binding);
                 }
             }
@@ -165,8 +176,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
         _scopes[scopeId] = info;
         return info;
     }
-
-    private int CurrentScopeId => _scopeStack.TryPeek(out var id) ? id : RootScopeId;
 
     private int AllocateSlotInScope(int scopeId, Symbol symbol)
     {

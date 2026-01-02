@@ -76,13 +76,13 @@ internal sealed class HoistPlan
 
         var lexicalTemplate = lexicalNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : ImmutableArray.CreateRange(lexicalNames);
+            : [..lexicalNames];
         var catchParameterTemplate = catchNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : ImmutableArray.CreateRange(catchNames);
+            : [..catchNames];
         var simpleCatchParameterTemplate = simpleCatchNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : ImmutableArray.CreateRange(simpleCatchNames);
+            : [..simpleCatchNames];
 
         ImmutableArray<Symbol> bodyLexicalTemplate;
         if (lexicalTemplate.IsEmpty)
@@ -106,7 +106,7 @@ internal sealed class HoistPlan
 
             bodyLexicalTemplate = bodyLexicalNames.Count == 0
                 ? ImmutableArray<Symbol>.Empty
-                : ImmutableArray.CreateRange(bodyLexicalNames);
+                : [..bodyLexicalNames];
         }
 
         return new HoistPlan(

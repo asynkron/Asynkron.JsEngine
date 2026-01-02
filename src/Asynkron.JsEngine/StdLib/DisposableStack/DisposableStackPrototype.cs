@@ -27,7 +27,7 @@ public sealed partial class DisposableStackPrototype : JsPrototype
             return value;
         }
 
-        stack.AddRecord(disposeMethod, value, Array.Empty<JsValue>());
+        stack.AddRecord(disposeMethod, value, []);
         return value;
     }
 
@@ -62,7 +62,7 @@ public sealed partial class DisposableStackPrototype : JsPrototype
             throw ThrowTypeError("DisposableStack.prototype.defer requires a callable disposer", realm: Realm);
         }
 
-        stack.AddRecord(callable, JsValue.Undefined, Array.Empty<JsValue>());
+        stack.AddRecord(callable, JsValue.Undefined, []);
         return JsValue.Undefined;
     }
 

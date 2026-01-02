@@ -1,7 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -28,7 +31,7 @@ internal static class ExpressionStatementEmitter
             EmitContext.IsLowererTemp(targetSymbol))
         {
             if (YieldEmitter.TryEmitYieldToSymbol(
-                ctx, targetSymbol, yieldAssignment, nextIndex, out entryIndex))
+                    ctx, targetSymbol, yieldAssignment, nextIndex, out entryIndex))
             {
                 return true;
             }
@@ -59,7 +62,8 @@ internal static class ExpressionStatementEmitter
         if (expressionShape.YieldCount > 0)
         {
             entryIndex = -1;
-            ctx.SetFailureReason("Expression statement contains unlowered yield - this should have been handled by GeneratorYieldLowerer.");
+            ctx.SetFailureReason(
+                "Expression statement contains unlowered yield - this should have been handled by GeneratorYieldLowerer.");
             return false;
         }
 
@@ -122,7 +126,9 @@ internal static class ExpressionStatementEmitter
         }
 
         // Use native EvaluateAndDiscardInstruction - evaluates expression and discards result
-        entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression, suppressCompletion));
+        entryIndex =
+            ctx.Append(new EvaluateAndDiscardInstruction(nextIndex, expressionStatement.Expression,
+                suppressCompletion));
         return true;
     }
 }

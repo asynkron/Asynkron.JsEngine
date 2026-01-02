@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
             // Use InvokeCallableSingleArg to avoid array allocation for single-arg case
             var result = hasSendValue
                 ? InvokeCallableSingleArg(nextMethod, sendValue, thisValue, context, callingEnvironment)
-                : InvokeCallableJsValue(nextMethod, Array.Empty<JsValue>(), thisValue, context, callingEnvironment);
+                : InvokeCallableJsValue(nextMethod, [], thisValue, context, callingEnvironment);
 
             // Check if the iterator's next() method threw an error
             if (context?.IsThrow == true)
@@ -93,7 +93,7 @@ public static partial class TypedAstEvaluator
             // Use InvokeCallableSingleArg to avoid array allocation for single-arg case
             result = hasArgument
                 ? InvokeCallableSingleArg(callable, argument, thisValue, context)
-                : InvokeCallableJsValue(callable, Array.Empty<JsValue>(), thisValue, context);
+                : InvokeCallableJsValue(callable, [], thisValue, context);
 
             // Check if the method threw an error
             if (context.IsThrow)

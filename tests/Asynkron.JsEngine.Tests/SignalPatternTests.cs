@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to verify that control flow (break, continue, return) works correctly
 /// with the new signal-based implementation.
 /// </summary>
-public class SignalPatternTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class SignalPatternTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WhileLoop_WithBreak_WorksCorrectly()

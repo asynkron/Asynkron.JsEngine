@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// for various loop constructs. Uses FakeLogger to track Activate/Reset calls.
 /// The logger is passed through the engine options and flows to all pool operations.
 /// </summary>
-public class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     /// <summary>
     /// Helper to count log messages matching a pattern.

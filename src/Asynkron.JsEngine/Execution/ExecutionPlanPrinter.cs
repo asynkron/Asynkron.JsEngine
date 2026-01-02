@@ -22,7 +22,8 @@ internal static class ExecutionPlanPrinter
     public static string Print(IReadOnlyList<ExecutionInstruction> instructions, int entryIndex = 0)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(CultureInfo.InvariantCulture, $"=== Execution Plan ({instructions.Count} instructions, entry: {entryIndex}) ===");
+        sb.AppendLine(CultureInfo.InvariantCulture,
+            $"=== Execution Plan ({instructions.Count} instructions, entry: {entryIndex}) ===");
         sb.AppendLine();
 
         for (var i = 0; i < instructions.Count; i++)
@@ -48,7 +49,7 @@ internal static class ExecutionPlanPrinter
         int envScopeId,
         int envHashCode,
         string? extraInfo = null
-        )
+    )
     {
         var indent = new string(' ', envDepth * 2);
 
@@ -57,17 +58,21 @@ internal static class ExecutionPlanPrinter
         var formatted = FormatInstruction(instruction);
         var extra = extraInfo != null ? $" // {extraInfo}" : "";
 
-        logger?.LogDebug("{Indent}[{InstructionIndex}] {Formatted} {EnvInfo}{Extra}",indent, instructionIndex, formatted, envInfo, extra);
+        logger?.LogDebug("{Indent}[{InstructionIndex}] {Formatted} {EnvInfo}{Extra}", indent, instructionIndex,
+            formatted, envInfo, extra);
     }
 
     /// <summary>
     /// Traces a variable definition with environment info.
     /// </summary>
-    public static void TraceDefine(ILogger logger, string kind, string name, string value, int envDepth, int envScopeId, int envHashCode)
+    public static void TraceDefine(ILogger logger, string kind, string name, string value, int envDepth, int envScopeId,
+        int envHashCode)
     {
         var indent = new string(' ', envDepth * 2);
         var depthMarker = envDepth > 0 ? $"│{"".PadLeft(envDepth, '·')}" : "";
-        logger.LogDebug("{Indent}{DepthMarker}     DEFINE {Kind} '{Name}' = {Value} [env:{EnvHashCode:X8} scope:{EnvScopeId}]", indent, depthMarker, kind, name, value, envHashCode, envScopeId);
+        logger.LogDebug(
+            "{Indent}{DepthMarker}     DEFINE {Kind} '{Name}' = {Value} [env:{EnvHashCode:X8} scope:{EnvScopeId}]",
+            indent, depthMarker, kind, name, value, envHashCode, envScopeId);
     }
 
     /// <summary>
@@ -78,16 +83,19 @@ internal static class ExecutionPlanPrinter
     {
         var indent = new string(' ', envDepth * 2);
         var status = found ? $"FOUND in {foundIn}" : "NOT FOUND";
-        logger.LogDebug("{Indent}     LOOKUP '{Name}' -> {Status} [env:{EnvHashCode:X8} scope:{EnvScopeId}]", indent, name, status, envHashCode, envScopeId);
+        logger.LogDebug("{Indent}     LOOKUP '{Name}' -> {Status} [env:{EnvHashCode:X8} scope:{EnvScopeId}]", indent,
+            name, status, envHashCode, envScopeId);
     }
 
     /// <summary>
     /// Traces environment push/pop operations.
     /// </summary>
-    public static void TraceEnvChange(string operation, int oldDepth, int newDepth, int oldScopeId, int newScopeId, int oldHash, int newHash)
+    public static void TraceEnvChange(string operation, int oldDepth, int newDepth, int oldScopeId, int newScopeId,
+        int oldHash, int newHash)
     {
         var indent = new string(' ', Math.Min(oldDepth, newDepth) * 2);
-        Console.WriteLine($"{indent}>>> {operation}: depth {oldDepth}->{newDepth}, scope {oldScopeId}->{newScopeId}, env {oldHash:X8}->{newHash:X8}");
+        Console.WriteLine(
+            $"{indent}>>> {operation}: depth {oldDepth}->{newDepth}, scope {oldScopeId}->{newScopeId}, env {oldHash:X8}->{newHash:X8}");
     }
 
     /// <summary>
@@ -125,7 +133,7 @@ internal static class ExecutionPlanPrinter
                 $"POP_ENV (scopeId: {popEnv.ScopeId}, pool: {popEnv.AllowPooling}) → [{popEnv.Next}]",
 
             ReturnInstruction ret =>
-                $"RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : "") +
+                "RETURN" + (ret.ReturnExpression != null ? $" {FormatExpression(ret.ReturnExpression)}" : "") +
                 (ret.Next >= 0 ? $" → [{ret.Next}]" : ""),
 
             ThrowInstruction thr =>
@@ -138,7 +146,7 @@ internal static class ExecutionPlanPrinter
                 $"CONTINUE (popTo: {cont.TargetScopeId}) → [{cont.TargetIndex}]",
 
             YieldInstruction yield =>
-                $"YIELD" + (yield.YieldExpression != null ? $" {FormatExpression(yield.YieldExpression)}" : "") +
+                "YIELD" + (yield.YieldExpression != null ? $" {FormatExpression(yield.YieldExpression)}" : "") +
                 $" → [{yield.Next}]",
 
             YieldStarInstruction yieldStar =>
@@ -178,7 +186,7 @@ internal static class ExecutionPlanPrinter
                 $"CLASS_DECL {classDecl.Declaration.Name.Name} → [{classDecl.Next}]",
 
             StoreResumeValueInstruction storeResume =>
-                $"STORE_RESUME" + (storeResume.TargetSymbol != null ? $" → {storeResume.TargetSymbol.Name}" : "") +
+                "STORE_RESUME" + (storeResume.TargetSymbol != null ? $" → {storeResume.TargetSymbol.Name}" : "") +
                 $" → [{storeResume.Next}]",
 
             BinaryOpInstruction binOp =>
@@ -187,8 +195,8 @@ internal static class ExecutionPlanPrinter
                 $" → [{binOp.Next}]",
 
             IncrementSlotInstruction inc =>
-                $"{(inc.IsPrefix ? (inc.IsIncrement ? "++" : "--") : "")}{inc.TargetSymbol.Name}" +
-                $"{(inc.IsPrefix ? "" : (inc.IsIncrement ? "++" : "--"))}" +
+                $"{(inc.IsPrefix ? inc.IsIncrement ? "++" : "--" : "")}{inc.TargetSymbol.Name}" +
+                $"{(inc.IsPrefix ? "" : inc.IsIncrement ? "++" : "--")}" +
                 $" → [{inc.Next}]",
 
             CompoundAssignmentSlotInstruction compound =>

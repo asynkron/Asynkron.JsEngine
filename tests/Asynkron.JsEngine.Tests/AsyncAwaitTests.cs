@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for async/await functionality.
 /// </summary>
-public class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_CanBeParsed()
@@ -33,12 +33,12 @@ public class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output
         await using var engine = CreateEngine();
 
         // Act & Assert - Should not throw
-        var temp = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                     async function test() {
-                                                         return 42;
-                                                     }
-                                         """);
+                                          async function test() {
+                                              return 42;
+                                          }
+                              """);
     }
 
     [Fact(Timeout = 2000)]
@@ -850,7 +850,7 @@ public class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output
             """);
 
         // Should return "promise" - async function should return rejected promise
-        Assert.Equal("promise", result.ToString());
+        Assert.Equal("promise", result?.ToString());
     }
 
     [Fact(Timeout = 5000)]
@@ -984,7 +984,7 @@ public class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output
                 await Task.Delay(10);
                 return 42;
             });
-            return engine.CreatePromiseFromTask(task, num => (JsValue)(double)num);
+            return engine.CreatePromiseFromTask(task, num => (double)num);
         });
 
         await engine.Evaluate("""
@@ -998,7 +998,7 @@ public class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output
         Assert.Equal("84", result);
     }
 
-    private JsEngine CreateDebugEngine()
+    private static JsEngine CreateDebugEngine()
     {
         return TestEngineFactory.CreateDebugEngine(nameof(AsyncAwaitTests));
     }

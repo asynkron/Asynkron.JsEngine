@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorIncrementTest(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class IteratorIncrementTest(ITestOutputHelper output) : InternalTestBase(output)
 {    // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 

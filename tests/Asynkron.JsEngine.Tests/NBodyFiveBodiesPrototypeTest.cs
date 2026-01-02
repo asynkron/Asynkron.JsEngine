@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class NBodyFiveBodiesPrototypeTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task FiveBodies_PrototypeMethod_Works()

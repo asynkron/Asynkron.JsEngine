@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for parameter naming including contextual keywords
 /// </summary>
-public class ParameterNamingTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class ParameterNamingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task FunctionParameter_Named_Set_ShouldWork()

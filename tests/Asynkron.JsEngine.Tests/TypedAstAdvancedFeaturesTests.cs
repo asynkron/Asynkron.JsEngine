@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TypedAstAdvancedFeaturesTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task TaggedTemplateLiteral_runs_through_typed_ast()

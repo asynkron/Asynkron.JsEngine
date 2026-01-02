@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorCloseDestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task DestructuringAssignment_IteratorCloseNonObjectThrows()

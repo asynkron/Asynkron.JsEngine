@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NBodyDiagnosticTest(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class NBodyDiagnosticTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task Array_ConstructorWithMultipleArguments_Works()

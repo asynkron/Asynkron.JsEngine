@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for comprehensive type coercion rules (toString, toNumber conversions)
 /// </summary>
-public class TypeCoercionTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TypeCoercionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================
     // Array to String Conversion

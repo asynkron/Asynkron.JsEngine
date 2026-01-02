@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class WeakCollectionsTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class WeakCollectionsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WeakMap_CoreMethods_BehaveLikeNode()

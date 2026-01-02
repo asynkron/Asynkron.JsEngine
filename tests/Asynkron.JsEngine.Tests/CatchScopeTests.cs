@@ -4,15 +4,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class CatchScopeTests
+public sealed class CatchScopeTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public CatchScopeTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 10000)]
     public async Task SimpleCatchLetScopingTest()
     {
@@ -31,7 +24,7 @@ try {
 x
 ");
 
-        _output.WriteLine($"x = {result}");
+        output.WriteLine($"x = {result}");
 
         // x should still be 'outside' - the let inside catch shouldn't affect outer x
         Assert.Equal("outside", result?.ToString());
@@ -61,8 +54,8 @@ try {
         var paramResult = array.GetElement(0);
         var blockResult = array.GetElement(1);
 
-        _output.WriteLine($"probeParam() = {paramResult}");
-        _output.WriteLine($"probeBlock() = {blockResult}");
+        output.WriteLine($"probeParam() = {paramResult}");
+        output.WriteLine($"probeBlock() = {blockResult}");
 
         Assert.Equal("outside", paramResult.AsString());
         Assert.Equal("inside", blockResult.AsString());
@@ -88,7 +81,7 @@ try {
 x
 ");
 
-        _output.WriteLine($"x = {result}");
+        output.WriteLine($"x = {result}");
 
         // x should still be 2, not 3
         Assert.Equal(2.0, result);

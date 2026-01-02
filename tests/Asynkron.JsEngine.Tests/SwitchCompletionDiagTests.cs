@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class SwitchCompletionDiagTests(ITestOutputHelper output)
+public sealed class SwitchCompletionDiagTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task SimpleIf_ThenValue()

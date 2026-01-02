@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task EvaluateArithmeticAndVariableLookup()
@@ -114,7 +114,7 @@ public class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBase(outpu
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         Assert.Equal(1d, await engine.Evaluate("hits;")); // only the nullish coalescing branch invokes record
         Assert.False(Assert.IsType<bool>(await engine.Evaluate("andResult;")));
@@ -165,7 +165,7 @@ public class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBase(outpu
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         Assert.True(Assert.IsType<bool>(await engine.Evaluate("outcomes[0];")));
         Assert.False(Assert.IsType<bool>(await engine.Evaluate("outcomes[1];")));

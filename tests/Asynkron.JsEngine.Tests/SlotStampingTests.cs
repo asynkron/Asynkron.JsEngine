@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class SlotStampingTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class SlotStampingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public void Parameters_And_Hoisted_Functions_Get_Root_Slots()

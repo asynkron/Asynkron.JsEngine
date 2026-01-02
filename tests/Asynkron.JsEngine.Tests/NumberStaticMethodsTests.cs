@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NumberStaticMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class NumberStaticMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Number_IsInteger_ReturnsTrueForIntegers()

@@ -30,18 +30,23 @@ internal static class IteratorInstructionTemplate
     {
         // For let/const declarations, the per-iteration bindings need TDZ during iterable evaluation.
         // This ensures `for (const x of [x])` throws ReferenceError for accessing x before initialization.
-        var tdzBindings = plan.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
-            ? plan.PerIterationBindings
-            : default;
+        var tdzBindings =
+            plan.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
+                or VariableKind.AwaitUsing
+                ? plan.PerIterationBindings
+                : default;
         var tdzIsConst = plan.DeclarationKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
 
         var initIndex = instructions.Count;
-        instructions.Add(new IteratorInitInstruction(plan.Kind, plan.Iterable, iteratorSymbol, iteratorSlotIndex, -1, tdzBindings, tdzIsConst));
+        instructions.Add(new IteratorInitInstruction(plan.Kind, plan.Iterable, iteratorSymbol, iteratorSlotIndex, -1,
+            tdzBindings, tdzIsConst));
 
         var moveNextIndex = instructions.Count;
-        instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, breakIndex, -1));
+        instructions.Add(new IteratorMoveNextInstruction(plan.Kind, iteratorSymbol, valueSymbol, iteratorSlotIndex,
+            valueSlotIndex, breakIndex, -1));
 
-        return new IteratorInstructionPlan(iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, initIndex, moveNextIndex);
+        return new IteratorInstructionPlan(iteratorSymbol, valueSymbol, iteratorSlotIndex, valueSlotIndex, initIndex,
+            moveNextIndex);
     }
 
     public static void Wire(IteratorInstructionPlan plan, int bodyEntryIndex, List<ExecutionInstruction> instructions)

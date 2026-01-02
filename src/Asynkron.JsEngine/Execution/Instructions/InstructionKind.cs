@@ -39,7 +39,7 @@ internal enum InstructionKind : byte
     LeaveWith,
     Expression,
     SetCompletionValue,
-    CompoundAssignmentSlot,
+    CompoundAssignmentSlot
 }
 
 /// <summary>
@@ -60,5 +60,5 @@ internal enum BreakableKind : byte
     ///     The switch emitter handles completion value initialization explicitly
     ///     with an `undefined;` statement per ES spec 13.12.9.
     /// </summary>
-    HandlesCompletionInternally,
+    HandlesCompletionInternally
 }

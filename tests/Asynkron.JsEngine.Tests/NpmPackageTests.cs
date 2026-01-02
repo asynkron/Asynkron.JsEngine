@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 /// - Are well-known and battle-tested
 /// - Help validate the engine's JavaScript compatibility
 /// </summary>
-public class NpmPackageTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class NpmPackageTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================
     // left-pad: String padding utility

@@ -1,9 +1,13 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -107,7 +111,8 @@ internal static class SwitchEmitter
                 {
                     foreach (var declarator in varDecl.Declarators)
                     {
-                        CollectBindingSymbols(declarator.Target, hoistedSymbols, hoistedDeclarators, statement.Source, varDecl.Kind);
+                        CollectBindingSymbols(declarator.Target, hoistedSymbols, hoistedDeclarators, statement.Source,
+                            varDecl.Kind);
                     }
                 }
             }
@@ -116,7 +121,8 @@ internal static class SwitchEmitter
         // Add hoisted declarations (without initializers) at start of inner block
         if (hoistedDeclarators.Count > 0)
         {
-            var hoistedDecl = new VariableDeclaration(statement.Source, VariableKind.Let, hoistedDeclarators.ToImmutable());
+            var hoistedDecl =
+                new VariableDeclaration(statement.Source, VariableKind.Let, hoistedDeclarators.ToImmutable());
             innerStatements.Add(hoistedDecl);
         }
 
@@ -140,7 +146,7 @@ internal static class SwitchEmitter
             var setMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
                 new LiteralExpression(statement.Source, i));
             // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
-            var setMatchStatement = new ExpressionStatement(statement.Source, setMatch, SuppressCompletionValue: true);
+            var setMatchStatement = new ExpressionStatement(statement.Source, setMatch, true);
             innerStatements.Add(new IfStatement(statement.Source, combinedTest,
                 new BlockStatement(statement.Source, [setMatchStatement], statement.Cases[0].Body.IsStrict),
                 null));
@@ -155,7 +161,7 @@ internal static class SwitchEmitter
             var setDefaultMatch = new AssignmentExpression(statement.Source, matchIndexSymbol,
                 new LiteralExpression(statement.Source, defaultIndex));
             // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
-            var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch, SuppressCompletionValue: true);
+            var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch, true);
             innerStatements.Add(new IfStatement(statement.Source, stillUnmatched,
                 new BlockStatement(statement.Source, [setDefaultStatement], statement.Cases[0].Body.IsStrict),
                 null));
@@ -243,7 +249,7 @@ internal static class SwitchEmitter
                 // its assignment should never affect the script's completion value.
                 var setDoneAssignment = new AssignmentExpression(statement.Source, doneSymbol,
                     new LiteralExpression(statement.Source, true));
-                execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment, SuppressCompletionValue: true));
+                execBuilder.Add(new ExpressionStatement(statement.Source, setDoneAssignment, true));
             }
 
             // Case bodies do NOT get their own block scope - statements go directly into innerStatements
@@ -284,8 +290,8 @@ internal static class SwitchEmitter
             switchBodyEntry,
             activeLabel,
             breakableExitIndex,
-            ContinueTarget: -1,
-            ConstructKind: BreakableKind.HandlesCompletionInternally));
+            -1,
+            BreakableKind.HandlesCompletionInternally));
 
         return true;
     }
@@ -294,45 +300,52 @@ internal static class SwitchEmitter
     /// Collects binding symbols from a binding target for switch scope hoisting.
     /// Creates uninitialized declarators for each identifier.
     /// </summary>
-    private static void CollectBindingSymbols(
-        BindingTarget target,
-        HashSet<Symbol> seenSymbols,
-        ImmutableArray<VariableDeclarator>.Builder declarators,
-        SourceReference? source,
-        VariableKind kind)
+    private static void CollectBindingSymbols(BindingTarget target, HashSet<Symbol> seenSymbols, ImmutableArray<VariableDeclarator>.Builder declarators, SourceReference? source, VariableKind kind)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                if (seenSymbols.Add(id.Name))
-                {
-                    // Create declarator without initializer (TDZ until assignment)
-                    declarators.Add(new VariableDeclarator(source, id, null));
-                }
-                break;
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.Target is not null)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    if (seenSymbols.Add(id.Name))
                     {
-                        CollectBindingSymbols(element.Target, seenSymbols, declarators, source, kind);
+                        // Create declarator without initializer (TDZ until assignment)
+                        declarators.Add(new VariableDeclarator(source, id, null));
                     }
-                }
-                if (arrayBinding.RestElement is not null)
-                {
-                    CollectBindingSymbols(arrayBinding.RestElement, seenSymbols, declarators, source, kind);
-                }
-                break;
-            case ObjectBinding objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    CollectBindingSymbols(property.Target, seenSymbols, declarators, source, kind);
-                }
-                if (objectBinding.RestElement is not null)
-                {
-                    CollectBindingSymbols(objectBinding.RestElement, seenSymbols, declarators, source, kind);
-                }
-                break;
+
+                    break;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null)
+                        {
+                            CollectBindingSymbols(element.Target, seenSymbols, declarators, source, kind);
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        CollectBindingSymbols(property.Target, seenSymbols, declarators, source, kind);
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 }

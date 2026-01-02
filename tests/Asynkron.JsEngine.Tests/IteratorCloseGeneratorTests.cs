@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorCloseGeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class IteratorCloseGeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task GeneratorCloseViaBreak_CallsFinally()
@@ -91,10 +91,8 @@ public class IteratorCloseGeneratorTests(ITestOutputHelper output) : InternalTes
     }
 }
 
-public class IteratorCloseGeneratorTests_Test262 : InternalTestBase
+public sealed class IteratorCloseGeneratorTests_Test262(ITestOutputHelper output) : InternalTestBase(output)
 {
-    public IteratorCloseGeneratorTests_Test262(ITestOutputHelper output) : base(output) { }
-
     [Fact(Timeout = 5000)]
     public async Task GeneratorCloseViaBreak_Test262Style()
     {

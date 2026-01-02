@@ -27,6 +27,7 @@ internal sealed class ExecutionPlanCache
             return new ExecutionPlanCache(plan, null);
         }
 
-        return new ExecutionPlanCache(null, failureReason ?? "Function contains unsupported construct for execution plan.");
+        return new ExecutionPlanCache(null,
+            failureReason ?? "Function contains unsupported construct for execution plan.");
     }
 }

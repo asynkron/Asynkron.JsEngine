@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine.Tests;
 
-public class DebugTests
+public sealed class DebugTests
 {
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesBasicVariables()
@@ -16,7 +16,7 @@ public class DebugTests
                      """;
 
         // Execute and get debug message
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -42,7 +42,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -64,7 +64,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         // Should have 3 debug messages
         var msg1 = await engine.DebugMessages().ReadAsync();
@@ -95,7 +95,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -136,7 +136,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -167,7 +167,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -205,7 +205,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -237,7 +237,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
@@ -260,7 +260,7 @@ public class DebugTests
 
                      """;
 
-        var temp = await engine.Evaluate(source);
+        await engine.Evaluate(source);
 
         // Should have 4 debug messages (2x2)
         var messages = new List<DebugMessage>();

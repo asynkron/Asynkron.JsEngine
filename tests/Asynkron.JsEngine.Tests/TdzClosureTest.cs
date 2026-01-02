@@ -1,28 +1,19 @@
-using Asynkron.JsEngine;
+using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Tests.Helpers;
 using Microsoft.Extensions.Logging;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TdzClosureTest
+public sealed class TdzClosureTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public TdzClosureTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     /// <summary>
     /// H0: Simple TDZ check - non-closure, same scope
     /// </summary>
     [Fact(Timeout = 10000)]
     public async Task H0_SimpleTdz_ReadBeforeInit()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -37,7 +28,7 @@ public class TdzClosureTest
             """);
         });
 
-        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        output.WriteLine($"Caught: {ex.ThrownValue}");
         Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -48,7 +39,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task H1_SimpleTdz_AssignBeforeInit()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -65,7 +56,7 @@ public class TdzClosureTest
             """);
         });
 
-        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        output.WriteLine($"Caught: {ex.ThrownValue}");
         Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -75,7 +66,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task H2_ClosureTdz_ReadBeforeInit()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -91,7 +82,7 @@ public class TdzClosureTest
             """);
         });
 
-        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        output.WriteLine($"Caught: {ex.ThrownValue}");
         Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -101,7 +92,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task H3_ClosureTdz_AssignBeforeInit()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -117,7 +108,7 @@ public class TdzClosureTest
             """);
         });
 
-        _output.WriteLine($"Caught: {ex.ThrownValue}");
+        output.WriteLine($"Caught: {ex.ThrownValue}");
         Assert.Contains("before initialization", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -127,7 +118,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task H4_VarIsHoisted_ShouldNotThrow()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -141,15 +132,15 @@ public class TdzClosureTest
             }());
         """);
 
-        _output.WriteLine($"Result: {result}");
+        output.WriteLine($"Result: {result}");
         // Expected: 1 (var is hoisted and assignment succeeds)
-        Assert.Equal(1.0, (double)result);
+        Assert.Equal(1.0, (double)result!);
     }
 
     [Fact(Timeout = 10000)]
     public async Task ClosureTdz_AssignBeforeInit_ShouldThrowReferenceError()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -174,7 +165,7 @@ public class TdzClosureTest
             caught + "|" + errorType;
         """);
 
-        _output.WriteLine($"Result: {result}");
+        output.WriteLine($"Result: {result}");
         // Expected: "true|ReferenceError" (exception should be caught)
         Assert.Equal("true|ReferenceError", result?.ToString());
     }
@@ -185,7 +176,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task Debug_LetXAfterDeclaration()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -197,8 +188,8 @@ public class TdzClosureTest
             }());
         """);
 
-        _output.WriteLine($"Result: {result}");
-        var val = result is JsValue jv ? jv.AsDouble() : Convert.ToDouble(result);
+        output.WriteLine($"Result: {result}");
+        var val = result is JsValue jv ? jv.AsDouble() : Convert.ToDouble(result, CultureInfo.InvariantCulture);
         Assert.Equal(42.0, val);
     }
 
@@ -208,7 +199,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task Debug_InnerFunctionCanAccessLetAfterInit()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -221,8 +212,8 @@ public class TdzClosureTest
             }());
         """);
 
-        _output.WriteLine($"Result: {result}");
-        var val2 = result is JsValue jv2 ? jv2.AsDouble() : Convert.ToDouble(result);
+        output.WriteLine($"Result: {result}");
+        var val2 = result is JsValue jv2 ? jv2.AsDouble() : Convert.ToDouble(result,CultureInfo.InvariantCulture);
         Assert.Equal(42.0, val2);
     }
 
@@ -232,7 +223,7 @@ public class TdzClosureTest
     [Fact(Timeout = 10000)]
     public async Task Debug_InnerFunctionCanWriteLetAfterInit()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -246,15 +237,15 @@ public class TdzClosureTest
             }());
         """);
 
-        _output.WriteLine($"Result: {result}");
-        var val3 = result is JsValue jv3 ? jv3.AsDouble() : Convert.ToDouble(result);
+        output.WriteLine($"Result: {result}");
+        var val3 = result is JsValue jv3 ? jv3.AsDouble() : Convert.ToDouble(result, CultureInfo.InvariantCulture);
         Assert.Equal(100.0, val3);
     }
 
     [Fact(Timeout = 10000)]
     public async Task ClosureTdz_WithAssertThrowsPattern()
     {
-        var testLogger = new TestLogger(_output, "TdzTest", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "TdzTest", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -295,7 +286,7 @@ public class TdzClosureTest
             testPassed;
         """);
 
-        _output.WriteLine($"Result: {result}");
-        Assert.True((bool)result);
+        output.WriteLine($"Result: {result}");
+        Assert.True((bool)result!);
     }
 }

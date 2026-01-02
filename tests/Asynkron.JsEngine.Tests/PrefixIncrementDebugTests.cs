@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Debug tests for prefix increment/decrement with valueOf.
 /// Investigating S11.4.4_A2.2_T1 and S11.4.5_A2.2_T1 failures.
 /// </summary>
-public class PrefixIncrementDebugTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class PrefixIncrementDebugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task PrefixIncrement_OnObjectWithValueOf_BasicCase()

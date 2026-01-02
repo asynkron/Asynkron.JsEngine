@@ -1,7 +1,11 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -30,6 +34,11 @@ internal sealed class EmitContext(
     /// Script-level var declarations must update the global object.
     /// </summary>
     public bool IsScriptLevel => builder.IsScriptLevel;
+
+    /// <summary>
+    /// Get the instruction list (for IteratorInstructionTemplate).
+    /// </summary>
+    public List<ExecutionInstruction> Instructions => builder.Instructions;
 
     /// <summary>
     /// Append an instruction and return its index.
@@ -131,7 +140,8 @@ internal sealed class EmitContext(
     /// <summary>
     /// Build a single statement by dispatching to the StatementEmitter.
     /// </summary>
-    public bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex, Symbol? activeLabel = null)
+    public bool TryBuildStatement(StatementNode statement, int nextIndex, out int entryIndex,
+        Symbol? activeLabel = null)
     {
         return StatementEmitter.TryEmitStatement(this, statement, nextIndex, out entryIndex, activeLabel);
     }
@@ -177,14 +187,10 @@ internal sealed class EmitContext(
     }
 
     /// <summary>
-    /// Get the instruction list (for IteratorInstructionTemplate).
-    /// </summary>
-    public List<ExecutionInstruction> Instructions => builder.Instructions;
-
-    /// <summary>
     /// Create iterator binding statement.
     /// </summary>
-    public static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol, int valueSlotIndex)
+    public static StatementNode CreateIteratorBindingStatement(IteratorDriverPlan plan, Symbol valueSymbol,
+        int valueSlotIndex)
     {
         return ExecutionPlanBuilder.CreateIteratorBindingStatement(plan, valueSymbol, valueSlotIndex);
     }
@@ -295,16 +301,19 @@ internal sealed class EmitContext(
                     {
                         return true;
                     }
+
                     if (element.Target is not null && BindingTargetContainsYieldAnywhere(element.Target))
                     {
                         return true;
                     }
                 }
+
                 if (arrayBinding.RestElement is not null &&
                     BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
                 {
                     return true;
                 }
+
                 return false;
 
             case ObjectBinding objectBinding:
@@ -314,20 +323,24 @@ internal sealed class EmitContext(
                     {
                         return true;
                     }
+
                     if (prop.NameExpression is not null && AstShapeAnalyzer.ContainsYield(prop.NameExpression))
                     {
                         return true;
                     }
+
                     if (BindingTargetContainsYieldAnywhere(prop.Target))
                     {
                         return true;
                     }
                 }
+
                 if (objectBinding.RestElement is not null &&
                     BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
                 {
                     return true;
                 }
+
                 return false;
 
             case AssignmentTargetBinding assignmentTarget:
@@ -353,6 +366,7 @@ internal sealed class EmitContext(
                     {
                         return true;
                     }
+
                     expression = destructuringExpr.Value;
                     continue;
 

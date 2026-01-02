@@ -13,19 +13,6 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
 {
     private JsValue _cachedJsValue;
 
-    public ref readonly JsValue AsJsValue
-    {
-        get
-        {
-            if (_cachedJsValue.ObjectValue is null)
-            {
-                _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
-            }
-
-            return ref _cachedJsValue;
-        }
-    }
-
     public IJsObjectLike? IteratorObject { get; set; }
     public IEnumerator<JsValue>? Enumerator { get; set; }
     public bool IsAsyncIterator { get; set; }
@@ -72,6 +59,39 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     /// </summary>
     public JsEnvironment? LoopScopeEnvironment { get; set; }
 
+    /// <inheritdoc />
+    public bool TryGetActiveIterator(out IJsObjectLike iterator)
+    {
+        if (IteratorObject is not null && !IteratorClosed)
+        {
+            iterator = IteratorObject;
+            return true;
+        }
+
+        iterator = null!;
+        return false;
+    }
+
+    /// <inheritdoc />
+    public void MarkIteratorClosed()
+    {
+        IteratorClosed = true;
+        // Keep IteratorObject so it can still be queried, but mark as closed
+    }
+
+    public ref readonly JsValue AsJsValue
+    {
+        get
+        {
+            if (_cachedJsValue.ObjectValue is null)
+            {
+                _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+            }
+
+            return ref _cachedJsValue;
+        }
+    }
+
     /// <summary>
     /// Called when state is rented from pool.
     /// </summary>
@@ -100,26 +120,6 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         IteratorClosed = false;
         HasEnteredLoop = false;
     }
-
-    /// <inheritdoc />
-    public bool TryGetActiveIterator(out IJsObjectLike iterator)
-    {
-        if (IteratorObject is not null && !IteratorClosed)
-        {
-            iterator = IteratorObject;
-            return true;
-        }
-
-        iterator = null!;
-        return false;
-    }
-
-    /// <inheritdoc />
-    public void MarkIteratorClosed()
-    {
-        IteratorClosed = true;
-        // Keep IteratorObject so it can still be queried, but mark as closed
-    }
 }
 
 /// <summary>
@@ -130,8 +130,14 @@ internal static class IteratorDriverStatePool
     private static readonly ObjectPool<IteratorDriverState> Pool = new(32, static () => new IteratorDriverState());
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static IteratorDriverState Rent() => Pool.Rent();
+    public static IteratorDriverState Rent()
+    {
+        return Pool.Rent();
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Return(IteratorDriverState state) => Pool.Return(state);
+    public static void Return(IteratorDriverState state)
+    {
+        Pool.Return(state);
+    }
 }

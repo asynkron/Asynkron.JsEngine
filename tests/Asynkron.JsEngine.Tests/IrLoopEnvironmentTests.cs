@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to verify per-iteration environment behavior in IR-executed loops.
 /// These tests check that closures capture correct values in for loops with let bindings.
 /// </summary>
-public class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task SyncForLoop_ClosuresCaptureCorrectValues()

@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Detailed debugging tests to pinpoint why global scope iterators fail.
 /// These tests progressively isolate the issue by testing iterator calls in different contexts.
 /// </summary>
-public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
+public sealed class AsyncIteratorDebuggingTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 5000)]
     public async Task DirectIteratorCall_GlobalScope()
@@ -37,7 +37,7 @@ public class AsyncIteratorDebuggingTests(ITestOutputHelper output)
             log('Result: ' + JSON.stringify(result));
         ");
 
-        await Task.Delay(500);
+        await Task.Delay(10);
         output.WriteLine("✅ Baseline test: Direct call should work");
     }
 

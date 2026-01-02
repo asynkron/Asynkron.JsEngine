@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AsyncLoopTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class AsyncLoopTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForLoop_WithAwaitAndContinue_Works()

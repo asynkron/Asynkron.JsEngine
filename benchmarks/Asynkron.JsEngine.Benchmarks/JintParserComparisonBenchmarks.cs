@@ -483,14 +483,14 @@ public class JintParserComparisonBenchmarks
             """;
 
         // Pre-tokenize for Asynkron
-        _simpleExpressionTokens = new Lexer(_simpleExpression).Tokenize();
-        _functionDefinitionsTokens = new Lexer(_functionDefinitions).Tokenize();
-        _classDefinitionsTokens = new Lexer(_classDefinitions).Tokenize();
-        _loopStatementsTokens = new Lexer(_loopStatements).Tokenize();
-        _arrowFunctionsTokens = new Lexer(_arrowFunctions).Tokenize();
-        _destructuringTokens = new Lexer(_destructuring).Tokenize();
-        _asyncAwaitTokens = new Lexer(_asyncAwait).Tokenize();
-        _complexProgramTokens = new Lexer(_complexProgram).Tokenize();
+        _simpleExpressionTokens = new JsLexer(_simpleExpression).Tokenize();
+        _functionDefinitionsTokens = new JsLexer(_functionDefinitions).Tokenize();
+        _classDefinitionsTokens = new JsLexer(_classDefinitions).Tokenize();
+        _loopStatementsTokens = new JsLexer(_loopStatements).Tokenize();
+        _arrowFunctionsTokens = new JsLexer(_arrowFunctions).Tokenize();
+        _destructuringTokens = new JsLexer(_destructuring).Tokenize();
+        _asyncAwaitTokens = new JsLexer(_asyncAwait).Tokenize();
+        _complexProgramTokens = new JsLexer(_complexProgram).Tokenize();
     }
 
     // ==================== Simple Expression ====================
@@ -498,7 +498,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("Simple")]
     public ProgramNode Asynkron_Parse_SimpleExpression()
     {
-        var parser = new TypedAstParser(_simpleExpressionTokens, _simpleExpression);
+        var parser = new JsAstParser(_simpleExpressionTokens, _simpleExpression);
         return parser.ParseProgram();
     }
 
@@ -514,7 +514,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("Functions")]
     public ProgramNode Asynkron_Parse_Functions()
     {
-        var parser = new TypedAstParser(_functionDefinitionsTokens, _functionDefinitions);
+        var parser = new JsAstParser(_functionDefinitionsTokens, _functionDefinitions);
         return parser.ParseProgram();
     }
 
@@ -530,7 +530,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("Classes")]
     public ProgramNode Asynkron_Parse_Classes()
     {
-        var parser = new TypedAstParser(_classDefinitionsTokens, _classDefinitions);
+        var parser = new JsAstParser(_classDefinitionsTokens, _classDefinitions);
         return parser.ParseProgram();
     }
 
@@ -546,7 +546,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("Loops")]
     public ProgramNode Asynkron_Parse_Loops()
     {
-        var parser = new TypedAstParser(_loopStatementsTokens, _loopStatements);
+        var parser = new JsAstParser(_loopStatementsTokens, _loopStatements);
         return parser.ParseProgram();
     }
 
@@ -562,7 +562,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("ES6")]
     public ProgramNode Asynkron_Parse_ArrowFunctions()
     {
-        var parser = new TypedAstParser(_arrowFunctionsTokens, _arrowFunctions);
+        var parser = new JsAstParser(_arrowFunctionsTokens, _arrowFunctions);
         return parser.ParseProgram();
     }
 
@@ -578,7 +578,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("ES6")]
     public ProgramNode Asynkron_Parse_Destructuring()
     {
-        var parser = new TypedAstParser(_destructuringTokens, _destructuring);
+        var parser = new JsAstParser(_destructuringTokens, _destructuring);
         return parser.ParseProgram();
     }
 
@@ -594,7 +594,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("Async")]
     public ProgramNode Asynkron_Parse_AsyncAwait()
     {
-        var parser = new TypedAstParser(_asyncAwaitTokens, _asyncAwait);
+        var parser = new JsAstParser(_asyncAwaitTokens, _asyncAwait);
         return parser.ParseProgram();
     }
 
@@ -610,7 +610,7 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("Complex")]
     public ProgramNode Asynkron_Parse_ComplexProgram()
     {
-        var parser = new TypedAstParser(_complexProgramTokens, _complexProgram);
+        var parser = new JsAstParser(_complexProgramTokens, _complexProgram);
         return parser.ParseProgram();
     }
 
@@ -626,8 +626,8 @@ public class JintParserComparisonBenchmarks
     [BenchmarkCategory("FullPipeline")]
     public ProgramNode Asynkron_LexAndParse_ComplexProgram()
     {
-        var tokens = new Lexer(_complexProgram).Tokenize();
-        var parser = new TypedAstParser(tokens, _complexProgram);
+        var tokens = new JsLexer(_complexProgram).Tokenize();
+        var parser = new JsAstParser(tokens, _complexProgram);
         return parser.ParseProgram();
     }
 

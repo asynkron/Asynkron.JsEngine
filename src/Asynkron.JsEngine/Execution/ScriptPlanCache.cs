@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 
 #endregion
@@ -38,29 +37,30 @@ internal sealed class ScriptPlanCache
         // This allows us to reuse the existing ExecutionPlanBuilder infrastructure.
         var syntheticFunction = new FunctionExpression(
             program.Source,
-            Name: null, // Scripts don't have a function name
-            Parameters: [], // Scripts don't have parameters
-            Body: new BlockStatement(program.Source, program.Body, program.IsStrict),
-            IsAsync: program.HasTopLevelAwait, // Top-level await makes it async-like
-            IsGenerator: false,
-            IsArrow: false,
-            WasAsync: false,
-            IsHoistableDefaultExport: false,
-            IsDefaultDerivedConstructor: false,
-            SlotCount: program.SlotCount,
-            ScopeId: program.ScopeId,
-            HasClosures: false // Will be determined by analysis
+            null, // Scripts don't have a function name
+            [], // Scripts don't have parameters
+            new BlockStatement(program.Source, program.Body, program.IsStrict),
+            program.HasTopLevelAwait, // Top-level await makes it async-like
+            false,
+            false,
+            false,
+            false,
+            false,
+            program.SlotCount,
+            program.ScopeId,
+            false // Will be determined by analysis
         );
 
         // Don't report diagnostics for script-level IR builds - these are separate from
         // function IR builds that tests track via ExecutionPlanDiagnostics.
         // Pass isScriptLevel: true so var declarations will update the global object.
         if (ExecutionPlanBuilder.TryBuild(syntheticFunction, out var plan, out var failureReason,
-            reportDiagnostics: false, isScriptLevel: true))
+                false, true))
         {
             return new ScriptPlanCache(plan, syntheticFunction, null);
         }
 
-        return new ScriptPlanCache(null, null, failureReason ?? "Script contains unsupported construct for execution plan.");
+        return new ScriptPlanCache(null, null,
+            failureReason ?? "Script contains unsupported construct for execution plan.");
     }
 }

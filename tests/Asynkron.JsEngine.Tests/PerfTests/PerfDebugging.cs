@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests.PerfTests;
 
-public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task RunForLoop1()
@@ -26,7 +26,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
         {
             Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput:output)
         });
-        var result = await engine.Evaluate(script);
+        await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
 
@@ -47,7 +47,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      """;
         var sw = Stopwatch.StartNew();
         var engine = CreateEngine(() => new JsEngineOptions());
-        var result = await engine.Evaluate(script);
+        await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
 
@@ -68,7 +68,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      """;
         var sw = Stopwatch.StartNew();
         var engine = CreateEngine(() => new JsEngineOptions());
-        var result = await engine.Evaluate(script);
+        await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
 
@@ -89,7 +89,7 @@ public class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
                      """;
         var sw = Stopwatch.StartNew();
         var engine = CreateEngine(() => new JsEngineOptions());
-        var result = await engine.Evaluate(script);
+        await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
 }

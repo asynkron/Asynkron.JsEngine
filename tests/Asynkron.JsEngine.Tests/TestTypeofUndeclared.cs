@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestTypeofUndeclared(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TestTypeofUndeclared(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task TypeofUndeclaredVariable_ShouldReturnUndefined()

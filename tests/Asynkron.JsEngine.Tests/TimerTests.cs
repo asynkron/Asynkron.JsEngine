@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TimerTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TimerTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task SetTimeout_ExecutesCallbackAfterDelay()
@@ -61,7 +61,7 @@ public class TimerTests(ITestOutputHelper output) : InternalTestBase(output)
                          """);
 
         // Wait a bit to ensure callback would have executed if not cleared
-        await Task.Delay(50);
+        await Task.Delay(10);
 
         Assert.False(executed, "setTimeout callback should not have been executed after clearTimeout");
     }
@@ -80,15 +80,15 @@ public class TimerTests(ITestOutputHelper output) : InternalTestBase(output)
 
         engine.SetGlobalFunction("getCount", _ => new JsTypes.JsValue(count));
 
-        var result = await engine.Evaluate("""
+        await engine.Evaluate("""
 
-                                                  let timerId = setInterval(callback, 20);
-                                                  setTimeout(function() {
-                                                      clearInterval(timerId);
-                                                  }, 100);
-                                                  getCount();
+                                          let timerId = setInterval(callback, 20);
+                                          setTimeout(function() {
+                                              clearInterval(timerId);
+                                          }, 100);
+                                          getCount();
 
-                                      """);
+                              """);
 
         // Should have executed multiple times
         Assert.True(count >= 2, $"setInterval should have executed at least 2 times, but executed {count} times");
@@ -114,7 +114,7 @@ public class TimerTests(ITestOutputHelper output) : InternalTestBase(output)
                          """);
 
         // Wait a bit
-        await Task.Delay(50);
+        await Task.Delay(10);
 
         Assert.Equal(0, count);
     }

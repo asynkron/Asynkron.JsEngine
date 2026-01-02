@@ -197,56 +197,56 @@ public class LexerBenchmarks
     [Benchmark(Baseline = true)]
     public IReadOnlyList<Token> SimpleExpression()
     {
-        var lexer = new Lexer(_simpleExpression);
+        var lexer = new JsLexer(_simpleExpression);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> FunctionDefinition()
     {
-        var lexer = new Lexer(_functionDefinition);
+        var lexer = new JsLexer(_functionDefinition);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> ClassDefinition()
     {
-        var lexer = new Lexer(_classDefinition);
+        var lexer = new JsLexer(_classDefinition);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> LoopHeavy()
     {
-        var lexer = new Lexer(_loopHeavy);
+        var lexer = new JsLexer(_loopHeavy);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> ObjectLiteral()
     {
-        var lexer = new Lexer(_objectLiteral);
+        var lexer = new JsLexer(_objectLiteral);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> ArrayOperations()
     {
-        var lexer = new Lexer(_arrayOperations);
+        var lexer = new JsLexer(_arrayOperations);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> StringHeavy()
     {
-        var lexer = new Lexer(_stringHeavy);
+        var lexer = new JsLexer(_stringHeavy);
         return lexer.Tokenize();
     }
 
     [Benchmark]
     public IReadOnlyList<Token> ComplexProgram()
     {
-        var lexer = new Lexer(_complexProgram);
+        var lexer = new JsLexer(_complexProgram);
         return lexer.Tokenize();
     }
 }

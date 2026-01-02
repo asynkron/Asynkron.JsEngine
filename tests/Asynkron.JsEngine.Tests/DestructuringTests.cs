@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class DestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Basic Array Destructuring Tests
     [Fact(Timeout = 2000)]
@@ -133,7 +133,7 @@ public class DestructuringTests(ITestOutputHelper output) : InternalTestBase(out
     public async Task ObjectDestructuringWithRestProperties()
     {
         await using var engine = CreateEngine();
-        var temp = await engine.Evaluate("let {x, ...rest} = {x: 1, y: 2, z: 3};");
+        await engine.Evaluate("let {x, ...rest} = {x: 1, y: 2, z: 3};");
         var result = await engine.Evaluate("rest.y + rest.z;");
         Assert.Equal(5d, result);
     }

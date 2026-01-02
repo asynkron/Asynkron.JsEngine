@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class SparseArrayTest(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class SparseArrayTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task SparseArray_ReturnsUndefined_ForHoles()

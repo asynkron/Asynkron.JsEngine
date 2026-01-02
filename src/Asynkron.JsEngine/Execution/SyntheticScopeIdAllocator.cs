@@ -1,5 +1,3 @@
-using System.Threading;
-
 namespace Asynkron.JsEngine.Execution;
 
 internal static class SyntheticScopeIdAllocator

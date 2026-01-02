@@ -4,15 +4,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class YieldStarTryTests
+public sealed class YieldStarTryTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public YieldStarTryTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact(Timeout = 10000)]
     public async Task SimpleYieldInTryBlock()
     {
@@ -37,7 +30,7 @@ results;
 ");
 
         var array = Assert.IsType<JsArray>(result);
-        _output.WriteLine($"Results: {array.GetElement(0)}, {array.GetElement(1)}, {array.GetElement(2)}");
+        output.WriteLine($"Results: {array.GetElement(0)}, {array.GetElement(1)}, {array.GetElement(2)}");
         
         Assert.Equal(1.0, array.GetElement(0).AsDouble());
         Assert.Equal(2.0, array.GetElement(1).AsDouble());
@@ -72,7 +65,7 @@ results;
 ");
 
         var array = Assert.IsType<JsArray>(result);
-        _output.WriteLine($"Results: {array.GetElement(0)}, {array.GetElement(1)}, {array.GetElement(2)}");
+        output.WriteLine($"Results: {array.GetElement(0)}, {array.GetElement(1)}, {array.GetElement(2)}");
         
         Assert.Equal(1.0, array.GetElement(0).AsDouble());
         Assert.Equal(2.0, array.GetElement(1).AsDouble());
@@ -108,7 +101,7 @@ controlIterator.next();
 ");
 
         var array = Assert.IsType<JsArray>(result);
-        _output.WriteLine($"i={array.GetElement(0)}, j={array.GetElement(1)}");
+        output.WriteLine($"i={array.GetElement(0)}, j={array.GetElement(1)}");
         
         // After first .next(), we should have:
         // - entered for-of once (x=1)

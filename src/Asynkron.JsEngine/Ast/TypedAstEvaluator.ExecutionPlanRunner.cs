@@ -151,7 +151,7 @@ public static partial class TypedAstEvaluator
             _closure = environment;
             _context = context;
             _realmState = context.RealmState;
-            _arguments = Array.Empty<JsValue>();
+            _arguments = [];
             _callable = null!;
             _function = null!;
             _thisValue = context.RealmState.Engine?.GlobalObject is { } go

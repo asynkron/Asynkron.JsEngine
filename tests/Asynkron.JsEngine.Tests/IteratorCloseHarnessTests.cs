@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IteratorCloseHarnessTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class IteratorCloseHarnessTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ForOfDestructuring_IteratorCloseNonObjectCaught_Sloppy()

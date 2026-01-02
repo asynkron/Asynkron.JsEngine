@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class MethodShorthandParsingTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class MethodShorthandParsingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task TestJ_ParseMethodShorthandVsRegularFunction()
@@ -67,7 +67,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output) : InternalTes
             }
         ");
 
-        await Task.Delay(500);
+        await Task.Delay(10);
 
         // Check exceptions
         var exceptions = new List<ExceptionInfo>();
@@ -164,7 +164,7 @@ public class MethodShorthandParsingTests(ITestOutputHelper output) : InternalTes
             }
         ");
 
-        await Task.Delay(500);
+        await Task.Delay(10);
 
         // Check exceptions
         var exceptions = new List<ExceptionInfo>();

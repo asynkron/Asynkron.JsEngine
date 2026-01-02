@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
+public sealed class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
 {
     /// <summary>
     /// Known failure due to the global-scope sync iterable fallback bug; see AsyncForOf global issue tracker.

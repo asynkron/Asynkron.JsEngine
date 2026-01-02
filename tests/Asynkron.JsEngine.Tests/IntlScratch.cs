@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class IntlScratchTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class IntlScratchTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task InspectSupportedValuesCoercion()

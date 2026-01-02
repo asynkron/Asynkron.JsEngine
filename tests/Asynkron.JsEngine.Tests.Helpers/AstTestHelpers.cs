@@ -19,9 +19,9 @@ public static class AstTestHelpers
     /// </summary>
     public static AstPipelineResult ParseAndAnalyze(string source)
     {
-        var lexer = new Lexer(source);
+        var lexer = new JsLexer(source);
         var tokens = lexer.Tokenize();
-        var parser = new TypedAstParser(tokens, source);
+        var parser = new JsAstParser(tokens, source);
         var parsed = parser.ParseProgram();
 
         var constantFolded = new TypedConstantExpressionTransformer().Transform(parsed);

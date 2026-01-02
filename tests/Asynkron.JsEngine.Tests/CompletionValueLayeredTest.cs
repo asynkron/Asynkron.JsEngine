@@ -16,15 +16,8 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// The debug logging will show IR instructions being executed.
 /// </summary>
-public class CompletionValueLayeredTest
+public sealed class CompletionValueLayeredTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public CompletionValueLayeredTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     // ============================================================================
     // LAYER 1: Simple Blocks - Most basic completion value tests
     // ============================================================================
@@ -35,12 +28,12 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L1_A_EmptyBlockInIsolation()
     {
-        var logger = new TestLogger(_output, "L1_A", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L1_A", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('{ }')");
-        _output.WriteLine($"\nResult: {result}");
-        _output.WriteLine($"Is undefined: {result is null || ReferenceEquals(result, Symbol.Undefined)}");
+        output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"Is undefined: {result is null || ReferenceEquals(result, Symbol.Undefined)}");
 
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
             $"Empty block should return undefined, got: {result}");
@@ -52,11 +45,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L1_B_BlockWithValue()
     {
-        var logger = new TestLogger(_output, "L1_B", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L1_B", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('{ 42; }')");
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
 
         Assert.Equal(42.0, result);
     }
@@ -72,11 +65,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L1_C_StmtThenEmptyBlock()
     {
-        var logger = new TestLogger(_output, "L1_C", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L1_C", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; { }')");
-        _output.WriteLine($"\nResult: {result} (expected: 1 - plain blocks preserve previous value)");
+        output.WriteLine($"\nResult: {result} (expected: 1 - plain blocks preserve previous value)");
 
         // Per ECMAScript: Plain empty block completion is "empty" which preserves previous value
         // Compound statements (try/catch, if/else, for, switch) convert empty to undefined
@@ -89,11 +82,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L1_D_StmtThenBlockWithValue()
     {
-        var logger = new TestLogger(_output, "L1_D", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L1_D", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; { 2; }')");
-        _output.WriteLine($"\nResult: {result} (expected: 2)");
+        output.WriteLine($"\nResult: {result} (expected: 2)");
 
         Assert.Equal(2.0, result);
     }
@@ -108,11 +101,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L2_A_EmptyStatement()
     {
-        var logger = new TestLogger(_output, "L2_A", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L2_A", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval(';')");
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
 
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
             $"Empty statement should return undefined, got: {result}");
@@ -124,16 +117,16 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L2_B_StmtThenEmptyStatement()
     {
-        var logger = new TestLogger(_output, "L2_B", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L2_B", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; ;')");
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
 
         // Per ECMAScript: Empty statement completion is "empty" which means
         // the previous completion value is preserved (this is actually correct!)
         // But blocks are different - they have their own completion semantics
-        _output.WriteLine("Note: Empty statement (;) preserves previous value per spec");
+        output.WriteLine("Note: Empty statement (;) preserves previous value per spec");
     }
 
     // ============================================================================
@@ -146,11 +139,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L3_A_IfWithEmptyElse()
     {
-        var logger = new TestLogger(_output, "L3_A", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L3_A", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('if (false) { 1; } else { }')");
-        _output.WriteLine($"\nResult: {result} (expected: undefined)");
+        output.WriteLine($"\nResult: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
             $"Empty else should return undefined, got: {result}");
@@ -162,11 +155,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L3_B_StmtThenIfWithEmptyElse()
     {
-        var logger = new TestLogger(_output, "L3_B", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L3_B", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('5; if (false) { 1; } else { }')");
-        _output.WriteLine($"\nResult: {result} (expected: undefined)");
+        output.WriteLine($"\nResult: {result} (expected: undefined)");
 
         // The if/else statement has its own completion value
         // The '5;' before should be overwritten by the if statement's completion
@@ -184,11 +177,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L4_A_EmptyCatchNoPrevStmt()
     {
-        var logger = new TestLogger(_output, "L4_A", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L4_A", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { throw 1; } catch (e) { }')");
-        _output.WriteLine($"\nResult: {result} (expected: undefined)");
+        output.WriteLine($"\nResult: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
             $"Empty catch should return undefined, got: {result}");
@@ -200,11 +193,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L4_B_StmtThenEmptyCatch()
     {
-        var logger = new TestLogger(_output, "L4_B", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L4_B", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; try { throw 2; } catch (e) { }')");
-        _output.WriteLine($"\nResult: {result} (expected: undefined)");
+        output.WriteLine($"\nResult: {result} (expected: undefined)");
 
         // This is the failing case!
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
@@ -217,11 +210,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L4_C_EmptyTryNoPrevStmt()
     {
-        var logger = new TestLogger(_output, "L4_A", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L4_A", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('try { } catch (e) { }')");
-        _output.WriteLine($"\nResult: {result} (expected: undefined)");
+        output.WriteLine($"\nResult: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
             $"Empty try should return undefined, got: {result}");
@@ -233,11 +226,11 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L4_D_StmtThenEmptyTry()
     {
-        var logger = new TestLogger(_output, "L4_D", minLogLevel: LogLevel.Debug);
+        var logger = new TestLogger(output, "L4_D", minLogLevel: LogLevel.Debug);
         await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
 
         var result = await engine.Evaluate("eval('1; try { } catch (e) { }')");
-        _output.WriteLine($"\nResult: {result} (expected: undefined)");
+        output.WriteLine($"\nResult: {result} (expected: undefined)");
 
         Assert.True(result is null || ReferenceEquals(result, Symbol.Undefined),
             $"Previous stmt should not affect empty try, got: {result}");
@@ -254,22 +247,22 @@ public class CompletionValueLayeredTest
     [Fact(Timeout = 10000)]
     public async Task L5_A_ComparePassingVsFailing()
     {
-        _output.WriteLine("=== PASSING CASE (no previous stmt) ===");
+        output.WriteLine("=== PASSING CASE (no previous stmt) ===");
         {
-            var logger = new TestLogger(_output, "PASS", minLogLevel: LogLevel.Debug);
+            var logger = new TestLogger(output, "PASS", minLogLevel: LogLevel.Debug);
             await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
             var result = await engine.Evaluate("eval('try { throw 1; } catch (e) { }')");
-            _output.WriteLine($"Result: {result}");
+            output.WriteLine($"Result: {result}");
         }
 
-        _output.WriteLine("\n=== FAILING CASE (with previous stmt) ===");
+        output.WriteLine("\n=== FAILING CASE (with previous stmt) ===");
         {
-            var logger = new TestLogger(_output, "FAIL", minLogLevel: LogLevel.Debug);
+            var logger = new TestLogger(output, "FAIL", minLogLevel: LogLevel.Debug);
             await using var engine = new JsEngine(new JsEngineOptions { DebugMode = true, Logger = logger });
             var result = await engine.Evaluate("eval('1; try { throw 2; } catch (e) { }')");
-            _output.WriteLine($"Result: {result}");
+            output.WriteLine($"Result: {result}");
         }
 
-        _output.WriteLine("\nCompare the IR traces above to see the difference!");
+        output.WriteLine("\nCompare the IR traces above to see the difference!");
     }
 }

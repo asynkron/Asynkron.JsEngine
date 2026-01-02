@@ -32,13 +32,13 @@ internal sealed record LoopPlan(
 
     private bool _bodyNeedsEnvironmentComputed;
 
-    // Cached analysis for fast-path loop body execution
-    private StatementNode? _singleBodyStatement;
-    private bool _singleBodyStatementComputed;
-
     // Cached slot map for per-iteration bindings (built once, reused each iteration)
     private ImmutableDictionary<Symbol, int>? _iterationSlotMap;
     private bool _iterationSlotMapComputed;
+
+    // Cached analysis for fast-path loop body execution
+    private StatementNode? _singleBodyStatement;
+    private bool _singleBodyStatementComputed;
 
     /// <summary>
     /// Returns the slot map for per-iteration bindings.
@@ -52,28 +52,9 @@ internal sealed record LoopPlan(
             {
                 ComputeIterationSlotMap();
             }
+
             return _iterationSlotMap!;
         }
-    }
-
-    private void ComputeIterationSlotMap()
-    {
-        _iterationSlotMapComputed = true;
-
-        if (PerIterationBindings.IsDefaultOrEmpty || PerIterationSlotIndices.IsDefaultOrEmpty)
-        {
-            _iterationSlotMap = ImmutableDictionary<Symbol, int>.Empty
-                .WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
-            return;
-        }
-
-        var builder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-        var count = Math.Min(PerIterationBindings.Length, PerIterationSlotIndices.Length);
-        for (var i = 0; i < count; i++)
-        {
-            builder[PerIterationBindings[i]] = PerIterationSlotIndices[i];
-        }
-        _iterationSlotMap = builder.ToImmutable();
     }
 
     /// <summary>
@@ -107,6 +88,27 @@ internal sealed record LoopPlan(
 
             return _bodyNeedsEnvironment;
         }
+    }
+
+    private void ComputeIterationSlotMap()
+    {
+        _iterationSlotMapComputed = true;
+
+        if (PerIterationBindings.IsDefaultOrEmpty || PerIterationSlotIndices.IsDefaultOrEmpty)
+        {
+            _iterationSlotMap = ImmutableDictionary<Symbol, int>.Empty
+                .WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+            return;
+        }
+
+        var builder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        var count = Math.Min(PerIterationBindings.Length, PerIterationSlotIndices.Length);
+        for (var i = 0; i < count; i++)
+        {
+            builder[PerIterationBindings[i]] = PerIterationSlotIndices[i];
+        }
+
+        _iterationSlotMap = builder.ToImmutable();
     }
 
     private void ComputeSingleBodyStatement()

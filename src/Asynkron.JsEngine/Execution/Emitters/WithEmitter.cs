@@ -1,6 +1,9 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 

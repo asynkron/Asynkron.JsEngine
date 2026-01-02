@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class LoopScopeAnalysisTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class LoopScopeAnalysisTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public void ForLoopWithLetInitializer_TracksPerIterationBindingsInPlan()

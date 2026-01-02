@@ -184,14 +184,14 @@ public class PipelineBenchmarks
             """;
 
         // Pre-tokenize
-        _smallTokens = new Lexer(_smallProgram).Tokenize();
-        _mediumTokens = new Lexer(_mediumProgram).Tokenize();
-        _largeTokens = new Lexer(_largeProgram).Tokenize();
+        _smallTokens = new JsLexer(_smallProgram).Tokenize();
+        _mediumTokens = new JsLexer(_mediumProgram).Tokenize();
+        _largeTokens = new JsLexer(_largeProgram).Tokenize();
 
         // Pre-parse
-        _smallAst = new TypedAstParser(_smallTokens, _smallProgram).ParseProgram();
-        _mediumAst = new TypedAstParser(_mediumTokens, _mediumProgram).ParseProgram();
-        _largeAst = new TypedAstParser(_largeTokens, _largeProgram).ParseProgram();
+        _smallAst = new JsAstParser(_smallTokens, _smallProgram).ParseProgram();
+        _mediumAst = new JsAstParser(_mediumTokens, _mediumProgram).ParseProgram();
+        _largeAst = new JsAstParser(_largeTokens, _largeProgram).ParseProgram();
     }
 
     [GlobalCleanup]
@@ -214,14 +214,14 @@ public class PipelineBenchmarks
     [BenchmarkCategory("Small", "Lexing")]
     public IReadOnlyList<Token> Small_LexOnly()
     {
-        return new Lexer(_smallProgram).Tokenize();
+        return new JsLexer(_smallProgram).Tokenize();
     }
 
     [Benchmark]
     [BenchmarkCategory("Small", "Parsing")]
     public ProgramNode Small_ParseOnly()
     {
-        return new TypedAstParser(_smallTokens, _smallProgram).ParseProgram();
+        return new JsAstParser(_smallTokens, _smallProgram).ParseProgram();
     }
 
     [Benchmark]
@@ -237,14 +237,14 @@ public class PipelineBenchmarks
     [BenchmarkCategory("Medium", "Lexing")]
     public IReadOnlyList<Token> Medium_LexOnly()
     {
-        return new Lexer(_mediumProgram).Tokenize();
+        return new JsLexer(_mediumProgram).Tokenize();
     }
 
     [Benchmark]
     [BenchmarkCategory("Medium", "Parsing")]
     public ProgramNode Medium_ParseOnly()
     {
-        return new TypedAstParser(_mediumTokens, _mediumProgram).ParseProgram();
+        return new JsAstParser(_mediumTokens, _mediumProgram).ParseProgram();
     }
 
     [Benchmark]
@@ -260,14 +260,14 @@ public class PipelineBenchmarks
     [BenchmarkCategory("Large", "Lexing")]
     public IReadOnlyList<Token> Large_LexOnly()
     {
-        return new Lexer(_largeProgram).Tokenize();
+        return new JsLexer(_largeProgram).Tokenize();
     }
 
     [Benchmark]
     [BenchmarkCategory("Large", "Parsing")]
     public ProgramNode Large_ParseOnly()
     {
-        return new TypedAstParser(_largeTokens, _largeProgram).ParseProgram();
+        return new JsAstParser(_largeTokens, _largeProgram).ParseProgram();
     }
 
     [Benchmark(Baseline = true)]

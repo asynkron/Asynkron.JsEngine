@@ -7,15 +7,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class ThrowBugTests
+public sealed class ThrowBugTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public ThrowBugTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     /// <summary>
     /// This replicates the Test262 assert.throws pattern that is failing.
     /// The key issue is that when assert.throws catches an error, the
@@ -24,7 +17,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task AssertThrowsPattern_ShouldCatchErrorObject()
     {
-        var testLogger = new TestLogger(_output, "ThrowBug", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "ThrowBug", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -75,7 +68,7 @@ public class ThrowBugTests
             testResult.typeofThrown + ' | ' + testResult.isNotNull + ' | ' + testResult.isObject + ' | ' + testResult.isRightType;
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
 
         // Expected: "object | true | true | true"
         // Bug produces: "undefined | false | false | false" (or similar)
@@ -88,7 +81,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task SimpleCatch_TypeofThrownError()
     {
-        var testLogger = new TestLogger(_output, "ThrowBug", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "ThrowBug", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -102,7 +95,7 @@ public class ThrowBugTests
             thrownType;
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         Assert.Equal("object", result?.ToString());
     }
 
@@ -112,7 +105,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task NestedFunctionCatch_TypeofThrownError()
     {
-        var testLogger = new TestLogger(_output, "ThrowBug", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "ThrowBug", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -132,7 +125,7 @@ public class ThrowBugTests
             });
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         Assert.Equal("object", result?.ToString());
     }
 
@@ -145,7 +138,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task CatchParameterShadowsVarVariable()
     {
-        var testLogger = new TestLogger(_output, "CatchShadow", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "CatchShadow", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -166,7 +159,7 @@ public class ThrowBugTests
             results.join(' | ');
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         // Expected: "inside: stuff3 | outside: 1"
         Assert.Equal("inside: stuff3 | outside: 1", result?.ToString());
     }
@@ -177,7 +170,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task SimpleCatchParameterShadowsVar()
     {
-        var testLogger = new TestLogger(_output, "CatchShadow", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "CatchShadow", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -192,7 +185,7 @@ public class ThrowBugTests
             insideValue + ' | ' + a;
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         // Inside catch: 'a' = 'thrown-value'
         // Outside catch: 'a' = 1
         Assert.Equal("thrown-value | 1", result?.ToString());
@@ -206,7 +199,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task CatchParameterPassedToFunctionCall()
     {
-        var testLogger = new TestLogger(_output, "CatchFunc", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "CatchFunc", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -229,7 +222,7 @@ public class ThrowBugTests
             fn();
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         // Expected: "stuff3 === stuff3 -> true"
         Assert.Equal("stuff3 === stuff3 -> true", result?.ToString());
     }
@@ -241,7 +234,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task CatchParameterAtScriptLevel_StrictMode()
     {
-        var testLogger = new TestLogger(_output, "CatchScript", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "CatchScript", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -263,7 +256,7 @@ public class ThrowBugTests
             insideResult;
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         // Expected: "stuff3 === stuff3 -> true"
         Assert.Equal("stuff3 === stuff3 -> true", result?.ToString());
     }
@@ -275,7 +268,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task CatchParameterPassedToFunctionCall_StrictMode()
     {
-        var testLogger = new TestLogger(_output, "CatchFuncStrict", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "CatchFuncStrict", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -300,7 +293,7 @@ public class ThrowBugTests
             fn();
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         // Expected: "stuff3 === stuff3 -> true"
         Assert.Equal("stuff3 === stuff3 -> true", result?.ToString());
     }
@@ -312,7 +305,7 @@ public class ThrowBugTests
     [Fact(Timeout = 10000)]
     public async Task ArgumentsCalleeThrowsInStrictMode()
     {
-        var testLogger = new TestLogger(_output, "ArgCallee", minLogLevel: LogLevel.Debug);
+        var testLogger = new TestLogger(output, "ArgCallee", minLogLevel: LogLevel.Debug);
         var options = new JsEngineOptions { DebugMode = true, Logger = testLogger };
         await using var engine = new JsEngine(options);
 
@@ -331,7 +324,7 @@ public class ThrowBugTests
             caught + ' | ' + errorType;
         """);
 
-        _output.WriteLine($"\nResult: {result}");
+        output.WriteLine($"\nResult: {result}");
         Assert.Equal("true | TypeError", result?.ToString());
     }
 }

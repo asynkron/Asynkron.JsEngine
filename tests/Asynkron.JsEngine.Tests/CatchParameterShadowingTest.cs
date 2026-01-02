@@ -4,15 +4,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class CatchParameterShadowingTest
+public sealed class CatchParameterShadowingTest(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public CatchParameterShadowingTest(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact]
     public async Task CatchParameterShouldShadowVarVariable()
     {
@@ -27,7 +20,7 @@ function fn() {
 fn();
 ";
         var result1 = await engine.Evaluate(code1);
-        _output.WriteLine($"Without catch: a = {result1}");
+        output.WriteLine($"Without catch: a = {result1}");
         Assert.Equal(1.0, result1);
 
         // Now test with catch that doesn't use same name
@@ -44,7 +37,7 @@ function fn() {
 fn();
 ";
         var result2 = await engine.Evaluate(code2);
-        _output.WriteLine($"With catch(b): a = {result2}");
+        output.WriteLine($"With catch(b): a = {result2}");
         Assert.Equal(1.0, result2);
 
         // Now test the actual failing case
@@ -61,7 +54,7 @@ function fn() {
 fn();
 ";
         var result3 = await engine.Evaluate(code3);
-        _output.WriteLine($"With catch(a): a = {result3}");
+        output.WriteLine($"With catch(a): a = {result3}");
         Assert.Equal(1.0, result3);
     }
 }

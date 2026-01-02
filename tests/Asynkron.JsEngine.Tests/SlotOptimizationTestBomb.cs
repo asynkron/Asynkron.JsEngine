@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 /// TEST BOMB: Verifies user variable identifiers in IR are stamped with scope/slot info.
 /// These used to assert the absence of slot stamping; they now prove the optimization works.
 /// </summary>
-public class SlotOptimizationTestBomb : IAsyncLifetime
+public sealed class SlotOptimizationTestBomb : IAsyncLifetime
 {
     private JsEngine _engine = null!;
 
@@ -161,6 +161,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         var pushEnvInstr = cache.Plan.Instructions
             .OfType<PushEnvironmentInstruction>()
             .FirstOrDefault();
+        Assert.NotNull(pushEnvInstr);
 
         // Find BranchInstruction
         var branchInstr = cache.Plan.Instructions
@@ -172,11 +173,9 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         var leftId = condition?.Left as IdentifierExpression;
         Assert.NotNull(leftId);
 
-        AssertIdentifierHasSlot(leftId!, cache.Plan, requireNonRootScope: true);
+        AssertIdentifierHasSlot(leftId, cache.Plan, requireNonRootScope: true);
 
         // Log what we found for debugging
-        var hasPushEnv = pushEnvInstr is not null;
-        var slotMapCount = pushEnvInstr?.SlotMap.Count ?? 0;
         // This info helps understand the IR structure
     }
 
@@ -225,7 +224,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         }
 
         var bindings = loopVars
-            .Select(id => (Name: id.Name.Name, Scope: id.ScopeId, Slot: id.SlotIndex))
+            .Select(id => (id.Name.Name, Scope: id.ScopeId, Slot: id.SlotIndex))
             .ToArray();
 
         // Ensure we stamped at least two distinct bindings (outer i vs inner j vs sum)
@@ -252,7 +251,7 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
         ");
 
         // This should return 3 (0+1+2) + 100 = 103
-        var result = await _engine.Evaluate(program);
+        await _engine.Evaluate(program);
         var runResult = await _engine.Evaluate("run()");
         Assert.Equal(103.0, runResult);
 
@@ -361,18 +360,23 @@ public class SlotOptimizationTestBomb : IAsyncLifetime
 
     private static void CollectIdentifiersFromExpression(ExpressionNode expr, List<IdentifierExpression> result, string? nameFilter)
     {
-        switch (expr)
+        while (true)
         {
-            case IdentifierExpression id when nameFilter is null || id.Name.Name == nameFilter:
-                result.Add(id);
-                break;
-            case BinaryExpression bin:
-                CollectIdentifiersFromExpression(bin.Left, result, nameFilter);
-                CollectIdentifiersFromExpression(bin.Right, result, nameFilter);
-                break;
-            case UnaryExpression unary:
-                CollectIdentifiersFromExpression(unary.Operand, result, nameFilter);
-                break;
+            switch (expr)
+            {
+                case IdentifierExpression id when nameFilter is null || id.Name.Name == nameFilter:
+                    result.Add(id);
+                    break;
+                case BinaryExpression bin:
+                    CollectIdentifiersFromExpression(bin.Left, result, nameFilter);
+                    expr = bin.Right;
+                    continue;
+                case UnaryExpression unary:
+                    expr = unary.Operand;
+                    continue;
+            }
+
+            break;
         }
     }
 

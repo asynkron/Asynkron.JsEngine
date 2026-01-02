@@ -15,7 +15,7 @@ namespace Asynkron.JsEngine.Tests;
 /// in GLOBAL scope (outside the async function). The S-expression transformation is
 /// correct in both cases, but execution differs.
 /// </summary>
-public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
+public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 5000)]
     public Task CompareGlobalVsLocalScope_SExpression()
@@ -164,7 +164,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         // Collect debug messages from local scope test
         var localDebugMessages = DrainDebugMessages(engine1);
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
         var localFinalResult = await engine1.Evaluate("test()");
         output.WriteLine($"[LOCAL] Final result: '{localFinalResult}'");
         localResult.Append("[LOCAL] Final result: '").Append(localFinalResult).Append('\'').AppendLine();
@@ -224,7 +224,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
         // Collect debug messages from global scope test
         var globalDebugMessages = DrainDebugMessages(engine2);
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
         var globalFinalResult = await engine2.Evaluate("test()");
         output.WriteLine($"[GLOBAL] Final result: '{globalFinalResult}'");
         globalResult.Append("[GLOBAL] Final result: '").Append(globalFinalResult).Append('\'').AppendLine();
@@ -364,14 +364,15 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             sb.Append("One or more global snapshots lost the 'globalIterable' binding.").AppendLine();
         }
 
-        if (sb.Length > 0)
+        if (sb.Length <= 0)
         {
-            sb.Append("See docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md for the captured environment diff.")
-                .AppendLine();
-            return sb.ToString();
+            return null;
         }
 
-        return null;
+        sb.Append("See docs/investigations/ASYNC_ITERABLE_SCOPE_DEBUG_NOTES.md for the captured environment diff.")
+            .AppendLine();
+        return sb.ToString();
+
     }
 
     private sealed record DebugSnapshot(
@@ -433,7 +434,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             test();
         ");
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
 
         // Test 2: Global scope - manually get iterator and inspect
         var engine2 = CreateDebugEngine();
@@ -475,7 +476,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             test();
         ");
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
     }
 
     [Fact(Timeout = 5000)]
@@ -538,7 +539,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             localDebugMessages.Add(msg);
         }
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
         var localFinalResult = await engine1.Evaluate("test()");
 
         output.WriteLine("");
@@ -628,7 +629,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             globalDebugMessages.Add(msg);
         }
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
         var globalFinalResult = await engine2.Evaluate("test()");
 
         output.WriteLine("");
@@ -736,7 +737,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             localManualDebugMessages.Add(msg);
         }
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
         var localManualResult = await engine1.Evaluate("test()");
 
         output.WriteLine($"[LOCAL-MANUAL] Result: '{localManualResult}'");
@@ -801,7 +802,7 @@ public class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
             globalManualDebugMessages.Add(msg);
         }
 
-        await Task.Delay(1000);
+        await Task.Delay(10);
         var globalManualResult = await engine2.Evaluate("test()");
 
         output.WriteLine($"[GLOBAL-MANUAL] Result: '{globalManualResult}'");

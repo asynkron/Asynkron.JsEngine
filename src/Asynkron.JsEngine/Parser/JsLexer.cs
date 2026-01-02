@@ -9,7 +9,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Parser;
 
-public sealed class Lexer(string source, bool allowHtmlComments = true)
+public sealed class JsLexer(string source, bool allowHtmlComments = true)
 {
     private static readonly Dictionary<string, TokenType> Keywords = new(StringComparer.Ordinal)
     {
@@ -58,12 +58,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         ["export"] = TokenType.Export
     };
 
-    private readonly bool _allowHtmlComments = allowHtmlComments;
-
     // Track brace context: ObjectLiteral/FunctionBody → division; StatementBlock → regex
     private readonly Stack<BraceKind> _braceKindStack = new();
 
-    private readonly string _source = source ?? string.Empty;
     private readonly List<Token> _tokens = [];
     private int _column = 1;
     private int _current;
@@ -74,11 +71,11 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private int _startColumn = 1;
     private int _startLine = 1;
 
-    private bool IsAtEnd => _current >= _source.Length;
+    private bool IsAtEnd => _current >= source.Length;
 
     private string SliceText(int start, int length)
     {
-        return new string(_source.AsSpan(start, length));
+        return new string(source.AsSpan(start, length));
     }
 
     public IReadOnlyList<Token> Tokenize()
@@ -181,7 +178,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
                 break;
             case '-':
-                if (_allowHtmlComments && Peek() == '-' && PeekNext() == '>')
+                if (allowHtmlComments && Peek() == '-' && PeekNext() == '>')
                 {
                     var isLineStart = IsAtStartOfLineIgnoringWhitespace();
                     Advance(); // second '-'
@@ -343,7 +340,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
                 break;
             case '<':
-                if (_allowHtmlComments && Peek() == '!' && PeekNext() == '-' && PeekOffset(2) == '-')
+                if (allowHtmlComments && Peek() == '!' && PeekNext() == '-' && PeekOffset(2) == '-')
                 {
                     Advance();
                     Advance();
@@ -488,7 +485,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 if (builder is null)
                 {
                     builder = new StringBuilder(_current - _start + 16);
-                    builder.Append(_source.AsSpan(_start, _current - _start));
+                    builder.Append(source.AsSpan(_start, _current - _start));
                 }
 
                 builder.Append(ReadIdentifierEscape());
@@ -549,7 +546,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 throw new ParseException("Unterminated identifier escape sequence.");
             }
 
-            var hexDigits = _source[start.._current];
+            var hexDigits = source[start.._current];
             if (!int.TryParse(hexDigits, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var codePoint))
             {
                 throw new ParseException("Invalid identifier escape sequence.");
@@ -559,7 +556,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             return char.ConvertFromUtf32(codePoint);
         }
 
-        if (_current + 4 > _source.Length)
+        if (_current + 4 > source.Length)
         {
             throw new ParseException("Invalid identifier escape sequence.");
         }
@@ -604,7 +601,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 if (builder is null)
                 {
                     builder = new StringBuilder(_current - _start + 16);
-                    builder.Append(_source.AsSpan(_start, _current - _start));
+                    builder.Append(source.AsSpan(_start, _current - _start));
                 }
 
                 builder.Append(ReadIdentifierEscape());
@@ -636,14 +633,14 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
     private void ReadNumber()
     {
         // Check for special numeric literals: 0x (hex), 0o (octal), 0b (binary)
-        if (_source[_start] == '0' && _current < _source.Length)
+        if (source[_start] == '0' && _current < source.Length)
         {
             var next = Peek();
             if (next is 'x' or 'X')
             {
                 Advance(); // consume 'x' or 'X'
                 var hexDigits = ReadDigitsWithSeparators(IsHexDigit, "hexadecimal");
-                var hexSpan = hexDigits.Slice(_source);
+                var hexSpan = hexDigits.Slice(source);
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -669,7 +666,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             {
                 Advance(); // consume 'o' or 'O'
                 var octalDigits = ReadDigitsWithSeparators(IsOctalDigit, "octal");
-                var octalSpan = octalDigits.Slice(_source);
+                var octalSpan = octalDigits.Slice(source);
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -695,7 +692,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             {
                 Advance(); // consume 'b' or 'B'
                 var binaryDigits = ReadDigitsWithSeparators(IsBinaryDigit, "binary");
-                var binarySpan = binaryDigits.Slice(_source);
+                var binarySpan = binaryDigits.Slice(source);
 
                 // Check for BigInt suffix 'n'
                 if (Peek() == 'n')
@@ -720,7 +717,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
         // Legacy octal literals are not supported (AnnexB feature)
         // Reject literals like 010, 077, etc. Only 0o notation is supported.
-        if (_source[_start] == '0' && IsDigit(Peek()))
+        if (source[_start] == '0' && IsDigit(Peek()))
         {
             var ch = Peek();
             // Check if this looks like a legacy octal (0 followed by octal digits)
@@ -728,9 +725,9 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             {
                 var idx = _current;
                 var isPureOctal = true;
-                while (idx < _source.Length && IsDigit(_source[idx]))
+                while (idx < source.Length && IsDigit(source[idx]))
                 {
-                    if (_source[idx] is '8' or '9')
+                    if (source[idx] is '8' or '9')
                     {
                         isPureOctal = false;
                         break;
@@ -742,7 +739,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 // If it's a pure octal (no 8 or 9), and not followed by . e E n, throw
                 if (isPureOctal && idx > _current)
                 {
-                    if (idx >= _source.Length || _source[idx] is not ('.' or 'e' or 'E' or 'n'))
+                    if (idx >= source.Length || source[idx] is not ('.' or 'e' or 'E' or 'n'))
                     {
                         throw new ParseException(
                             $"Legacy octal literals are not allowed. Use 0o prefix for octal literals on line {_line} column {_column}.");
@@ -810,7 +807,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             if (isEndOrNonAlphaNum)
             {
                 Advance(); // consume 'n'
-                var digitsSpan = _source.AsSpan(_start, _current - _start - 1);
+                var digitsSpan = source.AsSpan(_start, _current - _start - 1);
                 var value = new JsBigInt(ParseIntegerLiteral(digitsSpan, 10, hasSeparator));
                 AddToken(TokenType.BigInt, value);
                 return;
@@ -818,7 +815,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         // Regular number
-        var literalSpan = _source.AsSpan(_start, _current - _start);
+        var literalSpan = source.AsSpan(_start, _current - _start);
         var value2 = ParseDoubleLiteral(literalSpan, hasSeparator);
         AddToken(TokenType.Number, value2);
     }
@@ -855,7 +852,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             }
         }
 
-        var text = _source.AsSpan(_start, _current - _start);
+        var text = source.AsSpan(_start, _current - _start);
         var value = ParseDoubleLiteral(text, hasSeparator);
         AddToken(TokenType.Number, value);
     }
@@ -895,7 +892,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         Advance();
-        var rawValue = _source[(_start + 1)..(_current - 1)];
+        var rawValue = source[(_start + 1)..(_current - 1)];
         var value = DecodeEscapeSequences(rawValue);
         AddToken(TokenType.String, value);
     }
@@ -935,7 +932,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         Advance();
-        var rawValue = _source[(_start + 1)..(_current - 1)];
+        var rawValue = source[(_start + 1)..(_current - 1)];
         var value = DecodeEscapeSequences(rawValue);
         AddToken(TokenType.String, value);
     }
@@ -962,16 +959,19 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 var expressionStart = _current;
                 var braceCount = 1;
 
+                //false positive, braceCount can be negative if } } } }
+                // ReSharper disable once ConditionIsAlwaysTrueOrFalse
                 while (!IsAtEnd && braceCount > 0)
                 {
                     var c = Peek();
-                    if (c == '{')
+                    switch (c)
                     {
-                        braceCount++;
-                    }
-                    else if (c == '}')
-                    {
-                        braceCount--;
+                        case '{':
+                            braceCount++;
+                            break;
+                        case '}':
+                            braceCount--;
+                            break;
                     }
 
                     if (braceCount <= 0)
@@ -994,7 +994,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                 }
 
                 // Extract the expression text
-                var expressionText = _source[expressionStart.._current];
+                var expressionText = source[expressionStart.._current];
                 parts.Add(new TemplateExpression(expressionText));
 
                 // Skip the closing }
@@ -1049,14 +1049,14 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
     private char Advance()
     {
-        var c = _source[_current++];
+        var c = source[_current++];
         _column++;
         return c;
     }
 
     private bool Match(char expected)
     {
-        if (IsAtEnd || _source[_current] != expected)
+        if (IsAtEnd || source[_current] != expected)
         {
             return false;
         }
@@ -1124,25 +1124,25 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
     private char Peek()
     {
-        return IsAtEnd ? '\0' : _source[_current];
+        return IsAtEnd ? '\0' : source[_current];
     }
 
     private char PeekNext()
     {
-        return _current + 1 >= _source.Length ? '\0' : _source[_current + 1];
+        return _current + 1 >= source.Length ? '\0' : source[_current + 1];
     }
 
     private char PeekOffset(int offset)
     {
         var index = _current + offset;
-        return index >= _source.Length ? '\0' : _source[index];
+        return index >= source.Length ? '\0' : source[index];
     }
 
     private bool IsAtStartOfLineIgnoringWhitespace()
     {
         for (var i = _start - 1; i >= 0; i--)
         {
-            var ch = _source[i];
+            var ch = source[i];
             if (ch is ' ' or '\t')
             {
                 continue;
@@ -1223,16 +1223,14 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
         }
 
         Span<char> stackBuffer = stackalloc char[Math.Min(literalSpan.Length, 256)];
-        var cleaned = StripNumericSeparators(literalSpan, stackBuffer, out var heapBuffer);
+        var cleaned = StripNumericSeparators(literalSpan, stackBuffer);
         return double.Parse(cleaned, CultureInfo.InvariantCulture);
     }
 
     private static ReadOnlySpan<char> StripNumericSeparators(
         ReadOnlySpan<char> source,
-        Span<char> stackBuffer,
-        out char[]? heapBuffer)
+        Span<char> stackBuffer)
     {
-        heapBuffer = null;
         if (source.Length <= stackBuffer.Length)
         {
             var write = 0;
@@ -1261,7 +1259,6 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
             heap[writeHeap++] = ch;
         }
 
-        heapBuffer = heap;
         return heap.AsSpan(0, writeHeap);
     }
 
@@ -1422,7 +1419,7 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
 
     private void AddToken(TokenType type, object? literal)
     {
-        var text = _source[_start.._current];
+        var text = source[_start.._current];
         _tokens.Add(new Token(type, text, literal, _startLine, _startColumn, _start, _current));
     }
 
@@ -1708,7 +1705,8 @@ public sealed class Lexer(string source, bool allowHtmlComments = true)
                                     _tokens[i - 3].Type is TokenType.Async)
                                 {
                                     // Check if there's 'function' between async and name
-                                    if (i > 3 && string.Equals(_tokens[i - 2].Lexeme, "function", StringComparison.Ordinal))
+                                    if (i > 3 && string.Equals(_tokens[i - 2].Lexeme, "function",
+                                            StringComparison.Ordinal))
                                     {
                                         var isDecl = IsDeclarationContext(i - 3);
                                         return (true, isDecl);

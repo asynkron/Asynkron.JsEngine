@@ -1,9 +1,13 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using static Asynkron.JsEngine.Ast.TypedAstEvaluator;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -51,6 +55,7 @@ internal static class BlockEmitter
     private static bool TryEmitBlockWithEnvironment(
         EmitContext ctx,
         BlockStatement block,
+        // ReSharper disable once UnusedParameter.Local
         HoistPlan hoistPlan,
         int nextIndex,
         out int entryIndex)

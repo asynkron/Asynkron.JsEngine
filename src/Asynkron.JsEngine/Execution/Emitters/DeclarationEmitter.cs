@@ -1,7 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -140,26 +143,44 @@ internal static class DeclarationEmitter
                 foreach (var element in arrayBinding.Elements)
                 {
                     if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
+                    {
                         return true;
+                    }
+
                     if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
+                    {
                         return true;
+                    }
                 }
+
                 if (arrayBinding.RestElement is not null &&
                     BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
+                {
                     return true;
+                }
+
                 return false;
 
             case ObjectBinding objectBinding:
                 foreach (var prop in objectBinding.Properties)
                 {
                     if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
+                    {
                         return true;
+                    }
+
                     if (BindingTargetContainsYieldInDefaultValue(prop.Target))
+                    {
                         return true;
+                    }
                 }
+
                 if (objectBinding.RestElement is not null &&
                     BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
+                {
                     return true;
+                }
+
                 return false;
 
             case AssignmentTargetBinding assignmentTarget:
@@ -283,11 +304,15 @@ internal static class DeclarationEmitter
     // Helper Methods
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static bool ClassDefinitionContainsYield(ClassDefinition definition) =>
-        ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsYield(e));
+    private static bool ClassDefinitionContainsYield(ClassDefinition definition)
+    {
+        return ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsYield(e));
+    }
 
-    private static bool ClassDefinitionContainsAwait(ClassDefinition definition) =>
-        ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsAwait(e));
+    private static bool ClassDefinitionContainsAwait(ClassDefinition definition)
+    {
+        return ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsAwait(e));
+    }
 
     private static bool ClassDefinitionContains(ClassDefinition definition, Func<ExpressionNode, bool> predicate)
     {

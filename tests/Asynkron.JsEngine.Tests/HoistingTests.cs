@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class HoistingTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class HoistingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task FunctionDeclaration_ShouldOverride_Parameter()

@@ -527,10 +527,12 @@ internal static class GeneratorYieldLowerer
                 }
 
                 // Convert consequent to statement
-                StatementNode consequentStmt = new ExpressionStatement(conditionalExpr.Source, conditionalExpr.Consequent);
+                StatementNode consequentStmt =
+                    new ExpressionStatement(conditionalExpr.Source, conditionalExpr.Consequent);
 
                 // Convert alternate to statement
-                StatementNode alternateStmt = new ExpressionStatement(conditionalExpr.Source, conditionalExpr.Alternate);
+                StatementNode alternateStmt =
+                    new ExpressionStatement(conditionalExpr.Source, conditionalExpr.Alternate);
 
                 var ifStatement = new IfStatement(
                     expressionStatement.Source,
@@ -893,11 +895,7 @@ internal static class GeneratorYieldLowerer
                     if (targetChanged || valueChanged)
                     {
                         changed = true;
-                        return destructuringAssignment with
-                        {
-                            Target = rewrittenTarget,
-                            Value = rewrittenValue
-                        };
+                        return destructuringAssignment with { Target = rewrittenTarget, Value = rewrittenValue };
                     }
 
                     return destructuringAssignment;

@@ -1,8 +1,10 @@
-using System.Collections.Immutable;
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -129,6 +131,7 @@ internal static class ForOfEmitter
         {
             bodyBuilt = ctx.TryBuildStatement(bindingStatement, bodyEntry, out iterationEntry, label);
         }
+
         ctx.PopLoopScope();
 
         if (!bodyBuilt)
@@ -144,7 +147,8 @@ internal static class ForOfEmitter
         if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
             !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
         {
-            var slotMap = EmitContext.BuildSlotMap(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
+            var slotMap =
+                EmitContext.BuildSlotMap(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
 
             var createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
                 iterationEntry,
@@ -173,12 +177,12 @@ internal static class ForOfEmitter
         var enterTryIndex =
             ctx.Append(new EnterTryInstruction(
                 loopEnterIndex,
-                HandlerIndex: -1,
-                CatchSlotSymbol: null,
+                -1,
+                null,
                 iteratorCloseIndex,
                 endFinallyIndex,
-                LoopContinueTarget: continueTarget,
-                LoopBreakTarget: loopExitTarget));
+                continueTarget,
+                loopExitTarget));
 
         // Wire IteratorInit to point to EnterTry
         ctx.Patch(iteratorInstructions.InitIndex,

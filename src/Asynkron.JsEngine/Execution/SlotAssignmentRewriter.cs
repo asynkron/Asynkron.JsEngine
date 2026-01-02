@@ -1,10 +1,11 @@
-using System;
+#region
+
 using System.Collections.Immutable;
-using System.IO;
-using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -16,15 +17,15 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class SlotAssignmentRewriter : AstRewriter
 {
     private const int RootScopeId = 0;
-
-    private readonly Dictionary<int, ScopeSlotInfo> _scopes;
+    private readonly Dictionary<BlockStatement, int> _blockScopeIds;
+    private readonly Stack<int> _catchScopeStack = new();
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
     private readonly Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings;
-    private readonly Dictionary<BlockStatement, int> _blockScopeIds;
-    private readonly Stack<int> _scopeStack = new();
-    private readonly Stack<int> _catchScopeStack = new();
-    private readonly Dictionary<int, int> _scopeIdRemap = new();
     private readonly Dictionary<int, int> _reverseScopeIdRemap = new();
+    private readonly Dictionary<int, int> _scopeIdRemap = new();
+
+    private readonly Dictionary<int, ScopeSlotInfo> _scopes;
+    private readonly Stack<int> _scopeStack = new();
     private int _nextSyntheticScopeId;
 
     public SlotAssignmentRewriter(ScopeSlotAnalysis analysis)
@@ -41,6 +42,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 maxScopeId = scopeId;
             }
         }
+
         _nextSyntheticScopeId = maxScopeId + 1;
         _scopeStack.Push(RootScopeId);
     }
@@ -115,7 +117,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     /// Maps a (possibly negative) scope id to the rewritten id used in instructions.
     /// Exposed so we can stamp iterator plan bodies with consistent scope ids.
     /// </summary>
-    public int MapScopeId(int scopeId) => RemapScopeId(scopeId);
+    public int MapScopeId(int scopeId)
+    {
+        return RemapScopeId(scopeId);
+    }
 
     /// <summary>
     /// Stamps an arbitrary AST node with slot metadata using the current slot analysis.
@@ -131,13 +136,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         {
             _scopeStack.Push(scopeId);
         }
+
         var rewritten = node switch
         {
             StatementNode stmt => (T)(AstNode)Rewrite(stmt),
             ExpressionNode expr => (T)(AstNode)Rewrite(expr),
             _ => node
         };
-        RestoreStack(scopeSnapshot, Array.Empty<int>());
+        RestoreStack(scopeSnapshot, []);
         return rewritten;
     }
 
@@ -153,7 +159,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
         var found = TryResolve(symbol, out var resolution) && resolution.slotIndex >= 0;
         slotIndex = found ? resolution.slotIndex : -1;
-        RestoreStack(scopeSnapshot, Array.Empty<int>());
+        RestoreStack(scopeSnapshot, []);
         return found;
     }
 
@@ -172,7 +178,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         }
 
         var result = RewriteInstruction(instruction);
-        RestoreStack(scopeSnapshot, Array.Empty<int>());
+        RestoreStack(scopeSnapshot, []);
         return result;
     }
 
@@ -233,6 +239,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     var catchScopeId = _catchScopeStack.Pop();
                     LeaveScope(catchScopeId);
                 }
+
                 return instruction;
 
             case StatementInstruction stmt:
@@ -310,11 +317,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         if (TryResolve(node.Name, out var resolution))
         {
-            return node with
-            {
-                ScopeId = resolution.scopeId,
-                SlotIndex = resolution.slotIndex
-            };
+            return node with { ScopeId = resolution.scopeId, SlotIndex = resolution.slotIndex };
         }
 
         return node;

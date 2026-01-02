@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests for JavaScript oddities related to null and undefined values.
 /// These tests ensure the engine correctly implements JavaScript's quirky behavior with these values.
 /// </summary>
-public class NullUndefinedOddityTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class NullUndefinedOddityTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task TypeofNull_ReturnsObject()

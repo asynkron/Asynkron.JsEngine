@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class WeakMapTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class WeakMapTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task WeakMap_Constructor_Creates_Empty_WeakMap()

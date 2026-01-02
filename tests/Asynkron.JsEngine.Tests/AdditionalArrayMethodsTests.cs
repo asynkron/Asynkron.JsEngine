@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AdditionalArrayMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class AdditionalArrayMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task Array_Fill_FillsWithValue()

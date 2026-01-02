@@ -1,6 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Emitters;
 using Asynkron.JsEngine.Execution.Instructions;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution;
 
@@ -13,11 +17,16 @@ internal sealed partial class ExecutionPlanBuilder
     private EmitContext? _emitContext;
 
     /// <summary>
+    /// Access to the instruction list for emitters.
+    /// </summary>
+    internal List<ExecutionInstruction> Instructions { get; } = [];
+
+    /// <summary>
     /// Get or create the EmitContext for this builder.
     /// </summary>
     private EmitContext GetEmitContext()
     {
-        return _emitContext ??= new EmitContext(this, _instructions, _loopScopes);
+        return _emitContext ??= new EmitContext(this, Instructions, _loopScopes);
     }
 
     /// <summary>
@@ -27,11 +36,6 @@ internal sealed partial class ExecutionPlanBuilder
     {
         _failureReason ??= reason;
     }
-
-    /// <summary>
-    /// Access to the instruction list for emitters.
-    /// </summary>
-    internal List<ExecutionInstruction> Instructions => _instructions;
 
     /// <summary>
     /// Loop scope structure for break/continue resolution.

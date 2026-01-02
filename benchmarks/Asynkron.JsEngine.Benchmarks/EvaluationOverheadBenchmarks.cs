@@ -46,12 +46,12 @@ public class EvaluationOverheadBenchmarks
             """;
 
         // Pre-tokenize
-        _simpleTokens = new Lexer(_simpleSource).Tokenize();
-        _loopTokens = new Lexer(_loopSource).Tokenize();
+        _simpleTokens = new JsLexer(_simpleSource).Tokenize();
+        _loopTokens = new JsLexer(_loopSource).Tokenize();
 
         // Pre-parse
-        _simpleAst = new TypedAstParser(_simpleTokens, _simpleSource).ParseProgram();
-        _loopAst = new TypedAstParser(_loopTokens, _loopSource).ParseProgram();
+        _simpleAst = new JsAstParser(_simpleTokens, _simpleSource).ParseProgram();
+        _loopAst = new JsAstParser(_loopTokens, _loopSource).ParseProgram();
     }
 
     [GlobalCleanup]
@@ -103,7 +103,7 @@ public class EvaluationOverheadBenchmarks
     [BenchmarkCategory("Parsing")]
     public IReadOnlyList<Token> Simple_LexOnly()
     {
-        return new Lexer(_simpleSource).Tokenize();
+        return new JsLexer(_simpleSource).Tokenize();
     }
 
     /// <summary>
@@ -113,7 +113,7 @@ public class EvaluationOverheadBenchmarks
     [BenchmarkCategory("Parsing")]
     public ProgramNode Simple_ParseOnly()
     {
-        return new TypedAstParser(_simpleTokens, _simpleSource).ParseProgram();
+        return new JsAstParser(_simpleTokens, _simpleSource).ParseProgram();
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public class EvaluationOverheadBenchmarks
     [BenchmarkCategory("Parsing")]
     public IReadOnlyList<Token> Loop_LexOnly()
     {
-        return new Lexer(_loopSource).Tokenize();
+        return new JsLexer(_loopSource).Tokenize();
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public class EvaluationOverheadBenchmarks
     [BenchmarkCategory("Parsing")]
     public ProgramNode Loop_ParseOnly()
     {
-        return new TypedAstParser(_loopTokens, _loopSource).ParseProgram();
+        return new JsAstParser(_loopTokens, _loopSource).ParseProgram();
     }
 
     // ==================== FULL EVALUATION WITH NEW ENGINE ====================

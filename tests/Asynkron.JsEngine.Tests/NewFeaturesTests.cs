@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NewFeaturesTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class NewFeaturesTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Single-quoted strings tests
     [Fact(Timeout = 2000)]

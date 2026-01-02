@@ -1,7 +1,10 @@
+#region
+
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -65,7 +68,7 @@ internal static class LoopEmitter
         // as parent (handled in ScriptRunner/ExecutionPlanRunner). This ensures per-iteration
         // environments are SIBLINGS (same parent), not nested.
         var continueTarget = postIterationEntry;
-        int createEnvIndex = -1;
+        var createEnvIndex = -1;
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
         {
             var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
@@ -92,7 +95,9 @@ internal static class LoopEmitter
             // Use IterationParentScopeId if available, otherwise synthesize from IterationScopeId
             var loopScopeId = plan.IterationParentScopeId >= 0
                 ? plan.IterationParentScopeId
-                : (plan.IterationScopeId >= 0 ? plan.IterationScopeId + 1000 : -1);
+                : plan.IterationScopeId >= 0
+                    ? plan.IterationScopeId + 1000
+                    : -1;
 
             if (plan.Kind == LoopKind.For)
             {
@@ -208,13 +213,15 @@ internal static class LoopEmitter
             // Use IterationParentScopeId if available, otherwise synthesize from IterationScopeId
             var loopScopeId = plan.IterationParentScopeId >= 0
                 ? plan.IterationParentScopeId
-                : (plan.IterationScopeId >= 0 ? plan.IterationScopeId + 1000 : -1);
+                : plan.IterationScopeId >= 0
+                    ? plan.IterationScopeId + 1000
+                    : -1;
 
             // Loop scope PushEnv - NO PerIterationBindings (this is not a per-iteration scope,
             // it's the parent scope where bindings are created by the initializer)
             loopEntry = ctx.Append(new PushEnvironmentInstruction(
                 loopEntry,
-                ImmutableArray<Symbol>.Empty,  // Not per-iteration, so no bindings to copy
+                ImmutableArray<Symbol>.Empty, // Not per-iteration, so no bindings to copy
                 loopScopeId,
                 plan.IterationSlotCount,
                 slotMap,

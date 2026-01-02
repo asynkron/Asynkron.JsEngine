@@ -3,7 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class TestMultipleVarDeclarations(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class TestMultipleVarDeclarations(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task MultipleVarDeclarations_ShouldWork()

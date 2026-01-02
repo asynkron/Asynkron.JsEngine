@@ -7,7 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// queueMicrotask schedules a callback to run as a microtask, after the current
 /// synchronous code completes but before the next macrotask (like setTimeout).
 /// </summary>
-public class QueueMicrotaskTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class QueueMicrotaskTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task QueueMicrotask_ExecutesCallback()

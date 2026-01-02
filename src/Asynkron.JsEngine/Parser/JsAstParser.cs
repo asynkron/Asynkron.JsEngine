@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine.Parser;
 /// <summary>
 ///     Parser that builds the typed AST directly from the token stream.
 /// </summary>
-public sealed class TypedAstParser(
+public sealed class JsAstParser(
     IReadOnlyList<Token> tokens,
     string source,
     bool forceStrict = false,
@@ -41,7 +41,6 @@ public sealed class TypedAstParser(
         IJsEngineOptions options)
     {
         private readonly Stack<FunctionContext> _functionContexts = new();
-        private readonly string _source = source;
         private readonly Stack<bool> _strictContexts = new();
         private readonly IReadOnlyList<Token> _tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
 
@@ -109,7 +108,7 @@ public sealed class TypedAstParser(
 
             if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
-                var asyncToken = Advance();
+                _ = Advance(); /*asyncToken*/
                 var functionToken = Advance();
                 return ParseFunctionDeclaration(true, functionToken);
             }
@@ -188,7 +187,7 @@ public sealed class TypedAstParser(
             {
                 if (!IsAwaitAllowed)
                 {
-                    throw new ParseException("'await using' is only allowed in async contexts.", Peek(), _source);
+                    throw new ParseException("'await using' is only allowed in async contexts.", Peek(), source);
                 }
 
                 Advance(); // await
@@ -240,7 +239,7 @@ public sealed class TypedAstParser(
             var withToken = Previous();
             if (InStrictContext)
             {
-                throw new ParseException("With statements are not allowed in strict mode.", withToken, _source);
+                throw new ParseException("With statements are not allowed in strict mode.", withToken, source);
             }
 
             Consume(TokenType.LeftParen, "Expected '(' after 'with'.");
@@ -350,7 +349,7 @@ public sealed class TypedAstParser(
             var keyword = Previous();
             if (HasLineTerminatorBefore())
             {
-                throw new ParseException("Illegal newline after 'throw'.", Peek(), _source);
+                throw new ParseException("Illegal newline after 'throw'.", Peek(), source);
             }
 
             var expression = ParseExpression();
@@ -391,7 +390,7 @@ public sealed class TypedAstParser(
                         : requiresInitializer
                             ? "Destructuring declarations require an initializer."
                             : "Const declarations require an initializer.";
-                    throw new ParseException(message, Peek(), _source);
+                    throw new ParseException(message, Peek(), source);
                 }
 
                 declarators.Add(new VariableDeclarator(target.Source ?? CreateSourceReference(start), target,
@@ -441,7 +440,7 @@ public sealed class TypedAstParser(
                     if (restTarget is not null)
                     {
                         throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(),
-                            _source);
+                            source);
                     }
 
                     restTarget = ParseBindingTarget("Expected identifier after '...'.");
@@ -478,13 +477,13 @@ public sealed class TypedAstParser(
                     if (restTarget is not null)
                     {
                         throw new ParseException("Only one rest element is allowed in a binding pattern.", Peek(),
-                            _source);
+                            source);
                     }
 
                     restTarget = ParseBindingTarget("Expected identifier after '...'.");
                     if (restTarget is not IdentifierBinding)
                     {
-                        throw new ParseException("Rest property must be an identifier.", Peek(), _source);
+                        throw new ParseException("Rest property must be an identifier.", Peek(), source);
                     }
 
                     break;
@@ -512,7 +511,7 @@ public sealed class TypedAstParser(
                     nameToken = parsedName.Token;
                 }
 
-                var source = CreateSourceReference(nameToken);
+                var source1 = CreateSourceReference(nameToken);
                 BindingTarget target;
 
                 if (Match(TokenType.Colon))
@@ -524,11 +523,11 @@ public sealed class TypedAstParser(
                     if (!canUseShorthand)
                     {
                         throw new ParseException("Property name cannot use shorthand in binding pattern.", nameToken,
-                            _source);
+                            source);
                     }
 
                     var symbol = Symbol.Intern(name);
-                    target = new IdentifierBinding(source, symbol);
+                    target = new IdentifierBinding(source1, symbol);
                 }
 
                 ExpressionNode? defaultValue = null;
@@ -537,7 +536,7 @@ public sealed class TypedAstParser(
                     defaultValue = ParseAssignment(false);
                 }
 
-                properties.Add(new ObjectBindingProperty(source, name, target, defaultValue, nameExpression));
+                properties.Add(new ObjectBindingProperty(source1, name, target, defaultValue, nameExpression));
                 if (!Match(TokenType.Comma))
                 {
                     break;
@@ -594,7 +593,7 @@ public sealed class TypedAstParser(
 
             if (!IsKeyword(Peek()))
             {
-                throw new ParseException("Expected property name.", Peek(), _source);
+                throw new ParseException("Expected property name.", Peek(), source);
             }
 
             var keyword = Advance();
@@ -629,7 +628,7 @@ public sealed class TypedAstParser(
                     if (seenDefault)
                     {
                         throw new ParseException("Switch statement can only contain one default clause.", Peek(),
-                            _source);
+                            source);
                     }
 
                     seenDefault = true;
@@ -640,7 +639,7 @@ public sealed class TypedAstParser(
                     continue;
                 }
 
-                throw new ParseException("Unexpected token in switch body.", Peek(), _source);
+                throw new ParseException("Unexpected token in switch body.", Peek(), source);
             }
 
             Consume(TokenType.RightBrace, "Expected '}' after switch body.");
@@ -695,7 +694,7 @@ public sealed class TypedAstParser(
 
             if (catchClause is null && finallyBlock is null)
             {
-                throw new ParseException("Try statement requires at least a catch or finally clause.", Peek(), _source);
+                throw new ParseException("Try statement requires at least a catch or finally clause.", Peek(), source);
             }
 
             return new TryStatement(CreateSourceReference(keyword), tryBlock, catchClause, finallyBlock);
@@ -901,7 +900,7 @@ public sealed class TypedAstParser(
                     if (computedAccessorName is not null && methodName.IsPrivateName())
                     {
                         throw new ParseException("Private accessors cannot use computed property names.",
-                            methodNameToken, _source);
+                            methodNameToken, source);
                     }
 
                     if (isGetter)
@@ -964,7 +963,7 @@ public sealed class TypedAstParser(
                         if (isPrivateAsyncMethod && computedName is not null)
                         {
                             throw new ParseException("Private methods cannot be computed.", asyncMethodNameToken,
-                                _source);
+                                source);
                         }
 
                         if (Check(TokenType.Equal))
@@ -976,7 +975,7 @@ public sealed class TypedAstParser(
                             if (string.Equals(asyncMethodName, "constructor", StringComparison.Ordinal) && !isStatic)
                             {
                                 throw new ParseException("Constructor cannot be async.", asyncMethodNameToken,
-                                    _source);
+                                    source);
                             }
 
                             var function = ParseClassMethod(null, asyncMethodNameToken, isAsyncGeneratorMethod, true);
@@ -1006,7 +1005,7 @@ public sealed class TypedAstParser(
                     {
                         if (isGeneratorMethod)
                         {
-                            throw new ParseException("Class fields cannot be prefixed with '*'.", closing, _source);
+                            throw new ParseException("Class fields cannot be prefixed with '*'.", closing, source);
                         }
 
                         ExpressionNode? initializer = null;
@@ -1047,7 +1046,7 @@ public sealed class TypedAstParser(
                         if (isGeneratorMethod)
                         {
                             throw new ParseException("Class fields cannot be prefixed with '*'.", methodNameToken,
-                                _source);
+                                source);
                         }
 
                         ExpressionNode? initializer = null;
@@ -1073,12 +1072,12 @@ public sealed class TypedAstParser(
                     {
                         if (constructor is not null)
                         {
-                            throw new ParseException("Class cannot declare multiple constructors.", Peek(), _source);
+                            throw new ParseException("Class cannot declare multiple constructors.", Peek(), source);
                         }
 
                         if (isGeneratorMethod)
                         {
-                            throw new ParseException("Constructor cannot be a generator.", methodNameToken, _source);
+                            throw new ParseException("Constructor cannot be a generator.", methodNameToken, source);
                         }
 
                         constructor = ParseClassMethod(className, methodNameToken, false, false);
@@ -1095,11 +1094,11 @@ public sealed class TypedAstParser(
 
                 if (isGeneratorMethod)
                 {
-                    throw new ParseException("Expected method name after '*'.", Peek(), _source);
+                    throw new ParseException("Expected method name after '*'.", Peek(), source);
                 }
 
                 throw new ParseException("Expected method, field, getter, setter, or static block in class body.",
-                    Peek(), _source);
+                    Peek(), source);
             }
 
             return (constructor, members.ToImmutable(), fields.ToImmutable(), staticBlocks.ToImmutable(),
@@ -1302,7 +1301,7 @@ public sealed class TypedAstParser(
                 }
                 else
                 {
-                    throw new ParseException("Expected identifier or string in import list.", Peek(), _source);
+                    throw new ParseException("Expected identifier or string in import list.", Peek(), source);
                 }
 
                 Symbol local;
@@ -1350,7 +1349,7 @@ public sealed class TypedAstParser(
                     }
                     else
                     {
-                        throw new ParseException("Expected identifier or string after 'as'.", Peek(), _source);
+                        throw new ParseException("Expected identifier or string after 'as'.", Peek(), source);
                     }
 
                     ConsumeContextualKeyword("from", "Expected 'from' after exported namespace.");
@@ -1454,7 +1453,7 @@ public sealed class TypedAstParser(
 
             if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
             {
-                var asyncToken = Advance();
+                _ = Advance(); /*asyncToken*/
                 var functionToken = Advance();
                 var declaration = ParseFunctionDeclaration(true, functionToken);
                 return new ExportDeclarationStatement(CreateSourceReference(keyword), declaration);
@@ -1472,7 +1471,7 @@ public sealed class TypedAstParser(
                 return new ExportDeclarationStatement(CreateSourceReference(keyword), declaration);
             }
 
-            throw new ParseException("Invalid export statement.", Peek(), _source);
+            throw new ParseException("Invalid export statement.", Peek(), source);
         }
 
         private ImmutableArray<ExportSpecifier> ParseExportSpecifiers()
@@ -1503,7 +1502,7 @@ public sealed class TypedAstParser(
                 }
                 else
                 {
-                    throw new ParseException("Expected identifier or string in export list.", Peek(), _source);
+                    throw new ParseException("Expected identifier or string in export list.", Peek(), source);
                 }
 
                 Symbol exported;
@@ -1526,7 +1525,7 @@ public sealed class TypedAstParser(
                     }
                     else
                     {
-                        throw new ParseException("Expected identifier or string after 'as'.", Peek(), _source);
+                        throw new ParseException("Expected identifier or string after 'as'.", Peek(), source);
                     }
                 }
                 else
@@ -1603,7 +1602,7 @@ public sealed class TypedAstParser(
                 if (!IsAwaitAllowed)
                 {
                     throw new ParseException("'for await...of' is only allowed inside async functions.", Previous(),
-                        _source);
+                        source);
                 }
 
                 isAwait = true;
@@ -1628,7 +1627,7 @@ public sealed class TypedAstParser(
                     if (!IsAwaitAllowed)
                     {
                         throw new ParseException("'await using' is only allowed inside async contexts.", Peek(),
-                            _source);
+                            source);
                     }
 
                     Advance(); // await
@@ -1638,7 +1637,7 @@ public sealed class TypedAstParser(
                     try
                     {
                         initializerDeclaration =
-                            (VariableDeclaration)ParseVariableDeclaration(VariableKind.AwaitUsing, false, true);
+                            ParseVariableDeclaration(VariableKind.AwaitUsing, false, true);
                         initializer = initializerDeclaration;
                     }
                     finally
@@ -1653,7 +1652,7 @@ public sealed class TypedAstParser(
                     try
                     {
                         initializerDeclaration =
-                            (VariableDeclaration)ParseVariableDeclaration(VariableKind.Using, false, true);
+                            ParseVariableDeclaration(VariableKind.Using, false, true);
                         initializer = initializerDeclaration;
                     }
                     finally
@@ -1675,7 +1674,7 @@ public sealed class TypedAstParser(
                     _allowInExpressions = false;
                     try
                     {
-                        initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Let,
+                        initializerDeclaration = ParseVariableDeclaration(VariableKind.Let,
                             false, true);
                         initializer = initializerDeclaration;
                     }
@@ -1690,7 +1689,7 @@ public sealed class TypedAstParser(
                     _allowInExpressions = false;
                     try
                     {
-                        initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Const,
+                        initializerDeclaration = ParseVariableDeclaration(VariableKind.Const,
                             false, true);
                         initializer = initializerDeclaration;
                     }
@@ -1705,7 +1704,7 @@ public sealed class TypedAstParser(
                     _allowInExpressions = false;
                     try
                     {
-                        initializerDeclaration = (VariableDeclaration)ParseVariableDeclaration(VariableKind.Var,
+                        initializerDeclaration = ParseVariableDeclaration(VariableKind.Var,
                             false, true);
                         initializer = initializerDeclaration;
                     }
@@ -1770,7 +1769,7 @@ public sealed class TypedAstParser(
             {
                 if (initializer is null)
                 {
-                    throw new ParseException("Missing loop target in for-each statement.", Peek(), _source);
+                    throw new ParseException("Missing loop target in for-each statement.", Peek(), source);
                 }
 
                 var target = ExtractBindingTarget(initializer)
@@ -1873,11 +1872,11 @@ public sealed class TypedAstParser(
                                 sourceReference.StartLine, sourceReference.StartColumn,
                                 sourceReference.StartPosition, sourceReference.EndPosition);
                             throw new ParseException(
-                                "Assignment to eval or arguments is not allowed in strict mode.", token, _source);
+                                "Assignment to eval or arguments is not allowed in strict mode.", token, source);
                         }
 
                         throw new ParseException(
-                            "Assignment to eval or arguments is not allowed in strict mode.", Previous(), _source);
+                            "Assignment to eval or arguments is not allowed in strict mode.", Previous(), source);
                     }
 
                     var assignment = new AssignmentExpression(expr.Source ?? value.Source, identifier.Name, value);
@@ -2090,7 +2089,7 @@ public sealed class TypedAstParser(
                 if (!Match(TokenType.In))
                 {
                     throw new ParseException($"Private identifier '#{privateName}' is not valid here.", Peek(),
-                        _source);
+                        source);
                 }
 
                 var privateExpr = new PrivateIdentifierExpression(
@@ -2282,7 +2281,7 @@ public sealed class TypedAstParser(
                     // assignment expression.
                     if (Check(TokenType.Semicolon) || Check(TokenType.RightBrace) || Check(TokenType.Eof))
                     {
-                        throw new ParseException("yield* requires an expression.", keyword, _source);
+                        throw new ParseException("yield* requires an expression.", keyword, source);
                     }
 
                     value = ParseAssignment();
@@ -2420,7 +2419,7 @@ public sealed class TypedAstParser(
                 if (IsStrictModeReservedWord(token))
                 {
                     throw new ParseException($"Unexpected reserved identifier '{token.Lexeme}' in strict mode.", token,
-                        _source);
+                        source);
                 }
 
                 var symbol = Symbol.Intern(token.Lexeme);
@@ -2449,7 +2448,7 @@ public sealed class TypedAstParser(
                 if (IsStrictModeReservedWord(token))
                 {
                     throw new ParseException("Unexpected use of reserved identifier 'yield' in strict mode.",
-                        token, _source);
+                        token, source);
                 }
 
                 var symbol = Symbol.Intern(token.Lexeme);
@@ -2499,7 +2498,7 @@ public sealed class TypedAstParser(
                     var metaToken = Consume(TokenType.Identifier, "Expected 'meta' after 'import.'.");
                     if (!string.Equals(metaToken.Lexeme, "meta", StringComparison.Ordinal))
                     {
-                        throw new ParseException("Expected 'meta' after 'import.'.", metaToken, _source);
+                        throw new ParseException("Expected 'meta' after 'import.'.", metaToken, source);
                     }
 
                     // import.meta is only valid in module context.
@@ -2508,7 +2507,7 @@ public sealed class TypedAstParser(
                         throw new ParseException(
                             "'import.meta' is only valid in module code.",
                             importToken,
-                            _source);
+                            source);
                     }
 
                     // Create an ImportMetaExpression node for module context
@@ -2564,7 +2563,7 @@ public sealed class TypedAstParser(
                     var targetToken = Consume(TokenType.Identifier, "Expected 'target' after 'new.'.");
                     if (!string.Equals(targetToken.Lexeme, "target", StringComparison.Ordinal))
                     {
-                        throw new ParseException("Expected 'target' after 'new.'.", targetToken, _source);
+                        throw new ParseException("Expected 'target' after 'new.'.", targetToken, source);
                     }
 
                     var newTargetExpr = new NewTargetExpression(CreateSourceReference(newToken));
@@ -2592,7 +2591,7 @@ public sealed class TypedAstParser(
                 return ApplyCallSuffix(unary, allowCallSuffix);
             }
 
-            throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", Peek(), _source);
+            throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", Peek(), source);
         }
 
         private ExpressionNode ParseDecoratedClassExpression()
@@ -2602,7 +2601,7 @@ public sealed class TypedAstParser(
             if (!Match(TokenType.Class))
             {
                 throw new ParseException("Decorators may only be applied to class expressions.",
-                    Previous(), _source);
+                    Previous(), source);
             }
 
             var classToken = Previous();
@@ -2728,7 +2727,7 @@ public sealed class TypedAstParser(
             if (!Check(TokenType.Identifier) && !IsKeyword(Peek()) && !Check(TokenType.PrivateIdentifier) &&
                 !IsContextualIdentifierToken(Peek()))
             {
-                throw new ParseException("Expected property name after '.'.", Peek(), _source);
+                throw new ParseException("Expected property name after '.'.", Peek(), source);
             }
 
             var nameToken = Advance();
@@ -2792,7 +2791,7 @@ public sealed class TypedAstParser(
 
                 if (expectElement && elements.Count > 0 && !Check(TokenType.RightBracket))
                 {
-                    throw new ParseException("Expected array element.", Peek(), _source);
+                    throw new ParseException("Expected array element.", Peek(), source);
                 }
 
                 Consume(TokenType.RightBracket, "Expected ']' after array literal.");
@@ -2910,7 +2909,7 @@ public sealed class TypedAstParser(
                     if (isGeneratorMethod)
                     {
                         throw new ParseException("Generator marker '*' must be followed by a method definition.",
-                            Peek(), _source);
+                            Peek(), source);
                     }
 
                     var previousAllowIn = _allowInExpressions;
@@ -2928,12 +2927,12 @@ public sealed class TypedAstParser(
                 {
                     if (isGeneratorMethod)
                     {
-                        throw new ParseException("Generator shorthand properties are not supported.", Peek(), _source);
+                        throw new ParseException("Generator shorthand properties are not supported.", Peek(), source);
                     }
 
                     if (key is not string shorthandName)
                     {
-                        throw new ParseException("Shorthand properties must use identifiers.", Peek(), _source);
+                        throw new ParseException("Shorthand properties must use identifiers.", Peek(), source);
                     }
 
                     var symbol = Symbol.Intern(shorthandName);
@@ -2985,10 +2984,10 @@ public sealed class TypedAstParser(
                     case TemplateStringPart { Cooked.HasLegacyOctal: true }:
                         throw new ParseException(
                             @"Legacy octal escape sequences are not allowed. Use \x or \u escapes instead.",
-                            templateToken, _source);
+                            templateToken, source);
                     case TemplateStringPart { Cooked.HasLegacyNonOctalEscape: true }:
                         throw new ParseException(@"\8 and \9 escape sequences are not allowed.",
-                            templateToken, _source);
+                            templateToken, source);
                     case TemplateStringPart templateString:
                         builder.Add(new TemplatePart(null, templateString.Cooked.Value, null));
                         break;
@@ -3093,13 +3092,13 @@ public sealed class TypedAstParser(
             var trimmed = expressionText.Trim();
             if (trimmed.Length == 0)
             {
-                throw new ParseException("Empty expression inside template literal.", Peek(), _source);
+                throw new ParseException("Empty expression inside template literal.", Peek(), source);
             }
 
             // Wrap in parentheses to ensure function/class expressions are parsed as expressions,
             // not declarations (e.g., `${function() {}}` should parse the function as an expression)
             var wrappedSource = $"({trimmed});";
-            var lexer = new Lexer(wrappedSource);
+            var lexer = new JsLexer(wrappedSource);
             var tokens = lexer.Tokenize();
 
             // Create a new DirectParser directly to preserve the current function context (generator/async).
@@ -3115,7 +3114,7 @@ public sealed class TypedAstParser(
             var program = embeddedParser.ParseProgram();
             if (program.Body.Length == 0 || program.Body[0] is not ExpressionStatement expressionStatement)
             {
-                throw new ParseException("Template literal expressions must be valid expressions.", Peek(), _source);
+                throw new ParseException("Template literal expressions must be valid expressions.", Peek(), source);
             }
 
             return expressionStatement.Expression;
@@ -3159,7 +3158,7 @@ public sealed class TypedAstParser(
 
         private Token ConsumePropertyIdentifierToken(string message)
         {
-            return IsPropertyNameToken(Peek()) ? Advance() : throw new ParseException(message, Peek(), _source);
+            return IsPropertyNameToken(Peek()) ? Advance() : throw new ParseException(message, Peek(), source);
         }
 
         private ExpressionNode ParseFunctionExpression(Symbol? explicitName = null, bool isAsync = false)
@@ -3194,12 +3193,12 @@ public sealed class TypedAstParser(
             if (willBeStrict)
             {
                 // Check function name
-                if (name is not null && (name == Symbol.Eval || name == Symbol.Arguments))
+                if (name is not null && (ReferenceEquals(name, Symbol.Eval) || ReferenceEquals(name, Symbol.Arguments)))
                 {
                     throw new ParseException(
                         $"Function name '{name}' is not allowed in strict mode.",
                         startToken,
-                        _source);
+                        source);
                 }
 
                 // Check parameters
@@ -3244,7 +3243,7 @@ public sealed class TypedAstParser(
                 {
                     false when Match(TokenType.Equal) => ParseAssignment(false),
                     true when Check(TokenType.Equal) => throw new ParseException(
-                        "Rest parameters cannot have default values.", Peek(), _source),
+                        "Rest parameters cannot have default values.", Peek(), source),
                     _ => null
                 };
 
@@ -3290,7 +3289,7 @@ public sealed class TypedAstParser(
                         throw new ParseException(
                             $"Parameter name '{paramName}' is not allowed in strict mode.",
                             token,
-                            _source);
+                            source);
                     }
 
                     // Check for duplicate parameter names
@@ -3300,7 +3299,7 @@ public sealed class TypedAstParser(
                         throw new ParseException(
                             $"Duplicate parameter name '{paramName}' is not allowed in strict mode.",
                             token,
-                            _source);
+                            source);
                     }
                 }
             }
@@ -3357,12 +3356,12 @@ public sealed class TypedAstParser(
             var parameters = ParseParameterList();
             if (parameters.Length != 1)
             {
-                throw new ParseException("Setter must have exactly one parameter.", Peek(), _source);
+                throw new ParseException("Setter must have exactly one parameter.", Peek(), source);
             }
 
             if (parameters[0].IsRest)
             {
-                throw new ParseException("Setter parameter cannot be a rest parameter.", Peek(), _source);
+                throw new ParseException("Setter parameter cannot be a rest parameter.", Peek(), source);
             }
 
             return parameters;
@@ -3819,7 +3818,7 @@ public sealed class TypedAstParser(
         {
             if (ContainsCoverInitializedName(expression))
             {
-                throw new ParseException("Invalid shorthand property initializer.", Previous(), _source);
+                throw new ParseException("Invalid shorthand property initializer.", Previous(), source);
             }
 
             return expression;
@@ -3922,7 +3921,6 @@ public sealed class TypedAstParser(
 
                     if (Check(TokenType.LeftBracket) || Check(TokenType.LeftBrace))
                     {
-                        var bindingStart = _current;
                         BindingTarget pattern;
                         try
                         {
@@ -3958,7 +3956,6 @@ public sealed class TypedAstParser(
                             return false;
                         }
 
-                        var nameStart = _current;
                         Token nameToken;
                         try
                         {
@@ -4229,7 +4226,7 @@ public sealed class TypedAstParser(
 
             if (type != TokenType.Semicolon || !CanInsertSemicolon())
             {
-                throw new ParseException(message, Peek(), _source);
+                throw new ParseException(message, Peek(), source);
             }
 
             var currentToken = Peek();
@@ -4244,7 +4241,7 @@ public sealed class TypedAstParser(
                 return Advance();
             }
 
-            throw new ParseException(message, Peek(), _source);
+            throw new ParseException(message, Peek(), source);
         }
 
         private bool CheckParameterIdentifier()
@@ -4267,7 +4264,7 @@ public sealed class TypedAstParser(
                     throw new ParseException(
                         $"'{lexeme}' cannot be used as a binding identifier in strict mode.",
                         token,
-                        _source);
+                        source);
                 }
             }
 
@@ -4419,13 +4416,13 @@ public sealed class TypedAstParser(
             {
                 throw new ParseException(
                     "Legacy octal escape sequences are not allowed. Use \\x or \\u escapes instead.", token,
-                    _source);
+                    source);
             }
 
             if (decoded.HasLegacyNonOctalEscape)
             {
                 throw new ParseException("\\8 and \\9 escape sequences are not allowed.", token,
-                    _source);
+                    source);
             }
 
             return decoded.Value ?? string.Empty;
@@ -4478,14 +4475,14 @@ public sealed class TypedAstParser(
             return false;
         }
 
-        private Token ConsumeContextualKeyword(string keyword, string message)
+        private void ConsumeContextualKeyword(string keyword, string message)
         {
             if (!CheckContextualKeyword(keyword))
             {
-                throw new ParseException(message, Peek(), _source);
+                throw new ParseException(message, Peek(), source);
             }
 
-            return Advance();
+            Advance();
         }
 
         private bool CanInsertSemicolon()
@@ -4644,7 +4641,7 @@ public sealed class TypedAstParser(
 
             var endToken = _tokens[Math.Max(0, _current - 1)];
             return new SourceReference(
-                _source,
+                source,
                 startToken.StartPosition,
                 endToken.EndPosition,
                 startToken.Line,
@@ -4668,7 +4665,7 @@ public sealed class TypedAstParser(
             var endToken = _tokens[endIndex];
 
             return new SourceReference(
-                _source,
+                source,
                 startToken.StartPosition,
                 endToken.EndPosition,
                 startToken.Line,

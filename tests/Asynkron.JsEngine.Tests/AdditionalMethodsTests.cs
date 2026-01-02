@@ -2,7 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class AdditionalMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class AdditionalMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // String methods
     [Fact(Timeout = 2000)]

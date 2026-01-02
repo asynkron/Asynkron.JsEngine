@@ -1,7 +1,10 @@
+#region
+
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
+
+#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 
@@ -41,7 +44,8 @@ internal static class StatementEmitter
                     return true;
 
                 case ExpressionStatement { Expression: YieldExpression yieldExpression }:
-                    return YieldEmitter.TryEmitYieldExpressionStatement(ctx, yieldExpression, nextIndex, out entryIndex);
+                    return YieldEmitter.TryEmitYieldExpressionStatement(ctx, yieldExpression, nextIndex,
+                        out entryIndex);
 
                 case ExpressionStatement expressionStatement:
                     return ExpressionStatementEmitter.TryEmitExpressionStatement(
@@ -81,6 +85,7 @@ internal static class StatementEmitter
                     {
                         return true;
                     }
+
                     return DeclarationEmitter.TryEmitReturn(ctx, returnStatement, nextIndex, out entryIndex);
 
                 case BreakStatement breakStatement:

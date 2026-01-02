@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for constant expression folding transformation.
 /// </summary>
-public class ConstantFoldingTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class ConstantFoldingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
     public async Task ConstantFolding_ArithmeticExpression_FoldsToResult()
@@ -71,7 +71,7 @@ public class ConstantFoldingTests(ITestOutputHelper output) : InternalTestBase(o
         await using var engine = CreateEngine();
         var source = "let x = 1 + 2 * 7;";
 
-        var (original, typedConstantFolded, cpsTransformed) = engine.ParseWithTransformationSteps(source);
+        var (original, typedConstantFolded, _) = engine.ParseWithTransformationSteps(source);
 
         // Original typed AST should still represent the arithmetic operations.
         var originalDeclaration = Assert.IsType<VariableDeclaration>(original.Body[0]);

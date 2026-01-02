@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class VoidOperatorTests(ITestOutputHelper output) : InternalTestBase(output)
+public sealed class VoidOperatorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]
     public async Task VoidZero_ShouldReturnUndefined()

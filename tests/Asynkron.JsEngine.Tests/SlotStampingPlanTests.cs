@@ -12,7 +12,7 @@ namespace Asynkron.JsEngine.Tests;
 /// - Nested loops keep distinct scopes and slot indices aligned with their maps
 /// </summary>
 [Trait("Category", "SlotOptimization")]
-public class SlotStampingPlanTests : IAsyncLifetime
+public sealed class SlotStampingPlanTests : IAsyncLifetime
 {
     private JsEngine _engine = null!;
 

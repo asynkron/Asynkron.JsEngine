@@ -420,14 +420,45 @@ public static partial class TypedAstEvaluator
             // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
             if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
             {
-                executionEnvironment.InitializeSlots(_plan.SlotCount, scopeId: 0);
-                var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-                for (var i = 0; i < _plan.SlotSymbols.Length; i++)
+                // Ensure we allocate enough slots to cover:
+                // - Internal plan slots (SlotSymbols.Length)
+                // - Root slot map entries (indices can be sparse)
+                // - Explicit RootSlotCount from analysis (if present)
+                var rootSlotMap = _plan.SafeRootSlotMap;
+                var mapMax = rootSlotMap.Count > 0 ? rootSlotMap.Values.Max() + 1 : 0;
+                var requiredSlots = Math.Max(Math.Max(_plan.RootSlotCount, _plan.SlotSymbols.Length), mapMax);
+                if (requiredSlots == 0)
                 {
-                    // Use direct indices (no offset) since plan slots are allocated first
-                    slotMap[_plan.SlotSymbols[i]] = i;
+                    requiredSlots = _plan.SlotCount;
                 }
-                executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+
+                executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
+
+                if (rootSlotMap.Count > 0)
+                {
+                    executionEnvironment.SetSlotMap(rootSlotMap);
+                }
+                else
+                {
+                    var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                    for (var i = 0; i < _plan.SlotSymbols.Length; i++)
+                    {
+                        // Use direct indices (no offset) since plan slots are allocated first
+                        slotMap[_plan.SlotSymbols[i]] = i;
+                    }
+                    executionEnvironment.SetSlotMap(slotMap.ToImmutable());
+                }
+
+                var scopeLexicals = _plan.SafeScopeLexicalBindings;
+                var rootLexicals = _plan.SafeRootLexicalBindings;
+                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                {
+                    rootLexicals = fromScope0;
+                }
+                if (!rootLexicals.IsEmpty)
+                {
+                    executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
+                }
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
@@ -536,6 +567,7 @@ public static partial class TypedAstEvaluator
                 generatorContext.Clear();
                 throw new ThrowSignal(thrown);
             }
+            SyncParameterSlotsToPlan(executionEnvironment, parameterEnvironment, parameterNames);
 
             _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
                 lexicalNames: lexicalNames,
@@ -555,6 +587,28 @@ public static partial class TypedAstEvaluator
             }
 
             return executionEnvironment;
+        }
+
+        private static void SyncParameterSlotsToPlan(
+            JsEnvironment executionEnvironment,
+            JsEnvironment parameterEnvironment,
+            ImmutableArray<Symbol> parameterNames)
+        {
+            if (parameterNames.IsDefaultOrEmpty || executionEnvironment._slots is null)
+            {
+                return;
+            }
+
+            foreach (var name in parameterNames)
+            {
+                if (!executionEnvironment.TryGetSlotIndex(name, out var slotIndex))
+                {
+                    continue;
+                }
+
+                var value = parameterEnvironment.GetJsValue(name);
+                executionEnvironment.SetSlotDirect(slotIndex, value);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1366,7 +1420,8 @@ public static partial class TypedAstEvaluator
                                     : null;
 
                                 // Evaluate initializer if present
-                                var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
+                                var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context)
+                                    ?? JsValue.Undefined;
 
                                 //TODO: why is this placed here!?
                                 if (TryHandlePendingAwait(context, out var pendingVarResult, environment))
@@ -1548,6 +1603,10 @@ public static partial class TypedAstEvaluator
                                     if (!pushEnvInstruction.SlotMap.IsEmpty)
                                     {
                                         newIterationEnv.SetSlotMap(pushEnvInstruction.SlotMap);
+                                    }
+                                    if (pushEnvInstruction.LexicalBindings is { Count: > 0 })
+                                    {
+                                        newIterationEnv.MarkSlotsLexicalUninitialized(pushEnvInstruction.LexicalBindings);
                                     }
                                 }
 

@@ -33,6 +33,16 @@ internal static class IteratorDriverFactory
             perIterationBindings = [..bindingNames];
         }
 
+        var perIterationSlotCount = statement.PerIterationSlotCount >= 0
+            ? statement.PerIterationSlotCount
+            : (!perIterationBindings.IsDefaultOrEmpty ? perIterationBindings.Length : -1);
+
+        var perIterationSlotIndices = !statement.PerIterationSlotIndices.IsDefaultOrEmpty
+            ? statement.PerIterationSlotIndices
+            : (!perIterationBindings.IsDefaultOrEmpty
+                ? Enumerable.Repeat(-1, perIterationBindings.Length).ToImmutableArray()
+                : ImmutableArray<int>.Empty);
+
         return new IteratorDriverPlan(
             kind,
             statement.Iterable,
@@ -41,8 +51,8 @@ internal static class IteratorDriverFactory
             rewrittenBody,
             statement.PerIterationScopeId,
             statement.PerIterationParentScopeId,
-            statement.PerIterationSlotCount,
-            statement.PerIterationSlotIndices,
+            perIterationSlotCount,
+            perIterationSlotIndices,
             perIterationBindings,
             canReuseIterationEnvironment);
     }

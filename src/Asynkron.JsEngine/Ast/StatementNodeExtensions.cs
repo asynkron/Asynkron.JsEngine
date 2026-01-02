@@ -1,5 +1,7 @@
 #region
 
+using System;
+using System.IO;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 
@@ -192,7 +194,7 @@ public static partial class TypedAstEvaluator
                         statement = labeled.Statement;
                         continue;
                     case TryStatement tryStatement:
-                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, false,
+                        tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                             tryStatement.TryBlock.MergeLexicalNames(lexicalNames),
                             tryStatement.TryBlock.MergeCatchNames(catchParameterNames),
                             tryStatement.TryBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
@@ -200,7 +202,7 @@ public static partial class TypedAstEvaluator
                             true);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            catchClause.Body.HoistVarDeclarationsPass(environment, context, false,
+                            catchClause.Body.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                                 catchClause.Body.MergeLexicalNames(lexicalNames),
                                 catchClause.Body.MergeCatchNames(catchParameterNames),
                                 catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
@@ -210,7 +212,7 @@ public static partial class TypedAstEvaluator
 
                         if (tryStatement.Finally is { } finallyBlock)
                         {
-                            finallyBlock.HoistVarDeclarationsPass(environment, context, false,
+                            finallyBlock.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
                                 finallyBlock.MergeLexicalNames(lexicalNames),
                                 finallyBlock.MergeCatchNames(catchParameterNames),
                                 finallyBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
@@ -243,12 +245,6 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        // Block-scoped function declarations are lexically scoped (no hoisting to function scope)
-                        if (inBlockScope)
-                        {
-                            break;
-                        }
-
                         if (hoistFunctionValues)
                         {
                             // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create
@@ -256,14 +252,51 @@ public static partial class TypedAstEvaluator
                             // the name binding lives in the outer (function/global) scope and is mutable.
                             var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
                                 skipInternalNameBinding: true);
-                            environment.DefineFunctionScoped(
-                                functionDeclaration.Name,
-                                JsValue.FromObjectUnsafe(functionValue),
-                                true,
-                                true,
-                                context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
-                                context,
-                                canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
+                            var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
+                            if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+                            {
+                                File.AppendAllText("/tmp/slotdebug.txt",
+                                    $"HoistFunction enter scope={environment.ScopeId} name={functionDeclaration.Name.Name}{Environment.NewLine}");
+                            }
+                            var slotIndex = -1;
+                            if (environment.TryGetSlotIndex(functionDeclaration.Name, out var directSlotIndex))
+                            {
+                                slotIndex = directSlotIndex;
+                            }
+                            else if (environment._slots is not null)
+                            {
+                                for (var i = 0; i < environment._slotCount; i++)
+                                {
+                                    var slotName = environment._slots[i].Name;
+                                    if (slotName is not null && slotName.Name == functionDeclaration.Name.Name)
+                                    {
+                                        slotIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (slotIndex >= 0)
+                            {
+                                // Slot-backed scope (IR path): populate slot directly for fast lookup
+                                environment.SetSlotDirect(slotIndex, fnValueJs);
+                                if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+                                {
+                                    File.AppendAllText("/tmp/slotdebug.txt",
+                                        $"HoistFunction slot scope={environment.ScopeId} name={functionDeclaration.Name.Name} slot={slotIndex}{Environment.NewLine}");
+                                }
+                            }
+                            else
+                            {
+                                environment.DefineFunctionScoped(
+                                    functionDeclaration.Name,
+                                    fnValueJs,
+                                    true,
+                                    true,
+                                    context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
+                                    context,
+                                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
+                            }
                         }
 
                         break;

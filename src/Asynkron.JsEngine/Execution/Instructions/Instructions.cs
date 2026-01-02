@@ -148,7 +148,8 @@ internal sealed record PushEnvironmentInstruction(
     int ScopeId,
     int SlotCount,
     ImmutableDictionary<Symbol, int> SlotMap,
-    bool AllowPooling = false)
+    bool AllowPooling = false,
+    ImmutableHashSet<Symbol>? LexicalBindings = null)
     : ExecutionInstruction(InstructionKind.PushEnvironment, Next);
 
 /// <summary>

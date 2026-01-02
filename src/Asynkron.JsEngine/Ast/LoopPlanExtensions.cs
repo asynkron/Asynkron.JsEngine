@@ -31,7 +31,7 @@ internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write(JsValue value)
     {
-        Environment.GetSlotRef(SlotIndex) = value;
+        Environment.SetSlotDirect(SlotIndex, value);
     }
 }
 

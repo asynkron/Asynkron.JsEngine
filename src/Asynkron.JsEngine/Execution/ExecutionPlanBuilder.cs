@@ -1,6 +1,12 @@
 #region
 
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -32,6 +38,7 @@ internal sealed partial class ExecutionPlanBuilder
     private readonly List<ExecutionInstruction> _instructions = [];
     private readonly Stack<LoopScope> _loopScopes = new();
     private readonly List<Symbol> _slotSymbols = [];
+    private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
     private int _catchSlotCounter;
     private string? _failureReason;
     private bool _isScriptLevel;
@@ -126,50 +133,317 @@ internal sealed partial class ExecutionPlanBuilder
         // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
         // For functions, slot assignment is fine because scope analysis happens at parse time.
+        ScopeSlotAnalysis? analysis = null;
         if (!_isScriptLevel)
         {
-            AssignSlotsToUserVariables();
+            analysis = AssignSlotsToUserVariables(entryIndex, function);
         }
+
+        var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
+            ? rootInfo.SlotCount
+            : 0;
+        var rootSlotMap = analysis is not null && analysis.ImmutableSlotMaps.TryGetValue(0, out var rootMap)
+            ? rootMap
+            : ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+        var rootLexicalBindings = analysis is not null && analysis.LexicalBindings.TryGetValue(0, out var rootLex)
+            ? rootLex
+            : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
 
         plan = new ExecutionPlan(
             [.._instructions],
             entryIndex,
             _slotSymbols.Count,
-            [.._slotSymbols]);
+            [.._slotSymbols],
+            rootSlotCount,
+            rootSlotMap,
+            rootLexicalBindings,
+            _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
+                EqualityComparer<int>.Default));
         return true;
     }
 
     /// <summary>
     /// Collects all user variable identifiers from instructions, assigns them slots,
-    /// and updates the AST nodes with ScopeId=0 and the assigned slot indices.
+    /// and updates the AST nodes with scope-aware slot metadata.
     /// </summary>
-    private void AssignSlotsToUserVariables()
+    private ScopeSlotAnalysis AssignSlotsToUserVariables(int entryIndex, FunctionExpression function)
     {
-        // Step 1: Collect all unique user variable symbols from instructions using the visitor
-        var collector = new IdentifierCollector();
-        foreach (var instruction in _instructions)
-        {
-            collector.VisitInstruction(instruction);
-        }
+        var parameterNames = new List<Symbol>();
+        function.CollectParameterNamesFromFunction(parameterNames);
+        var hoistedFunctions = CollectHoistedFunctionSymbols(function.Body);
+        var seedSlots = new List<Symbol>(_slotSymbols.Count + hoistedFunctions.Count + parameterNames.Count);
+        var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 
-        // Step 2: Build a map from symbol to (scopeId, slotIndex)
-        var symbolToScope = new Dictionary<Symbol, (int scopeId, int slotIndex)>(
-            collector.Identifiers.Count,
-            ReferenceEqualityComparer<Symbol>.Instance);
-        foreach (var symbol in collector.Identifiers)
+        void AppendIfMissing(IEnumerable<Symbol> symbols)
         {
-            // Allocate a slot for this user variable
-            var slotIndex = AllocateSlot(symbol);
-            symbolToScope[symbol] = (0, slotIndex); // ScopeId=0 for execution plan environment
-        }
-
-        // Step 3: Update all instructions to use the new slot information using the rewriter
-        if (symbolToScope.Count > 0)
-        {
-            var rewriter = new SlotAssignmentRewriter(symbolToScope);
-            for (var i = 0; i < _instructions.Count; i++)
+            foreach (var symbol in symbols)
             {
-                _instructions[i] = rewriter.RewriteInstruction(_instructions[i]);
+                if (seen.Add(symbol))
+                {
+                    seedSlots.Add(symbol);
+                }
+            }
+        }
+
+        AppendIfMissing(_slotSymbols);
+        AppendIfMissing(hoistedFunctions);
+        AppendIfMissing(parameterNames);
+
+        // Keep backing slot list aligned with the ordered seeds so future allocations
+        // get non-conflicting indices.
+        _slotSymbols.Clear();
+        _slotSymbols.AddRange(seedSlots);
+        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+        {
+            File.AppendAllText("/tmp/slotdebug.txt",
+                $"HoistedFunctions count={hoistedFunctions.Count} parameters={parameterNames.Count} seeds=[{string.Join(",", seedSlots.Select((s, i) => $"{i}:{s.Name}"))}]{Environment.NewLine}");
+        }
+
+        var collector = new ScopeSlotCollector(_instructions, seedSlots, AllocateSlot, entryIndex, function);
+        var analysis = collector.Collect();
+        _lexicalBindings = analysis.LexicalBindings;
+        var rewriter = new SlotAssignmentRewriter(analysis);
+        rewriter.RewriteInstructions(_instructions, entryIndex);
+
+        // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
+        StampIteratorBodies(function, rewriter);
+
+        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("=== Slot Assignment Debug ===");
+            foreach (var scope in analysis.Scopes.OrderBy(kv => kv.Key))
+            {
+                var info = scope.Value;
+                sb.AppendLine($"Scope {scope.Key} count={info.SlotCount} hint={info.SlotCountHint}");
+                foreach (var kv in info.Slots.OrderBy(kv => kv.Value))
+                {
+                    sb.AppendLine($"  {kv.Key.Name} -> {kv.Value}");
+                }
+            }
+
+            foreach (var instruction in _instructions)
+            {
+                switch (instruction)
+                {
+                    case Instructions.PushEnvironmentInstruction push:
+                        sb.AppendLine(
+                            $"PushEnv scope={push.ScopeId} slotCount={push.SlotCount} slots=[{string.Join(",", push.SlotMap.Select(kv => $"{kv.Key.Name}:{kv.Value}"))}]");
+                        break;
+                    case Instructions.BranchInstruction branch when branch.Condition is Ast.BinaryExpression { Left: Ast.IdentifierExpression leftId }:
+                        sb.AppendLine($"Branch condition left name={leftId.Name.Name} scope={leftId.ScopeId} slot={leftId.SlotIndex}");
+                        break;
+                }
+            }
+
+            var identifiers = new List<Ast.IdentifierExpression>();
+
+            void CollectIdentifiers(Ast.ExpressionNode expr)
+            {
+                switch (expr)
+                {
+                    case Ast.IdentifierExpression id:
+                        identifiers.Add(id);
+                        break;
+                    case Ast.BinaryExpression bin:
+                        CollectIdentifiers(bin.Left);
+                        CollectIdentifiers(bin.Right);
+                        break;
+                    case Ast.UnaryExpression unary:
+                        CollectIdentifiers(unary.Operand);
+                        break;
+                }
+            }
+
+            foreach (var instruction in _instructions)
+            {
+                switch (instruction)
+                {
+                    case Instructions.BranchInstruction branch:
+                        CollectIdentifiers(branch.Condition);
+                        break;
+                    case Instructions.CompoundAssignmentSlotInstruction compound:
+                        CollectIdentifiers(compound.RhsExpression);
+                        break;
+                    case Instructions.ReturnInstruction { ReturnExpression: { } retExpr }:
+                        CollectIdentifiers(retExpr);
+                        break;
+                    case Instructions.SimpleVariableDeclarationInstruction { Initializer: { } init }:
+                        CollectIdentifiers(init);
+                        break;
+                }
+            }
+
+            sb.AppendLine("Identifiers:");
+            foreach (var id in identifiers)
+            {
+                sb.AppendLine($"  {id.Name.Name} scope={id.ScopeId} slot={id.SlotIndex}");
+            }
+
+            Console.WriteLine(sb.ToString());
+            File.AppendAllText("/tmp/slotdebug.txt", sb.ToString());
+        }
+
+        return analysis;
+    }
+
+    private static void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)
+    {
+        var collector = new ForEachCollector();
+        collector.Visit(function.Body);
+
+        foreach (var forEach in collector.Results)
+        {
+            var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
+            var mappedScopeId = rewriter.MapScopeId(plan.IterationScopeId);
+            var stampedBody = (BlockStatement)rewriter.StampNodeInScope(plan.Body, mappedScopeId);
+            var mappedSlotCount = rewriter.GetSlotCountForScope(mappedScopeId);
+            var perIterationSlotIndices = plan.PerIterationBindings.IsDefaultOrEmpty
+                ? plan.PerIterationSlotIndices
+                : plan.PerIterationBindings
+                    .Select(binding => rewriter.TryResolveSlot(binding, mappedScopeId, out var idx) ? idx : -1)
+                    .ToImmutableArray();
+            if (!ReferenceEquals(stampedBody, plan.Body))
+            {
+                UpdateCachedIteratorPlan(forEach, plan, stampedBody, mappedScopeId, mappedSlotCount,
+                    perIterationSlotIndices);
+            }
+            else if (plan.IterationScopeId != mappedScopeId ||
+                     plan.IterationSlotCount != mappedSlotCount ||
+                     !perIterationSlotIndices.IsDefaultOrEmpty && perIterationSlotIndices != plan.PerIterationSlotIndices)
+            {
+                UpdateCachedIteratorPlan(forEach, plan, plan.Body, mappedScopeId, mappedSlotCount,
+                    perIterationSlotIndices);
+            }
+
+            if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+            {
+                File.AppendAllText("/tmp/slotdebug.txt",
+                    $"StampIteratorBody scope={plan.IterationScopeId} mapped={mappedScopeId} bindings=[{string.Join(",", plan.PerIterationBindings)}] slots={plan.IterationSlotCount}{Environment.NewLine}");
+            }
+        }
+    }
+
+    private static void UpdateCachedIteratorPlan(
+        ForEachStatement forEach,
+        IteratorDriverPlan existingPlan,
+        BlockStatement stampedBody,
+        int mappedScopeId,
+        int mappedSlotCount,
+        ImmutableArray<int> mappedSlotIndices)
+    {
+        var updatedPlan = existingPlan with
+        {
+            Body = stampedBody,
+            IterationScopeId = mappedScopeId,
+            IterationSlotCount = mappedSlotCount >= 0 ? mappedSlotCount : existingPlan.IterationSlotCount,
+            PerIterationSlotIndices = mappedSlotIndices.IsDefaultOrEmpty
+                ? existingPlan.PerIterationSlotIndices
+                : mappedSlotIndices
+        };
+        var cacheField = typeof(ForEachStatement)
+            .GetField("_cachedPlan", BindingFlags.Instance | BindingFlags.NonPublic);
+        cacheField?.SetValue(forEach, updatedPlan);
+    }
+
+    private sealed class ForEachCollector : AstVisitor
+    {
+        public List<ForEachStatement> Results { get; } = new();
+
+        protected override void VisitStatement(StatementNode statement)
+        {
+            if (statement is ForEachStatement forEach)
+            {
+                Results.Add(forEach);
+            }
+
+            base.VisitStatement(statement);
+        }
+    }
+
+    private static List<Symbol> CollectHoistedFunctionSymbols(BlockStatement body)
+    {
+        var result = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+
+        foreach (var statement in body.Statements)
+        {
+            CollectFromStatement(statement, inBlockScope: false, result);
+        }
+
+        return result.ToList();
+
+        static void CollectFromStatement(StatementNode statement, bool inBlockScope, HashSet<Symbol> sink)
+        {
+            while (true)
+            {
+                switch (statement)
+                {
+                    case FunctionDeclaration funcDecl:
+                        sink.Add(funcDecl.Name);
+                        return;
+                    case BlockStatement block:
+                        foreach (var inner in block.Statements)
+                        {
+                            CollectFromStatement(inner, true, sink);
+                        }
+                        return;
+                    case IfStatement ifStatement:
+                        CollectFromStatement(ifStatement.Then, true, sink);
+                        if (ifStatement.Else is { } elseBranch)
+                        {
+                            statement = elseBranch;
+                            inBlockScope = true;
+                            continue;
+                        }
+                        return;
+                    case WhileStatement whileStatement:
+                        statement = whileStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case DoWhileStatement doWhileStatement:
+                        statement = doWhileStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case ForStatement forStatement:
+                        if (forStatement.Initializer is StatementNode initStmt)
+                        {
+                            CollectFromStatement(initStmt, true, sink);
+                        }
+                        statement = forStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case ForEachStatement forEachStatement:
+                        statement = forEachStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    case SwitchStatement switchStatement:
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            CollectFromStatement(switchCase.Body, true, sink);
+                        }
+                        return;
+                    case TryStatement tryStatement:
+                        CollectFromStatement(tryStatement.TryBlock, true, sink);
+                        if (tryStatement.Catch is { Body: { } catchBody })
+                        {
+                            CollectFromStatement(catchBody, true, sink);
+                        }
+                        if (tryStatement.Finally is { } finallyBody)
+                        {
+                            CollectFromStatement(finallyBody, true, sink);
+                        }
+                        return;
+                    case LabeledStatement labeledStatement:
+                        statement = labeledStatement.Statement;
+                        inBlockScope = true;
+                        continue;
+                    case WithStatement withStatement:
+                        statement = withStatement.Body;
+                        inBlockScope = true;
+                        continue;
+                    default:
+                        return;
+                }
             }
         }
     }

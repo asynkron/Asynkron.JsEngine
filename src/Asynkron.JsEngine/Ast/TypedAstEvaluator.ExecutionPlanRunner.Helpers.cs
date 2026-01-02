@@ -87,7 +87,7 @@ public static partial class TypedAstEvaluator
         {
             if (slotIndex >= 0 && environment.HasSlots)
             {
-                environment.GetSlotRef(slotIndex) = value;
+                environment.SetSlotDirect(slotIndex, value);
                 // Also update dictionary for symbol-based lookups elsewhere
                 environment.DefineOrAssignJsValue(symbol, value);
             }

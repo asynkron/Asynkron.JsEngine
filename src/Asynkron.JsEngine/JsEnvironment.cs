@@ -2,6 +2,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.IO;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
@@ -334,6 +335,7 @@ public sealed class JsEnvironment : IRentable
             // Upgrade lexical flags if needed
             if (isLexical) slot.Flags |= SlotFlags.Lexical;
             if (blocksFunctionScopeOverride) slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
+            if (value.IsUninitialized) slot.Flags |= SlotFlags.Uninitialized;
             // Clear uninitialized flag when setting an initialized value (TDZ completion)
             if (!value.IsUninitialized) slot.Flags &= ~SlotFlags.Uninitialized;
 
@@ -1218,6 +1220,12 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
+        if (Environment.GetEnvironmentVariable("DEBUG_SLOT") == "1")
+        {
+            File.AppendAllText("/tmp/slotdebug_read.txt",
+                $"DEBUG_SLOT_READ name={name.Name} scopeHint={scopeId} slotHint={slotIndex} currentEnvScope={ScopeId}{Environment.NewLine}");
+        }
+
         if (scopeId >= 0 && slotIndex >= 0)
         {
             // Fast path: if current environment matches scopeId, use it directly
@@ -1384,6 +1392,9 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryReadSlotValue(Symbol name, int slotIndex, EvaluationContext context, out JsValue value)
     {
+        var shouldLogSlots = context.RealmState.Options.DebugMode;
+        var logger = shouldLogSlots ? context.RealmState.Logger : null;
+
         var slots = _slots;
         if (slots is null || (uint)slotIndex >= (uint)slots.Length)
         {
@@ -1404,6 +1415,18 @@ public sealed class JsEnvironment : IRentable
         }
 
         value = slot.Value;
+
+        if (shouldLogSlots)
+        {
+            logger?.LogInformation(
+                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                GetHashCode(),
+                name.Name,
+                ScopeId,
+                slotIndex,
+                value.Kind);
+        }
+
         return true;
     }
 
@@ -3494,7 +3517,8 @@ public sealed class JsEnvironment : IRentable
         {
             if (index >= 0 && index < count)
             {
-                _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
+                var flags = ScopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
+                _slots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
             }
         }
     }
@@ -3536,11 +3560,37 @@ public sealed class JsEnvironment : IRentable
             {
                 if (index >= 0 && index < _slots.Length && _slots[index].Name is null)
                 {
-                    _slots[index].Name = symbol;
+                    var flags = ScopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
+                    _slots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
                 }
             }
 
             _slotCount = Math.Max(_slotCount, count);
+        }
+    }
+
+    /// <summary>
+    /// Marks the provided symbols as lexical/uninitialized in the current slots (TDZ).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void MarkSlotsLexicalUninitialized(IEnumerable<Symbol> symbols)
+    {
+        if (_slots is null)
+        {
+            return;
+        }
+
+        foreach (var symbol in symbols)
+        {
+            var index = FindSlotIndex(symbol);
+            if (index < 0 || index >= _slotCount)
+            {
+                continue;
+            }
+
+            ref var slot = ref _slots[index];
+            slot.Flags |= SlotFlags.Lexical | SlotFlags.Uninitialized | SlotFlags.BlocksFunctionScopeOverride;
+            // Preserve existing value; TDZ enforced via Uninitialized flag
         }
     }
 
@@ -3809,7 +3859,10 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotDirect(int slotIndex, JsValue value)
     {
-        _slots![slotIndex].Value = value;
+        ref var slot = ref _slots![slotIndex];
+        slot.Value = value;
+        // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
+        slot.Flags &= ~SlotFlags.Uninitialized;
     }
 
     /// <summary>

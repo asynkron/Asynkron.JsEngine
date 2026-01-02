@@ -13,35 +13,34 @@ namespace Asynkron.JsEngine.Ast;
 public abstract class AstRewriter
 {
     // Entry points
-    public virtual StatementNode Rewrite(StatementNode node) => RewriteStatement(node);
-    public virtual ExpressionNode Rewrite(ExpressionNode node) => RewriteExpression(node);
+    public virtual StatementNode Rewrite(StatementNode node)
+    {
+        return RewriteStatement(node);
+    }
+
+    public virtual ExpressionNode Rewrite(ExpressionNode node)
+    {
+        return RewriteExpression(node);
+    }
 
     protected virtual StatementNode RewriteStatement(StatementNode statement)
     {
         return statement switch
         {
-            ExpressionStatement node => node with
-            {
-                Expression = RewriteExpression(node.Expression)
-            },
-            BlockStatement node => node with
-            {
-                Statements = RewriteStatementList(node.Statements)
-            },
+            ExpressionStatement node => node with { Expression = RewriteExpression(node.Expression) },
+            BlockStatement node => node with { Statements = RewriteStatementList(node.Statements) },
             ReturnStatement node => node with
             {
                 Expression = node.Expression is not null ? RewriteExpression(node.Expression) : null
             },
-            ThrowStatement node => node with
-            {
-                Expression = RewriteExpression(node.Expression)
-            },
+            ThrowStatement node => node with { Expression = RewriteExpression(node.Expression) },
             VariableDeclaration node => node with
             {
-                Declarators = RewriteList(node.Declarators, d => d with
-                {
-                    Initializer = d.Initializer is not null ? RewriteExpression(d.Initializer) : null
-                })
+                Declarators = RewriteList(node.Declarators,
+                    d => d with
+                    {
+                        Initializer = d.Initializer is not null ? RewriteExpression(d.Initializer) : null
+                    })
             },
             IfStatement node => node with
             {
@@ -51,13 +50,11 @@ public abstract class AstRewriter
             },
             WhileStatement node => node with
             {
-                Condition = RewriteExpression(node.Condition),
-                Body = RewriteStatement(node.Body)
+                Condition = RewriteExpression(node.Condition), Body = RewriteStatement(node.Body)
             },
             DoWhileStatement node => node with
             {
-                Body = RewriteStatement(node.Body),
-                Condition = RewriteExpression(node.Condition)
+                Body = RewriteStatement(node.Body), Condition = RewriteExpression(node.Condition)
             },
             ForStatement node => node with
             {
@@ -68,8 +65,7 @@ public abstract class AstRewriter
             },
             ForEachStatement node => node with
             {
-                Iterable = RewriteExpression(node.Iterable),
-                Body = RewriteStatement(node.Body)
+                Iterable = RewriteExpression(node.Iterable), Body = RewriteStatement(node.Body)
             },
             TryStatement node => node with
             {
@@ -82,20 +78,17 @@ public abstract class AstRewriter
             SwitchStatement node => node with
             {
                 Discriminant = RewriteExpression(node.Discriminant),
-                Cases = RewriteList(node.Cases, c => c with
-                {
-                    Test = c.Test is not null ? RewriteExpression(c.Test) : null,
-                    Body = (BlockStatement)RewriteStatement(c.Body)
-                })
+                Cases = RewriteList(node.Cases,
+                    c => c with
+                    {
+                        Test = c.Test is not null ? RewriteExpression(c.Test) : null,
+                        Body = (BlockStatement)RewriteStatement(c.Body)
+                    })
             },
-            LabeledStatement node => node with
-            {
-                Statement = RewriteStatement(node.Statement)
-            },
+            LabeledStatement node => node with { Statement = RewriteStatement(node.Statement) },
             WithStatement node => node with
             {
-                Object = RewriteExpression(node.Object),
-                Body = RewriteStatement(node.Body)
+                Object = RewriteExpression(node.Object), Body = RewriteStatement(node.Body)
             },
             BreakStatement node => RewriteBreak(node),
             ContinueStatement node => RewriteContinue(node),
@@ -110,13 +103,9 @@ public abstract class AstRewriter
             IdentifierExpression node => RewriteIdentifier(node),
             BinaryExpression node => node with
             {
-                Left = RewriteExpression(node.Left),
-                Right = RewriteExpression(node.Right)
+                Left = RewriteExpression(node.Left), Right = RewriteExpression(node.Right)
             },
-            UnaryExpression node => node with
-            {
-                Operand = RewriteExpression(node.Operand)
-            },
+            UnaryExpression node => node with { Operand = RewriteExpression(node.Operand) },
             AssignmentExpression node => RewriteAssignment(node),
             PropertyAssignmentExpression node => node with
             {
@@ -130,10 +119,7 @@ public abstract class AstRewriter
                 Index = RewriteExpression(node.Index),
                 Value = RewriteExpression(node.Value)
             },
-            DestructuringAssignmentExpression node => node with
-            {
-                Value = RewriteExpression(node.Value)
-            },
+            DestructuringAssignmentExpression node => node with { Value = RewriteExpression(node.Value) },
             CallExpression node => node with
             {
                 Callee = RewriteExpression(node.Callee),
@@ -154,8 +140,7 @@ public abstract class AstRewriter
             },
             SequenceExpression node => node with
             {
-                Left = RewriteExpression(node.Left),
-                Right = RewriteExpression(node.Right)
+                Left = RewriteExpression(node.Left), Right = RewriteExpression(node.Right)
             },
             ArrayExpression node => node with
             {
@@ -165,20 +150,18 @@ public abstract class AstRewriter
             },
             ObjectExpression node => node with
             {
-                Members = RewriteList(node.Members, m => m with
-                {
-                    Key = m.Key is ExpressionNode keyExpr ? RewriteExpression(keyExpr) : m.Key,
-                    Value = m.Value is not null ? RewriteExpression(m.Value) : null
-                })
+                Members = RewriteList(node.Members,
+                    m => m with
+                    {
+                        Key = m.Key is ExpressionNode keyExpr ? RewriteExpression(keyExpr) : m.Key,
+                        Value = m.Value is not null ? RewriteExpression(m.Value) : null
+                    })
             },
             YieldExpression node => node with
             {
                 Expression = node.Expression is not null ? RewriteExpression(node.Expression) : null
             },
-            AwaitExpression node => node with
-            {
-                Expression = RewriteExpression(node.Expression)
-            },
+            AwaitExpression node => node with { Expression = RewriteExpression(node.Expression) },
             NewExpression node => node with
             {
                 Constructor = RewriteExpression(node.Constructor),
@@ -190,7 +173,10 @@ public abstract class AstRewriter
         };
     }
 
-    protected virtual IdentifierExpression RewriteIdentifier(IdentifierExpression node) => node;
+    protected virtual IdentifierExpression RewriteIdentifier(IdentifierExpression node)
+    {
+        return node;
+    }
 
     protected virtual AssignmentExpression RewriteAssignment(AssignmentExpression node)
     {
@@ -199,14 +185,23 @@ public abstract class AstRewriter
         return node with { Value = RewriteExpression(node.Value) };
     }
 
-    protected virtual BreakStatement RewriteBreak(BreakStatement node) => node;
+    protected virtual BreakStatement RewriteBreak(BreakStatement node)
+    {
+        return node;
+    }
 
-    protected virtual ContinueStatement RewriteContinue(ContinueStatement node) => node;
+    protected virtual ContinueStatement RewriteContinue(ContinueStatement node)
+    {
+        return node;
+    }
 
     // Helper methods
     protected ImmutableArray<StatementNode> RewriteStatementList(ImmutableArray<StatementNode> statements)
     {
-        if (statements.IsDefaultOrEmpty) return statements;
+        if (statements.IsDefaultOrEmpty)
+        {
+            return statements;
+        }
 
         var changed = false;
         var builder = ImmutableArray.CreateBuilder<StatementNode>(statements.Length);
@@ -216,7 +211,9 @@ public abstract class AstRewriter
             var rewritten = RewriteStatement(stmt);
             builder.Add(rewritten);
             if (!ReferenceEquals(stmt, rewritten))
+            {
                 changed = true;
+            }
         }
 
         return changed ? builder.ToImmutable() : statements;
@@ -224,7 +221,10 @@ public abstract class AstRewriter
 
     protected ImmutableArray<T> RewriteList<T>(ImmutableArray<T> list, Func<T, T> rewriter)
     {
-        if (list.IsDefaultOrEmpty) return list;
+        if (list.IsDefaultOrEmpty)
+        {
+            return list;
+        }
 
         var changed = false;
         var builder = ImmutableArray.CreateBuilder<T>(list.Length);
@@ -234,7 +234,9 @@ public abstract class AstRewriter
             var rewritten = rewriter(item);
             builder.Add(rewritten);
             if (!ReferenceEquals(item, rewritten))
+            {
                 changed = true;
+            }
         }
 
         return changed ? builder.ToImmutable() : list;

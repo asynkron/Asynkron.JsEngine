@@ -57,7 +57,8 @@ public static partial class TypedAstEvaluator
         {
             return callable switch
             {
-                SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(arguments, thisValue, callingContext),
+                SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(arguments, thisValue,
+                    callingContext),
                 HostFunction hostFunction => hostFunction.InvokeWithContext(arguments, thisValue, callingContext),
                 _ => callable.Invoke(arguments, thisValue)
             };
@@ -100,7 +101,8 @@ public static partial class TypedAstEvaluator
         {
             return callable switch
             {
-                SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(arguments, thisValue, callingContext),
+                SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(arguments, thisValue,
+                    callingContext),
                 HostFunction hostFunction => hostFunction.InvokeWithContext(arguments, thisValue, callingContext),
                 _ => callable.Invoke(arguments, thisValue)
             };

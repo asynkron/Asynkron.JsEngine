@@ -564,13 +564,13 @@ public static partial class TypedAstEvaluator
                 {
                     // Try slot-based compound assignment (fastest path)
                     if (TryEvaluateCompoundAssignmentSlotBased(
-                        expression,
-                        expression.Value,
-                        targetIdentifier,
-                        environment,
-                        context,
-                        out var compoundJsValue,
-                        out var shouldAssignCompound))
+                            expression,
+                            expression.Value,
+                            targetIdentifier,
+                            environment,
+                            context,
+                            out var compoundJsValue,
+                            out var shouldAssignCompound))
                     {
                         if (context.ShouldStopEvaluation)
                         {
@@ -657,7 +657,7 @@ public static partial class TypedAstEvaluator
                 ref var tdzdCheckSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
                 if (tdzdCheckSlot.IsUninitialized && tdzdCheckSlot.IsLexical)
                 {
-                    throw new ThrowSignal(StdLib.StandardLibrary.CreateReferenceError(
+                    throw new ThrowSignal(StandardLibrary.CreateReferenceError(
                         $"Cannot access '{expression.Target.Name}' before initialization",
                         context, context.RealmState));
                 }
@@ -675,18 +675,21 @@ public static partial class TypedAstEvaluator
                             {
                                 return currentValue; // No assignment needed
                             }
+
                             break;
                         case BinaryOperator.LogicalOr:
                             if (currentValue.IsTruthy)
                             {
                                 return currentValue; // No assignment needed
                             }
+
                             break;
                         case BinaryOperator.NullishCoalescing:
                             if (!currentValue.IsNullish)
                             {
                                 return currentValue; // No assignment needed
                             }
+
                             break;
                     }
 
@@ -712,18 +715,21 @@ public static partial class TypedAstEvaluator
                         BinaryOperator.RightShift => RightShiftValue(currentValue, rhsValue, context),
                         BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(currentValue, rhsValue, context),
                         // For logical operators, the rhs value becomes the new value
-                        BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing => rhsValue,
-                        _ => throw new NotSupportedException($"Compound assignment operator '{binary.Operator}' is not supported.")
+                        BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr
+                            or BinaryOperator.NullishCoalescing => rhsValue,
+                        _ => throw new NotSupportedException(
+                            $"Compound assignment operator '{binary.Operator}' is not supported.")
                     };
 
                     // Check const before assignment - const always throws per ES spec
                     ref var compoundSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
                     if (compoundSlot.IsConst && !compoundSlot.IsUninitialized)
                     {
-                        throw new ThrowSignal(StdLib.StandardLibrary.CreateTypeError(
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
                             $"Assignment to constant variable '{expression.Target.Name}'.",
                             realm: context.RealmState));
                     }
+
                     compoundSlot.Value = compoundResult;
 
                     // For non-lexical bindings (var) in global scope, also update the global object
@@ -738,7 +744,8 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     // Simple assignment
-                    var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                    var rhsValue =
+                        EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return rhsValue;
@@ -748,10 +755,11 @@ public static partial class TypedAstEvaluator
                     ref var simpleSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
                     if (simpleSlot.IsConst && !simpleSlot.IsUninitialized)
                     {
-                        throw new ThrowSignal(StdLib.StandardLibrary.CreateTypeError(
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
                             $"Assignment to constant variable '{expression.Target.Name}'.",
                             realm: context.RealmState));
                     }
+
                     simpleSlot.Value = rhsValue;
 
                     // For non-lexical bindings (var) in global scope, also update the global object
@@ -768,7 +776,8 @@ public static partial class TypedAstEvaluator
             if (context.TryResolveAssignmentSlot(expression, environment, out var cachedSlot))
             {
                 if (expression.IsCompoundAssignment &&
-                    TryEvaluateCompoundAssignmentCachedSlot(expression, expression.Value, cachedSlot, environment, context,
+                    TryEvaluateCompoundAssignmentCachedSlot(expression, expression.Value, cachedSlot, environment,
+                        context,
                         out var cachedCompoundValue,
                         out var cachedShouldAssign))
                 {
@@ -799,7 +808,8 @@ public static partial class TypedAstEvaluator
                     return cachedValue;
                 }
 
-                if (!cachedSlot.Environment.TryWriteSlotValue(cachedSlot.Name, cachedSlot.SlotIndex, cachedValue, context))
+                if (!cachedSlot.Environment.TryWriteSlotValue(cachedSlot.Name, cachedSlot.SlotIndex, cachedValue,
+                        context))
                 {
                     environment.SetIdentifierJsValue(cachedSlot.Name, cachedValue, context);
                 }

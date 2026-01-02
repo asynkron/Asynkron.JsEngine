@@ -43,6 +43,7 @@ public static partial class TypedAstEvaluator
                     iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                         "for-each-head-tdz");
                 }
+
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
@@ -91,128 +92,132 @@ public static partial class TypedAstEvaluator
 
             try
             {
-            if (statement.Kind == ForEachKind.Of)
-            {
-                var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
-                var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                    statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                        or VariableKind.AwaitUsing;
-
-                // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
-                // This avoids allocating iterator result objects {done, value} per iteration.
-                var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJsValue);
-                if (fastEnumerator is not null)
+                if (statement.Kind == ForEachKind.Of)
                 {
-                    try
+                    var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+                    // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
+                    var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                            statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                                or VariableKind.Using
+                                                or VariableKind.AwaitUsing;
+
+                    // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
+                    // This avoids allocating iterator result objects {done, value} per iteration.
+                    var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJsValue);
+                    if (fastEnumerator is not null)
                     {
-                        return plan.ExecuteIteratorDriverJsValue(null,
-                            fastEnumerator,
+                        try
+                        {
+                            return plan.ExecuteIteratorDriverJsValue(null,
+                                fastEnumerator,
+                                loopEnvironment,
+                                environment,
+                                context,
+                                loopLabel,
+                                useIterationSlots);
+                        }
+                        finally
+                        {
+                            fastEnumerator.Dispose();
+                        }
+                    }
+
+                    // SLOW PATH: Full iterator protocol for custom iterables
+                    var iteratorTarget = NormalizeIterableTarget(iterableJsValue, context);
+                    if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
+                    {
+                        return plan.ExecuteIteratorDriverJsValue(iterator,
+                            null,
                             loopEnvironment,
                             environment,
                             context,
                             loopLabel,
                             useIterationSlots);
                     }
-                    finally
+
+                    throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+                }
+
+                var values = statement.Kind switch
+                {
+                    ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
+                    _ => throw new ArgumentOutOfRangeException()
+                };
+
+                var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+                // OPTIMIZATION: Compute bool instead of allocating Func<JsEnvironment> lambda
+                var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                             statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                                 or VariableKind.Using
+                                                 or VariableKind.AwaitUsing;
+
+                foreach (var value in values)
+                {
+                    if (context.ShouldStopEvaluation)
                     {
-                        fastEnumerator.Dispose();
+                        break;
                     }
-                }
 
-                // SLOW PATH: Full iterator protocol for custom iterables
-                var iteratorTarget = NormalizeIterableTarget(iterableJsValue, context);
-                if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
-                {
-                    return plan.ExecuteIteratorDriverJsValue(iterator,
-                        null,
-                        loopEnvironment,
-                        environment,
-                        context,
-                        loopLabel,
-                        useIterationSlots);
-                }
-
-                throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
-            }
-
-            var values = statement.Kind switch
-            {
-                ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
-                _ => throw new ArgumentOutOfRangeException()
-            };
-
-            var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            // OPTIMIZATION: Compute bool instead of allocating Func<JsEnvironment> lambda
-            var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                    or VariableKind.AwaitUsing;
-
-            foreach (var value in values)
-            {
-                if (context.ShouldStopEvaluation)
-                {
-                    break;
-                }
-
-                // OPTIMIZATION: Inline environment creation to avoid lambda allocation
-                JsEnvironment iterationEnvironment;
-                if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                    or VariableKind.Using or VariableKind.AwaitUsing)
-                {
-                    if (useIterationSlotsForIn)
+                    // OPTIMIZATION: Inline environment creation to avoid lambda allocation
+                    JsEnvironment iterationEnvironment;
+                    if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                        or VariableKind.Using or VariableKind.AwaitUsing)
                     {
-                        iterationEnvironment = JsEnvironmentPool.Rent(loopEnvironment, false, false, statement.Source,
-                            "for-each-iteration", logger: logger);
-                        iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
+                        if (useIterationSlotsForIn)
+                        {
+                            iterationEnvironment = JsEnvironmentPool.Rent(loopEnvironment, false, false,
+                                statement.Source,
+                                "for-each-iteration", logger: logger);
+                            iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount,
+                                cachedPlan.IterationScopeId);
+                        }
+                        else
+                        {
+                            iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                                description: "for-each-iteration");
+                        }
                     }
                     else
                     {
-                        iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                            description: "for-each-iteration");
+                        iterationEnvironment = loopEnvironment;
+                    }
+
+                    statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
+                        statement.DeclarationKind);
+
+                    // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                    if (context.ShouldStopEvaluation)
+                    {
+                        break;
+                    }
+
+                    IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
+
+                    // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                    // Only update V (completion value) if result.[[Value]] is not empty
+                    var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
+                    if (!bodyResult.IsUnit)
+                    {
+                        lastValueJs = bodyResult;
+                    }
+
+                    if (context.IsReturn || context.IsThrow)
+                    {
+                        break;
+                    }
+
+                    if (context.TryClearContinue(loopLabel))
+                    {
+                        continue;
+                    }
+
+                    if (context.TryClearBreak(loopLabel))
+                    {
+                        break;
                     }
                 }
-                else
-                {
-                    iterationEnvironment = loopEnvironment;
-                }
 
-                statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
-                    statement.DeclarationKind);
-
-                // Check if yield/await happened during binding (e.g., yield in destructuring default)
-                if (context.ShouldStopEvaluation)
-                {
-                    break;
-                }
-
-                IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
-
-                // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
-                // Only update V (completion value) if result.[[Value]] is not empty
-                var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
-                if (!bodyResult.IsUnit)
-                {
-                    lastValueJs = bodyResult;
-                }
-
-                if (context.IsReturn || context.IsThrow)
-                {
-                    break;
-                }
-
-                if (context.TryClearContinue(loopLabel))
-                {
-                    continue;
-                }
-
-                if (context.TryClearBreak(loopLabel))
-                {
-                    break;
-                }
-            }
-
-            return lastValueJs;
+                return lastValueJs;
             }
             finally
             {
@@ -221,6 +226,7 @@ public static partial class TypedAstEvaluator
                 {
                     JsEnvironmentPool.Return(iterableEnvironment, logger);
                 }
+
                 if (canPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment, logger);
@@ -254,6 +260,7 @@ public static partial class TypedAstEvaluator
                     iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                         "for-each-head-tdz");
                 }
+
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
@@ -275,52 +282,54 @@ public static partial class TypedAstEvaluator
 
             // Use pooled environment for loop scope only if no closures will capture the chain
             var loopEnvironment = canPoolLoopEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop",
+                    logger: logger)
                 : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
 
             try
             {
-            var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-            // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
-            var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                    or VariableKind.AwaitUsing;
+                var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+                // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
+                var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                        statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                            or VariableKind.Using
+                                            or VariableKind.AwaitUsing;
 
-            // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
-            // This avoids iterator result object allocations while maintaining async semantics.
-            var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJs);
-            if (fastEnumerator is not null)
-            {
-                try
+                // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
+                // This avoids iterator result object allocations while maintaining async semantics.
+                var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJs);
+                if (fastEnumerator is not null)
                 {
-                    return plan.ExecuteIteratorDriverJsValue(null,
-                        fastEnumerator,
+                    try
+                    {
+                        return plan.ExecuteIteratorDriverJsValue(null,
+                            fastEnumerator,
+                            loopEnvironment,
+                            environment,
+                            context,
+                            loopLabel,
+                            useIterationSlots);
+                    }
+                    finally
+                    {
+                        fastEnumerator.Dispose();
+                    }
+                }
+
+                // SLOW PATH: Full iterator protocol for custom async/sync iterables
+                var iteratorTarget = NormalizeIterableTarget(iterableJs, context);
+                if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
+                {
+                    return plan.ExecuteIteratorDriverJsValue(iterator,
+                        null,
                         loopEnvironment,
                         environment,
                         context,
                         loopLabel,
                         useIterationSlots);
                 }
-                finally
-                {
-                    fastEnumerator.Dispose();
-                }
-            }
 
-            // SLOW PATH: Full iterator protocol for custom async/sync iterables
-            var iteratorTarget = NormalizeIterableTarget(iterableJs, context);
-            if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
-            {
-                return plan.ExecuteIteratorDriverJsValue(iterator,
-                    null,
-                    loopEnvironment,
-                    environment,
-                    context,
-                    loopLabel,
-                    useIterationSlots);
-            }
-
-            throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+                throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
             }
             finally
             {
@@ -329,6 +338,7 @@ public static partial class TypedAstEvaluator
                 {
                     JsEnvironmentPool.Return(iterableEnvironment, logger);
                 }
+
                 if (canPoolLoopEnvironment)
                 {
                     JsEnvironmentPool.Return(loopEnvironment, logger);

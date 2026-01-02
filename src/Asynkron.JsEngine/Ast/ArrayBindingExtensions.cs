@@ -53,7 +53,7 @@ public static partial class TypedAstEvaluator
         }
         else
         {
-            environment.DefineJsValue(stateKey, JsValue.FromObjectUnsafe(state), false, isLexical: true,
+            environment.DefineJsValue(stateKey, JsValue.FromObjectUnsafe(state), isLexical: true,
                 canDelete: true);
         }
     }

@@ -25,8 +25,8 @@ public sealed record ForEachStatement(
     ImmutableArray<Symbol> PerIterationBindings = default) : StatementNode(Source), IAstCacheable<IteratorDriverPlan>
 {
     private IteratorDriverPlan? _cachedPlan;
-    private bool _canPoolLoopEnvironmentComputed;
     private bool _canPoolLoopEnvironment;
+    private bool _canPoolLoopEnvironmentComputed;
 
     /// <summary>
     /// Returns true if the loop environment can be pooled (no closures in target or iterable).
@@ -42,6 +42,7 @@ public sealed record ForEachStatement(
                                           !TypedAstEvaluator.ContainsInnerFunctionExpression(Iterable);
                 _canPoolLoopEnvironmentComputed = true;
             }
+
             return _canPoolLoopEnvironment;
         }
     }

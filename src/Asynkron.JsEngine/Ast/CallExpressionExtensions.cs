@@ -75,7 +75,8 @@ public static partial class TypedAstEvaluator
                     }
 
                     // Fast path for SyncFunctionInvoker only
-                    if (calleeValue.TryGetObject<SyncFunctionInvoker>(out var typedFunc) && !typedFunc.IsClassConstructor)
+                    if (calleeValue.TryGetObject<SyncFunctionInvoker>(out var typedFunc) &&
+                        !typedFunc.IsClassConstructor)
                     {
                         if (++context.CallDepth > context.MaxCallDepth)
                         {
@@ -392,7 +393,8 @@ public static partial class TypedAstEvaluator
             }
 
             // Class constructors cannot be invoked without 'new' (except via super() call)
-            if (callable is SyncFunctionInvoker { IsClassConstructor: true } && expression.Callee is not SuperExpression)
+            if (callable is SyncFunctionInvoker { IsClassConstructor: true } &&
+                expression.Callee is not SuperExpression)
             {
                 var error = StandardLibrary.CreateTypeError(
                     "Class constructor cannot be invoked without 'new'",
@@ -507,7 +509,8 @@ public static partial class TypedAstEvaluator
             {
                 callResult = callable switch
                 {
-                    SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue, context,
+                    SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue,
+                        context,
                         newTargetForCall),
                     HostFunction hostFunction => hostFunction.InvokeWithContext(frozenArguments, thisValue, context,
                         newTargetForCall),

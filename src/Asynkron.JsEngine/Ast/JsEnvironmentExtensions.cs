@@ -45,6 +45,7 @@ public static partial class TypedAstEvaluator
                     {
                         slot.Name = name;
                     }
+
                     if (!slot.Value.IsUninitialized && slot.Value.Kind != JsValueKind.Undefined)
                     {
                         return;
@@ -52,6 +53,7 @@ public static partial class TypedAstEvaluator
 
                     environment.SetSlotDirect(existingSlot, JsValue.Undefined);
                 }
+
                 return;
             }
 
@@ -74,6 +76,7 @@ public static partial class TypedAstEvaluator
                 {
                     slot.Name = name;
                 }
+
                 if (!slot.Value.IsUninitialized && slot.Value.Kind != JsValueKind.Undefined)
                 {
                     return;

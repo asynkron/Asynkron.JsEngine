@@ -224,38 +224,17 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private sealed class AsyncResumeCallback : IJsCallable
         {
-            private static readonly ObjectPool<AsyncResumeCallback> FulfilledPool = new(32, static () => new AsyncResumeCallback());
-            private static readonly ObjectPool<AsyncResumeCallback> RejectedPool = new(32, static () => new AsyncResumeCallback());
+            private static readonly ObjectPool<AsyncResumeCallback> FulfilledPool =
+                new(32, static () => new AsyncResumeCallback());
+
+            private static readonly ObjectPool<AsyncResumeCallback> RejectedPool = new(32,
+                static () => new AsyncResumeCallback());
 
             private AsyncFunctionInvoker? _executor;
-            private IJsCallable? _resolve;
-            private IJsCallable? _reject;
             private bool _isRejection;
+            private IJsCallable? _reject;
+            private IJsCallable? _resolve;
             private AsyncResumeCallback? _sibling; // The other callback in the pair
-
-            public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
-                AsyncFunctionInvoker executor,
-                IJsCallable resolve,
-                IJsCallable reject)
-            {
-                var fulfilled = FulfilledPool.Rent();
-                fulfilled._executor = executor;
-                fulfilled._resolve = resolve;
-                fulfilled._reject = reject;
-                fulfilled._isRejection = false;
-
-                var rejected = RejectedPool.Rent();
-                rejected._executor = executor;
-                rejected._resolve = resolve;
-                rejected._reject = reject;
-                rejected._isRejection = true;
-
-                // Link siblings so the invoked one can return both
-                fulfilled._sibling = rejected;
-                rejected._sibling = fulfilled;
-
-                return (fulfilled, rejected);
-            }
 
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
@@ -310,6 +289,30 @@ public static partial class TypedAstEvaluator
                 }
 
                 return JsValue.Undefined;
+            }
+
+            public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
+                AsyncFunctionInvoker executor,
+                IJsCallable resolve,
+                IJsCallable reject)
+            {
+                var fulfilled = FulfilledPool.Rent();
+                fulfilled._executor = executor;
+                fulfilled._resolve = resolve;
+                fulfilled._reject = reject;
+                fulfilled._isRejection = false;
+
+                var rejected = RejectedPool.Rent();
+                rejected._executor = executor;
+                rejected._resolve = resolve;
+                rejected._reject = reject;
+                rejected._isRejection = true;
+
+                // Link siblings so the invoked one can return both
+                fulfilled._sibling = rejected;
+                rejected._sibling = fulfilled;
+
+                return (fulfilled, rejected);
             }
         }
     }

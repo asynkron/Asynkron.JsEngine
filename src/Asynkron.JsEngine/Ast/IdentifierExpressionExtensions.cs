@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
@@ -35,7 +36,7 @@ public static partial class TypedAstEvaluator
 #pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
             if (JsEngineConstants.TraceIrExecution && context.RealmState.Logger is not null)
             {
-                Execution.ExecutionPlanPrinter.TraceLookup(
+                ExecutionPlanPrinter.TraceLookup(
                     context.RealmState.Logger,
                     identifier.Name.Name,
                     false,

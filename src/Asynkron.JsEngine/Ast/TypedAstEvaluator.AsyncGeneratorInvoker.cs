@@ -250,38 +250,14 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private sealed class AsyncResumeCallback : IJsCallable
         {
-            [ThreadStatic]
-            private static AsyncResumeCallback? TCachedFulfilled;
+            [ThreadStatic] private static AsyncResumeCallback? TCachedFulfilled;
 
-            [ThreadStatic]
-            private static AsyncResumeCallback? TCachedRejected;
+            [ThreadStatic] private static AsyncResumeCallback? TCachedRejected;
 
             private AsyncGeneratorInvoker? _executor;
-            private IJsCallable? _resolve;
-            private IJsCallable? _reject;
             private bool _isRejection;
-
-            public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
-                AsyncGeneratorInvoker executor,
-                IJsCallable resolve,
-                IJsCallable reject)
-            {
-                var fulfilled = TCachedFulfilled ?? new AsyncResumeCallback();
-                TCachedFulfilled = null;
-                fulfilled._executor = executor;
-                fulfilled._resolve = resolve;
-                fulfilled._reject = reject;
-                fulfilled._isRejection = false;
-
-                var rejected = TCachedRejected ?? new AsyncResumeCallback();
-                TCachedRejected = null;
-                rejected._executor = executor;
-                rejected._resolve = resolve;
-                rejected._reject = reject;
-                rejected._isRejection = true;
-
-                return (fulfilled, rejected);
-            }
+            private IJsCallable? _reject;
+            private IJsCallable? _resolve;
 
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
@@ -309,12 +285,38 @@ public static partial class TypedAstEvaluator
                 {
                     // Return to appropriate pool
                     if (isRejection)
+                    {
                         TCachedRejected = this;
+                    }
                     else
+                    {
                         TCachedFulfilled = this;
+                    }
                 }
 
                 return JsValue.Undefined;
+            }
+
+            public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(
+                AsyncGeneratorInvoker executor,
+                IJsCallable resolve,
+                IJsCallable reject)
+            {
+                var fulfilled = TCachedFulfilled ?? new AsyncResumeCallback();
+                TCachedFulfilled = null;
+                fulfilled._executor = executor;
+                fulfilled._resolve = resolve;
+                fulfilled._reject = reject;
+                fulfilled._isRejection = false;
+
+                var rejected = TCachedRejected ?? new AsyncResumeCallback();
+                TCachedRejected = null;
+                rejected._executor = executor;
+                rejected._resolve = resolve;
+                rejected._reject = reject;
+                rejected._isRejection = true;
+
+                return (fulfilled, rejected);
             }
         }
     }

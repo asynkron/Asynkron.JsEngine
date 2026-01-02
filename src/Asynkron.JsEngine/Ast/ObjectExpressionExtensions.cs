@@ -74,7 +74,7 @@ public static partial class TypedAstEvaluator
                     case ObjectMemberKind.Method:
                     {
                         var callable = member.Function!.CreateFunctionValue(environment, context,
-                            isConstructorFunction: false);
+                            false);
                         if (callable is SyncFunctionInvoker typed)
                         {
                             typed.SetHomeObject(obj);

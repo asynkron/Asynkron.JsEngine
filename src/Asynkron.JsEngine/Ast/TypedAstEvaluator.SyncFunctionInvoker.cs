@@ -21,6 +21,7 @@ public static partial class TypedAstEvaluator
     {
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
+
         private readonly bool _allowIdentifierCache;
         private readonly bool _argumentsObjectNeeded;
         private readonly ImmutableArray<Symbol> _bodyLexicalTemplate;
@@ -33,15 +34,15 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasHoistableDeclarations;
         private readonly bool _hasParameterExpressions;
         private readonly bool _isStrict;
-        private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
-        private readonly HashSet<Symbol> _topLevelLexicalNames;
+        private readonly ImmutableArray<Symbol> _lexicalTemplate;
         private readonly JsValue _lexicalThis;
         private readonly JsEnvironment? _lexicalThisEnvironment;
         private readonly ImmutableArray<Symbol> _parameterNames;
         private readonly HashSet<object> _privateBrands = new(ReferenceEqualityComparer<object>.Instance);
         private readonly JsObject _properties = new();
         private readonly ImmutableArray<Symbol> _simpleCatchParameterTemplate;
+        private readonly HashSet<Symbol> _topLevelLexicalNames;
         private readonly bool _usesArguments;
 
         private readonly bool _wasAsyncFunction;
@@ -576,7 +577,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if ( _canUseFastPathBase)
+            if (_canUseFastPathBase)
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
@@ -613,7 +614,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if ( _canUseFastPathBase)
+            if (_canUseFastPathBase)
             {
                 return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
             }
@@ -695,7 +696,6 @@ public static partial class TypedAstEvaluator
 
                     callingContext.SetThrow(signal.ThrownValue);
                     return signal.ThrownValue;
-
                 }
             }
 
@@ -747,6 +747,7 @@ public static partial class TypedAstEvaluator
                         {
                             lexicalThis = envThis;
                         }
+
                         effectiveThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
                     }
 
@@ -2014,7 +2015,7 @@ public static partial class TypedAstEvaluator
         {
             // Rent context from pool
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
@@ -2109,7 +2110,7 @@ public static partial class TypedAstEvaluator
         private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
@@ -2150,6 +2151,7 @@ public static partial class TypedAstEvaluator
                 {
                     functionEnvironment.DefineParameterFast(_parameterNames[0], arg0);
                 }
+
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
@@ -2241,6 +2243,7 @@ public static partial class TypedAstEvaluator
                 {
                     reuseEnvironment.DefineParameterFast(_parameterNames[0], arg0);
                 }
+
                 // Bind remaining parameters to undefined (when function has more params than args)
                 for (var i = 1; i < _parameterNames.Length; i++)
                 {
@@ -2292,7 +2295,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: true);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
@@ -2409,7 +2412,7 @@ public static partial class TypedAstEvaluator
         {
             // Rent context from pool - avoids allocation per call
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, pushScope: false);
+            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, false);
             context.AllowIdentifierCache = _allowIdentifierCache;
 
             if (callingContext is not null)

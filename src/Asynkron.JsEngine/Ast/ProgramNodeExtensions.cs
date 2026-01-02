@@ -493,7 +493,7 @@ public static partial class TypedAstEvaluator
 
                         if (requiredSlots > 0)
                         {
-                            executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
+                            executionEnvironment.InitializeSlots(requiredSlots, 0);
                             if (rootSlotMap.Count > 0)
                             {
                                 executionEnvironment.SetSlotMap(rootSlotMap);
@@ -506,6 +506,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     slotMap[scriptPlan.SlotSymbols[i]] = i;
                                 }
+
                                 executionEnvironment.SetSlotMap(slotMap.ToImmutable());
                             }
 
@@ -515,6 +516,7 @@ public static partial class TypedAstEvaluator
                             {
                                 rootLexicals = fromScope0;
                             }
+
                             if (!rootLexicals.IsEmpty)
                             {
                                 executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
@@ -579,16 +581,11 @@ public static partial class TypedAstEvaluator
                     // break/continue signals, try/catch, etc. consistently.
                     // Script-level var declarations are marked with IsScriptLevel=true in the IR
                     // so they correctly update the global object.
-                    var irResult = TypedAstEvaluator.ExecutionPlanRunner.RunScript(
+                    var irResult = ExecutionPlanRunner.RunScript(
                         scriptPlan,
                         executionEnvironment,
                         context);
                     return irResult;
-                }
-                catch (ThrowSignal)
-                {
-                    // Re-throw JavaScript exceptions
-                    throw;
                 }
                 catch (NotSupportedException ex)
                 {

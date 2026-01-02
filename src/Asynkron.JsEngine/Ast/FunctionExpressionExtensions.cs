@@ -204,11 +204,15 @@ public static partial class TypedAstEvaluator
                         case IdentifierExpression ident:
                             return ReferenceEquals(ident.Name, parameterName);
                         case AssignmentExpression assign:
-                            return ReferenceEquals(assign.Target, parameterName) || DefaultReferencesParameter(assign.Value, parameterName);
+                            return ReferenceEquals(assign.Target, parameterName) ||
+                                   DefaultReferencesParameter(assign.Value, parameterName);
                         case BinaryExpression binary:
-                            return DefaultReferencesParameter(binary.Left, parameterName) || DefaultReferencesParameter(binary.Right, parameterName);
+                            return DefaultReferencesParameter(binary.Left, parameterName) ||
+                                   DefaultReferencesParameter(binary.Right, parameterName);
                         case ConditionalExpression cond:
-                            return DefaultReferencesParameter(cond.Test, parameterName) || DefaultReferencesParameter(cond.Consequent, parameterName) || DefaultReferencesParameter(cond.Alternate, parameterName);
+                            return DefaultReferencesParameter(cond.Test, parameterName) ||
+                                   DefaultReferencesParameter(cond.Consequent, parameterName) ||
+                                   DefaultReferencesParameter(cond.Alternate, parameterName);
                         case CallExpression call:
                             if (DefaultReferencesParameter(call.Callee, parameterName))
                             {
@@ -226,16 +230,19 @@ public static partial class TypedAstEvaluator
                             return false;
 
                         case MemberExpression member:
-                            return DefaultReferencesParameter(member.Target, parameterName) || DefaultReferencesParameter(member.Property, parameterName);
+                            return DefaultReferencesParameter(member.Target, parameterName) ||
+                                   DefaultReferencesParameter(member.Property, parameterName);
                         case UnaryExpression unary:
                             expression = unary.Operand;
                             continue;
                         case SequenceExpression seq:
-                            return DefaultReferencesParameter(seq.Left, parameterName) || DefaultReferencesParameter(seq.Right, parameterName);
+                            return DefaultReferencesParameter(seq.Left, parameterName) ||
+                                   DefaultReferencesParameter(seq.Right, parameterName);
                         case ArrayExpression arr:
                             foreach (var element in arr.Elements)
                             {
-                                if (element.Expression is not null && DefaultReferencesParameter(element.Expression, parameterName))
+                                if (element.Expression is not null &&
+                                    DefaultReferencesParameter(element.Expression, parameterName))
                                 {
                                     return true;
                                 }
@@ -250,7 +257,8 @@ public static partial class TypedAstEvaluator
                                     return true;
                                 }
 
-                                if (member.Function is not null && DefaultReferencesParameter(member.Function, parameterName))
+                                if (member.Function is not null &&
+                                    DefaultReferencesParameter(member.Function, parameterName))
                                 {
                                     return true;
                                 }
@@ -260,7 +268,8 @@ public static partial class TypedAstEvaluator
                         case TemplateLiteralExpression template:
                             foreach (var part in template.Parts)
                             {
-                                if (part.Expression is not null && DefaultReferencesParameter(part.Expression, parameterName))
+                                if (part.Expression is not null &&
+                                    DefaultReferencesParameter(part.Expression, parameterName))
                                 {
                                     return true;
                                 }
@@ -268,7 +277,9 @@ public static partial class TypedAstEvaluator
 
                             return false;
                         case TaggedTemplateExpression tagged:
-                            if (DefaultReferencesParameter(tagged.Tag, parameterName) || DefaultReferencesParameter(tagged.StringsArray, parameterName) || DefaultReferencesParameter(tagged.RawStringsArray, parameterName))
+                            if (DefaultReferencesParameter(tagged.Tag, parameterName) ||
+                                DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
+                                DefaultReferencesParameter(tagged.RawStringsArray, parameterName))
                             {
                                 return true;
                             }
@@ -405,6 +416,7 @@ public static partial class TypedAstEvaluator
                     functionNameEnvironment.ScopeId = functionExpression.FunctionNameScopeId;
                     functionNameEnvironment.InitializeSlots(1); // Only one slot for the function name
                 }
+
                 // Without scope analysis, the function name will be looked up via dictionary
                 closureEnvironment = functionNameEnvironment;
                 hasFunctionNameEnvironment = true;
@@ -432,7 +444,7 @@ public static partial class TypedAstEvaluator
             switch (callable)
             {
                 case SyncFunctionInvoker typed when context.CurrentPrivateNameScope is not null &&
-                                              typed.PrivateNameScope is null:
+                                                    typed.PrivateNameScope is null:
                     typed.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
@@ -440,15 +452,16 @@ public static partial class TypedAstEvaluator
                     typed.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
                 case SyncGeneratorInvoker generatorFactory when context.CurrentPrivateNameScope is not null &&
-                                                                 generatorFactory.PrivateNameScope is null:
+                                                                generatorFactory.PrivateNameScope is null:
                     generatorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
                 case SyncGeneratorInvoker generatorFactory:
                     generatorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
-                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory when context.CurrentPrivateNameScope is not null &&
-                                                                      asyncGeneratorFactory.PrivateNameScope is null:
+                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory
+                    when context.CurrentPrivateNameScope is not null &&
+                         asyncGeneratorFactory.PrivateNameScope is null:
                     asyncGeneratorFactory.SetPrivateNameScope(context.CurrentPrivateNameScope);
                     asyncGeneratorFactory.SetCapturedPrivateNameScopes(capturedPrivateScopes);
                     break;
@@ -475,6 +488,7 @@ public static partial class TypedAstEvaluator
                 {
                     functionNameEnvironment._slots[0].Value = JsValue.FromObjectUnsafe(callable);
                 }
+
                 // Register as immutable binding in dictionary for eval compatibility and fallback lookup
                 // Per ES spec 9.2.10, function name binding is immutable:
                 // - strict mode: assignment throws TypeError

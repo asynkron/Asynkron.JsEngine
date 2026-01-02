@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -18,10 +19,11 @@ public static partial class TypedAstEvaluator
         /// Rents an iteration environment from the pool with slots initialized.
         /// Avoids Func&lt;JsEnvironment&gt; lambda allocation.
         /// </summary>
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsEnvironment RentIterationEnvironment(JsEnvironment loopEnvironment, ILogger? logger = null)
         {
-            var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration", logger: logger);
+            var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration",
+                logger: logger);
             env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
             return env;
         }
@@ -65,8 +67,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment? reusableIterationEnvironment = null;
             var cachedLetConstVariable = default(JsVariable);
             var canReuseLetConstEnv = canUseSlotFastPath &&
-                                       plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-                                       plan.CanReuseIterationEnvironment;
+                                      plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+                                      plan.CanReuseIterationEnvironment;
             var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
             var logger = context.RealmState.Logger;
             if (canReuseLetConstEnv)
@@ -74,7 +76,8 @@ public static partial class TypedAstEvaluator
                 // Create ONE iteration environment before the loop and cache JsVariable
                 reusableIterationEnvironment = useIterationSlots
                     ? plan.RentIterationEnvironment(loopEnvironment, logger)
-                    : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration-reused");
+                    : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source,
+                        description: "for-each-iteration-reused");
                 cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
             }
 
@@ -85,7 +88,8 @@ public static partial class TypedAstEvaluator
                 enumerator is not null &&
                 loopLabel is null &&
                 (cachedLetConstVariable.IsValid || cachedVarVariable.IsValid) &&
-                plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment, reusableIterationEnvironment ?? loopEnvironment,
+                plan.TryExecuteFastForOfAccumulator(enumerator, loopEnvironment,
+                    reusableIterationEnvironment ?? loopEnvironment,
                     fastPathSlotIndex, out lastValueJs))
             {
                 // Return pooled resources before early return
@@ -93,6 +97,7 @@ public static partial class TypedAstEvaluator
                 {
                     JsEnvironmentPool.Return(reusableIterationEnvironment);
                 }
+
                 IteratorDriverStatePool.Return(state);
                 return lastValueJs;
             }
@@ -138,7 +143,9 @@ public static partial class TypedAstEvaluator
                                                        or VariableKind.Using or VariableKind.AwaitUsing
                                                        ? useIterationSlots
                                                            ? plan.RentIterationEnvironment(loopEnvironment, logger)
-                                                           : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                                                           : new JsEnvironment(loopEnvironment,
+                                                               creatingSource: plan.Body.Source,
+                                                               description: "for-each-iteration")
                                                        : loopEnvironment);
 
                         // OPTIMIZATION: For simple identifier bindings, write directly to slot
@@ -158,12 +165,14 @@ public static partial class TypedAstEvaluator
                         {
                             // First iteration for let/const with reusable environment:
                             // Must call AssignLoopBinding to set up the const flag in the binding
-                            plan.Target.AssignLoopBinding(enumeratorValue, reusableIterationEnvironment!, outerEnvironment, context,
+                            plan.Target.AssignLoopBinding(enumeratorValue, reusableIterationEnvironment!,
+                                outerEnvironment, context,
                                 plan.DeclarationKind);
                             if (context.IsThrow)
                             {
                                 throw new ThrowSignal(context.FlowValue);
                             }
+
                             IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
                             letConstFirstIterationDone = true;
                         }
@@ -174,7 +183,8 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment, context,
+                            plan.Target.AssignLoopBinding(enumeratorValue, iterationEnvironment, outerEnvironment,
+                                context,
                                 plan.DeclarationKind);
                             if (context.IsThrow)
                             {
@@ -266,7 +276,9 @@ public static partial class TypedAstEvaluator
                                                        or VariableKind.Using or VariableKind.AwaitUsing
                                                        ? useIterationSlots
                                                            ? plan.RentIterationEnvironment(loopEnvironment, logger)
-                                                           : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                                                           : new JsEnvironment(loopEnvironment,
+                                                               creatingSource: plan.Body.Source,
+                                                               description: "for-each-iteration")
                                                        : loopEnvironment);
 
                         try
@@ -287,12 +299,14 @@ public static partial class TypedAstEvaluator
                             {
                                 // First iteration for let/const with reusable environment:
                                 // Must call AssignLoopBinding to set up the const flag in the binding
-                                plan.Target.AssignLoopBinding(value, reusableIterationEnvironment!, outerEnvironment, context,
+                                plan.Target.AssignLoopBinding(value, reusableIterationEnvironment!, outerEnvironment,
+                                    context,
                                     plan.DeclarationKind);
                                 if (context.IsThrow)
                                 {
                                     throw new ThrowSignal(context.FlowValue);
                                 }
+
                                 IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
                                 letConstFirstIterationDone = true;
                             }
@@ -321,7 +335,8 @@ public static partial class TypedAstEvaluator
 
                             // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
                             // Only update V (completion value) if result.[[Value]] is not empty
-                            var bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+                            var bodyResult =
+                                plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
                             if (!bodyResult.IsUnit)
                             {
                                 lastValueJs = bodyResult;
@@ -364,7 +379,9 @@ public static partial class TypedAstEvaluator
                                                        or VariableKind.Using or VariableKind.AwaitUsing
                                                        ? useIterationSlots
                                                            ? plan.RentIterationEnvironment(loopEnvironment, logger)
-                                                           : new JsEnvironment(loopEnvironment, creatingSource: plan.Body.Source, description: "for-each-iteration")
+                                                           : new JsEnvironment(loopEnvironment,
+                                                               creatingSource: plan.Body.Source,
+                                                               description: "for-each-iteration")
                                                        : loopEnvironment);
 
                         // OPTIMIZATION: For simple identifier bindings, write directly to slot
@@ -387,12 +404,14 @@ public static partial class TypedAstEvaluator
                                 {
                                     // First iteration for let/const with reusable environment:
                                     // Must call AssignLoopBinding to set up the const flag in the binding
-                                    plan.Target.AssignLoopBinding(nextJsValue, reusableIterationEnvironment!, outerEnvironment, context,
+                                    plan.Target.AssignLoopBinding(nextJsValue, reusableIterationEnvironment!,
+                                        outerEnvironment, context,
                                         plan.DeclarationKind);
                                     if (context.IsThrow)
                                     {
                                         throw new ThrowSignal(context.FlowValue);
                                     }
+
                                     IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
                                     letConstFirstIterationDone = true;
                                     break;
@@ -476,6 +495,7 @@ public static partial class TypedAstEvaluator
                 {
                     JsEnvironmentPool.Return(reusableIterationEnvironment);
                 }
+
                 IteratorDriverStatePool.Return(state);
             }
         }

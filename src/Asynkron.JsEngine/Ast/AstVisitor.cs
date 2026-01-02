@@ -1,7 +1,5 @@
 #region
 
-using System.Collections.Immutable;
-
 #endregion
 
 namespace Asynkron.JsEngine.Ast;
@@ -13,8 +11,15 @@ namespace Asynkron.JsEngine.Ast;
 public abstract class AstVisitor
 {
     // Entry points
-    public virtual void Visit(StatementNode node) => VisitStatement(node);
-    public virtual void Visit(ExpressionNode node) => VisitExpression(node);
+    public virtual void Visit(StatementNode node)
+    {
+        VisitStatement(node);
+    }
+
+    public virtual void Visit(ExpressionNode node)
+    {
+        VisitExpression(node);
+    }
 
     protected virtual void VisitStatement(StatementNode statement)
     {
@@ -34,7 +39,11 @@ public abstract class AstVisitor
                 }
                 case ReturnStatement node:
                 {
-                    if (node.Expression is not null) VisitExpression(node.Expression);
+                    if (node.Expression is not null)
+                    {
+                        VisitExpression(node.Expression);
+                    }
+
                     break;
                 }
                 case ThrowStatement node:
@@ -47,7 +56,10 @@ public abstract class AstVisitor
                     foreach (var declarator in node.Declarators)
                     {
                         VisitBindingTarget(declarator.Target);
-                        if (declarator.Initializer is not null) VisitExpression(declarator.Initializer);
+                        if (declarator.Initializer is not null)
+                        {
+                            VisitExpression(declarator.Initializer);
+                        }
                     }
 
                     break;
@@ -78,9 +90,21 @@ public abstract class AstVisitor
                 }
                 case ForStatement node:
                 {
-                    if (node.Initializer is not null) VisitStatement(node.Initializer);
-                    if (node.Condition is not null) VisitExpression(node.Condition);
-                    if (node.Increment is not null) VisitExpression(node.Increment);
+                    if (node.Initializer is not null)
+                    {
+                        VisitStatement(node.Initializer);
+                    }
+
+                    if (node.Condition is not null)
+                    {
+                        VisitExpression(node.Condition);
+                    }
+
+                    if (node.Increment is not null)
+                    {
+                        VisitExpression(node.Increment);
+                    }
+
                     statement = node.Body;
                     continue;
                 }
@@ -96,11 +120,19 @@ public abstract class AstVisitor
                     VisitBlockStatement(node.TryBlock);
                     if (node.Catch is not null)
                     {
-                        if (node.Catch.Binding is not null) VisitBindingTarget(node.Catch.Binding);
+                        if (node.Catch.Binding is not null)
+                        {
+                            VisitBindingTarget(node.Catch.Binding);
+                        }
+
                         VisitBlockStatement(node.Catch.Body);
                     }
 
-                    if (node.Finally is not null) VisitBlockStatement(node.Finally);
+                    if (node.Finally is not null)
+                    {
+                        VisitBlockStatement(node.Finally);
+                    }
+
                     break;
                 }
                 case SwitchStatement node:
@@ -108,7 +140,11 @@ public abstract class AstVisitor
                     VisitExpression(node.Discriminant);
                     foreach (var caseNode in node.Cases)
                     {
-                        if (caseNode.Test is not null) VisitExpression(caseNode.Test);
+                        if (caseNode.Test is not null)
+                        {
+                            VisitExpression(caseNode.Test);
+                        }
+
                         VisitBlockStatement(caseNode.Body);
                     }
 
@@ -172,13 +208,11 @@ public abstract class AstVisitor
                     VisitExpression(node.Left);
                     expression = node.Right;
                     continue;
-
                 }
                 case UnaryExpression node:
                 {
                     expression = node.Operand;
                     continue;
-
                 }
                 case AssignmentExpression node:
                 {
@@ -191,7 +225,6 @@ public abstract class AstVisitor
                     VisitExpression(node.Property);
                     expression = node.Value;
                     continue;
-
                 }
                 case IndexAssignmentExpression node:
                 {
@@ -199,21 +232,22 @@ public abstract class AstVisitor
                     VisitExpression(node.Index);
                     expression = node.Value;
                     continue;
-
                 }
                 case DestructuringAssignmentExpression node:
                 {
                     VisitBindingTarget(node.Target);
                     expression = node.Value;
                     continue;
-
                 }
                 case CallExpression node:
                 {
                     VisitExpression(node.Callee);
                     foreach (var arg in node.Arguments)
                     {
-                        if (arg.Expression is not null) VisitExpression(arg.Expression);
+                        if (arg.Expression is not null)
+                        {
+                            VisitExpression(arg.Expression);
+                        }
                     }
 
                     break;
@@ -235,20 +269,21 @@ public abstract class AstVisitor
                     VisitExpression(node.Consequent);
                     expression = node.Alternate;
                     continue;
-
                 }
                 case SequenceExpression node:
                 {
                     VisitExpression(node.Left);
                     expression = node.Right;
                     continue;
-
                 }
                 case ArrayExpression node:
                 {
                     foreach (var element in node.Elements)
                     {
-                        if (element.Expression is not null) VisitExpression(element.Expression);
+                        if (element.Expression is not null)
+                        {
+                            VisitExpression(element.Expression);
+                        }
                     }
 
                     break;
@@ -257,8 +292,15 @@ public abstract class AstVisitor
                 {
                     foreach (var member in node.Members)
                     {
-                        if (member.Key is ExpressionNode keyExpr) VisitExpression(keyExpr);
-                        if (member.Value is not null) VisitExpression(member.Value);
+                        if (member.Key is ExpressionNode keyExpr)
+                        {
+                            VisitExpression(keyExpr);
+                        }
+
+                        if (member.Value is not null)
+                        {
+                            VisitExpression(member.Value);
+                        }
                     }
 
                     break;
@@ -277,14 +319,16 @@ public abstract class AstVisitor
                 {
                     expression = node.Expression;
                     continue;
-
                 }
                 case NewExpression node:
                 {
                     VisitExpression(node.Constructor);
                     foreach (var arg in node.Arguments)
                     {
-                        if (arg.Expression is not null) VisitExpression(arg.Expression);
+                        if (arg.Expression is not null)
+                        {
+                            VisitExpression(arg.Expression);
+                        }
                     }
 
                     break;
@@ -343,8 +387,15 @@ public abstract class AstVisitor
                 {
                     foreach (var element in arrayBinding.Elements)
                     {
-                        if (element.Target is not null) VisitBindingTarget(element.Target);
-                        if (element.DefaultValue is not null) VisitExpression(element.DefaultValue);
+                        if (element.Target is not null)
+                        {
+                            VisitBindingTarget(element.Target);
+                        }
+
+                        if (element.DefaultValue is not null)
+                        {
+                            VisitExpression(element.DefaultValue);
+                        }
                     }
 
                     if (arrayBinding.RestElement is not null)
@@ -359,9 +410,16 @@ public abstract class AstVisitor
                 {
                     foreach (var prop in objectBinding.Properties)
                     {
-                        if (prop.NameExpression is not null) VisitExpression(prop.NameExpression);
+                        if (prop.NameExpression is not null)
+                        {
+                            VisitExpression(prop.NameExpression);
+                        }
+
                         VisitBindingTarget(prop.Target);
-                        if (prop.DefaultValue is not null) VisitExpression(prop.DefaultValue);
+                        if (prop.DefaultValue is not null)
+                        {
+                            VisitExpression(prop.DefaultValue);
+                        }
                     }
 
                     if (objectBinding.RestElement is not null)

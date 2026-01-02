@@ -114,7 +114,7 @@ public static partial class TypedAstEvaluator
                 restObject.SetPrototype(context.RealmState.ObjectPrototype);
             }
 
-            foreach (var key in obj.GetOwnPropertyKeysInOrder(true, true))
+            foreach (var key in obj.GetOwnPropertyKeysInOrder())
             {
                 if (usedKeys.Contains(key))
                 {

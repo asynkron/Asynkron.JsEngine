@@ -2,7 +2,6 @@
 
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -71,36 +70,28 @@ public static partial class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly bool _hasFunctionNameEnvironment;
         private readonly IJsObjectLike? _homeObject;
+        private readonly bool _isAsync;
+        private readonly bool _isGenerator;
+        private readonly bool _isScriptMode;
         private readonly bool _isStrict;
+        private readonly JsEnvironment? _lexicalThisEnvironment;
+        private readonly JsValue _newTarget;
         private readonly ExecutionPlan? _plan;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly RealmState _realmState;
         private readonly JsValue _thisValue;
-        private readonly JsValue _newTarget;
-        private readonly JsEnvironment? _lexicalThisEnvironment;
-        private readonly bool _isScriptMode;
-        private readonly bool _isAsync;
-        private readonly bool _isGenerator;
         private EvaluationContext? _context;
         private int _currentInstructionIndex;
         private bool _done;
         private JsEnvironment? _executionEnvironment;
         private bool _privateScopesApplied;
         private int _programCounter;
-        private GeneratorState _state = GeneratorState.Start;
         private JsValue _scriptCompletionValue = JsValue.Unit;
+        private GeneratorState _state = GeneratorState.Start;
 
         // Lazy state objects - only allocated when needed
         // TryCatchState needs explicit backing field for hot-path null check without allocation
         private TryCatchState? _tryCatchState;
-
-        // Lazy accessors
-        private AsyncState AsyncStateRef => field ??= new AsyncState();
-        private YieldState YieldStateRef => field ??= new YieldState();
-        private IteratorState IteratorStateRef => field ??= new IteratorState();
-        private TryCatchState TryCatchStateRef => _tryCatchState ??= new TryCatchState();
-        private BreakableState BreakableStateRef => field ??= new BreakableState();
-        private WithState WithStateRef => field ??= new WithState();
 
         public ExecutionPlanRunner(
             FunctionExpression function,
@@ -173,6 +164,14 @@ public static partial class TypedAstEvaluator
             _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
             _isScriptMode = true;
         }
+
+        // Lazy accessors
+        private AsyncState AsyncStateRef => field ??= new AsyncState();
+        private YieldState YieldStateRef => field ??= new YieldState();
+        private IteratorState IteratorStateRef => field ??= new IteratorState();
+        private TryCatchState TryCatchStateRef => _tryCatchState ??= new TryCatchState();
+        private BreakableState BreakableStateRef => field ??= new BreakableState();
+        private WithState WithStateRef => field ??= new WithState();
 
         /// <summary>
         /// Runs an execution plan for script-level code.
@@ -438,7 +437,7 @@ public static partial class TypedAstEvaluator
                     requiredSlots = _plan.SlotCount;
                 }
 
-                executionEnvironment.InitializeSlots(requiredSlots, scopeId: 0);
+                executionEnvironment.InitializeSlots(requiredSlots, 0);
 
                 if (rootSlotMap.Count > 0)
                 {
@@ -446,12 +445,14 @@ public static partial class TypedAstEvaluator
                 }
                 else
                 {
-                    var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+                    var slotMap =
+                        ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
                     for (var i = 0; i < _plan.SlotSymbols.Length; i++)
                     {
                         // Use direct indices (no offset) since plan slots are allocated first
                         slotMap[_plan.SlotSymbols[i]] = i;
                     }
+
                     executionEnvironment.SetSlotMap(slotMap.ToImmutable());
                 }
 
@@ -461,6 +462,7 @@ public static partial class TypedAstEvaluator
                 {
                     rootLexicals = fromScope0;
                 }
+
                 if (!rootLexicals.IsEmpty)
                 {
                     executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
@@ -573,6 +575,7 @@ public static partial class TypedAstEvaluator
                 generatorContext.Clear();
                 throw new ThrowSignal(thrown);
             }
+
             SyncParameterSlotsToPlan(executionEnvironment, parameterEnvironment, parameterNames);
 
             _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
@@ -686,7 +689,8 @@ public static partial class TypedAstEvaluator
                     {
                         case ResumeMode.Next:
                             // For next(), set up resume state so the yield expression returns the resume value
-                            SetYieldResumeValue(environment, resumeValue, YieldStateRef.LastYieldSourceStart, YieldStateRef.LastYieldSourceEnd);
+                            SetYieldResumeValue(environment, resumeValue, YieldStateRef.LastYieldSourceStart,
+                                YieldStateRef.LastYieldSourceEnd);
                             break;
                         case ResumeMode.Return:
                             // For return(), close any active iterators and complete the generator.
@@ -804,7 +808,7 @@ public static partial class TypedAstEvaluator
                                 environment.Depth,
                                 environment.ScopeId,
                                 environment.GetHashCode()
-                                );
+                            );
                         }
 #pragma warning restore CS0162
 
@@ -830,7 +834,7 @@ public static partial class TypedAstEvaluator
                             if (branchInstruction.Condition is BinaryExpression
                                 {
                                     Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
-                                              BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
+                                    BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
                                 } binCond)
                             {
                                 // Try to get left operand without AST evaluation
@@ -842,7 +846,10 @@ public static partial class TypedAstEvaluator
                                         break;
                                     case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } leftId:
                                         if (!environment.TryReadIdentifierWithSlot(leftId, context, out leftVal))
+                                        {
                                             goto slowPath;
+                                        }
+
                                         break;
                                     default:
                                         goto slowPath;
@@ -857,7 +864,10 @@ public static partial class TypedAstEvaluator
                                         break;
                                     case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rightId:
                                         if (!environment.TryReadIdentifierWithSlot(rightId, context, out rightVal))
+                                        {
                                             goto slowPath;
+                                        }
+
                                         break;
                                     default:
                                         goto slowPath;
@@ -869,7 +879,8 @@ public static partial class TypedAstEvaluator
                                     BinaryOperator.LessThan => LessThanValue(leftVal, rightVal, context),
                                     BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
                                     BinaryOperator.GreaterThan => GreaterThanValue(leftVal, rightVal, context),
-                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftVal, rightVal, context),
+                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftVal, rightVal,
+                                        context),
                                     _ => throw new InvalidOperationException()
                                 };
                                 goto afterConditionEval;
@@ -911,7 +922,8 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.Statement:
                             {
                                 var statementInstruction = Unsafe.As<StatementInstruction>(instruction);
-                                var stmtResult = statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
+                                var stmtResult =
+                                    statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                                 // In script mode, track the completion value (per ES spec, block completion is last statement value)
                                 // Per UpdateEmpty semantics: if result is Unit (empty), do NOT update completion value.
                                 // Empty completions preserve the previous completion value.
@@ -920,6 +932,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     _scriptCompletionValue = stmtResult;
                                 }
+
                                 if (_isAsync && TryHandlePendingAwait(context, out var pendingResult, environment))
                                 {
                                     return pendingResult;
@@ -980,7 +993,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     var isBreak = context.IsBreak;
                                     var label = (context.CurrentSignal as BreakCompletionSignal)?.Label
-                                             ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
+                                                ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
                                     context.Clear();
 
                                     var target = FindBreakableTarget(label, isBreak);
@@ -989,8 +1002,10 @@ public static partial class TypedAstEvaluator
                                         _programCounter = target;
                                         continue;
                                     }
+
                                     // If no target found, the signal should propagate (shouldn't happen if loop stack is correct)
-                                    throw new InvalidOperationException($"No loop target found for {(isBreak ? "break" : "continue")}{(label is not null ? $" {label.Name}" : "")}");
+                                    throw new InvalidOperationException(
+                                        $"No loop target found for {(isBreak ? "break" : "continue")}{(label is not null ? $" {label.Name}" : "")}");
                                 }
 
                                 _programCounter = statementInstruction.Next;
@@ -1065,13 +1080,15 @@ public static partial class TypedAstEvaluator
                             {
                                 var evaluateInstruction = Unsafe.As<EvaluateAndDiscardInstruction>(instruction);
                                 // Evaluate the expression
-                                var evaluatedValue = evaluateInstruction.Expression.EvaluateExpression(environment, context);
+                                var evaluatedValue =
+                                    evaluateInstruction.Expression.EvaluateExpression(environment, context);
                                 // In script mode, track the completion value (per ES spec, script completion is last expression value)
                                 // SuppressCompletionValue is true for loop update expressions (per ES spec, update expressions don't contribute)
                                 if (_isScriptMode && !evaluateInstruction.SuppressCompletionValue)
                                 {
                                     _scriptCompletionValue = evaluatedValue;
                                 }
+
                                 if (_isAsync && TryHandlePendingAwait(context, out var pendingEvalResult, environment))
                                 {
                                     return pendingEvalResult;
@@ -1138,10 +1155,12 @@ public static partial class TypedAstEvaluator
                                 var binLeft = binaryOpInstruction.Left.EvaluateExpression(environment, context);
                                 if (context.ShouldStopEvaluation)
                                 {
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinLeftResult,
+                                            environment))
                                     {
                                         return pendingBinLeftResult;
                                     }
+
                                     if (context.IsThrow)
                                     {
                                         var binThrown = context.FlowValue;
@@ -1150,17 +1169,21 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
+
                                         TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(binThrown);
                                     }
                                 }
+
                                 var binRight = binaryOpInstruction.Right.EvaluateExpression(environment, context);
                                 if (context.ShouldStopEvaluation)
                                 {
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinRightResult,
+                                            environment))
                                     {
                                         return pendingBinRightResult;
                                     }
+
                                     if (context.IsThrow)
                                     {
                                         var binThrown = context.FlowValue;
@@ -1169,6 +1192,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
+
                                         TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(binThrown);
                                     }
@@ -1186,18 +1210,29 @@ public static partial class TypedAstEvaluator
                                     BinaryOperator.LessThan => LessThanValue(binLeft, binRight, context),
                                     BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(binLeft, binRight, context),
                                     BinaryOperator.GreaterThan => GreaterThanValue(binLeft, binRight, context),
-                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(binLeft, binRight, context),
-                                    BinaryOperator.StrictEqual => StrictEqualsValue(binLeft, binRight) ? JsValue.True : JsValue.False,
-                                    BinaryOperator.StrictNotEqual => StrictEqualsValue(binLeft, binRight) ? JsValue.False : JsValue.True,
-                                    BinaryOperator.Equal => LooseEqualsValue(binLeft, binRight, context) ? JsValue.True : JsValue.False,
-                                    BinaryOperator.NotEqual => LooseEqualsValue(binLeft, binRight, context) ? JsValue.False : JsValue.True,
+                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(binLeft, binRight,
+                                        context),
+                                    BinaryOperator.StrictEqual => StrictEqualsValue(binLeft, binRight)
+                                        ? JsValue.True
+                                        : JsValue.False,
+                                    BinaryOperator.StrictNotEqual => StrictEqualsValue(binLeft, binRight)
+                                        ? JsValue.False
+                                        : JsValue.True,
+                                    BinaryOperator.Equal => LooseEqualsValue(binLeft, binRight, context)
+                                        ? JsValue.True
+                                        : JsValue.False,
+                                    BinaryOperator.NotEqual => LooseEqualsValue(binLeft, binRight, context)
+                                        ? JsValue.False
+                                        : JsValue.True,
                                     BinaryOperator.BitwiseAnd => BitwiseAndValue(binLeft, binRight, context),
                                     BinaryOperator.BitwiseOr => BitwiseOrValue(binLeft, binRight, context),
                                     BinaryOperator.BitwiseXor => BitwiseXorValue(binLeft, binRight, context),
                                     BinaryOperator.LeftShift => LeftShiftValue(binLeft, binRight, context),
                                     BinaryOperator.RightShift => RightShiftValue(binLeft, binRight, context),
-                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(binLeft, binRight, context),
-                                    _ => throw new NotSupportedException($"Binary operator '{binaryOpInstruction.Operator}' not supported in BinaryOpInstruction.")
+                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(binLeft, binRight,
+                                        context),
+                                    _ => throw new NotSupportedException(
+                                        $"Binary operator '{binaryOpInstruction.Operator}' not supported in BinaryOpInstruction.")
                                 };
 
                                 // Store result in slot if specified
@@ -1215,7 +1250,8 @@ public static partial class TypedAstEvaluator
                             {
                                 var incrementInstruction = Unsafe.As<IncrementSlotInstruction>(instruction);
                                 // Fast path for ++/-- on identifiers
-                                var incCurrentValue = environment.GetIdentifierJsValueDirect(incrementInstruction.TargetSymbol, context);
+                                var incCurrentValue =
+                                    environment.GetIdentifierJsValueDirect(incrementInstruction.TargetSymbol, context);
                                 if (context.IsThrow)
                                 {
                                     var incThrown = context.FlowValue;
@@ -1224,6 +1260,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         continue;
                                     }
+
                                     TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(incThrown);
                                 }
@@ -1235,7 +1272,9 @@ public static partial class TypedAstEvaluator
                                 {
                                     var bigInt = (JsBigInt)incCurrentValue.ObjectValue!;
                                     incOldNumericValue = incCurrentValue; // BigInt is already numeric
-                                    var incNewBigInt = incrementInstruction.IsIncrement ? bigInt.Value + 1 : bigInt.Value - 1;
+                                    var incNewBigInt = incrementInstruction.IsIncrement
+                                        ? bigInt.Value + 1
+                                        : bigInt.Value - 1;
                                     incNewJsValue = new JsBigInt(incNewBigInt);
                                 }
                                 else
@@ -1251,6 +1290,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
+
                                         TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(incFlowThrown);
                                     }
@@ -1260,7 +1300,9 @@ public static partial class TypedAstEvaluator
                                     {
                                         var bigInt = (JsBigInt)numericJsValue.ObjectValue!;
                                         incOldNumericValue = numericJsValue;
-                                        var incNewBigInt = incrementInstruction.IsIncrement ? bigInt.Value + 1 : bigInt.Value - 1;
+                                        var incNewBigInt = incrementInstruction.IsIncrement
+                                            ? bigInt.Value + 1
+                                            : bigInt.Value - 1;
                                         incNewJsValue = new JsBigInt(incNewBigInt);
                                     }
                                     else
@@ -1269,7 +1311,9 @@ public static partial class TypedAstEvaluator
                                         incOldNumericValue = JsValueCache.GetNumberJsValue(incNumValue);
 
                                         // Apply increment or decrement
-                                        var incNewValue = incrementInstruction.IsIncrement ? incNumValue + 1.0 : incNumValue - 1.0;
+                                        var incNewValue = incrementInstruction.IsIncrement
+                                            ? incNumValue + 1.0
+                                            : incNumValue - 1.0;
                                         incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
                                     }
                                 }
@@ -1281,7 +1325,9 @@ public static partial class TypedAstEvaluator
                                 // SuppressCompletionValue is true for loop update expressions (per ES spec, update expressions don't contribute)
                                 if (_isScriptMode && !incrementInstruction.SuppressCompletionValue)
                                 {
-                                    _scriptCompletionValue = incrementInstruction.IsPrefix ? incNewJsValue : incOldNumericValue;
+                                    _scriptCompletionValue = incrementInstruction.IsPrefix
+                                        ? incNewJsValue
+                                        : incOldNumericValue;
                                 }
 
                                 _programCounter = incrementInstruction.Next;
@@ -1293,7 +1339,8 @@ public static partial class TypedAstEvaluator
                                 var compoundInstruction = Unsafe.As<CompoundAssignmentSlotInstruction>(instruction);
                                 // Fast path for compound assignment on identifiers (e.g., s += i)
                                 // Read current value from target
-                                var compCurrentValue = environment.GetIdentifierJsValueDirect(compoundInstruction.TargetSymbol, context);
+                                var compCurrentValue =
+                                    environment.GetIdentifierJsValueDirect(compoundInstruction.TargetSymbol, context);
                                 if (context.IsThrow)
                                 {
                                     var compThrown = context.FlowValue;
@@ -1302,6 +1349,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         continue;
                                     }
+
                                     TryCatchStateRef.TryStack.Clear();
                                     throw new ThrowSignal(compThrown);
                                 }
@@ -1326,20 +1374,24 @@ public static partial class TypedAstEvaluator
                                             // Slot miss - fall back to full resolution
                                             compRhsValue = rhsIdent.EvaluateExpression(environment, context);
                                         }
+
                                         break;
 
                                     // Slow path: complex expression
                                     default:
-                                        compRhsValue = compoundInstruction.RhsExpression.EvaluateExpression(environment, context);
+                                        compRhsValue =
+                                            compoundInstruction.RhsExpression.EvaluateExpression(environment, context);
                                         break;
                                 }
 
                                 if (context.ShouldStopEvaluation)
                                 {
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingCompResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingCompResult,
+                                            environment))
                                     {
                                         return pendingCompResult;
                                     }
+
                                     if (context.IsThrow)
                                     {
                                         var compRhsThrown = context.FlowValue;
@@ -1348,6 +1400,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
+
                                         TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(compRhsThrown);
                                     }
@@ -1362,13 +1415,18 @@ public static partial class TypedAstEvaluator
                                     BinaryOperator.Divide => DivideValue(compCurrentValue, compRhsValue, context),
                                     BinaryOperator.Modulo => ModuloValue(compCurrentValue, compRhsValue, context),
                                     BinaryOperator.Power => PowerValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.BitwiseAnd => BitwiseAndValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.BitwiseAnd => BitwiseAndValue(compCurrentValue, compRhsValue,
+                                        context),
                                     BinaryOperator.BitwiseOr => BitwiseOrValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.BitwiseXor => BitwiseXorValue(compCurrentValue, compRhsValue, context),
+                                    BinaryOperator.BitwiseXor => BitwiseXorValue(compCurrentValue, compRhsValue,
+                                        context),
                                     BinaryOperator.LeftShift => LeftShiftValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.RightShift => RightShiftValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(compCurrentValue, compRhsValue, context),
-                                    _ => throw new NotSupportedException($"Compound assignment operator '{compoundInstruction.Operator}' not supported in CompoundAssignmentSlotInstruction.")
+                                    BinaryOperator.RightShift => RightShiftValue(compCurrentValue, compRhsValue,
+                                        context),
+                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(compCurrentValue,
+                                        compRhsValue, context),
+                                    _ => throw new NotSupportedException(
+                                        $"Compound assignment operator '{compoundInstruction.Operator}' not supported in CompoundAssignmentSlotInstruction.")
                                 };
 
                                 // Update the binding
@@ -1432,7 +1490,8 @@ public static partial class TypedAstEvaluator
                                 // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
                                 // then perform SetFunctionName(value, bindingId).
                                 var isAnonymousFunctionDefinition = varDeclInstruction.Initializer is not null &&
-                                    ExpressionNode.IsAnonymousFunctionDefinitionNode(varDeclInstruction.Initializer);
+                                                                    ExpressionNode.IsAnonymousFunctionDefinitionNode(
+                                                                        varDeclInstruction.Initializer);
 
                                 using var functionNameHint = isAnonymousFunctionDefinition
                                     ? context.EnterFunctionNameHint(varDeclInstruction.TargetSymbol)
@@ -1440,7 +1499,7 @@ public static partial class TypedAstEvaluator
 
                                 // Evaluate initializer if present
                                 var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context)
-                                    ?? JsValue.Undefined;
+                                               ?? JsValue.Undefined;
 
                                 //TODO: why is this placed here!?
                                 if (_isAsync && TryHandlePendingAwait(context, out var pendingVarResult, environment))
@@ -1500,13 +1559,15 @@ public static partial class TypedAstEvaluator
                                 // Only assign if there's an initializer - var without initializer preserves hoisted value
                                 if (varDeclInstruction.VarKind == VariableKind.Var)
                                 {
-                                    environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol, context);
+                                    environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol,
+                                        context);
                                     // Only assign if there's an initializer
                                     // Per ES spec, `var x;` should not override hoisted function declarations
                                     if (varDeclInstruction.Initializer is not null)
                                     {
                                         // Try to assign to a blocked binding first (shadowed let/const in same scope)
-                                        if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol, varValue))
+                                        if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol,
+                                                varValue))
                                         {
                                             if (varDeclInstruction.IsScriptLevel)
                                             {
@@ -1516,7 +1577,8 @@ public static partial class TypedAstEvaluator
                                             else
                                             {
                                                 // Function-level var: local binding only
-                                                environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol, varValue);
+                                                environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol,
+                                                    varValue);
                                             }
                                         }
                                     }
@@ -1540,7 +1602,7 @@ public static partial class TypedAstEvaluator
                                     }
 #pragma warning restore CS0162
                                     environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
-                                        isConst: isConst, isLexical: true, blocksFunctionScopeOverride: true);
+                                        isConst, isLexical: true, blocksFunctionScopeOverride: true);
                                 }
 
                                 _programCounter = varDeclInstruction.Next;
@@ -1569,7 +1631,8 @@ public static partial class TypedAstEvaluator
                                 var hasIterationBindings = !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty;
                                 var isSubsequentIteration =
                                     hasIterationBindings &&
-                                    ((pushEnvInstruction.ScopeId >= 0 && environment.ScopeId == pushEnvInstruction.ScopeId) ||
+                                    ((pushEnvInstruction.ScopeId >= 0 &&
+                                      environment.ScopeId == pushEnvInstruction.ScopeId) ||
                                      (pushEnvInstruction.ScopeId < 0 &&
                                       environment.Description == "scope" && environment.Enclosing != null));
 
@@ -1610,9 +1673,12 @@ public static partial class TypedAstEvaluator
                                 var allowPooling = pushEnvInstruction.AllowPooling;
                                 // Use different description for loop scope (empty bindings) vs per-iteration scope
                                 // This allows the subsequent iteration heuristic to correctly distinguish them
-                                var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
+                                var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty
+                                    ? "loop-scope"
+                                    : "scope";
                                 var newIterationEnv = allowPooling
-                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
+                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, description,
+                                        logger: _realmState.Logger)
                                     : new JsEnvironment(loopScope, false, false, null, description);
 
                                 // Initialize slots for O(1) identifier lookups
@@ -1624,14 +1690,17 @@ public static partial class TypedAstEvaluator
                                     {
                                         newIterationEnv.SetSlotMap(pushEnvInstruction.SlotMap);
                                     }
+
                                     if (pushEnvInstruction.LexicalBindings is { Count: > 0 })
                                     {
-                                        newIterationEnv.MarkSlotsLexicalUninitialized(pushEnvInstruction.LexicalBindings);
+                                        newIterationEnv.MarkSlotsLexicalUninitialized(
+                                            pushEnvInstruction.LexicalBindings);
                                     }
                                 }
 
                                 // Copy per-iteration bindings from appropriate source (for loop iterations)
-                                if (previousIterEnv != null && !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
+                                if (previousIterEnv != null &&
+                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
                                 {
                                     // Copy from previous iteration (fast slot path if available)
                                     var useSlotCopy = newIterationEnv.HasSlots &&
@@ -1654,15 +1723,17 @@ public static partial class TypedAstEvaluator
                                         // Preserve const flag to ensure TypeError is thrown on reassignment
                                         foreach (var binding in pushEnvInstruction.PerIterationBindings)
                                         {
-                                            if (previousIterEnv.TryGetJsValueWithConst(binding, out var value, out var isConst))
+                                            if (previousIterEnv.TryGetJsValueWithConst(binding, out var value,
+                                                    out var isConst))
                                             {
-                                                newIterationEnv.DefineJsValue(binding, value, isConst: isConst, isLexical: true);
+                                                newIterationEnv.DefineJsValue(binding, value, isConst, isLexical: true);
                                             }
                                         }
                                     }
 
                                     // Return previous iteration env to pool (if pooled and not resumed-with)
-                                    if (allowPooling && !ReferenceEquals(previousIterEnv, IteratorStateRef.ResumedWithEnvironment))
+                                    if (allowPooling && !ReferenceEquals(previousIterEnv,
+                                            IteratorStateRef.ResumedWithEnvironment))
                                     {
                                         JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
                                     }
@@ -1675,7 +1746,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         if (loopScope.TryGetJsValueWithConst(binding, out var value, out var isConst))
                                         {
-                                            newIterationEnv.DefineJsValue(binding, value, isConst: isConst, isLexical: true);
+                                            newIterationEnv.DefineJsValue(binding, value, isConst, isLexical: true);
                                         }
                                     }
                                 }
@@ -1706,7 +1777,8 @@ public static partial class TypedAstEvaluator
                                 // This matches environments created by PushEnvironment for loops.
                                 var shouldPop = popEnvInstruction.ScopeId >= 0
                                     ? environment.ScopeId == popEnvInstruction.ScopeId
-                                    : (environment.Description is "scope" or "loop-scope") && environment.Enclosing != null;
+                                    : environment.Description is "scope" or "loop-scope" &&
+                                      environment.Enclosing != null;
 
                                 if (shouldPop)
                                 {
@@ -1732,7 +1804,8 @@ public static partial class TypedAstEvaluator
                                 {
                                     yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
                                         context);
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldResult,
+                                            environment))
                                     {
                                         return pendingYieldResult;
                                     }
@@ -1785,7 +1858,8 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 if (yieldStarState.PendingAbrupt != AbruptKind.None &&
-                                    AsyncStateRef.PendingResumeKind is not ResumePayloadKind.Throw and not ResumePayloadKind.Return)
+                                    AsyncStateRef.PendingResumeKind is not ResumePayloadKind.Throw
+                                        and not ResumePayloadKind.Return)
                                 {
                                     var pendingKind = yieldStarState.PendingAbrupt;
                                     // PendingValue is now JsValue, no boxing/unboxing needed
@@ -1823,7 +1897,8 @@ public static partial class TypedAstEvaluator
                                     var yieldStarIterableValue =
                                         yieldStarInstruction.IterableExpression
                                             .EvaluateExpression(environment, context);
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldStarResult, environment))
+                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldStarResult,
+                                            environment))
                                     {
                                         return pendingYieldStarResult;
                                     }
@@ -2100,11 +2175,11 @@ public static partial class TypedAstEvaluator
 
                                 // Create a new lexical environment for the catch block
                                 var catchEnv = new JsEnvironment(
-                                    enclosing: environment,
-                                    isFunctionScope: false,
-                                    isStrict: environment.IsStrict,
-                                    creatingSource: null,
-                                    description: "catch");
+                                    environment,
+                                    false,
+                                    environment.IsStrict,
+                                    null,
+                                    "catch");
 
                                 // Initialize slots if needed
                                 if (enterCatch.SlotCount > 0)
@@ -2115,7 +2190,7 @@ public static partial class TypedAstEvaluator
                                 // Bind the catch parameter directly to the thrown value
                                 if (enterCatch.CatchParameterSymbol is { } param)
                                 {
-                                    catchEnv.DefineJsValue(param, thrownValue, isConst: false, isLexical: true);
+                                    catchEnv.DefineJsValue(param, thrownValue, false, isLexical: true);
                                 }
 
                                 environment = catchEnv;
@@ -2125,7 +2200,8 @@ public static partial class TypedAstEvaluator
 
                             case InstructionKind.EnterCatchWithDestructuring:
                             {
-                                var enterCatchDestructure = Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction);
+                                var enterCatchDestructure =
+                                    Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction);
                                 ResetCompletionValue();
 
                                 // Read the thrown value from the try frame
@@ -2137,21 +2213,22 @@ public static partial class TypedAstEvaluator
 
                                 // Create a new lexical environment for the catch block
                                 var catchEnv = new JsEnvironment(
-                                    enclosing: environment,
-                                    isFunctionScope: false,
-                                    isStrict: environment.IsStrict,
-                                    creatingSource: null,
-                                    description: "catch");
+                                    environment,
+                                    false,
+                                    environment.IsStrict,
+                                    null,
+                                    "catch");
 
                                 // Initialize slots if needed
                                 if (enterCatchDestructure.SlotCount > 0)
                                 {
-                                    catchEnv.InitializeSlots(enterCatchDestructure.SlotCount, enterCatchDestructure.ScopeId);
+                                    catchEnv.InitializeSlots(enterCatchDestructure.SlotCount,
+                                        enterCatchDestructure.ScopeId);
                                 }
 
                                 // Apply the destructuring pattern to bind the thrown value
                                 enterCatchDestructure.BindingPattern.DefineBindingTarget(
-                                    thrownValue, catchEnv, context, isConst: false);
+                                    thrownValue, catchEnv, context, false);
 
                                 // Check for errors during destructuring (e.g., TypeError)
                                 if (context.ShouldStopEvaluation)
@@ -2165,6 +2242,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             continue;
                                         }
+
                                         TryCatchStateRef.TryStack.Clear();
                                         throw new ThrowSignal(exception);
                                     }
@@ -2193,6 +2271,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     ResetCompletionValue();
                                 }
+
                                 BreakableStateRef.BreakableStack.Push(new BreakableFrame(
                                     enterInstruction.Label,
                                     enterInstruction.BreakTarget,
@@ -2208,6 +2287,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     BreakableStateRef.BreakableStack.Pop();
                                 }
+
                                 FinalizeCompletionValue();
                                 _programCounter = exitInstruction.Next;
                                 continue;
@@ -2284,15 +2364,20 @@ public static partial class TypedAstEvaluator
                                 var iterableEnv = environment;
                                 if (!iteratorInitInstruction.TdzBindings.IsDefaultOrEmpty)
                                 {
-                                    iterableEnv = new JsEnvironment(environment, false, false, iteratorInitInstruction.IterableExpression.Source, "for-of-head-tdz");
+                                    iterableEnv = new JsEnvironment(environment, false, false,
+                                        iteratorInitInstruction.IterableExpression.Source, "for-of-head-tdz");
                                     foreach (var tdzSymbol in iteratorInitInstruction.TdzBindings)
                                     {
-                                        iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized, iteratorInitInstruction.TdzIsConst, isLexical: true, blocksFunctionScopeOverride: true);
+                                        iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
+                                            iteratorInitInstruction.TdzIsConst, isLexical: true,
+                                            blocksFunctionScopeOverride: true);
                                     }
                                 }
+
                                 var iterableValue =
                                     iteratorInitInstruction.IterableExpression.EvaluateExpression(iterableEnv, context);
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
+                                if (_isAsync && TryHandlePendingAwait(context, out var pendingIteratorResult,
+                                        environment))
                                 {
                                     return pendingIteratorResult;
                                 }
@@ -2311,7 +2396,8 @@ public static partial class TypedAstEvaluator
                                 }
 
                                 var iteratorState =
-                                    CreateIteratorDriverState(iterableValue, iteratorInitInstruction.IteratorKind, context);
+                                    CreateIteratorDriverState(iterableValue, iteratorInitInstruction.IteratorKind,
+                                        context);
 
                                 // Find the correct environment for storing iterator state.
                                 // When a for-await-of loop is nested inside another loop with
@@ -2327,7 +2413,8 @@ public static partial class TypedAstEvaluator
                                 if (iteratorInitInstruction.IteratorSlotIndex >= 0)
                                 {
                                     while (iteratorEnv is not null &&
-                                           (iteratorEnv.ScopeId > 0 || // Skip per-iteration envs (but not ScopeId=0 which is function scope)
+                                           (iteratorEnv.ScopeId >
+                                            0 || // Skip per-iteration envs (but not ScopeId=0 which is function scope)
                                             !iteratorEnv.HasSlots ||
                                             iteratorEnv._slots!.Length <= iteratorInitInstruction.IteratorSlotIndex))
                                     {
@@ -2338,6 +2425,7 @@ public static partial class TypedAstEvaluator
                                             break;
                                         }
                                     }
+
                                     iteratorEnv ??= environment; // Fallback to current environment
                                 }
 
@@ -2345,7 +2433,8 @@ public static partial class TypedAstEvaluator
                                 // This avoids dictionary lookups on every iteration
                                 if (iteratorInitInstruction.IteratorSlotIndex >= 0 && iteratorEnv.HasSlots)
                                 {
-                                    iteratorState.IteratorVariable = new JsVariable(iteratorEnv, iteratorInitInstruction.IteratorSlotIndex);
+                                    iteratorState.IteratorVariable = new JsVariable(iteratorEnv,
+                                        iteratorInitInstruction.IteratorSlotIndex);
                                 }
 
                                 // Save the loop scope environment for nested loop support.
@@ -2389,19 +2478,25 @@ public static partial class TypedAstEvaluator
                                     {
                                         var slotWalkCount = 0;
                                         while (slotEnv != null &&
-                                               (slotEnv.ScopeId > 0 || // Skip per-iteration envs (but not ScopeId=0 which is function scope)
+                                               (slotEnv.ScopeId >
+                                                0 || // Skip per-iteration envs (but not ScopeId=0 which is function scope)
                                                 !slotEnv.HasSlots ||
                                                 slotEnv._slots!.Length <= slotIdx))
                                         {
                                             slotEnv = slotEnv.Enclosing;
                                             slotWalkCount++;
-                                            if (slotWalkCount > 100) break;
+                                            if (slotWalkCount > 100)
+                                            {
+                                                break;
+                                            }
                                         }
+
                                         slotEnv ??= environment;
                                     }
 
-                                    if (slotEnv is null || !TryGetValueBySlot(slotEnv, iteratorMoveNextInstruction.IteratorSlot,
-                                             slotIdx, out var iteratorStateValue))
+                                    if (slotEnv is null || !TryGetValueBySlot(slotEnv,
+                                            iteratorMoveNextInstruction.IteratorSlot,
+                                            slotIdx, out var iteratorStateValue))
                                     {
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -2428,9 +2523,11 @@ public static partial class TypedAstEvaluator
                                 {
                                     // Use the iterator's environment since value slot is in the same scope
                                     var loopScopeEnv = iterVar.IsValid ? iterVar.Environment : environment;
-                                    if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length > iteratorMoveNextInstruction.ValueSlotIndex)
+                                    if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length >
+                                        iteratorMoveNextInstruction.ValueSlotIndex)
                                     {
-                                        valueVar = new JsVariable(loopScopeEnv, iteratorMoveNextInstruction.ValueSlotIndex);
+                                        valueVar = new JsVariable(loopScopeEnv,
+                                            iteratorMoveNextInstruction.ValueSlotIndex);
                                         driverState.ValueVariable = valueVar;
                                     }
                                 }
@@ -2449,7 +2546,8 @@ public static partial class TypedAstEvaluator
                                         if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultObj))
                                         {
                                             // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                            var typeError = StandardLibrary.CreateTypeError("Iterator result is not an object",
+                                            var typeError = StandardLibrary.CreateTypeError(
+                                                "Iterator result is not an object",
                                                 context, context.RealmState);
                                             if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
                                             {
@@ -2472,6 +2570,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv;
                                             }
+
                                             // Clear driver state to prevent outer loop's CreateIterationEnv from
                                             // incorrectly updating this driver's CurrentIterationEnvironment.
                                             IteratorStateRef.CurrentDriverState = null;
@@ -2498,6 +2597,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv2;
                                             }
+
                                             IteratorStateRef.CurrentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
@@ -2515,6 +2615,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv3;
                                         }
+
                                         IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -2545,6 +2646,7 @@ public static partial class TypedAstEvaluator
                                             "SyncIterator StoreValue: wrote via StoreValueBySlot to env.ScopeId={Scope}",
                                             environment.ScopeId);
                                     }
+
                                     _programCounter = iteratorMoveNextInstruction.Next;
                                     continue;
                                 }
@@ -2621,7 +2723,8 @@ public static partial class TypedAstEvaluator
                                             callingEnvironment: environment);
                                         if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
                                         {
-                                            if (AsyncStateRef.AsyncStepMode && AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                                            if (AsyncStateRef.AsyncStepMode &&
+                                                AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                                             {
                                                 driverState.AwaitingNextResult = true;
                                                 // Use JsVariable for scope-correct access
@@ -2632,9 +2735,11 @@ public static partial class TypedAstEvaluator
                                                 }
                                                 else
                                                 {
-                                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
+                                                    StoreValueBySlot(environment,
+                                                        iteratorMoveNextInstruction.IteratorSlot,
                                                         iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
                                                 }
+
                                                 // Save environment before suspending so we restore it on resume
                                                 _executionEnvironment = environment;
                                                 _state = GeneratorState.Suspended;
@@ -2660,6 +2765,7 @@ public static partial class TypedAstEvaluator
                                             {
                                                 environment = enclosingEnv4;
                                             }
+
                                             IteratorStateRef.CurrentDriverState = null;
                                             _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                             continue;
@@ -2671,7 +2777,8 @@ public static partial class TypedAstEvaluator
                                     if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var awaitResultObj))
                                     {
                                         // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                        var typeError = StandardLibrary.CreateTypeError("Iterator result is not an object", context,
+                                        var typeError = StandardLibrary.CreateTypeError(
+                                            "Iterator result is not an object", context,
                                             context.RealmState);
                                         if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
                                         {
@@ -2691,6 +2798,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv5;
                                         }
+
                                         IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -2701,7 +2809,8 @@ public static partial class TypedAstEvaluator
                                         : JsValue.Undefined;
                                     if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
                                     {
-                                        if (AsyncStateRef.AsyncStepMode && AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                                        if (AsyncStateRef.AsyncStepMode &&
+                                            AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
@@ -2715,6 +2824,7 @@ public static partial class TypedAstEvaluator
                                                 StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                     iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
                                             }
+
                                             // Save environment before suspending so we restore it on resume
                                             _executionEnvironment = environment;
                                             _state = GeneratorState.Suspended;
@@ -2740,6 +2850,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv6;
                                         }
+
                                         IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -2769,7 +2880,8 @@ public static partial class TypedAstEvaluator
                                     var enumerated = awaitEnumerator.Current;
                                     if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
                                     {
-                                        if (AsyncStateRef.AsyncStepMode && AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                                        if (AsyncStateRef.AsyncStepMode &&
+                                            AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
                                         {
                                             driverState.AwaitingValue = true;
                                             // Use JsVariable for scope-correct access
@@ -2783,6 +2895,7 @@ public static partial class TypedAstEvaluator
                                                 StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
                                                     iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
                                             }
+
                                             // Save environment before suspending so we restore it on resume
                                             _executionEnvironment = environment;
                                             _state = GeneratorState.Suspended;
@@ -2808,6 +2921,7 @@ public static partial class TypedAstEvaluator
                                         {
                                             environment = enclosingEnv8;
                                         }
+
                                         IteratorStateRef.CurrentDriverState = null;
                                         _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
@@ -2822,6 +2936,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         environment = enclosingEnv9;
                                     }
+
                                     IteratorStateRef.CurrentDriverState = null;
                                     _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                     continue;
@@ -2858,6 +2973,7 @@ public static partial class TypedAstEvaluator
                                         "StoreIteratorValue: wrote via StoreValueBySlot to env={Env}",
                                         environment.GetHashCode());
                                 }
+
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
                             }
@@ -2873,7 +2989,8 @@ public static partial class TypedAstEvaluator
                             {
                                 var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
                                 var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+                                if (_isAsync &&
+                                    TryHandlePendingAwait(context, out var pendingBranchResult, environment))
                                 {
                                     return pendingBranchResult;
                                 }
@@ -2975,8 +3092,11 @@ public static partial class TypedAstEvaluator
                             case InstructionKind.Return:
                             {
                                 var returnInstruction = Unsafe.As<ReturnInstruction>(instruction);
-                                var returnValue = returnInstruction.ReturnExpression?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingReturnResult, environment))
+                                var returnValue =
+                                    returnInstruction.ReturnExpression?.EvaluateExpression(environment, context) ??
+                                    JsValue.Undefined;
+                                if (_isAsync &&
+                                    TryHandlePendingAwait(context, out var pendingReturnResult, environment))
                                 {
                                     return pendingReturnResult;
                                 }
@@ -3079,7 +3199,8 @@ public static partial class TypedAstEvaluator
                                 var leaveWithInstruction = Unsafe.As<LeaveWithInstruction>(instruction);
                                 // Remove this with-scope from active tracking
                                 if (WithStateRef.ActiveWithScopes.Count > 0 &&
-                                    ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(), leaveWithInstruction.WithScopeSlot))
+                                    ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(),
+                                        leaveWithInstruction.WithScopeSlot))
                                 {
                                     WithStateRef.ActiveWithScopes.Pop();
                                 }
@@ -3138,7 +3259,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         // Call IteratorClose with preserveExistingThrow if we have a pending throw.
                                         // This ensures the original throw is preserved per ES spec 7.4.7 step 6.
-                                        iteratorObj.IteratorClose(context, preserveExistingThrow: hasPendingThrow);
+                                        iteratorObj.IteratorClose(context, hasPendingThrow);
                                     }
                                     catch (ThrowSignal closeThrown)
                                     {
@@ -3178,6 +3299,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     _scriptCompletionValue = JsValue.Undefined;
                                 }
+
                                 _programCounter = setCompletionInstruction.Next;
                                 continue;
                             }
@@ -3246,6 +3368,7 @@ public static partial class TypedAstEvaluator
             {
                 _executionEnvironment = CreateExecutionEnvironment();
             }
+
             return _executionEnvironment;
         }
 
@@ -3390,7 +3513,8 @@ public static partial class TypedAstEvaluator
         private bool TryResolvePromiseOrYield(JsValue candidate, EvaluationContext context, out JsValue resolvedValue)
         {
             var pendingPromise = AsyncStateRef.PendingPromise;
-            var result = AwaitScheduler.TryResolvePromiseOrYield(candidate, AsyncStateRef.AsyncStepMode, ref pendingPromise,
+            var result = AwaitScheduler.TryResolvePromiseOrYield(candidate, AsyncStateRef.AsyncStepMode,
+                ref pendingPromise,
                 context, out var resolvedObj);
             AsyncStateRef.PendingPromise = pendingPromise;
             // resolvedObj is already JsValue from the scheduler
@@ -3398,7 +3522,8 @@ public static partial class TypedAstEvaluator
             return result;
         }
 
-        private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result, JsEnvironment? currentEnvironment = null)
+        private bool TryHandlePendingAwait(EvaluationContext context, out JsValue result,
+            JsEnvironment? currentEnvironment = null)
         {
             if (!context.IsPendingAwait)
             {
@@ -3424,6 +3549,5 @@ public static partial class TypedAstEvaluator
                 : CreateIteratorResult(JsValue.Undefined, false);
             return true;
         }
-
     }
 }

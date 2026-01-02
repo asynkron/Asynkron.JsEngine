@@ -15,6 +15,32 @@ public static partial class TypedAstEvaluator
     private static readonly Symbol YieldResumeStateKey = Symbol.Intern("__yield_resume_state__");
 
     /// <summary>
+    /// Sets the yield resume value in the environment so that the next call to EvaluateYield
+    /// with a matching source position will return this value instead of yielding.
+    /// </summary>
+    internal static void SetYieldResumeValue(JsEnvironment environment, JsValue resumeValue, int yieldSourceStart,
+        int yieldSourceEnd)
+    {
+        var state = new YieldResumeState
+        {
+            HasResumeValue = true,
+            ResumeValue = resumeValue,
+            YieldSourceStart = yieldSourceStart,
+            YieldSourceEnd = yieldSourceEnd
+        };
+
+        if (environment.HasOwnBinding(YieldResumeStateKey))
+        {
+            environment.AssignJsValue(YieldResumeStateKey, JsValue.FromObjectUnsafe(state));
+        }
+        else
+        {
+            environment.DefineJsValue(YieldResumeStateKey, JsValue.FromObjectUnsafe(state), isLexical: true,
+                canDelete: true);
+        }
+    }
+
+    /// <summary>
     /// State for resuming from a yield that happened during AST evaluation (via StatementInstruction).
     /// </summary>
     internal sealed class YieldResumeState
@@ -36,30 +62,6 @@ public static partial class TypedAstEvaluator
         public int YieldSourceStart { get; set; }
 
         public int YieldSourceEnd { get; set; }
-    }
-
-    /// <summary>
-    /// Sets the yield resume value in the environment so that the next call to EvaluateYield
-    /// with a matching source position will return this value instead of yielding.
-    /// </summary>
-    internal static void SetYieldResumeValue(JsEnvironment environment, JsValue resumeValue, int yieldSourceStart, int yieldSourceEnd)
-    {
-        var state = new YieldResumeState
-        {
-            HasResumeValue = true,
-            ResumeValue = resumeValue,
-            YieldSourceStart = yieldSourceStart,
-            YieldSourceEnd = yieldSourceEnd
-        };
-
-        if (environment.HasOwnBinding(YieldResumeStateKey))
-        {
-            environment.AssignJsValue(YieldResumeStateKey, JsValue.FromObjectUnsafe(state));
-        }
-        else
-        {
-            environment.DefineJsValue(YieldResumeStateKey, JsValue.FromObjectUnsafe(state), false, isLexical: true, canDelete: true);
-        }
     }
 
     extension(YieldExpression expression)

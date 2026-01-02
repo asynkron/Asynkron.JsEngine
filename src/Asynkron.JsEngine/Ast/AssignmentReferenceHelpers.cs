@@ -1,6 +1,5 @@
 #region
 
-using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -39,7 +38,6 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                     context.SetThrow(error);
                     return JsValue.Undefined;
-
                 },
                 value => AssignPropertyValueWithNullCheck(target, propertyName, value, context,
                     context.CurrentScope.IsStrict));
@@ -212,7 +210,8 @@ public static partial class TypedAstEvaluator
             JsValueKind.String => StringHelper.CreateStringWrapper(primitiveTarget.AsString(), context, realm),
             JsValueKind.Boolean => CreateBooleanWrapper(primitiveTarget.AsBoolean(), realm),
             JsValueKind.Symbol when primitiveTarget.ObjectValue is JsSymbol sym => CreateSymbolWrapper(sym, realm),
-            JsValueKind.BigInt when primitiveTarget.ObjectValue is JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi, context, realm),
+            JsValueKind.BigInt when primitiveTarget.ObjectValue is JsBigInt bi => BigIntHelper.CreateBigIntWrapper(bi,
+                context, realm),
             JsValueKind.Number => NumberHelper.CreateNumberWrapper(primitiveTarget.NumberValue, context, realm),
             _ => throw new InvalidOperationException($"Unexpected primitive type: {primitiveTarget.Kind}")
         };

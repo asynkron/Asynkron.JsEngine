@@ -32,8 +32,8 @@ public static partial class TypedAstEvaluator
         {
             public readonly YieldResumeContext ResumeContext = new();
             public int LastYieldIndex = -1;
-            public int LastYieldSourceStart = -1;
             public int LastYieldSourceEnd = -1;
+            public int LastYieldSourceStart = -1;
         }
 
         /// <summary>

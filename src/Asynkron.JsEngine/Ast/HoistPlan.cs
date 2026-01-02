@@ -40,12 +40,14 @@ internal sealed class HoistPlan
     internal Dictionary<Symbol, bool> LexicalDeclarationKinds { get; }
     internal HashSet<Symbol> CatchParameterNames { get; }
     internal HashSet<Symbol> SimpleCatchParameterNames { get; }
+
     /// <summary>
     /// Lexical names declared directly in the block (not in for-loop/for-each initializers).
     /// These are the names that need TDZ bindings in the function environment.
     /// For-loop/for-each initializers create their own per-iteration environments.
     /// </summary>
     internal HashSet<Symbol> TopLevelLexicalNames { get; }
+
     internal ImmutableArray<Symbol> LexicalTemplate { get; }
     internal ImmutableArray<Symbol> CatchParameterTemplate { get; }
     internal ImmutableArray<Symbol> SimpleCatchParameterTemplate { get; }

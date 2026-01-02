@@ -176,7 +176,8 @@ public static partial class TypedAstEvaluator
 
             if (superConstructor is not null)
             {
-                if (constructorAccessor is IJsObjectLike ctorObject && superConstructor is IJsPropertyAccessor superProto)
+                if (constructorAccessor is IJsObjectLike ctorObject &&
+                    superConstructor is IJsPropertyAccessor superProto)
                 {
                     ctorObject.SetPrototype(superProto);
                 }

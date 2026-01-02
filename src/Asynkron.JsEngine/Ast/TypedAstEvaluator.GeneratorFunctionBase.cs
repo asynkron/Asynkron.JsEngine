@@ -34,11 +34,19 @@ public static partial class TypedAstEvaluator
         private protected readonly bool _isLexicallyStrict = isLexicallyStrict;
         private readonly Dictionary<string, JsValue> _privateSlots = new(StringComparer.Ordinal);
         private protected readonly JsObject _properties = new();
-        private protected ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
+
+        private protected ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes =
+            ImmutableArray<PrivateNameScope>.Empty;
+
         private protected IJsObjectLike? _homeObject;
         private protected bool _isConstructorEnabled = isConstructorFunction;
 
         public PrivateNameScope? PrivateNameScope { get; private set; }
+
+        /// <summary>
+        /// Returns the function description string for ToString().
+        /// </summary>
+        protected abstract string FunctionTypeName { get; }
 
         public bool IsArrowFunction => false;
         public bool DisallowConstruct => true;
@@ -301,11 +309,6 @@ public static partial class TypedAstEvaluator
         {
             _homeObject = homeObject;
         }
-
-        /// <summary>
-        /// Returns the function description string for ToString().
-        /// </summary>
-        protected abstract string FunctionTypeName { get; }
 
         public override string ToString()
         {

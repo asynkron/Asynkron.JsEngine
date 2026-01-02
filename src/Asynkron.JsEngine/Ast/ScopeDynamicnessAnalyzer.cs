@@ -1469,7 +1469,6 @@ public static partial class TypedAstEvaluator
 
                         if (member.Function is not null)
                         {
-                            continue; // Skip inner functions - they have their own scope
                         }
                     }
 

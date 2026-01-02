@@ -91,7 +91,7 @@ public static partial class TypedAstEvaluator
                     if (propagateThrow && !methodInvoked)
                     {
                         // Call IteratorClose before throwing - this calls the return method if it exists
-                        _iterator.IteratorClose(context, false);
+                        _iterator.IteratorClose(context);
 
                         // Throw TypeError as per spec - this will be caught below and returned as delegated completion
                         throw StandardLibrary.ThrowTypeError(

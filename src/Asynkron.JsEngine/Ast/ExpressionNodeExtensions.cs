@@ -90,7 +90,8 @@ public static partial class TypedAstEvaluator
 
             // Proxy cannot be subclassed because its prototype is undefined.
             if (baseValue is IJsPropertyAccessor accessorWithMarker &&
-                JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessorWithMarker), "__proxyHasNoPrototype__", out var marker, context) &&
+                JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessorWithMarker), "__proxyHasNoPrototype__",
+                    out var marker, context) &&
                 JsOps.ToBoolean(marker))
             {
                 throw new ThrowSignal(StandardLibrary.CreateTypeError(
@@ -188,8 +189,7 @@ public static partial class TypedAstEvaluator
                 RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
                 ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
                 FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
-                    functionExpression.CreateFunctionValue(environment, context,
-                        true)),
+                    functionExpression.CreateFunctionValue(environment, context)),
                 DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment
                     .EvaluateDestructuringAssignment(environment, context),
                 PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(
@@ -405,8 +405,8 @@ public static partial class TypedAstEvaluator
                 {
                     var targetJs = member.Target.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation
-                        || member.IsOptional && targetJs.IsNullOrUndefined
-                        || targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target))
+                        || (member.IsOptional && targetJs.IsNullOrUndefined)
+                        || (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target)))
                     {
                         return (JsValue.Undefined, JsValue.Undefined, true);
                     }
@@ -497,7 +497,8 @@ public static partial class TypedAstEvaluator
 
                     return (value, targetJs, false);
                 }
-                case IdentifierExpression identifier when environment.TryResolveWithBinding(identifier.Name, context, out var withBinding):
+                case IdentifierExpression identifier
+                    when environment.TryResolveWithBinding(identifier.Name, context, out var withBinding):
                     try
                     {
                         var withValue = JsEnvironment.GetWithBindingValueJsValue(withBinding);

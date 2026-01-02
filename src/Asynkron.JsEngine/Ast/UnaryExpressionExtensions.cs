@@ -65,7 +65,7 @@ public static partial class TypedAstEvaluator
             var op = expression.Operator;
 
             // Hot path: increment/decrement on simple identifiers with slots
-            if ( (op == UnaryOperator.Increment || op == UnaryOperator.Decrement))
+            if (op == UnaryOperator.Increment || op == UnaryOperator.Decrement)
             {
                 var targetOperand = expression.Operand;
                 while (targetOperand is UnaryExpression

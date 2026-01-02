@@ -2,7 +2,6 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
-using Microsoft.Extensions.Logging;
 
 #endregion
 

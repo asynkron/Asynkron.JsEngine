@@ -46,12 +46,6 @@ public sealed partial record FunctionExpression
     internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
         ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
 
-    FunctionParameterNamesPlan IAstCacheable<FunctionParameterNamesPlan>.GetOrCreateCache()
-    {
-        return AstCache.GetOrCreate(ref _cachedParameterNames, this,
-            static function => FunctionParameterNamesPlan.Build(function));
-    }
-
     ExecutionPlanCache IAstCacheable<ExecutionPlanCache>.GetOrCreateCache()
     {
         var cache = AstCache.GetOrCreate(ref _cachedExecutionPlan, this,
@@ -62,6 +56,12 @@ public sealed partial record FunctionExpression
         }
 
         return cache;
+    }
+
+    FunctionParameterNamesPlan IAstCacheable<FunctionParameterNamesPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedParameterNames, this,
+            static function => FunctionParameterNamesPlan.Build(function));
     }
 
     internal void WarmExecutionPlanCache()

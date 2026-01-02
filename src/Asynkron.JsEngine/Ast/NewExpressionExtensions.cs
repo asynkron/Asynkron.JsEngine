@@ -259,7 +259,8 @@ public static partial class TypedAstEvaluator
                             isDerivedClassCtor);
                     }
                 }
-                else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var finalPrototypeJs, context) &&
+                else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var finalPrototypeJs,
+                             context) &&
                          finalPrototypeJs.TryGetObject<IJsPropertyAccessor>(out var finalProtoAccessor))
                 {
                     if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoAccessor))

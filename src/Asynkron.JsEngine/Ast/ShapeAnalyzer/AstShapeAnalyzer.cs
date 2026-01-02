@@ -31,7 +31,8 @@ internal static class AstShapeAnalyzer
             counter.YieldOperandContainsYield);
     }
 
-    public static bool ContainsYield([NotNullWhen(true)]ExpressionNode? expression, bool includeNestedFunctions = false)
+    public static bool ContainsYield([NotNullWhen(true)] ExpressionNode? expression,
+        bool includeNestedFunctions = false)
     {
         return AnalyzeExpression(expression, includeNestedFunctions).HasYield;
     }

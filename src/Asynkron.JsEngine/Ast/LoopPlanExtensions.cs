@@ -166,7 +166,7 @@ public static partial class TypedAstEvaluator
                 // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
                 // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
                 JsValue bodyResult;
-                if ( singleStatement is not null)
+                if (singleStatement is not null)
                 {
                     bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
                 }
@@ -263,7 +263,8 @@ public static partial class TypedAstEvaluator
             return lastValueJs;
         }
 
-        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment sourceEnvironment, JsEnvironment loopEnvironment,
+        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment sourceEnvironment,
+            JsEnvironment loopEnvironment,
             EvaluationContext context)
         {
             var logger = context.RealmState.Logger;

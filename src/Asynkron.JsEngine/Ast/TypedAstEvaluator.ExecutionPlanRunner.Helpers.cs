@@ -102,7 +102,8 @@ public static partial class TypedAstEvaluator
         /// Falls back to dictionary-based lookup if slot index is invalid.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryGetValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex, out JsValue value)
+        private static bool TryGetValueBySlot(JsEnvironment environment, Symbol symbol, int slotIndex,
+            out JsValue value)
         {
             if (slotIndex >= 0 && environment.HasSlots)
             {

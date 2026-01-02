@@ -108,6 +108,7 @@ public static partial class TypedAstEvaluator
             var keysPreview = string.Join(',', objectLike.Keys.Take(8));
             logger?.LogInformation("TryGetIteratorFromProtocols keys={Keys}", keysPreview);
         }
+
         if (accessor.TryInvokeSymbolMethod(iterableValue, Symbols.AsyncIterator, context, out var asyncIterator))
         {
             logger?.LogInformation("TryGetIteratorFromProtocols asyncIterator invoked stop={Stop} kind={IterKind}",
@@ -563,7 +564,7 @@ public static partial class TypedAstEvaluator
     private static JsValue BitwiseNotJsValue(in JsValue operand, EvaluationContext context)
     {
         // Fast path for number (most common case)
-        if ( operand.IsNumber)
+        if (operand.IsNumber)
         {
             var int32 = JsNumericConversions.ToInt32(operand.NumberValue);
             return new JsValue((double)~int32);
@@ -590,7 +591,7 @@ public static partial class TypedAstEvaluator
     private static JsValue LeftShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if ( left.IsNumber && right.IsNumber)
+        if (left.IsNumber && right.IsNumber)
         {
             var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
@@ -637,7 +638,7 @@ public static partial class TypedAstEvaluator
     private static JsValue RightShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if ( left.IsNumber && right.IsNumber)
+        if (left.IsNumber && right.IsNumber)
         {
             var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
@@ -684,7 +685,7 @@ public static partial class TypedAstEvaluator
     private static JsValue UnsignedRightShiftJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if ( left.IsNumber && right.IsNumber)
+        if (left.IsNumber && right.IsNumber)
         {
             var leftUInt = JsNumericConversions.ToUInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue) & 0x1F;
@@ -724,7 +725,7 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         // Fast path for number operands (most common case)
-        if ( left.IsNumber && right.IsNumber)
+        if (left.IsNumber && right.IsNumber)
         {
             var leftInt = JsNumericConversions.ToInt32(left.NumberValue);
             var rightInt = JsNumericConversions.ToInt32(right.NumberValue);
@@ -854,7 +855,8 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    private static bool OrdinaryHasInstanceJsValue(in JsValue candidate, in JsValue constructor, EvaluationContext context)
+    private static bool OrdinaryHasInstanceJsValue(in JsValue candidate, in JsValue constructor,
+        EvaluationContext context)
     {
         if (constructor.ObjectValue is not IJsCallable)
         {
@@ -927,7 +929,8 @@ public static partial class TypedAstEvaluator
             // tests that modify Array.prototype[Symbol.iterator])
             if (objValue is IJsPropertyAccessor propertyAccessor)
             {
-                var gotIterator = TryGetIteratorFromProtocols(JsValue.FromObjectUnsafe(propertyAccessor), context, out var iteratorCandidate);
+                var gotIterator = TryGetIteratorFromProtocols(JsValue.FromObjectUnsafe(propertyAccessor), context,
+                    out var iteratorCandidate);
                 if (context.ShouldStopEvaluation)
                 {
                     return false;

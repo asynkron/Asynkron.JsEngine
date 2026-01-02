@@ -57,8 +57,8 @@ public static partial class TypedAstEvaluator
                 // Class methods are non-constructors, so pass isConstructorFunction: false
                 var valueJs = member.Function is { } functionExpression
                     ? JsValue.FromObjectUnsafe(functionExpression.CreateFunctionValue(environment, context,
-                        isConstructorFunction: false,
-                        skipInternalNameBinding: false))
+                        false,
+                        false))
                     : member.Function.EvaluateExpression(environment, context);
                 if (context.ShouldStopEvaluation)
                 {

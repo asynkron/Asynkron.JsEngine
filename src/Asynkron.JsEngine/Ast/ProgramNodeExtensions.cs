@@ -562,7 +562,13 @@ public static partial class TypedAstEvaluator
             if (hasDynamicScope)
             {
                 context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval).");
-                return programBlock.EvaluateStatementJsValue(executionEnvironment, context);
+                var dynamicResultJs = programBlock.EvaluateStatementJsValue(executionEnvironment, context);
+                if (context.IsThrow)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
+                return dynamicResultJs;
             }
 
             // Try IR execution path first (unified execution model)

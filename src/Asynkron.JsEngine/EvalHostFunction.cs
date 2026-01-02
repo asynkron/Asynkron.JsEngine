@@ -63,7 +63,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             ? CallingJsEnvironment ?? throw new InvalidOperationException("eval() called without a calling environment")
             : evalRealmGlobal;
 
-        var forceStrict = isDirectEval && (CallingContext?.CurrentScope.IsStrict ?? false);
+        // Per ES spec (PerformEval), direct eval inherits strict mode from the running execution context.
+        // Use the calling JS environment's strictness as the primary signal; the EvaluationContext scope can
+        // temporarily differ (e.g. due to scope pushes) and is also not available for some host entry points.
+        var forceStrict = isDirectEval && (CallingJsEnvironment?.IsStrict == true || CallingContext?.CurrentScope.IsStrict == true);
 
         // Parse the code and build the typed AST so eval shares the same pipeline
         ProgramNode program;
@@ -331,8 +334,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         environment.RealmState);
                 }
 
-                var hasGlobalLexical = varEnv.IsGlobalFunctionScope &&
-                                       (varEnv.HasOwnLexicalBinding(name) || varEnv.HasBodyLexicalName(name));
+                // When the var environment is global, reject collisions with any existing global lexical declarations.
+                // We must check the full global chain (wrappers + true global) because strict scripts can create
+                // wrapper environments around the global scope and we track top-level lexical names via bodyLexicalNames.
+                var hasGlobalLexical = varEnv.IsGlobalFunctionScope && varEnv.HasGlobalLexicalDeclaration(name);
                 // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
                 // that collide with existing lexical bindings on the path to the var
                 // environment, except for simple catch parameters (Annex B.3.3.3).

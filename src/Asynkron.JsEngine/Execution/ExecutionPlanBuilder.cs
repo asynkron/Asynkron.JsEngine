@@ -303,6 +303,40 @@ internal sealed partial class ExecutionPlanBuilder
                 : plan.PerIterationBindings
                     .Select(binding => rewriter.TryResolveSlot(binding, mappedScopeId, out var idx) ? idx : -1)
                     .ToImmutableArray();
+
+            var fallbackSlotCount = plan.IterationSlotCount >= 0
+                ? plan.IterationSlotCount
+                : (!plan.PerIterationBindings.IsDefaultOrEmpty ? plan.PerIterationBindings.Length : -1);
+            if (mappedSlotCount < fallbackSlotCount && fallbackSlotCount >= 0)
+            {
+                mappedSlotCount = fallbackSlotCount;
+            }
+
+            if (mappedSlotCount > 0 && stampedBody.SlotCount < mappedSlotCount)
+            {
+                var slotMap = stampedBody.SlotMap;
+                if (slotMap.IsEmpty)
+                {
+                    var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>(
+                        ReferenceEqualityComparer<Symbol>.Instance);
+                    var count = Math.Min(plan.PerIterationBindings.Length, perIterationSlotIndices.Length);
+                    for (var i = 0; i < count; i++)
+                    {
+                        if (perIterationSlotIndices[i] >= 0)
+                        {
+                            slotMapBuilder[plan.PerIterationBindings[i]] = perIterationSlotIndices[i];
+                        }
+                    }
+
+                    slotMap = slotMapBuilder.ToImmutable();
+                }
+
+                stampedBody = stampedBody with
+                {
+                    SlotCount = mappedSlotCount,
+                    SlotMap = slotMap
+                };
+            }
             if (!ReferenceEquals(stampedBody, plan.Body))
             {
                 UpdateCachedIteratorPlan(forEach, plan, stampedBody, mappedScopeId, mappedSlotCount,

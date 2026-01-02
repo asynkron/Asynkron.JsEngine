@@ -420,8 +420,14 @@ internal sealed class ScopeSlotCollector : AstVisitor
     {
         if (statement is FunctionDeclaration funcDecl)
         {
-            // Function declarations are hoisted to the function/global scope.
-            AllocateSlotInScope(RootScopeId, funcDecl.Name);
+            // Function declarations:
+            // - If we're inside a nested block scope (stack has more than just root), allocate to block scope
+            // - Otherwise, allocate to the function/global scope (hoisted function)
+            // Note: _scopeStack always has at least RootScopeId (pushed in constructor), so:
+            // - Count == 1 means we're at function body level → RootScopeId
+            // - Count > 1 means we're in a nested block → block's scope
+            var targetScope = _scopeStack.Count > 1 ? _scopeStack.Peek() : RootScopeId;
+            AllocateSlotInScope(targetScope, funcDecl.Name);
             // Continue visiting to collect closure references from the function body
         }
 
@@ -439,7 +445,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             return;
         }
 
-        // Create a new scope for this block
+        // Create a new scope for this nested block
         var blockScopeId = _nextBlockScopeId++;
         _blockScopeIds[block] = blockScopeId;
 
@@ -466,6 +472,14 @@ internal sealed class ScopeSlotCollector : AstVisitor
         {
             _scopeStack.Pop();
         }
+    }
+
+    protected override void VisitFunctionExpression(FunctionExpression node)
+    {
+        // Don't descend into nested function bodies - they're analyzed separately with their own
+        // ScopeSlotCollector. Visiting them here would incorrectly create block scopes for their
+        // function bodies within the parent function's scope analysis.
+        // The function expression itself is handled by CreateFunctionInstruction in the IR.
     }
 
     private static ImmutableArray<Symbol> CollectParameterSymbols(FunctionExpression? function)

@@ -714,6 +714,13 @@ public static partial class TypedAstEvaluator
             // │ Async functions and generators ALWAYS use IR (required for pause/resume).    │
             // └──────────────────────────────────────────────────────────────────────────────┘
             //
+            // DEBUG: Log all invocations
+            RealmState.Logger?.LogInformation(
+                "[SyncFunctionInvoker.Invoke.ALL] _function.Hash={Hash} _allowIdentifierCache={AllowCache} _function.Name={Name}",
+                _function.GetHashCode(),
+                _allowIdentifierCache,
+                _function.Name?.Name ?? "<anonymous>");
+
             // Skip IR for:
             // - Functions with homeObject (class methods/field initializers) - need special super handling
             // - Functions with direct eval - AST path handles eval scope correctly
@@ -721,6 +728,11 @@ public static partial class TypedAstEvaluator
                 _allowIdentifierCache)
             {
                 var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+                RealmState.Logger?.LogInformation(
+                    "[SyncFunctionInvoker.Invoke] _function.Hash={Hash} planCache.Succeeded={Succeeded} plan.Hash={PlanHash}",
+                    _function.GetHashCode(),
+                    planCache.Succeeded,
+                    planCache.Plan?.GetHashCode() ?? -1);
                 if (planCache.Succeeded)
                 {
                     RealmState.ReturnContext(context);

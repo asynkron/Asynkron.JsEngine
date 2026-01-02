@@ -288,12 +288,18 @@ internal sealed partial class ExecutionPlanBuilder
         var collector = new NestedFunctionCollector(analysis.BlockScopeIds);
         collector.Visit(function.Body);
 
+        System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] Found {collector.Results.Count} nested functions");
+        System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] BlockScopeIds count: {analysis.BlockScopeIds.Count}");
+
         foreach (var (funcExpr, scopeId) in collector.Results)
         {
+            System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] Processing nested function, enclosingScopeId={scopeId}");
+
             // Trigger building the nested function's execution plan
             var nestedCache = ((IAstCacheable<ExecutionPlanCache>)funcExpr).GetOrCreateCache();
             if (!nestedCache.Succeeded || nestedCache.Plan is null)
             {
+                System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] Nested plan failed, stamping body AST");
                 // If we can't build an execution plan, stamp the body AST for AST-based evaluation
                 var mappedScopeId = rewriter.MapScopeId(scopeId);
                 var stampedBody = (BlockStatement)rewriter.StampNodeInScope(funcExpr.Body, mappedScopeId);
@@ -304,8 +310,11 @@ internal sealed partial class ExecutionPlanBuilder
                 continue;
             }
 
+            System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] Nested plan has {nestedCache.Plan.Instructions.Length} instructions");
+
             // Stamp the nested function's execution plan instructions with outer scope slot info
             var mappedScope = rewriter.MapScopeId(scopeId);
+            System.Diagnostics.Debug.WriteLine($"[StampNestedFunctionBodies] mappedScope={mappedScope}");
             StampNestedExecutionPlan(funcExpr, nestedCache.Plan, rewriter, mappedScope);
         }
     }
@@ -342,6 +351,8 @@ internal sealed partial class ExecutionPlanBuilder
 
     private static void UpdateCachedExecutionPlan(FunctionExpression funcExpr, ExecutionPlan stampedPlan)
     {
+        System.Diagnostics.Debug.WriteLine($"[UpdateCachedExecutionPlan] funcExpr.Hash={funcExpr.GetHashCode()} stampedPlan.Hash={stampedPlan.GetHashCode()}");
+
         var cacheField = typeof(FunctionExpression)
             .GetField("_cachedExecutionPlan", BindingFlags.Instance | BindingFlags.NonPublic);
         if (cacheField is not null)
@@ -357,7 +368,16 @@ internal sealed partial class ExecutionPlanBuilder
             {
                 var newCache = ctor.Invoke([stampedPlan, null]);
                 cacheField.SetValue(funcExpr, newCache);
+                System.Diagnostics.Debug.WriteLine($"[UpdateCachedExecutionPlan] Successfully updated cache");
             }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[UpdateCachedExecutionPlan] ERROR: Constructor not found");
+            }
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine($"[UpdateCachedExecutionPlan] ERROR: Field not found");
         }
     }
 

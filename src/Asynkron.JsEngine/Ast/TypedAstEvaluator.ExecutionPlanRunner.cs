@@ -3358,6 +3358,7 @@ public static partial class TypedAstEvaluator
             // Remember which await site is pending so we can stash the
             // resolved value on resume.
             AsyncStateRef.PendingAwaitKey = awaitKey;
+            _executionEnvironment = environment;
             _state = GeneratorState.Suspended;
             _programCounter = _currentInstructionIndex;
             context.SetPendingAwait();

@@ -69,6 +69,55 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         switch (instruction)
         {
+            case IteratorMoveNextInstruction moveNext:
+                if (moveNext.Next >= 0)
+                {
+                    yield return moveNext.Next;
+                }
+                if (moveNext.BreakIndex >= 0)
+                {
+                    yield return moveNext.BreakIndex;
+                }
+                yield break;
+
+            case EnterTryInstruction enterTry:
+                if (enterTry.Next >= 0)
+                {
+                    yield return enterTry.Next;
+                }
+                if (enterTry.HandlerIndex >= 0)
+                {
+                    yield return enterTry.HandlerIndex;
+                }
+                if (enterTry.FinallyIndex >= 0)
+                {
+                    yield return enterTry.FinallyIndex;
+                }
+                if (enterTry.LoopContinueTarget >= 0)
+                {
+                    yield return enterTry.LoopContinueTarget;
+                }
+                if (enterTry.LoopBreakTarget >= 0)
+                {
+                    yield return enterTry.LoopBreakTarget;
+                }
+                yield break;
+
+            case BreakableEnterInstruction breakableEnter:
+                if (breakableEnter.Next >= 0)
+                {
+                    yield return breakableEnter.Next;
+                }
+                if (breakableEnter.ContinueTarget >= 0)
+                {
+                    yield return breakableEnter.ContinueTarget;
+                }
+                if (breakableEnter.BreakTarget >= 0)
+                {
+                    yield return breakableEnter.BreakTarget;
+                }
+                yield break;
+
             case BranchInstruction branch:
                 yield return branch.ConsequentIndex;
                 yield return branch.AlternateIndex;

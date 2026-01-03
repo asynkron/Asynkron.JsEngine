@@ -1054,7 +1054,11 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                if (_homeObject is not null || _superConstructor is not null || prototypeForSuper is not null)
+                var shouldDefineSuperBinding = IsClassConstructor ||
+                                              _homeObject is not null ||
+                                              _superConstructor is not null ||
+                                              prototypeForSuper is not null;
+                if (shouldDefineSuperBinding)
                 {
                     var runtimeSuperConstructor = _superConstructor;
                     if (IsClassConstructor)
@@ -1067,9 +1071,13 @@ public static partial class TypedAstEvaluator
                         }
                     }
 
+                    var thisForSuper = initialThisInitialized &&
+                                       boundThis is not null &&
+                                       !ReferenceEquals(boundThis, JsEnvironment.Uninitialized)
+                        ? JsValue.FromObjectUnsafe(boundThis)
+                        : JsValue.Undefined;
                     var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper,
-                        JsValue.FromObjectUnsafe(boundThis),
-                        initialThisInitialized);
+                        thisForSuper, initialThisInitialized);
                     functionEnvironment.RealmState?.Logger?.LogInformation(
                         "SuperBinding: define in function env env={Env} isCtor={IsCtor} isDerivedCtor={IsDerivedCtor} protoNull={ProtoNull} thisInit={ThisInit}",
                         functionEnvironment.GetHashCode(),

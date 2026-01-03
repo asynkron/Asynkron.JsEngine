@@ -516,6 +516,8 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
+            var target = expression.Target;
+
             // Check for immutable binding (e.g., named function expression name)
             // Per ECMAScript spec, in strict mode throw TypeError, in non-strict mode silently ignore
             if (expression.IsImmutableTarget)
@@ -529,12 +531,12 @@ public static partial class TypedAstEvaluator
 
                 // Find the binding's environment to check its strictness
                 // The binding's environment strictness determines the behavior, not the current execution context
-                var bindingEnv = expression.ScopeId >= 0 && environment.ScopeId == expression.ScopeId
+                var immutableBindingEnv = expression.ScopeId >= 0 && environment.ScopeId == expression.ScopeId
                     ? environment
                     : expression.ScopeId >= 0
                         ? environment.FindByScopeId(expression.ScopeId)
                         : environment.GetFunctionScope();
-                var isStrictBinding = bindingEnv?.IsStrict ?? environment.IsStrict;
+                var isStrictBinding = immutableBindingEnv?.IsStrict ?? environment.IsStrict;
 
                 if (isStrictBinding)
                 {
@@ -601,11 +603,33 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Pre-check for const/immutable bindings using scope analysis (before fast paths that may bypass flags)
+            // Only applies to simple identifier targets.
+            if (environment.TryFindBindingJsValue(target, allowUninitialized: true,
+                    out var precheckBindingEnv, out _))
+            {
+                if (precheckBindingEnv.TryGetSlotIndex(target, out var idx))
+                {
+                    ref var slot = ref precheckBindingEnv.GetSlotByIndex(idx);
+                    if (!slot.IsUninitialized)
+                    {
+                        var isStrictContext = precheckBindingEnv.IsStrict || context.CurrentScope.IsStrict;
+                        if (slot.IsConst ||
+                            (slot.IsImmutableBinding && isStrictContext))
+                        {
+                            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                                $"Assignment to constant variable '{target.Name}'.",
+                                realm: context.RealmState));
+                        }
+                    }
+                }
+            }
+
             // Fast path for compound assignments on simple identifiers
             // This avoids creating AssignmentReference structs entirely.
             // IMPORTANT: Only use this fast path for non-dynamic scopes (see comment below for simple assignments).
             if (expression is { IsCompoundAssignment: true, SlotIndex: >= 0, ScopeId: >= 0 } &&
-                TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, expression.Target,
+                TryEvaluateCompoundAssignmentDirectJsValue(expression, expression.Value, target,
                     environment, context, out var compoundJsValue2, out var shouldAssignCompound2))
             {
                 if (context.ShouldStopEvaluation)
@@ -615,7 +639,10 @@ public static partial class TypedAstEvaluator
 
                 if (shouldAssignCompound2)
                 {
-                    environment.SetIdentifierJsValue(expression.Target, compoundJsValue2, context);
+                    var slotEnvironment = environment.ScopeId == expression.ScopeId
+                        ? environment
+                        : environment.FindByScopeId(expression.ScopeId) ?? environment;
+                    slotEnvironment.SetIdentifierJsValue(target, compoundJsValue2, context);
                 }
 
                 return compoundJsValue2;
@@ -629,8 +656,14 @@ public static partial class TypedAstEvaluator
             // which breaks code like: with(scope) { x = (delete scope.x, 2); }
             if (expression is { IsCompoundAssignment: false, SlotIndex: >= 0, ScopeId: >= 0 })
             {
+                // Find the environment that owns this slot. Slot indices are scoped to the declaring environment,
+                // so we must not blindly write to the current environment if ScopeId differs (e.g., class name slots).
+                var slotEnvironment = environment.ScopeId == expression.ScopeId
+                    ? environment
+                    : environment.FindByScopeId(expression.ScopeId) ?? environment;
+
                 var targetValueJs =
-                    EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, environment, context);
+                    EvaluateAssignmentRhsWithNameHintJsValue(expression, expression.Value, slotEnvironment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return targetValueJs;
@@ -638,7 +671,7 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    environment.SetIdentifierJsValue(expression.Target, targetValueJs, context);
+                    slotEnvironment.SetIdentifierJsValue(target, targetValueJs, context);
                     return targetValueJs;
                 }
                 catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
@@ -651,14 +684,14 @@ public static partial class TypedAstEvaluator
             // Runtime slot lookup: try to find slot index from environment's SlotMap
             // This avoids the expensive ResolveIdentifierDirect fallback for variables
             // declared in the current function scope when AST nodes weren't pre-stamped.
-            if (environment.TryGetSlotIndex(expression.Target, out var runtimeSlotIndex))
+            if (environment.TryGetSlotIndex(target, out var runtimeSlotIndex))
             {
                 // Found slot - check TDZ first
                 ref var tdzdCheckSlot = ref environment.GetSlotByIndex(runtimeSlotIndex);
                 if (tdzdCheckSlot.IsUninitialized && tdzdCheckSlot.IsLexical)
                 {
                     throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                        $"Cannot access '{expression.Target.Name}' before initialization",
+                        $"Cannot access '{target.Name}' before initialization",
                         context, context.RealmState));
                 }
 
@@ -726,7 +759,7 @@ public static partial class TypedAstEvaluator
                     if (compoundSlot.IsConst && !compoundSlot.IsUninitialized)
                     {
                         throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                            $"Assignment to constant variable '{expression.Target.Name}'.",
+                            $"Assignment to constant variable '{target.Name}'.",
                             realm: context.RealmState));
                     }
 
@@ -735,7 +768,7 @@ public static partial class TypedAstEvaluator
                         if (environment.IsStrict || context.CurrentScope.IsStrict)
                         {
                             throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                                $"Assignment to constant variable '{expression.Target.Name}'.",
+                                $"Assignment to constant variable '{target.Name}'.",
                                 realm: context.RealmState));
                         }
 
@@ -769,7 +802,7 @@ public static partial class TypedAstEvaluator
                     if (simpleSlot.IsConst && !simpleSlot.IsUninitialized)
                     {
                         throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                            $"Assignment to constant variable '{expression.Target.Name}'.",
+                            $"Assignment to constant variable '{target.Name}'.",
                             realm: context.RealmState));
                     }
 
@@ -778,7 +811,7 @@ public static partial class TypedAstEvaluator
                         if (environment.IsStrict || context.CurrentScope.IsStrict)
                         {
                             throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                                $"Assignment to constant variable '{expression.Target.Name}'.",
+                                $"Assignment to constant variable '{target.Name}'.",
                                 realm: context.RealmState));
                         }
 

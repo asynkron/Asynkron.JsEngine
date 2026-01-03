@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibNumber)]
+[Category(TestCategories.StdLibObject)]
 public sealed class NumericObjectKeysTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for parameter naming including contextual keywords
 /// </summary>
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class ParameterNamingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

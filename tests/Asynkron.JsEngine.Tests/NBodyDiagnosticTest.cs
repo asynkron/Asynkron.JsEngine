@@ -3,6 +3,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Performance)]
+[Category(TestCategories.Diagnostics)]
 public sealed class NBodyDiagnosticTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

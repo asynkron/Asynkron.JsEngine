@@ -20,6 +20,8 @@ namespace Asynkron.JsEngine.Tests;
 /// - eval('1; try { throw null; } catch (err) { }') returns 1 instead of undefined
 /// - break-from-finally causes infinite loop
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
+[Category(TestCategories.Regression)]
 public sealed class CatchBlockTestBomb(ITestOutputHelper output)
 {
     // ============================================================================

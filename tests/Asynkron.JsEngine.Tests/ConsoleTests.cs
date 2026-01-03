@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibConsole)]
 public sealed class ConsoleTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

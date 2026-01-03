@@ -4,6 +4,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.ScopeAnalysis)]
+[Category(TestCategories.Regression)]
 public sealed class NestedFunctionScopeRegressionTests : InternalTestBase
 {
     public NestedFunctionScopeRegressionTests(ITestOutputHelper output) : base(output)

@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibDate)]
 public sealed class DateBuiltinsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Theory(Timeout = 2000)]

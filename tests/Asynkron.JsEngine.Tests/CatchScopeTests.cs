@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class CatchScopeTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 10000)]

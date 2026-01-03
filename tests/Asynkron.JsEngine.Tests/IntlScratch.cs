@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibIntl)]
 public sealed class IntlScratchTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

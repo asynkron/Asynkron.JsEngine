@@ -4,6 +4,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.ScopeAnalysis)]
+[Category(TestCategories.Diagnostics)]
 public sealed class IdentifierSlotLoggingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Skip = "Slot initialization in IR path needs investigation after environment changes")]

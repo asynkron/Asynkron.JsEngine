@@ -7,6 +7,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Regression)]
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class ThrowBugTests(ITestOutputHelper output)
 {
     /// <summary>

@@ -4,6 +4,9 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.AsyncRuntime)]
+[Category(TestCategories.IteratorRuntime)]
+[Category(TestCategories.AsyncForOfGlobalKnownFailure)]
 public sealed class AsyncForOfGlobalIteratorKnownIssuesTests(ITestOutputHelper output)
 {
     /// <summary>

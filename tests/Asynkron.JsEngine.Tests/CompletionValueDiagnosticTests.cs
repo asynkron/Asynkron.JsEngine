@@ -6,6 +6,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Diagnostic tests for completion value semantics.
 /// </summary>
+[Category(TestCategories.Diagnostics)]
+[Category(TestCategories.CompletionValues)]
 public sealed class CompletionValueDiagnosticTests(ITestOutputHelper output)
 {
     [Fact]

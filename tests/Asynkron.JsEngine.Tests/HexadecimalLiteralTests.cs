@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Parser)]
+[Category(TestCategories.StdLibNumber)]
 public sealed class HexadecimalLiteralTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

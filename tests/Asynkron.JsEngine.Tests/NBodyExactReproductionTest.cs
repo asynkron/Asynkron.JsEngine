@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Performance)]
 public sealed class NBodyExactReproductionTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

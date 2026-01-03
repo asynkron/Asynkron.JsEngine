@@ -15,6 +15,8 @@ namespace Asynkron.JsEngine.Tests;
 /// in GLOBAL scope (outside the async function). The S-expression transformation is
 /// correct in both cases, but execution differs.
 /// </summary>
+[Category(TestCategories.AsyncRuntime)]
+[Category(TestCategories.IteratorRuntime)]
 public sealed class AsyncIterableScopeComparisonTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 5000)]

@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.ModuleSystem)]
+[Category(TestCategories.Integration)]
 public sealed class ModuleTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

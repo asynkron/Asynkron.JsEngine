@@ -418,11 +418,11 @@ public static partial class TypedAstEvaluator
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
-            // Initialize slots for generator-internal variables (iterator states, values, etc.) FIRST
+            // Initialize slots for generator-internal variables (iterator states, values, etc.) FIRST.
             // This must happen BEFORE hoisting lexical bindings because the IR uses 0-based slot indices.
             // Plan slots get indices 0, 1, 2... and hoisted lexical bindings get subsequent indices.
             // This enables O(1) slot-based access instead of dictionary lookups.
-            // ScopeId = 0 is used for execution plan slots (matches stamped IdentifierExpressions)
+            // Use the plan's RootScopeId for all execution plan slots.
             if (_plan is { SlotCount: > 0, SlotSymbols.IsDefaultOrEmpty: false })
             {
                 // Ensure we allocate enough slots to cover:
@@ -439,9 +439,9 @@ public static partial class TypedAstEvaluator
 
                 var scopeLexicals = _plan.SafeScopeLexicalBindings;
                 var rootLexicals = _plan.SafeRootLexicalBindings;
-                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
+                if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(_plan.RootScopeId, out var fromRoot))
                 {
-                    rootLexicals = fromScope0;
+                    rootLexicals = fromRoot;
                 }
 
                 executionEnvironment.ResetSlotLayoutForPlan(
@@ -449,7 +449,8 @@ public static partial class TypedAstEvaluator
                     rootSlotMap,
                     rootLexicals,
                     _plan.SlotSymbols,
-                    _plan.LayoutId);
+                    _plan.LayoutId,
+                    _plan.RootScopeId);
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
@@ -2385,19 +2386,14 @@ public static partial class TypedAstEvaluator
                                 // Find the correct environment for storing iterator state.
                                 // When a for-await-of loop is nested inside another loop with
                                 // per-iteration bindings, `environment` might be a child environment
-                                // with different slots. The iterator slot was allocated in a parent
-                                // scope, so we need to walk up the chain to find it.
-                                //
-                                // IMPORTANT: Skip per-iteration environments (ScopeId > 0) to avoid
-                                // slot collisions with loop variables like `i`, `j`. Iterator temps
-                                // should be stored in function-level scope (ScopeId = 0).
+                                // with different slots. The iterator slot was allocated in the
+                                // function's root scope, so we need to walk up the chain to find it.
                                 var iteratorEnv = environment;
                                 var walkCount = 0;
                                 if (iteratorInitInstruction.IteratorSlotIndex >= 0)
                                 {
                                     while (iteratorEnv is not null &&
-                                           (iteratorEnv.ScopeId >
-                                            0 || // Skip per-iteration envs (but not ScopeId=0 which is function scope)
+                                           (iteratorEnv.ScopeId != _plan.RootScopeId ||
                                             !iteratorEnv.HasSlots ||
                                             iteratorEnv._slots!.Length <= iteratorInitInstruction.IteratorSlotIndex))
                                     {
@@ -2455,14 +2451,13 @@ public static partial class TypedAstEvaluator
                                     var slotIdx = iteratorMoveNextInstruction.IteratorSlotIndex;
 
                                     // Walk up to find the scope with the right slots
-                                    // Skip per-iteration envs (ScopeId > 0) since iterator temps are stored
-                                    // in function scope (ScopeId = 0), not per-iteration envs
+                                    // Skip per-iteration envs since iterator temps are stored
+                                    // in the function's root scope (RootScopeId), not per-iteration envs
                                     if (slotIdx >= 0)
                                     {
                                         var slotWalkCount = 0;
                                         while (slotEnv != null &&
-                                               (slotEnv.ScopeId >
-                                                0 || // Skip per-iteration envs (but not ScopeId=0 which is function scope)
+                                               (slotEnv.ScopeId != _plan.RootScopeId ||
                                                 !slotEnv.HasSlots ||
                                                 slotEnv._slots!.Length <= slotIdx))
                                         {

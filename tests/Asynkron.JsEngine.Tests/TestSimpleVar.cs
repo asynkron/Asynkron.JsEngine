@@ -3,6 +3,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Parser)]
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class TestSimpleVar(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

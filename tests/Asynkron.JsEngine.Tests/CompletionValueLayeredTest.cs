@@ -16,6 +16,8 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// The debug logging will show IR instructions being executed.
 /// </summary>
+[Category(TestCategories.Diagnostics)]
+[Category(TestCategories.CompletionValues)]
 public sealed class CompletionValueLayeredTest(ITestOutputHelper output)
 {
     // ============================================================================

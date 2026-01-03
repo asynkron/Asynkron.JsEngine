@@ -3455,7 +3455,8 @@ public sealed class JsEnvironment : IRentable
         ImmutableDictionary<Symbol, int> slotMap,
         ImmutableHashSet<Symbol> lexicalBindings,
         ImmutableArray<Symbol> slotSymbols,
-        int layoutId)
+        int layoutId,
+        int scopeId)
     {
         var needsRebuild = LayoutId != layoutId || _slots is null || _slots.Length < requiredSlots ||
                            _slotCount < requiredSlots;
@@ -3465,7 +3466,7 @@ public sealed class JsEnvironment : IRentable
             _slots = null;
         }
 
-        InitializeSlots(requiredSlots, 0);
+        InitializeSlots(requiredSlots, scopeId);
 
         if (!slotMap.IsEmpty)
         {

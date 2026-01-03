@@ -6,6 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for async/await functionality.
 /// </summary>
+[Category(TestCategories.AsyncRuntime)]
 public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

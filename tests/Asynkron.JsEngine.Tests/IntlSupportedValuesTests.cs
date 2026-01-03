@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibIntl)]
 public sealed class IntlSupportedValuesTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

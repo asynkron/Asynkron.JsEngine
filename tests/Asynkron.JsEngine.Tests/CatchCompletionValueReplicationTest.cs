@@ -9,6 +9,8 @@ namespace Asynkron.JsEngine.Tests;
 /// Quick replication of Test262 failures to verify we see the same issue locally.
 /// Based on the failing tests list, these should fail with the current implementation.
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
+[Category(TestCategories.CompletionValues)]
 public sealed class CatchCompletionValueReplicationTest(ITestOutputHelper output)
 {
     /// <summary>

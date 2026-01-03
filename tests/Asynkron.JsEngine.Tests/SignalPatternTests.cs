@@ -6,6 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to verify that control flow (break, continue, return) works correctly
 /// with the new signal-based implementation.
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class SignalPatternTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

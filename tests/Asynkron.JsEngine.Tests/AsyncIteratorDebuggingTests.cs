@@ -8,6 +8,9 @@ namespace Asynkron.JsEngine.Tests;
 /// Detailed debugging tests to pinpoint why global scope iterators fail.
 /// These tests progressively isolate the issue by testing iterator calls in different contexts.
 /// </summary>
+[Category(TestCategories.AsyncRuntime)]
+[Category(TestCategories.IteratorRuntime)]
+[Category(TestCategories.Debugging)]
 public sealed class AsyncIteratorDebuggingTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 5000)]

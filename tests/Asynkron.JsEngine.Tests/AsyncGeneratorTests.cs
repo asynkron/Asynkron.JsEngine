@@ -3,6 +3,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.AsyncRuntime)]
+[Category(TestCategories.IteratorRuntime)]
 [Collection("GeneratorIrCollection")]
 public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {

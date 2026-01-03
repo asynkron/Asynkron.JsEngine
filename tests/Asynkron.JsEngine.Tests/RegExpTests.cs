@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for Regular Expression support.
 /// </summary>
+[Category(TestCategories.StdLibRegExp)]
 public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

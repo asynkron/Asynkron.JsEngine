@@ -300,7 +300,10 @@ public static partial class TypedAstEvaluator
             // For eval, always disable identifier caching because eval runs in the caller's
             // lexical environment which may contain 'with' statements. The static analysis
             // of the eval code alone doesn't tell us about the outer context.
-            context.AllowIdentifierCache = executionKind != ExecutionKind.Eval && AllowsIdentifierCaching(program);
+            var allowScriptSlotAnalysis = context.RealmState.Options.AllowScriptSlotAnalysis;
+            context.AllowIdentifierCache = allowScriptSlotAnalysis &&
+                                           executionKind != ExecutionKind.Eval &&
+                                           AllowsIdentifierCaching(program);
             context.DrainAwaitMicrotasks = drainAwaitMicrotasks;
             if (inheritedPrivateNameScopes is { IsDefault: false, Length: > 0 } scopes)
             {
@@ -461,7 +464,8 @@ public static partial class TypedAstEvaluator
             var hasDynamicScope = !AllowsIdentifierCaching(program);
             ScriptPlanCache? scriptPlanCache = null;
             ExecutionPlan? scriptPlan = null;
-            if (!hasDynamicScope)
+            var enableScriptSlots = allowScriptSlotAnalysis && !hasDynamicScope;
+            if (enableScriptSlots)
             {
                 scriptPlanCache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
                 if (scriptPlanCache.Succeeded)
@@ -505,7 +509,8 @@ public static partial class TypedAstEvaluator
                                 rootSlotMap,
                                 rootLexicals,
                                 scriptPlan.SlotSymbols,
-                                scriptPlan.LayoutId);
+                                scriptPlan.LayoutId,
+                                scriptPlan.RootScopeId);
                         }
                     }
                 }
@@ -554,7 +559,7 @@ public static partial class TypedAstEvaluator
 
             // Try IR execution path first (unified execution model)
             // Fall back to AST walking if IR building fails or encounters unsupported constructs
-            if (scriptPlanCache is { Succeeded: true } && scriptPlan is not null)
+            if (enableScriptSlots && scriptPlanCache is { Succeeded: true } && scriptPlan is not null)
             {
                 context.RealmState.Logger?.LogInformation(
                     "Executing script via IR path ({InstructionCount} instructions)",

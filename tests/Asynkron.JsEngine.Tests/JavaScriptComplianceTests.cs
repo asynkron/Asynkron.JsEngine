@@ -6,6 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Hard tests for JavaScript compliance - testing edge cases, oddities, and problematic behaviors
 /// that are known to be challenging in JavaScript implementations.
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class JavaScriptComplianceTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================

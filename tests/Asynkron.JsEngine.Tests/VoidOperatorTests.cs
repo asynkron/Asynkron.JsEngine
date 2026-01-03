@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.TypeSystem)]
 public sealed class VoidOperatorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

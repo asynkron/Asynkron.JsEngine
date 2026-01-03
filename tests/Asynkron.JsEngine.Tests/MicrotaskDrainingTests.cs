@@ -16,6 +16,7 @@ namespace Asynkron.JsEngine.Tests;
 ///   node -e "let y=0; (async()=>{y=await Promise.resolve(42)})(); console.log(y)"
 ///   Output: 0 (not 42)
 /// </summary>
+[Category(TestCategories.AsyncRuntime)]
 public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]

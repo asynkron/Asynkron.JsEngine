@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for tagged template literals.
 /// </summary>
+[Category(TestCategories.StdLibString)]
 public sealed class TaggedTemplateTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

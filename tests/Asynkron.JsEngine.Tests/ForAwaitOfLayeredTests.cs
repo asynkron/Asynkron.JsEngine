@@ -13,6 +13,8 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// The tests use FakeLogger to trace execution and understand what's happening.
 /// </summary>
+[Category(TestCategories.AsyncRuntime)]
+[Category(TestCategories.IteratorRuntime)]
 public sealed class ForAwaitOfLayeredTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ==================== LAYER 1: Basic Async Function ====================

@@ -20,6 +20,9 @@ namespace Asynkron.JsEngine.Tests;
 /// - Both FAIL = Multiple issues or root cause affects both
 /// - Both PASS = Our hypothesis list is incomplete
 /// </summary>
+[Category(TestCategories.StrictMode)]
+[Category(TestCategories.Eval)]
+[Category(TestCategories.Regression)]
 public sealed class StrictModeEvalTestBomb(ITestOutputHelper output)
 {
     /// <summary>

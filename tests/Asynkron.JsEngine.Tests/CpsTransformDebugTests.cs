@@ -8,6 +8,8 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests to debug CPS transformation for loops with await.
 /// These tests help understand what the transformer is producing.
 /// </summary>
+[Category(TestCategories.Transformations)]
+[Category(TestCategories.Debugging)]
 public sealed class CpsTransformDebugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

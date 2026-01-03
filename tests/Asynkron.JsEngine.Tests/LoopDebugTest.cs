@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Debugging)]
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class LoopDebugTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

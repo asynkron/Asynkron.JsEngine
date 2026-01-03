@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Parser)]
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class TestTypeofUndeclared(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

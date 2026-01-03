@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibMapSet)]
 public sealed class SetTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.

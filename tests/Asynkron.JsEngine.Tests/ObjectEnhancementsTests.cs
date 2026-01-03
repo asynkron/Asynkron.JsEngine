@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibObject)]
 public sealed class ObjectEnhancementsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Object property shorthand tests

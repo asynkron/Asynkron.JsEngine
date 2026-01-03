@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibObject)]
 public sealed class StaticMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Object static methods tests

@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibFunction)]
 public sealed class FunctionConstructorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

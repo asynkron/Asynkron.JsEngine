@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for comprehensive type coercion rules (toString, toNumber conversions)
 /// </summary>
+[Category(TestCategories.TypeSystem)]
 public sealed class TypeCoercionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================

@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibTypedArray)]
 public sealed class TypedArrayResizableTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

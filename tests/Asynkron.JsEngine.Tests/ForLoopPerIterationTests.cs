@@ -7,6 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Layered reproductions of test262 for-loop per-iteration scope semantics.
 /// These mirror key failing test262 cases so we can debug without the full harness.
 /// </summary>
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class ForLoopPerIterationTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

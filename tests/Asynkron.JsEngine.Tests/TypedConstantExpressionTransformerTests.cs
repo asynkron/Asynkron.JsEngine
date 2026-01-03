@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Ast;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Transformations)]
 public sealed class TypedConstantExpressionTransformerTests
 {
     [Fact]

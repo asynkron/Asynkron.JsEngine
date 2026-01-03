@@ -19,6 +19,7 @@ public sealed class JsEngineOptions : IJsEngineOptions
     public TimeZoneInfo TimeZone { get; init; } = TimeZoneInfo.Utc;
     public bool AllowImportMeta { get; init; } = true;
     public bool DebugMode { get; init; }
+    public bool AllowScriptSlotAnalysis { get; init; }
 
     /// <summary>
     /// Optional logger to receive realm traces and diagnostics.

@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class SlotGuardrailTests : InternalTestBase
 {
     public SlotGuardrailTests(ITestOutputHelper output) : base(output)

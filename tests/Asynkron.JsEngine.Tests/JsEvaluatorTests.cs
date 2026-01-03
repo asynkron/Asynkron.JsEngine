@@ -6,6 +6,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.RuntimeSemantics)]
+[Category(TestCategories.Integration)]
 public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

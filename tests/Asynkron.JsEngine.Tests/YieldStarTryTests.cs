@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.IteratorRuntime)]
 public sealed class YieldStarTryTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 10000)]

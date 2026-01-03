@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibObject)]
 public sealed class ObjectDescriptorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Tests for Object.defineProperty with writable descriptor

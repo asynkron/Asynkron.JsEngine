@@ -4,6 +4,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests.PerfTests;
 
+[Category(TestCategories.Performance)]
+[Category(TestCategories.Debugging)]
 public sealed class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

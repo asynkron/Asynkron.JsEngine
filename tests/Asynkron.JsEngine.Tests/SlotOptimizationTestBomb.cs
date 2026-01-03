@@ -10,6 +10,10 @@ namespace Asynkron.JsEngine.Tests;
 /// TEST BOMB: Verifies user variable identifiers in IR are stamped with scope/slot info.
 /// These used to assert the absence of slot stamping; they now prove the optimization works.
 /// </summary>
+[Category(TestCategories.ScopeAnalysis)]
+[Category(TestCategories.Performance)]
+[Category(TestCategories.SlotOptimization)]
+[Category(TestCategories.Regression)]
 public sealed class SlotOptimizationTestBomb : IAsyncLifetime
 {
     private JsEngine _engine = null!;

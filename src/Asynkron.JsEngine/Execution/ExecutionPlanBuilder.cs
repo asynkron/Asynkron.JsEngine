@@ -36,7 +36,8 @@ internal sealed partial class ExecutionPlanBuilder
     private string? _failureReason;
     private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
     private int _resumeSlotCounter;
-    private int _scopeIdCounter = 1; // Start at 1 because 0 is reserved for function-level scope
+    private int _scopeIdCounter = 1; // Start at 1; root scope id is handled separately and remapped later
+    private int _rootScopeId;
     private int _withScopeSlotCounter;
     private int _yieldStarStateCounter;
 
@@ -113,6 +114,8 @@ internal sealed partial class ExecutionPlanBuilder
 
     private bool TryBuildInternal(FunctionExpression function, out ExecutionPlan plan)
     {
+        var analysisRootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
+        _rootScopeId = function.ScopeId >= 0 ? function.ScopeId : SyntheticScopeIdAllocator.NextFunctionRoot();
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
         var implicitReturnIndex = Append(new ReturnInstruction(-1, null));
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))
@@ -129,18 +132,21 @@ internal sealed partial class ExecutionPlanBuilder
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
         // For functions, slot assignment is fine because scope analysis happens at parse time.
         ScopeSlotAnalysis? analysis = null;
+        SlotAssignmentRewriter? rewriter = null;
         if (!IsScriptLevel)
         {
-            analysis = AssignSlotsToUserVariables(entryIndex, function);
+            analysis = AssignSlotsToUserVariables(entryIndex, function, _rootScopeId, analysisRootScopeId,
+                out rewriter);
         }
 
-        var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(0, out var rootInfo)
+        var rootSlotCount = analysis is not null && analysis.Scopes.TryGetValue(analysisRootScopeId, out var rootInfo)
             ? rootInfo.SlotCount
             : 0;
-        var rootSlotMap = analysis is not null && analysis.ImmutableSlotMaps.TryGetValue(0, out var rootMap)
+        var rootSlotMap = analysis is not null && analysis.ImmutableSlotMaps.TryGetValue(analysisRootScopeId, out var rootMap)
             ? rootMap
             : ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
-        var rootLexicalBindings = analysis is not null && analysis.LexicalBindings.TryGetValue(0, out var rootLex)
+        var mappedRootScopeId = rewriter?.MapScopeId(analysisRootScopeId) ?? _rootScopeId;
+        var rootLexicalBindings = analysis is not null && _lexicalBindings.TryGetValue(mappedRootScopeId, out var rootLex)
             ? rootLex
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
         var slotSymbols = _slotSymbols.ToImmutableArray();
@@ -156,6 +162,7 @@ internal sealed partial class ExecutionPlanBuilder
             rootLexicalBindings,
             _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
                 EqualityComparer<int>.Default),
+            RootScopeId: mappedRootScopeId,
             layoutId);
         return true;
     }
@@ -164,7 +171,12 @@ internal sealed partial class ExecutionPlanBuilder
     /// Collects all user variable identifiers from instructions, assigns them slots,
     /// and updates the AST nodes with scope-aware slot metadata.
     /// </summary>
-    private ScopeSlotAnalysis AssignSlotsToUserVariables(int entryIndex, FunctionExpression function)
+    private ScopeSlotAnalysis AssignSlotsToUserVariables(
+        int entryIndex,
+        FunctionExpression function,
+        int targetRootScopeId,
+        int analysisRootScopeId,
+        out SlotAssignmentRewriter rewriter)
     {
         var parameterNames = new List<Symbol>();
         function.CollectParameterNamesFromFunction(parameterNames);
@@ -194,17 +206,20 @@ internal sealed partial class ExecutionPlanBuilder
 
         var collector = new ScopeSlotCollector(Instructions, seedSlots, AllocateSlot, entryIndex, function);
         var analysis = collector.Collect();
-        _lexicalBindings = analysis.LexicalBindings;
-        var rewriter = new SlotAssignmentRewriter(analysis);
+        rewriter = new SlotAssignmentRewriter(analysis, targetRootScopeId, analysisRootScopeId);
+        var slotMapper = new Func<int, int>(rewriter.MapScopeId);
+        _lexicalBindings = analysis.LexicalBindings.ToDictionary(
+            kv => slotMapper(kv.Key),
+            kv => kv.Value,
+            EqualityComparer<int>.Default);
         rewriter.RewriteInstructions(Instructions, entryIndex);
 
         // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
         StampIteratorBodies(function, rewriter);
 
-        // Nested function stamping disabled - scope IDs in IR plans are not globally unique
-        // across nested functions (all use RootScopeId=0). Unresolved identifiers in nested
-        // functions fall back to dynamic lookup which correctly traverses the closure chain.
-        // See issue #351 for details. Re-enable once unique scope IDs are implemented (PR #355).
+        // Nested function stamping remains disabled; nested bodies still fall back to dynamic
+        // lookup which correctly traverses the closure chain. With unique scope ids in place,
+        // this can be re-enabled once the feature flag and tests from step 8 are added.
         // StampNestedFunctionBodies(function, rewriter, analysis);
 
         return analysis;
@@ -336,6 +351,7 @@ internal sealed partial class ExecutionPlanBuilder
             plan.RootSlotMap,
             plan.RootLexicalBindings,
             plan.ScopeLexicalBindings,
+            plan.RootScopeId,
             plan.LayoutId);
 
         // Update the cached plan on the FunctionExpression

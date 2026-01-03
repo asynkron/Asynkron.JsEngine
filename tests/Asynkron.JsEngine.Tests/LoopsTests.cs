@@ -1,5 +1,6 @@
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class LoopsTests(JsEngineTestFixture fixture) : JsEngineTestBase(fixture)
 {
     // Const assignment error tests

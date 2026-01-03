@@ -12,6 +12,9 @@ namespace Asynkron.JsEngine.Tests;
 ///
 /// See todo.md and docs/identifier-slot-optimization.md for the fix plan.
 /// </summary>
+[Category(TestCategories.ScopeAnalysis)]
+[Category(TestCategories.Performance)]
+[Category(TestCategories.SlotOptimization)]
 [Trait("Category", "SlotOptimization")]
 public sealed class SlotOptimizationTests : IAsyncLifetime
 {

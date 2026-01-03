@@ -2,6 +2,9 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibPromise)]
+[Category(TestCategories.StdLibSymbol)]
+[Category(TestCategories.StdLibObject)]
 public sealed class AdditionalBuiltinsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.IteratorRuntime)]
 public sealed class DestructuringIteratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

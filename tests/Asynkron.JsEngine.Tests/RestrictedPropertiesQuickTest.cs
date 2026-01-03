@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StrictMode)]
+[Category(TestCategories.StdLibFunction)]
 public sealed class RestrictedPropertiesQuickTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

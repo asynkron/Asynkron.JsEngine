@@ -9,6 +9,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.IteratorRuntime)]
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class IteratorDriverPlanTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

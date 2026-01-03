@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for ES6 class statement features based on common Test262 class issues
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

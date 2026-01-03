@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibNumber)]
 public sealed class ScientificNotationTestsBase(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

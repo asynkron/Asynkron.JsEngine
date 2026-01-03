@@ -8,6 +8,9 @@ namespace Asynkron.JsEngine.Tests;
 /// Debug tests to diagnose and fix async iterable test failures.
 /// Following the pattern of adding __debug() calls to understand execution flow.
 /// </summary>
+[Category(TestCategories.AsyncRuntime)]
+[Category(TestCategories.IteratorRuntime)]
+[Category(TestCategories.Debugging)]
 public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

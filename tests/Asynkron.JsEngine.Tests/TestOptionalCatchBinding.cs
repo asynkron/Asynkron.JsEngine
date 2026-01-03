@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Parser)]
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class TestOptionalCatchBinding(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

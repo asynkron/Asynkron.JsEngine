@@ -11,6 +11,9 @@ namespace Asynkron.JsEngine.Tests;
 /// - Branch conditions are stamped with matching ScopeId/SlotIndex
 /// - Nested loops keep distinct scopes and slot indices aligned with their maps
 /// </summary>
+[Category(TestCategories.ScopeAnalysis)]
+[Category(TestCategories.Transformations)]
+[Category(TestCategories.SlotOptimization)]
 [Trait("Category", "SlotOptimization")]
 public sealed class SlotStampingPlanTests : IAsyncLifetime
 {

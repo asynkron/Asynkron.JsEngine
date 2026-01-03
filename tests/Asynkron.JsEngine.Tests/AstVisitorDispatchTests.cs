@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class AstVisitorDispatchTests
 {
     [Fact]

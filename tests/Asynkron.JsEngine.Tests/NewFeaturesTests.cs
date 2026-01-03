@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class NewFeaturesTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Single-quoted strings tests

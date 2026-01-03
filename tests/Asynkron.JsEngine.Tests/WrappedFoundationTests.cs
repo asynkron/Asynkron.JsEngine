@@ -7,6 +7,7 @@ namespace Asynkron.JsEngine.Tests;
 /// This ensures the engine behaves consistently whether code runs at top-level,
 /// inside functions, try blocks, finally blocks, or class methods.
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class WrappedFoundationTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     /// <summary>

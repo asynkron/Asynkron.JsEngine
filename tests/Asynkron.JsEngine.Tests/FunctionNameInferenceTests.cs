@@ -9,6 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 /// When an anonymous function is assigned to a variable, the function's
 /// name property should be set to the variable name.
 /// </summary>
+[Category(TestCategories.StdLibFunction)]
 public sealed class FunctionNameInferenceTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

@@ -12,6 +12,7 @@ namespace Asynkron.JsEngine.Tests;
 /// Tests for closures accessing block-scoped variables.
 /// This is the exact failing pattern from Test262 block-scope/shadowing/lookup-from-closure.js.
 /// </summary>
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

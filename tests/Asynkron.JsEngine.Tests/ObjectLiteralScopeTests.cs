@@ -6,6 +6,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Test that object literal methods can access variables from enclosing scope
 /// </summary>
+[Category(TestCategories.StdLibObject)]
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class ObjectLiteralScopeTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]

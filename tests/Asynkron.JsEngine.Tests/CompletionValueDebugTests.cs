@@ -8,6 +8,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Debug tests for completion value semantics to understand the actual behavior.
 /// </summary>
+[Category(TestCategories.Debugging)]
+[Category(TestCategories.CompletionValues)]
 public sealed class CompletionValueDebugTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 10000)]

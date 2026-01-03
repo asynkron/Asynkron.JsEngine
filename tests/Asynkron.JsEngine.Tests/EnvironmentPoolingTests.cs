@@ -7,6 +7,8 @@ namespace Asynkron.JsEngine.Tests;
 /// for various loop constructs. Uses FakeLogger to track Activate/Reset calls.
 /// The logger is passed through the engine options and flows to all pool operations.
 /// </summary>
+[Category(TestCategories.Performance)]
+[Category(TestCategories.Memory)]
 public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     /// <summary>
@@ -86,6 +88,50 @@ public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : Internal
             run(3, 4, 5);
             """);
         Assert.Equal("3,4,5", second);
+    }
+
+    [Fact]
+    public async Task StrictWrapperLayoutMismatch_RebuildsSlotsSafely()
+    {
+        await using var engine = CreateEngine();
+
+        // First run: simple strict script with two bindings
+        var first = await engine.Evaluate("""
+            'use strict';
+            function run(a, b) { return a + b; }
+            run(1, 2);
+            """);
+        Assert.Equal(3d, first);
+
+        // Second run: different shape (three bindings) in strict mode
+        var second = await engine.Evaluate("""
+            'use strict';
+            function run(a, b, c) { return a * b * c; }
+            run(2, 3, 4);
+            """);
+        Assert.Equal(24d, second);
+    }
+
+    [Fact]
+    public async Task GlobalPrepopulation_DoesNotLeakAcrossLayouts()
+    {
+        await using var engine = CreateEngine();
+
+        // Seed global with a property; this prepopulates global slots/shape.
+        var seed = await engine.Evaluate("""
+            globalThis.seed = 99;
+            var alpha = 1;
+            alpha + seed;
+            """);
+        Assert.Equal(100d, seed);
+
+        // Second run: different hoisted vars, should not reuse stale layout
+        var result = await engine.Evaluate("""
+            var beta = 10;
+            var gamma = 20;
+            beta + gamma;
+            """);
+        Assert.Equal(30d, result);
     }
 
     [Fact]

@@ -11,6 +11,8 @@ namespace Asynkron.JsEngine.Tests;
 /// - Are well-known and battle-tested
 /// - Help validate the engine's JavaScript compatibility
 /// </summary>
+[Category(TestCategories.ModuleSystem)]
+[Category(TestCategories.Integration)]
 public sealed class NpmPackageTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // ========================================

@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // Basic Array Destructuring Tests

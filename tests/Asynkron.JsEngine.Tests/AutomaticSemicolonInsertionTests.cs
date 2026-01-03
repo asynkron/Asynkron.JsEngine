@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Parser)]
 public sealed class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

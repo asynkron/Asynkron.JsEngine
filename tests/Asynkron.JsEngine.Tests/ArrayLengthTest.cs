@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Base test class with the actual test logic.
 /// </summary>
+[Category(TestCategories.StdLibArray)]
 public sealed class ArrayLengthTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 60000)]

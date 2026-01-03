@@ -2,6 +2,9 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibString)]
+[Category(TestCategories.StdLibArray)]
+[Category(TestCategories.StdLibObject)]
 public sealed class AdditionalMethodsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // String methods

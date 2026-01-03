@@ -3,6 +3,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests.StdLib;
 
+[Category(TestCategories.StdLibBigInt)]
+[Category(TestCategories.StdLibIntl)]
 public sealed class BigIntLocaleTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

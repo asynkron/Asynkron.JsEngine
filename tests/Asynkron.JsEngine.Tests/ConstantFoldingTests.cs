@@ -6,6 +6,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for constant expression folding transformation.
 /// </summary>
+[Category(TestCategories.Transformations)]
 public sealed class ConstantFoldingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]

@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.ScopeAnalysis)]
 public sealed class BlockScopeCorrectnessTests : InternalTestBase
 {
     public BlockScopeCorrectnessTests(ITestOutputHelper output) : base(output)

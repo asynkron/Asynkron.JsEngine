@@ -1,5 +1,6 @@
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Debugging)]
 public sealed class DebugTests
 {
     [Fact(Timeout = 2000)]

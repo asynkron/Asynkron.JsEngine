@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Transformations)]
 public sealed class TypedAstDestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

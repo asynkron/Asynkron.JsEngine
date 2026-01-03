@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Regression)]
 public sealed class StackOverflowReproTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]

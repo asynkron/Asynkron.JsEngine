@@ -10,6 +10,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests for generator functions (function*) and the iterator protocol.
 /// </summary>
+[Category(TestCategories.IteratorRuntime)]
 public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.

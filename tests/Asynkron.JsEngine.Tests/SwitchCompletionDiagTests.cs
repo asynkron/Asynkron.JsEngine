@@ -3,6 +3,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Diagnostics)]
+[Category(TestCategories.CompletionValues)]
 public sealed class SwitchCompletionDiagTests(ITestOutputHelper output)
 {
     [Fact]

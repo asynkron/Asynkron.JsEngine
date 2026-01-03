@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Tests to verify that exceptions thrown by the evaluator include source code references.
 /// </summary>
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class SourceReferenceInExceptionsTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.

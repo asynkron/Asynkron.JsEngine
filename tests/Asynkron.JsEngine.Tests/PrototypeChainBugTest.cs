@@ -2,6 +2,8 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.Regression)]
+[Category(TestCategories.StdLibObject)]
 public sealed class PrototypeChainBugTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

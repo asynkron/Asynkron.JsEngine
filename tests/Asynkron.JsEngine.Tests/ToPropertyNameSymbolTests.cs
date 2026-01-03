@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.StdLibSymbol)]
 public sealed class ToPropertyNameSymbolTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

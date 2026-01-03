@@ -2,6 +2,7 @@ using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
+[Category(TestCategories.RuntimeSemantics)]
 public sealed class AssignmentReferenceTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact]

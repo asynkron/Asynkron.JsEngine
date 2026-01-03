@@ -7,6 +7,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Debug tests to understand why Test262 yield-star-from-try tests fail.
 /// </summary>
+[Category(TestCategories.IteratorRuntime)]
+[Category(TestCategories.Debugging)]
 public sealed class Test262YieldStarDebugTests(ITestOutputHelper output)
 {
     [Fact(Timeout = 10000)]

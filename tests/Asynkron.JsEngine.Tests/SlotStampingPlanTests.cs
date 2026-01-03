@@ -48,8 +48,10 @@ public sealed class SlotStampingPlanTests : IAsyncLifetime
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var plan = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache().Plan;
+        Assert.NotNull(plan);
+        var planValue = plan!;
 
-        var loopScope = plan.Instructions
+        var loopScope = planValue.Instructions
             .OfType<PushEnvironmentInstruction>()
             .First(pe => pe.ScopeId > 0);
 
@@ -60,7 +62,7 @@ public sealed class SlotStampingPlanTests : IAsyncLifetime
         Assert.Equal("i", iEntry.Key.Name);
         Assert.Equal(0, iEntry.Value);
 
-        var branch = plan.Instructions.OfType<BranchInstruction>().First();
+        var branch = planValue.Instructions.OfType<BranchInstruction>().First();
         var condition = Assert.IsType<BinaryExpression>(branch.Condition);
         var leftId = Assert.IsType<IdentifierExpression>(condition.Left);
 
@@ -88,13 +90,15 @@ public sealed class SlotStampingPlanTests : IAsyncLifetime
 
         var funcDecl = (FunctionDeclaration)program.Body[0];
         var plan = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache().Plan;
+        Assert.NotNull(plan);
+        var planValue = plan!;
 
-        var pushByScope = plan.Instructions
+        var pushByScope = planValue.Instructions
             .OfType<PushEnvironmentInstruction>()
             .GroupBy(pe => pe.ScopeId)
             .ToDictionary(g => g.Key, g => g.First());
 
-        foreach (var branch in plan.Instructions.OfType<BranchInstruction>())
+        foreach (var branch in planValue.Instructions.OfType<BranchInstruction>())
         {
             if (branch.Condition is not BinaryExpression { Left: IdentifierExpression id })
             {

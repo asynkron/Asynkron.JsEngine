@@ -190,16 +190,16 @@ try {
             return "";
         });
 
-        // Create $262 object for Test262 compatibility
-        var obj262 = new JsObject
-        {
-            // evalScript function
-            ["evalScript"] = new HostFunction(args => args.Count switch
+            // Create $262 object for Test262 compatibility
+            var obj262 = new JsObject
             {
-                > 1 => throw new Exception("only script parsing supported"),
-                > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
-                _ => JsValue.Undefined,
-            }),
+                // evalScript function
+                ["evalScript"] = new HostFunction(args => args.Count switch
+                {
+                    > 1 => throw new InvalidOperationException("only script parsing supported"),
+                    > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
+                    _ => JsValue.Undefined,
+                }),
 
             // createRealm function - not fully implemented but needed for compatibility
             ["createRealm"] = new HostFunction(_ =>

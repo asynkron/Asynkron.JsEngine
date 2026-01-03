@@ -223,7 +223,8 @@ internal sealed partial class ExecutionPlanBuilder
             StampNestedFunctionBodies(function, rewriter, analysis);
         }
 
-        return analysis;
+        Debug.Assert(analysis is not null);
+        return analysis!;
     }
 
     private static void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)

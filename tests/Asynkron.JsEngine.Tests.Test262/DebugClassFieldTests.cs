@@ -19,14 +19,13 @@ public class DebugClassFieldTests
                                            let i = 0;
                                            ({
                                              hasOwn: Object.prototype.hasOwnProperty.call(this, "i"),
-                                             value: this.i
+                                           value: this.i
                                            });
                                            """);
 
-        Assert.That(result, Is.InstanceOf<IDictionary<string, object?>>());
-        var snapshot = (IDictionary<string, object?>)result;
-        Assert.That(snapshot?["hasOwn"], Is.EqualTo(false));
-        Assert.That(snapshot?["value"], Is.EqualTo(Symbol.Undefined));
+        var snapshot = AssertPlainObject(result, "global let snapshot");
+        Assert.That(snapshot["hasOwn"], Is.EqualTo(false));
+        Assert.That(snapshot["value"], Is.EqualTo(Symbol.Undefined));
     }
 
     [Test]
@@ -51,17 +50,16 @@ public class DebugClassFieldTests
                                            ({
                                              i,
                                              hasGlobalI: Object.prototype.hasOwnProperty.call(this, "i"),
-                                             globalValue: this.i
+                                           globalValue: this.i
                                            });
                                            """);
 
-        Assert.That(result, Is.InstanceOf<IDictionary<string, object?>>());
-        var snapshot = (IDictionary<string, object?>)result;
+        var snapshot = AssertPlainObject(result, "verifyProperty snapshot");
         TestContext.Progress.WriteLine(
-            $"verifyProperty snapshot: i={snapshot?["i"]}, hasGlobalI={snapshot?["hasGlobalI"]}, globalValue={snapshot?["globalValue"]}");
-        Assert.That(snapshot?["i"], Is.EqualTo(123d));
-        Assert.That(snapshot?["hasGlobalI"], Is.EqualTo(false));
-        Assert.That(snapshot?["globalValue"], Is.EqualTo(Symbol.Undefined));
+            $"verifyProperty snapshot: i={snapshot["i"]}, hasGlobalI={snapshot["hasGlobalI"]}, globalValue={snapshot["globalValue"]}");
+        Assert.That(snapshot["i"], Is.EqualTo(123d));
+        Assert.That(snapshot["hasGlobalI"], Is.EqualTo(false));
+        Assert.That(snapshot["globalValue"], Is.EqualTo(Symbol.Undefined));
     }
 
     [Test]
@@ -91,19 +89,18 @@ public class DebugClassFieldTests
                                               s1: C[1],
                                               cHas1: c.hasOwnProperty('1'),
                                               sHas0: C.hasOwnProperty('0'),
-                                              sHas2: C.hasOwnProperty('2')
+                                            sHas2: C.hasOwnProperty('2')
                                             });
                                             """);
 
-        Assert.That(outcome, Is.InstanceOf<IDictionary<string, object?>>());
-        var result = (IDictionary<string, object?>)outcome;
-        Assert.That(result?["i"], Is.EqualTo(6d));
-        Assert.That(result?["c0"], Is.EqualTo(4d));
-        Assert.That(result?["c2"], Is.EqualTo(5d));
-        Assert.That(result?["s1"], Is.EqualTo(3d));
-        Assert.That(result?["cHas1"], Is.EqualTo(false));
-        Assert.That(result?["sHas0"], Is.EqualTo(false));
-        Assert.That(result?["sHas2"], Is.EqualTo(false));
+        var result = AssertPlainObject(outcome, "intercalated spec snapshot");
+        Assert.That(result["i"], Is.EqualTo(6d));
+        Assert.That(result["c0"], Is.EqualTo(4d));
+        Assert.That(result["c2"], Is.EqualTo(5d));
+        Assert.That(result["s1"], Is.EqualTo(3d));
+        Assert.That(result["cHas1"], Is.EqualTo(false));
+        Assert.That(result["sHas0"], Is.EqualTo(false));
+        Assert.That(result["sHas2"], Is.EqualTo(false));
     }
 
     [Test]
@@ -166,8 +163,7 @@ public class DebugClassFieldTests
                                                       })();
                                                       """);
 
-        Assert.That(invariantSnapshot, Is.InstanceOf<IDictionary<string, object?>>());
-        var check = (IDictionary<string, object?>)invariantSnapshot;
+        var check = AssertPlainObject(invariantSnapshot, "intercalated harness snapshot");
         string JoinKeys(object? value) =>
             value switch
             {
@@ -219,7 +215,8 @@ public class DebugClassFieldTests
         {
             var thrown = signal.ThrownValue;
             Assert.That(thrown.TryGetObject<JsObject>(out var error), Is.True, "Thrown value should be a JS error object");
-            error.TryGetProperty("name", out var name);
+            var errorObj = error ?? throw new AssertionException("Expected thrown value to be a JS error object");
+            errorObj.TryGetProperty("name", out var name);
             Assert.That(name.ToString(), Is.EqualTo("TypeError"));
         }
     }
@@ -254,8 +251,7 @@ public class DebugClassFieldTests
                                              })();
                                              """);
 
-        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>());
-        var result = (IDictionary<string, object?>)snapshot;
+        var result = AssertPlainObject(snapshot, "default class prototype snapshot");
         TestContext.WriteLine(
             $"protoMatch={result["protoMatch"]}, protoKeys={result["protoKeys"]}, ctorProtoKeys={result["ctorProtoKeys"]}, ctorProtoCtor={result["ctorProtoCtor"]}, instanceType={result["instanceType"]}");
         Assert.That(result["protoMatch"], Is.EqualTo(true),
@@ -310,8 +306,7 @@ public class DebugClassFieldTests
                                              })();
                                              """);
 
-        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>());
-        var result = (IDictionary<string, object?>)snapshot;
+        var result = AssertPlainObject(snapshot, "proxy receiver snapshot");
         TestContext.Progress.WriteLine(
             $"proxy-private snapshot: methodType={result["methodType"]}, protoMatch={result["protoMatch"]}, protoKeys={result["protoKeys"]}, protoOwn={result["protoOwn"]}, testProtoOwn={result["testProtoOwn"]}, protoCtorIsTest={result["protoCtorIsTest"]}, testProtoCtorIsTest={result["testProtoCtorIsTest"]}, methodClrType={result["methodValue"]?.GetType().Name ?? "null"}");
 
@@ -343,9 +338,17 @@ public class DebugClassFieldTests
 }})();";
 
         var snapshot = await engine.Evaluate(script);
-        Assert.That(snapshot, Is.InstanceOf<IDictionary<string, object?>>(),
-            "Expected the snapshot to be a plain object");
-        return (IDictionary<string, object?>)snapshot;
+        return AssertPlainObject(snapshot, "capture prototype snapshot");
+    }
+
+    private static IDictionary<string, object?> AssertPlainObject(object? value, string context)
+    {
+        if (value is IDictionary<string, object?> dict)
+        {
+            return dict;
+        }
+
+        throw new AssertionException($"Expected plain object for {context}");
     }
 
     [Test]

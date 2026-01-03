@@ -13,11 +13,16 @@ public sealed class IteratorCloseHarnessTests(ITestOutputHelper output) : Intern
         var result = await engine.Evaluate(HarnessForOfScript(useStrict: false));
 
         var obj = Assert.IsType<JsObject>(result);
-        Assert.Equal(true, obj["caught"]);
-        Assert.Equal("TypeError", obj["errName"]);
-        Assert.True((double)obj["nextCount"] >= 1d);
-        Assert.True((double)obj["returnCount"] >= 1d);
-        Assert.Equal(0d, obj["unreachable"]);
+        var caught = Assert.IsType<bool>(obj["caught"]);
+        Assert.True(caught);
+        var errName = Assert.IsType<string>(obj["errName"]);
+        Assert.Equal("TypeError", errName);
+        var nextCount = Assert.IsType<double>(obj["nextCount"]);
+        var returnCount = Assert.IsType<double>(obj["returnCount"]);
+        var unreachable = Assert.IsType<double>(obj["unreachable"]);
+        Assert.True(nextCount >= 1d);
+        Assert.True(returnCount >= 1d);
+        Assert.Equal(0d, unreachable);
     }
 
     [Fact(Timeout = 2000)]
@@ -27,11 +32,16 @@ public sealed class IteratorCloseHarnessTests(ITestOutputHelper output) : Intern
         var result = await engine.Evaluate(HarnessForOfScript(useStrict: true));
 
         var obj = Assert.IsType<JsObject>(result);
-        Assert.Equal(true, obj["caught"]);
-        Assert.Equal("TypeError", obj["errName"]);
-        Assert.True((double)obj["nextCount"] >= 1d);
-        Assert.True((double)obj["returnCount"] >= 1d);
-        Assert.Equal(0d, obj["unreachable"]);
+        var caught = Assert.IsType<bool>(obj["caught"]);
+        Assert.True(caught);
+        var errName = Assert.IsType<string>(obj["errName"]);
+        Assert.Equal("TypeError", errName);
+        var nextCount = Assert.IsType<double>(obj["nextCount"]);
+        var returnCount = Assert.IsType<double>(obj["returnCount"]);
+        var unreachable = Assert.IsType<double>(obj["unreachable"]);
+        Assert.True(nextCount >= 1d);
+        Assert.True(returnCount >= 1d);
+        Assert.Equal(0d, unreachable);
     }
 
     private static string HarnessForOfScript(bool useStrict)

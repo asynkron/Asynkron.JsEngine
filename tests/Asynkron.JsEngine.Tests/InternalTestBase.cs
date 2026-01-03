@@ -7,9 +7,14 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Base class for tests. Always uses fast paths ().
 /// </summary>
-public class InternalTestBase(ITestOutputHelper output)
+public class InternalTestBase
 {
-    protected readonly ITestOutputHelper Output = output;
+    protected readonly ITestOutputHelper Output;
+
+    protected InternalTestBase(ITestOutputHelper output)
+    {
+        Output = output;
+    }
 
     /// <summary>
     /// The logger attached to the most recently created engine via CreateEngine().
@@ -22,7 +27,7 @@ public class InternalTestBase(ITestOutputHelper output)
     /// </summary>
     protected JsEngine CreateEngine()
     {
-        CurrentLogger = new TestLogger(output, maxLogCount: 2000, minLogLevel: LogLevel.Debug);
+        CurrentLogger = new TestLogger(Output, maxLogCount: 2000, minLogLevel: LogLevel.Debug);
         return new JsEngine(new JsEngineOptions { Logger = CurrentLogger, DebugMode = true});
     }
 

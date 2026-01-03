@@ -155,6 +155,8 @@ record;";
         Assert.That(seen[1], Is.SameAs(Symbol.Undefined), "second this binding");
 
         // Ensure we actually observed prototype logs when arrays were allocated.
-        Assert.That(fakeLogger.Collector.LatestRecord.Message, Does.Contain("Prototype reassigned"));
+        var latestRecord = fakeLogger.Collector.LatestRecord;
+        Assert.That(latestRecord, Is.Not.Null, "Expected at least one log record from prototype reassignment");
+        Assert.That(latestRecord!.Message, Does.Contain("Prototype reassigned"));
     }
 }

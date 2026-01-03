@@ -21,7 +21,7 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
 
         if (result is string error)
         {
-            throw new Exception($"script error: {error}");
+            throw new InvalidOperationException($"script error: {error}");
         }
 
         var steps = Assert.IsType<JsArray>(result);
@@ -72,13 +72,13 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
 
         if (!second.TryGetProperty("value", out var secondValue))
         {
-            throw new Exception($"second keys: {string.Join(",", second.Keys)}");
+            throw new InvalidOperationException($"second keys: {string.Join(",", second.Keys)}");
         }
         var secondArr = Assert.IsType<JsArray>(secondValue.ToObject());
         Assert.Equal(new[] { "a", "b", "c" }, secondArr.Items.Select(v => v.ToObject()).ToArray());
         if (!second.TryGetProperty("done", out var secondDone))
         {
-            throw new Exception($"second keys: {string.Join(",", second.Keys)}");
+            throw new InvalidOperationException($"second keys: {string.Join(",", second.Keys)}");
         }
         Assert.False(secondDone.AsBoolean());
 
@@ -90,7 +90,7 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
 
         if (!fourth.TryGetProperty("done", out var fourthDone))
         {
-            throw new Exception($"fourth keys: {string.Join(",", fourth.Keys)} value={(fourth.TryGetProperty("value", out var v) ? v : JsValue.Null)}");
+            throw new InvalidOperationException($"fourth keys: {string.Join(",", fourth.Keys)} value={(fourth.TryGetProperty("value", out var v) ? v : JsValue.Null)}");
         }
         Assert.True(fourthDone.AsBoolean());
     }
@@ -130,13 +130,13 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
 
         if (result is string error)
         {
-            throw new Exception($"script error: {error}");
+            throw new InvalidOperationException($"script error: {error}");
         }
 
         var obj = Assert.IsAssignableFrom<IJsObjectLike>(result);
         if (obj.TryGetProperty("err", out var errProp) && !errProp.IsUndefined)
         {
-            throw new Exception($"JS error: {errProp}");
+            throw new InvalidOperationException($"JS error: {errProp}");
         }
         Assert.True(obj.TryGetProperty("first", out var firstResult));
         var first = Assert.IsAssignableFrom<IJsObjectLike>(firstResult.ToObject());
@@ -152,4 +152,3 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
         Assert.Equal(86d, xValue.AsDouble());
     }
 }
-

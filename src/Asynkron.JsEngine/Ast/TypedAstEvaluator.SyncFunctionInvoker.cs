@@ -851,7 +851,7 @@ public static partial class TypedAstEvaluator
             if (!IsArrowFunction)
             {
                 var newTargetValue = newTarget.IsUndefined ? JsValue.Undefined : newTarget;
-                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexical: true,
+                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
             }
 
@@ -929,7 +929,7 @@ public static partial class TypedAstEvaluator
                         lexicalSuperBinding.Prototype is null,
                         lexicalSuperBinding.IsThisInitialized);
                     functionEnvironment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(lexicalSuperBinding),
-                        isLexical: true,
+                        isLexicalBinding: true,
                         blocksFunctionScopeOverride: true);
                     if (!hasCopiedInitialization)
                     {
@@ -1122,11 +1122,11 @@ public static partial class TypedAstEvaluator
                         this,
                         _isStrict);
                     parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                        isLexical: false);
+                        isLexicalBinding: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
                     {
                         functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                            isLexical: false);
+                            isLexicalBinding: false);
                     }
                 }
 
@@ -1134,7 +1134,7 @@ public static partial class TypedAstEvaluator
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
                     parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(this), true,
-                        isLexical: true, blocksFunctionScopeOverride: true);
+                        isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
                 // Wrap parameter binding and body evaluation in the same try-catch for async functions.
@@ -1200,7 +1200,7 @@ public static partial class TypedAstEvaluator
                         if (!executionEnvironment.HasBinding(lexicalName))
                         {
                             var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                            executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                            executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexicalBinding: true,
                                 blocksFunctionScopeOverride: true, isConst: isConst);
                         }
                     }
@@ -1593,7 +1593,7 @@ public static partial class TypedAstEvaluator
 
                 using var classFieldInitScope = context.EnterClassFieldInitializer();
                 var initEnv = new JsEnvironment(environment, isStrict: true);
-                initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexical: true,
+                initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
                 initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(instance));
 
@@ -1601,7 +1601,7 @@ public static partial class TypedAstEvaluator
                 if (fieldSuperBinding is not null)
                 {
                     initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fieldSuperBinding), true,
-                        isLexical: true,
+                        isLexicalBinding: true,
                         blocksFunctionScopeOverride: true);
                 }
 
@@ -1609,13 +1609,13 @@ public static partial class TypedAstEvaluator
                 if (environment.HasBinding(Symbol.NewTarget))
                 {
                     // Class field initializers execute outside of any function body; shadow new.target with undefined.
-                    initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexical: true,
+                    initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexicalBinding: true,
                         blocksFunctionScopeOverride: true);
                 }
 
                 if (environment.TryGetJsValue(Symbol.Arguments, out var argumentsValue))
                 {
-                    initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexical: false);
+                    initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
                 }
 
                 var propertyName = field.Name;
@@ -2500,7 +2500,7 @@ public static partial class TypedAstEvaluator
                     this,
                     true);
                 functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                    isLexical: false);
+                    isLexicalBinding: false);
             }
 
             try

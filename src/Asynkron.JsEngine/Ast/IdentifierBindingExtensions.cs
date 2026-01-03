@@ -37,7 +37,7 @@ public static partial class TypedAstEvaluator
                     environment.AssignJsValue(identifier.Name, value);
                     break;
                 case BindingMode.DefineLet:
-                    environment.DefineJsValue(identifier.Name, value, isLexical: true,
+                    environment.DefineJsValue(identifier.Name, value, isLexicalBinding: true,
                         blocksFunctionScopeOverride: true);
                     break;
                 case BindingMode.DefineConst:
@@ -96,7 +96,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        environment.DefineJsValue(identifier.Name, value, isLexical: false);
+                        environment.DefineJsValue(identifier.Name, value, isLexicalBinding: false);
                     }
 
                     break;

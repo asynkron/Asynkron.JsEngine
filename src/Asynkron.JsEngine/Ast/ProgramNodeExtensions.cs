@@ -212,7 +212,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!environment.HasBinding(id.Name))
                     {
-                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
+                        environment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexicalBinding: true,
                             blocksFunctionScopeOverride: true, isConst: isConst);
                     }
 
@@ -541,7 +541,7 @@ public static partial class TypedAstEvaluator
                         // Class declarations are also lexically scoped and need TDZ
                         if (!executionEnvironment.HasBinding(classDecl.Name))
                         {
-                            executionEnvironment.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexical: true,
+                            executionEnvironment.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexicalBinding: true,
                                 blocksFunctionScopeOverride: true, isConst: true);
                         }
 

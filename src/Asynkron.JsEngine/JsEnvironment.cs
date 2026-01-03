@@ -316,7 +316,7 @@ public sealed class JsEnvironment : IRentable
         JsValue value,
         bool isConst = false,
         bool isGlobalConstant = false,
-        bool isLexical = true,
+        bool isLexicalBinding = true,
         bool blocksFunctionScopeOverride = false,
         bool canDelete = false,
         bool isImmutableBinding = false)
@@ -330,7 +330,7 @@ public sealed class JsEnvironment : IRentable
             var flags = slot.Flags;
             if (isConst) flags |= SlotFlags.Const;
             if (isGlobalConstant) flags |= SlotFlags.GlobalConstant;
-            if (isLexical) flags |= SlotFlags.Lexical;
+            if (isLexicalBinding) flags |= SlotFlags.Lexical;
             if (blocksFunctionScopeOverride) flags |= SlotFlags.BlocksFunctionScopeOverride;
             if (canDelete) flags |= SlotFlags.CanDelete;
             if (isImmutableBinding) flags |= SlotFlags.ImmutableBinding;
@@ -371,10 +371,10 @@ public sealed class JsEnvironment : IRentable
                     return;
                 }
 
-                if (isLexical && blocksFunctionScopeOverride)
+                if (isLexicalBinding && blocksFunctionScopeOverride)
                 {
                     var isUninit = value.IsUninitialized;
-                    slot = new JsSlot(name, value, BuildSlotFlags(isConst, isGlobalConstant, isLexical,
+                    slot = new JsSlot(name, value, BuildSlotFlags(isConst, isGlobalConstant, isLexicalBinding,
                         blocksFunctionScopeOverride, canDelete, isImmutableBinding, isUninit));
                 }
                 return;
@@ -382,7 +382,7 @@ public sealed class JsEnvironment : IRentable
 
             slot.Value = value;
             // Upgrade lexical flags if needed
-            if (isLexical) slot.Flags |= SlotFlags.Lexical;
+            if (isLexicalBinding) slot.Flags |= SlotFlags.Lexical;
             if (blocksFunctionScopeOverride) slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
             if (value.IsUninitialized) slot.Flags |= SlotFlags.Uninitialized;
             // Clear uninitialized flag when setting an initialized value (TDZ completion)
@@ -397,7 +397,7 @@ public sealed class JsEnvironment : IRentable
 
         // Create new slot - detect if value is uninitialized for TDZ support
         var isUninitialized = value.IsUninitialized;
-        DefineSlot(name, value, BuildSlotFlags(isConst, isGlobalConstant, isLexical,
+        DefineSlot(name, value, BuildSlotFlags(isConst, isGlobalConstant, isLexicalBinding,
             blocksFunctionScopeOverride, canDelete, isImmutableBinding, isUninitialized));
 
         if (_bindingObservers is not null)
@@ -663,8 +663,7 @@ public sealed class JsEnvironment : IRentable
         }
 
         var initialValue = value;
-        // Lexical (let/const/class) bindings should never create or update properties on the global object.
-        var shouldWriteGlobal = !isLexical;
+        var shouldWriteGlobal = true;
 
         if (isGlobalScope && !hasInitializer && (existingDescriptor is not null || hasLooseGlobalValue))
         {
@@ -686,7 +685,7 @@ public sealed class JsEnvironment : IRentable
             var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
             if (existingDescriptor is null)
             {
-                if (!globalThis.TryDefineProperty(
+                if (!globalThis!.TryDefineProperty(
                         name.Name,
                         new PropertyDescriptor
                         {
@@ -701,7 +700,7 @@ public sealed class JsEnvironment : IRentable
             }
             else if (existingDescriptor.Configurable)
             {
-                if (!globalThis.TryDefineProperty(
+                if (!globalThis!.TryDefineProperty(
                         name.Name,
                         new PropertyDescriptor
                         {
@@ -717,7 +716,7 @@ public sealed class JsEnvironment : IRentable
             else
             {
                 // Existing non-configurable property: update value only (CreateGlobalFunctionBinding step 6).
-                if (!globalThis.TryDefineProperty(
+                if (!globalThis!.TryDefineProperty(
                         name.Name,
                         new PropertyDescriptor { JsValue = initialValue }))
                 {
@@ -733,7 +732,7 @@ public sealed class JsEnvironment : IRentable
 
         if (existingDescriptor is null)
         {
-            if (!globalThis.TryDefineProperty(
+            if (!globalThis!.TryDefineProperty(
                     name.Name,
                     new PropertyDescriptor
                     {
@@ -1633,7 +1632,7 @@ public sealed class JsEnvironment : IRentable
         var globalObject = environment.GetRootGlobalObject();
         if (globalObject is null)
         {
-            globalScope.DefineJsValue(name, value, isLexical: false, canDelete: true);
+            globalScope.DefineJsValue(name, value, isLexicalBinding: false, canDelete: true);
             return;
         }
 

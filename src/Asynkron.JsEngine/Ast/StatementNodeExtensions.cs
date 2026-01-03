@@ -270,7 +270,7 @@ public static partial class TypedAstEvaluator
                                 functionDeclaration.Name,
                                 JsValue.Uninitialized,
                                 isConst: true,
-                                isLexical: true,
+                                isLexicalBinding: true,
                                 blocksFunctionScopeOverride: true);
                             break;
                         }

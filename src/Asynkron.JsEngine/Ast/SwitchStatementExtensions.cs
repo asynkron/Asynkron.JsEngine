@@ -123,7 +123,7 @@ public static partial class TypedAstEvaluator
                         funcBinding.Name,
                         JsValue.Uninitialized,
                         true,
-                        isLexical: true,
+                        isLexicalBinding: true,
                         blocksFunctionScopeOverride: true);
                     continue;
                 }
@@ -134,7 +134,7 @@ public static partial class TypedAstEvaluator
                     funcBinding.Name,
                     JsValue.FromObjectUnsafe(functionValue),
                     true,
-                    isLexical: true,
+                    isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
             }
 
@@ -144,7 +144,7 @@ public static partial class TypedAstEvaluator
                     className,
                     JsValue.Undefined,
                     true,
-                    isLexical: true,
+                    isLexicalBinding: true,
                     blocksFunctionScopeOverride: false);
             }
         }

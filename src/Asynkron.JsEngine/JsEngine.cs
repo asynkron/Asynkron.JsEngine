@@ -1664,7 +1664,7 @@ public sealed class JsEngine : IAsyncDisposable
         {
             if (!entry.Environment.HasBinding(Symbol.ImportMeta))
             {
-                entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)existing, true, isLexical: true,
+                entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)existing, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: false);
             }
 
@@ -1686,7 +1686,7 @@ public sealed class JsEngine : IAsyncDisposable
                 HasConfigurable = true
             });
 
-        entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, true, isLexical: true,
+        entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, true, isLexicalBinding: true,
             blocksFunctionScopeOverride: false);
         entry.ImportMeta = importMeta;
     }
@@ -1857,7 +1857,7 @@ public sealed class JsEngine : IAsyncDisposable
             // Built-ins defined during engine initialization are exposed as global object
             // properties so they don't block later lexical declarations (let/const).
             GlobalEnvironment.DefineJsValue(symbol, JsValue.FromObjectUnsafe(value), isGlobalConstant: isGlobalConstant,
-                isLexical: false);
+                isLexicalBinding: false);
         }
 
         // Also mirror globals onto the global object so that code using
@@ -2903,7 +2903,7 @@ public sealed class JsEngine : IAsyncDisposable
         // IMPORTANT: Define the "default" binding in the module environment
         // This is needed for import binding resolution to work correctly
         var defaultSymbol = Symbol.Intern("default");
-        moduleEnv.DefineJsValue(defaultSymbol, jsonValue, true, isLexical: true, blocksFunctionScopeOverride: false);
+        moduleEnv.DefineJsValue(defaultSymbol, jsonValue, true, isLexicalBinding: true, blocksFunctionScopeOverride: false);
 
         // Create a minimal parsed program (empty) - JSON modules don't have executable code
         var emptyStatements = ImmutableArray<StatementNode>.Empty;
@@ -3179,12 +3179,12 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         // All other default exports: create *default* binding
                         // This includes: anonymous classes, expression exports, non-hoistable function expressions
-                        // Use isLexical: false so we can initialize it later via Assign without TDZ errors
+                        // Use isLexicalBinding: false so we can initialize it later via Assign without TDZ errors
                         // The binding is initialized during EvaluateExportDefault
                         var defaultSymbol = Symbol.Intern("*default*");
                         if (!moduleEnv.HasBinding(defaultSymbol))
                         {
-                            moduleEnv.DefineJsValue(defaultSymbol, JsValue.Uninitialized, isLexical: false,
+                            moduleEnv.DefineJsValue(defaultSymbol, JsValue.Uninitialized, isLexicalBinding: false,
                                 blocksFunctionScopeOverride: false);
                         }
                     }
@@ -3212,14 +3212,14 @@ public sealed class JsEngine : IAsyncDisposable
                                 var envInit = isVar
                                     ? (JsValue)Symbol.Undefined
                                     : JsValue.Uninitialized;
-                                moduleEnv.DefineJsValue(symbol, envInit, isLexical: !isVar,
+                                moduleEnv.DefineJsValue(symbol, envInit, isLexicalBinding: !isVar,
                                     blocksFunctionScopeOverride: false);
                             }
                             else
                             {
                                 exports[symbol.Name] = exportInitValue;
                                 moduleEnv.DefineJsValue(symbol, JsValue.FromObjectUnsafe(envInitValue),
-                                    isLexical: !isVar,
+                                    isLexicalBinding: !isVar,
                                     blocksFunctionScopeOverride: false);
                             }
                         }
@@ -3232,13 +3232,13 @@ public sealed class JsEngine : IAsyncDisposable
                         if (moduleEnv.IsAsyncModule)
                         {
                             exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
-                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexical: true,
+                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexicalBinding: true,
                                 blocksFunctionScopeOverride: false);
                         }
                         else
                         {
                             exports[symbol.Name] = JsValue.Uninitialized;
-                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexical: true,
+                            moduleEnv.DefineJsValue(symbol, JsValue.Uninitialized, isLexicalBinding: true,
                                 blocksFunctionScopeOverride: false);
                         }
                     }
@@ -3333,7 +3333,7 @@ public sealed class JsEngine : IAsyncDisposable
                 // Per ES spec 16.2.1.6.2 step 12.b.ii: CreateImmutableBinding(in.[[LocalName]], true)
                 // The binding must be immutable - assignment should throw TypeError in strict mode
                 var ns = GetModuleNamespace(importedModule, importPhase);
-                moduleEnv.DefineJsValue(nsBinding, JsValue.FromObjectUnsafe(ns), true, isLexical: true,
+                moduleEnv.DefineJsValue(nsBinding, JsValue.FromObjectUnsafe(ns), true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: false);
             }
 
@@ -3593,7 +3593,7 @@ public sealed class JsEngine : IAsyncDisposable
                 // Class declarations are lexically scoped and start uninitialized
                 if (!moduleEnv.HasBinding(classDecl.Name))
                 {
-                    moduleEnv.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexical: true,
+                    moduleEnv.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexicalBinding: true,
                         blocksFunctionScopeOverride: false);
                 }
 
@@ -3611,7 +3611,7 @@ public sealed class JsEngine : IAsyncDisposable
                 case IdentifierBinding id:
                     if (!moduleEnv.HasBinding(id.Name))
                     {
-                        moduleEnv.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
+                        moduleEnv.DefineJsValue(id.Name, JsValue.Uninitialized, isLexicalBinding: true,
                             blocksFunctionScopeOverride: false, isConst: isConst);
                     }
 
@@ -3702,7 +3702,7 @@ public sealed class JsEngine : IAsyncDisposable
                 case IdentifierBinding id:
                     if (!moduleEnv.HasBinding(id.Name))
                     {
-                        moduleEnv.DefineJsValue(id.Name, JsValue.Undefined, isLexical: false,
+                        moduleEnv.DefineJsValue(id.Name, JsValue.Undefined, isLexicalBinding: false,
                             blocksFunctionScopeOverride: false);
                     }
 
@@ -3752,7 +3752,7 @@ public sealed class JsEngine : IAsyncDisposable
                     // Create the function value and define it
                     var function = TypedAstEvaluator.CreateModuleFunction(funcDecl.Function, moduleEnv, RealmState,
                         program.IsStrict);
-                    moduleEnv.DefineJsValue(funcDecl.Name, JsValue.FromObjectUnsafe(function), isLexical: false,
+                    moduleEnv.DefineJsValue(funcDecl.Name, JsValue.FromObjectUnsafe(function), isLexicalBinding: false,
                         blocksFunctionScopeOverride: false);
                     break;
                 case ExportDeclarationStatement { Declaration: FunctionDeclaration exportedFuncDecl }:
@@ -3760,7 +3760,7 @@ public sealed class JsEngine : IAsyncDisposable
                     var exportedFunction = TypedAstEvaluator.CreateModuleFunction(exportedFuncDecl.Function, moduleEnv,
                         RealmState, program.IsStrict);
                     moduleEnv.DefineJsValue(exportedFuncDecl.Name, JsValue.FromObjectUnsafe(exportedFunction),
-                        isLexical: false, blocksFunctionScopeOverride: false);
+                        isLexicalBinding: false, blocksFunctionScopeOverride: false);
                     break;
                 case ExportDefaultStatement
                 {
@@ -3770,7 +3770,7 @@ public sealed class JsEngine : IAsyncDisposable
                     var defaultFunction = TypedAstEvaluator.CreateModuleFunction(defaultFuncDecl.Function, moduleEnv,
                         RealmState, program.IsStrict);
                     moduleEnv.DefineJsValue(defaultFuncDecl.Name, JsValue.FromObjectUnsafe(defaultFunction),
-                        isLexical: false, blocksFunctionScopeOverride: false);
+                        isLexicalBinding: false, blocksFunctionScopeOverride: false);
                     break;
                 case ExportDefaultStatement
                 {
@@ -3785,7 +3785,7 @@ public sealed class JsEngine : IAsyncDisposable
                     var anonFunction = TypedAstEvaluator.CreateModuleFunction(funcExpr, moduleEnv, RealmState,
                         program.IsStrict, "default");
                     moduleEnv.DefineJsValue(Symbol.Intern("*default*"), JsValue.FromObjectUnsafe(anonFunction),
-                        isLexical: false, blocksFunctionScopeOverride: false);
+                        isLexicalBinding: false, blocksFunctionScopeOverride: false);
                     break;
             }
         }
@@ -3867,7 +3867,7 @@ public sealed class JsEngine : IAsyncDisposable
                         exports[exportNamespace.Exported.Name] = namespaceObj;
                         // Also define in the environment so import bindings can read it
                         moduleEnv.DefineJsValue(exportNamespace.Exported, JsValue.FromObjectUnsafe(namespaceObj), true,
-                            isLexical: true,
+                            isLexicalBinding: true,
                             blocksFunctionScopeOverride: false);
                         break;
                     case FunctionDeclaration:
@@ -4594,7 +4594,7 @@ public sealed class JsEngine : IAsyncDisposable
                             var namespaceObj = _engine.GetModuleNamespace(namespaceEntry);
                             exports[exportNamespace.Exported.Name] = namespaceObj;
                             env.DefineJsValue(exportNamespace.Exported, JsValue.FromObjectUnsafe(namespaceObj), true,
-                                isLexical: true,
+                                isLexicalBinding: true,
                                 blocksFunctionScopeOverride: false);
                             _statementIndex++;
                             continue;
@@ -4815,7 +4815,7 @@ public sealed class JsEngine : IAsyncDisposable
                     if (isLexical)
                     {
                         env.DefineJsValue(identifier.Name, JsValue.Undefined, isConst,
-                            isLexical: true,
+                            isLexicalBinding: true,
                             blocksFunctionScopeOverride: false);
                     }
 
@@ -4833,7 +4833,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     if (isLexical)
                     {
-                        env.DefineJsValue(identifier.Name, resolved, isConst, isLexical: true,
+                        env.DefineJsValue(identifier.Name, resolved, isConst, isLexicalBinding: true,
                             blocksFunctionScopeOverride: false);
                     }
                     else

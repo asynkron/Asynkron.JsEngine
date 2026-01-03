@@ -72,7 +72,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             environment.IsStrict ||
             (CallingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
 
-        var hasStrictReservedToken = hasStrictCaller && ContainsStrictReservedBindingTokens(code);
+        var hasStrictReservedToken = false;
+        if (hasStrictCaller)
+        {
+            try
+            {
+                hasStrictReservedToken = ContainsStrictReservedBindingTokens(code);
+            }
+            catch (ParseException)
+            {
+                // Defer lexing errors to the real eval pipeline so tests see SyntaxError at execution time.
+            }
+        }
         if (hasStrictReservedToken)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -584,8 +595,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static bool ContainsStrictReservedBindingTokens(string code)
     {
-        var lexer = new JsLexer(code);
-        var tokens = lexer.Tokenize();
+        IReadOnlyList<Token> tokens;
+        try
+        {
+            var lexer = new JsLexer(code);
+            tokens = lexer.Tokenize();
+        }
+        catch (ParseException)
+        {
+            // If the snippet isn't even lexically valid, defer the error handling to the real eval path.
+            return false;
+        }
+
         for (var i = 0; i < tokens.Count; i++)
         {
             var token = tokens[i];
@@ -2871,7 +2892,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 continue;
             }
 
-            lexicalEnvironment.DefineJsValue(name, JsValue.Uninitialized, isConst, isLexical: true,
+            lexicalEnvironment.DefineJsValue(name, JsValue.Uninitialized, isConst, isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
         }
     }

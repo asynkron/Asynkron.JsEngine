@@ -104,7 +104,7 @@ public static partial class TypedAstEvaluator
 
             foreach (var name in parameterNames)
             {
-                environment.DefineJsValue(name, JsValue.Uninitialized, isLexical: false,
+                environment.DefineJsValue(name, JsValue.Uninitialized, isLexicalBinding: false,
                     blocksFunctionScopeOverride: true);
                 environment.RealmState?.Logger?.LogInformation(
                     "Param hoist name={Name} envScope={ScopeId}",
@@ -144,7 +144,7 @@ public static partial class TypedAstEvaluator
                         }
 
                         environment.DefineJsValue(parameter.Name, JsValue.FromJsArray(restArray),
-                            isLexical: false);
+                            isLexicalBinding: false);
                     }
 
                     continue;
@@ -188,7 +188,7 @@ public static partial class TypedAstEvaluator
                         "Parameter must have an identifier when no pattern is provided.");
                 }
 
-                environment.DefineJsValue(parameter.Name, value, isLexical: false);
+                environment.DefineJsValue(parameter.Name, value, isLexicalBinding: false);
                 environment.RealmState?.Logger?.LogInformation(
                     "Param bind name={Name} envScope={ScopeId} valueKind={Kind}",
                     parameter.Name.Name,
@@ -497,7 +497,7 @@ public static partial class TypedAstEvaluator
                 // - strict mode: assignment throws TypeError
                 // - non-strict mode: assignment is silently ignored
                 functionNameEnvironment.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
-                    isLexical: true, blocksFunctionScopeOverride: true, isImmutableBinding: true);
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true, isImmutableBinding: true);
             }
 
             return callable;

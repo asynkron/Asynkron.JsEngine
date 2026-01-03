@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
             if (target is IdentifierBinding id)
             {
                 environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
-                    isLexical: true, blocksFunctionScopeOverride: true);
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return;
             }
 
@@ -64,7 +64,7 @@ public static partial class TypedAstEvaluator
                 {
                     case IdentifierBinding id:
                         environment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst,
-                            isLexical: true, blocksFunctionScopeOverride: true);
+                            isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         return;
                     case ArrayBinding array:
                         foreach (var element in array.Elements)

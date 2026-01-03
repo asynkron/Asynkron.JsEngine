@@ -465,7 +465,7 @@ public static partial class TypedAstEvaluator
                 if (!executionEnvironment.HasBinding(lexicalName))
                 {
                     var isConst = lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexical: true,
+                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexicalBinding: true,
                         blocksFunctionScopeOverride: true, isConst: isConst);
                 }
             }
@@ -511,7 +511,7 @@ public static partial class TypedAstEvaluator
             if (!_function.IsArrow)
             {
                 var newTargetValue = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
-                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexical: true,
+                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
             }
 
@@ -535,17 +535,17 @@ public static partial class TypedAstEvaluator
                 _callable,
                 _isStrict);
             parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                isLexical: false);
+                isLexicalBinding: false);
             if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
             {
                 functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                    isLexical: false);
+                    isLexicalBinding: false);
             }
 
             if (_function.Name is { } functionName && !_hasFunctionNameEnvironment)
             {
                 parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(_callable), true,
-                    isLexical: true, blocksFunctionScopeOverride: true);
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             // ES spec order: bind parameters FIRST, then hoist function declarations
@@ -1473,7 +1473,7 @@ public static partial class TypedAstEvaluator
 
                                 // Bind the class name in the environment
                                 environment.DefineJsValue(classDeclInstruction.Declaration.Name, classValue,
-                                    isLexical: true, blocksFunctionScopeOverride: true);
+                                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
                                 _programCounter = classDeclInstruction.Next;
                                 continue;
@@ -1598,7 +1598,7 @@ public static partial class TypedAstEvaluator
                                     }
 #pragma warning restore CS0162
                                     environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
-                                        isConst, isLexical: true, blocksFunctionScopeOverride: true);
+                                        isConst, isLexicalBinding: true, blocksFunctionScopeOverride: true);
                                 }
 
                                 _programCounter = varDeclInstruction.Next;
@@ -1722,7 +1722,7 @@ public static partial class TypedAstEvaluator
                                             if (previousIterEnv.TryGetJsValueWithConst(binding, out var value,
                                                     out var isConst))
                                             {
-                                                newIterationEnv.DefineJsValue(binding, value, isConst, isLexical: true);
+                                                newIterationEnv.DefineJsValue(binding, value, isConst, isLexicalBinding: true);
                                             }
                                         }
                                     }
@@ -1742,7 +1742,7 @@ public static partial class TypedAstEvaluator
                                     {
                                         if (loopScope.TryGetJsValueWithConst(binding, out var value, out var isConst))
                                         {
-                                            newIterationEnv.DefineJsValue(binding, value, isConst, isLexical: true);
+                                            newIterationEnv.DefineJsValue(binding, value, isConst, isLexicalBinding: true);
                                         }
                                     }
                                 }
@@ -2186,7 +2186,7 @@ public static partial class TypedAstEvaluator
                                 // Bind the catch parameter directly to the thrown value
                                 if (enterCatch.CatchParameterSymbol is { } param)
                                 {
-                                    catchEnv.DefineJsValue(param, thrownValue, false, isLexical: true);
+                                    catchEnv.DefineJsValue(param, thrownValue, false, isLexicalBinding: true);
                                 }
 
                                 environment = catchEnv;
@@ -2365,7 +2365,7 @@ public static partial class TypedAstEvaluator
                                     foreach (var tdzSymbol in iteratorInitInstruction.TdzBindings)
                                     {
                                         iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
-                                            iteratorInitInstruction.TdzIsConst, isLexical: true,
+                                            iteratorInitInstruction.TdzIsConst, isLexicalBinding: true,
                                             blocksFunctionScopeOverride: true);
                                     }
                                 }

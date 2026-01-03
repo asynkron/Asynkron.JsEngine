@@ -110,7 +110,7 @@ public static partial class TypedAstEvaluator
             {
                 // Super access before 'this' is initialised (e.g. during synthetic ctor setup).
                 var placeholder = new SuperBinding(null, null, JsValue.Undefined);
-                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(placeholder), isLexical: true,
+                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(placeholder), isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized placeholder after ReferenceError for 'this'");
                 return placeholder;
@@ -118,7 +118,7 @@ public static partial class TypedAstEvaluator
 
             if (environment.TryCreateSuperBindingFromThis(context, out var synthesized))
             {
-                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(synthesized), isLexical: true,
+                environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(synthesized), isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
                 logger?.LogInformation("SuperBinding: synthesized from this protoNull={ProtoNull} thisInit={ThisInit}",
                     synthesized.Prototype is null,
@@ -148,7 +148,7 @@ public static partial class TypedAstEvaluator
             }
 
             var fallbackBinding = new SuperBinding(null, prototypeGuess, thisValue, context.IsThisInitialized);
-            environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fallbackBinding), isLexical: true,
+            environment.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(fallbackBinding), isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
             logger?.LogInformation("SuperBinding: placeholder created protoNull={ProtoNull} thisInit={ThisInit}",
                 fallbackBinding.Prototype is null,
@@ -240,7 +240,7 @@ public static partial class TypedAstEvaluator
             }
 
             environment.DefineJsValue(Symbol.ThisInitialized, initialized ? JsValue.True : JsValue.False,
-                isLexical: true,
+                isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
             logger?.LogInformation("ThisInitialized defined to {Initialized} env={Env}",
                 initialized,

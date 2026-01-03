@@ -16,7 +16,7 @@ public static partial class TypedAstEvaluator
     {
         using var classFieldInitScope = context.EnterClassFieldInitializer();
         var initEnv = CreateStaticInitializationEnvironment(constructorAccessor, environment, out var superBinding);
-        initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexical: true,
+        initEnv.DefineJsValue(EvalHostFunction.FieldInitializerEvalFlag, JsValue.True, true, isLexicalBinding: true,
             blocksFunctionScopeOverride: true);
         var resultValue = expression.EvaluateExpression(initEnv, context);
         if (resultValue.ObjectValue is SyncFunctionInvoker { IsArrowFunction: true } typedFunction &&
@@ -38,17 +38,17 @@ public static partial class TypedAstEvaluator
         var initEnv = new JsEnvironment(environment, true, true);
         initEnv.DefineJsValue(Symbol.This, JsValue.FromObjectUnsafe(constructorAccessor));
         // Field/static initializers are evaluated outside any constructor body; shadow new.target with undefined.
-        initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexical: true,
+        initEnv.DefineJsValue(Symbol.NewTarget, JsValue.Undefined, true, isLexicalBinding: true,
             blocksFunctionScopeOverride: true);
         if (environment.TryGetJsValue(Symbol.Arguments, out var argumentsValue))
         {
-            initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexical: false);
+            initEnv.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
         }
 
         superBinding = ResolveStaticInitializationSuperBinding(constructorAccessor);
         if (superBinding is not null)
         {
-            initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding), true, isLexical: true,
+            initEnv.DefineJsValue(Symbol.Super, JsValue.FromObjectUnsafe(superBinding), true, isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
         }
 

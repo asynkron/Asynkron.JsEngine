@@ -23,7 +23,7 @@ public sealed class SlotGuardrailTests : InternalTestBase
         var outer = new JsEnvironment(null, isFunctionScope: true);
         outer.InitializeSlots(1, scopeId: 1);
         var symbolA = Symbol.Intern("a");
-        outer.DefineJsValue(symbolA, new JsValue(123), isLexical: true);
+        outer.DefineJsValue(symbolA, new JsValue(123), isLexicalBinding: true);
 
         // Inner environment has a different binding at slot 0 but shares the same scopeId (collision).
         var inner = new JsEnvironment(outer, isFunctionScope: true);

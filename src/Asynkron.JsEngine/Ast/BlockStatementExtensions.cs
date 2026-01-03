@@ -171,7 +171,7 @@ public static partial class TypedAstEvaluator
                     case ClassDeclaration classDecl:
                         if (!scope.HasBinding(classDecl.Name))
                         {
-                            scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexical: true,
+                            scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexicalBinding: true,
                                 blocksFunctionScopeOverride: true, isConst: true);
                         }
 
@@ -230,7 +230,7 @@ public static partial class TypedAstEvaluator
                     functionDeclaration.Name,
                     JsValue.FromObjectUnsafe(functionValue),
                     true,
-                    isLexical: true,
+                    isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
             }
         }
@@ -242,7 +242,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!blockEnvironment.HasBinding(id.Name))
                     {
-                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexical: true,
+                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexicalBinding: true,
                             blocksFunctionScopeOverride: true, isConst: isConst);
                     }
 

@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
@@ -43,6 +44,31 @@ public static partial class TypedAstEvaluator
                 {
                     iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                         "for-each-head-tdz");
+                }
+
+                // Align slot metadata with the per-iteration scope so slot-stamped identifiers
+                // hit the TDZ bindings instead of bypassing to an outer scope.
+                if (statement.PerIterationSlotCount >= 0 && statement.PerIterationScopeId >= 0)
+                {
+                    iterableEnvironment.InitializeSlots(statement.PerIterationSlotCount,
+                        statement.PerIterationScopeId);
+                    if (!statement.PerIterationBindings.IsDefaultOrEmpty &&
+                        !statement.PerIterationSlotIndices.IsDefaultOrEmpty)
+                    {
+                        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+                        var count = Math.Min(statement.PerIterationBindings.Length,
+                            statement.PerIterationSlotIndices.Length);
+                        for (var i = 0; i < count; i++)
+                        {
+                            var slotIndex = statement.PerIterationSlotIndices[i];
+                            if (slotIndex >= 0)
+                            {
+                                slotMapBuilder[statement.PerIterationBindings[i]] = slotIndex;
+                            }
+                        }
+
+                        iterableEnvironment.SetSlotMap(slotMapBuilder.ToImmutable());
+                    }
                 }
 
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using

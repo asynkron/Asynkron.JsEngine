@@ -118,10 +118,11 @@ internal sealed partial class ExecutionPlanBuilder
         // Ensure the root scope id is a stable, positive value. Scope analysis should
         // stamp functions with a non-negative ScopeId, but if it's missing or 0, allocate
         // a synthetic id so downstream slot layout and logging remain consistent.
-        // Prefer the function's stamped ScopeId; default to 0 for compatibility with
-        // existing slot stamping logic and to keep closures stable across plans.
-        _rootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
-        var analysisRootScopeId = _rootScopeId;
+        // Prefer the function's stamped ScopeId; otherwise allocate a unique synthetic id so
+        // each plan has a distinct root scope identity for logging and slot reuse.
+        _rootScopeId = function.ScopeId > 0 ? function.ScopeId : SyntheticScopeIdAllocator.NextFunctionRoot();
+        // Scope analysis uses the function's declared ScopeId when available, otherwise 0 for legacy stamping.
+        var analysisRootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
         var implicitReturnIndex = Append(new ReturnInstruction(-1, null));
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))

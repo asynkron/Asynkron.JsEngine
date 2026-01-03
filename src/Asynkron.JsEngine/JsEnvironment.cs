@@ -1262,7 +1262,7 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogTrace(
-                    "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                     targetEnv!.GetHashCode(),
                     name.Name,
                     FormatScopeIdForLog(targetEnv.ScopeId),
@@ -1349,7 +1349,7 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot write hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    "Identifier slot write hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                     targetEnv!.GetHashCode(),
                     name.Name,
                     FormatScopeIdForLog(scopeId),
@@ -1403,7 +1403,7 @@ public sealed class JsEnvironment : IRentable
         if (shouldLogSlots)
         {
             logger?.LogInformation(
-                "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                 GetHashCode(),
                 name.Name,
                 FormatScopeIdForLog(ScopeId),
@@ -3541,7 +3541,7 @@ public sealed class JsEnvironment : IRentable
             if (realmState?.Options.DebugMode == true)
             {
                 realmState.Logger?.LogTrace(
-                    "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                     GetHashCode(),
                     slot.Name.Name,
                     FormatScopeIdForLog(ScopeId),
@@ -3687,7 +3687,7 @@ public sealed class JsEnvironment : IRentable
         if (realmState?.Options.DebugMode == true)
         {
             realmState.Logger?.LogTrace(
-                "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                 GetHashCode(),
                 slot.Name.Name,
                 ScopeId,
@@ -3767,7 +3767,7 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot fallback name={Name} slotScopeId={ScopeId} slot={Slot} reason=env_or_index_mismatch",
+                    "Identifier slot fallback name={Name} slotScope={ScopeId} slot={Slot} reason=env_or_index_mismatch",
                     name.Name,
                     FormatScopeIdForLog(scopeId),
                     slotIndex);
@@ -3782,7 +3782,7 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot fallback name={Name} slotScopeId={ScopeId} slot={Slot} reason=name_mismatch actualName={ActualName}",
+                    "Identifier slot fallback name={Name} slotScope={ScopeId} slot={Slot} reason=name_mismatch actualName={ActualName}",
                     name.Name,
                     FormatScopeIdForLog(scopeId),
                     slotIndex,
@@ -3795,13 +3795,13 @@ public sealed class JsEnvironment : IRentable
         if (shouldLogSlots)
         {
             logger?.LogInformation(
-                "Identifier slot read/write validated env={Env} name={Name} slotScopeId={ScopeId} slot={Slot}",
+                "Identifier slot read/write validated env={Env} name={Name} slotScope={ScopeId} slot={Slot}",
                 resolvedEnv.GetHashCode(),
                 name.Name,
                 FormatScopeIdForLog(scopeId),
                 slotIndex);
             logger?.LogTrace(
-                "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
                 resolvedEnv.GetHashCode(),
                 name.Name,
                 FormatScopeIdForLog(scopeId),

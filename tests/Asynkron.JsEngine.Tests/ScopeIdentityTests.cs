@@ -35,7 +35,8 @@ public class ScopeIdentityTests
             .ToArray();
 
         Assert.True(rootScopeIds.Length >= 2);
-        Assert.All(rootScopeIds, id => Assert.True(id >= 0));
+        Assert.Equal(rootScopeIds.Length, rootScopeIds.Distinct().Count());
+        Assert.All(rootScopeIds, id => Assert.True(id > 0));
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public class ScopeIdentityTests
             .ToArray();
 
         Assert.Single(scopeIds);
-        Assert.True(scopeIds[0] >= 0);
+        Assert.True(scopeIds[0] > 0);
     }
 
     private static int? ExtractScopeId(string message)

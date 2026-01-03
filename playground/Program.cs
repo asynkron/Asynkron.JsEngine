@@ -7,14 +7,26 @@ internal static class Program
     private static async Task Main()
     {
         await using var engine = new JsEngine();
-        var result = await engine.Evaluate("""
-            let sum = 0;
-            for (let i = 0; i < 5; i++) {
-                sum += i;
+        try
+        {
+            var source = "var public = 1;";
+            Console.WriteLine("Tokens:");
+            var lexer = new Asynkron.JsEngine.Parser.JsLexer(source);
+            var tokens = lexer.Tokenize();
+            foreach (var token in tokens)
+            {
+                Console.WriteLine($"{token.Type}: '{token.Lexeme}'");
             }
-            sum;
-            """);
 
-        Console.WriteLine($"Loop sum: {result}");
+            var result = await engine.Evaluate($"""
+                'use strict';
+                eval("{source}");
+                """);
+            Console.WriteLine($"Result: {result}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Eval threw: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 }

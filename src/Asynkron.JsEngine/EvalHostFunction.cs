@@ -82,6 +82,22 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 $"[eval-debug] strictCaller={hasStrictCaller} envStrict={environment.IsStrict} ctxStrict={CallingContext?.IsStrictSource} scopeStrict={CallingContext?.CurrentScope.Mode} callEnvStrict={CallingJsEnvironment?.IsStrict}");
         }
 
+        var hasStrictReservedToken = hasStrictCaller && ContainsStrictReservedBindingTokens(code);
+        Console.WriteLine($"[eval-debug-check] hasStrictCaller={hasStrictCaller} hasStrictReservedToken={hasStrictReservedToken}");
+        if (hasStrictReservedToken)
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "Unexpected reserved identifier in strict eval.",
+                CallingContext,
+                environment.RealmState);
+        }
+        if (hasStrictCaller)
+        {
+            Console.WriteLine($"[eval-debug-reserved] hasStrictReservedToken={hasStrictReservedToken}");
+            System.IO.File.WriteAllText("/tmp/eval-ast.log",
+                $"strictReservedToken={hasStrictReservedToken}");
+        }
+
         var forceStrict = hasStrictCaller;
 
         // Parse the code and build the typed AST so eval shares the same pipeline
@@ -100,7 +116,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (code.Contains("public", StringComparison.Ordinal))
         {
             var stmtTypes = string.Join(",", program.Body.Select(s => s.GetType().Name));
-            throw new Exception($"AST:{stmtTypes};strict={program.IsStrict}");
+            System.IO.File.WriteAllText("/tmp/eval-ast.log", $"stmts={stmtTypes}; strict={program.IsStrict}");
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).
@@ -611,6 +627,39 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var lexeme = name.Name;
         return lexeme is "implements" or "interface" or "let" or "package" or "private" or "protected"
             or "public" or "static" or "yield";
+    }
+
+    private static bool ContainsStrictReservedBindingTokens(string code)
+    {
+        var lexer = new JsLexer(code);
+        var tokens = lexer.Tokenize();
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            switch (token.Type)
+            {
+                case TokenType.Var or TokenType.Let or TokenType.Const or TokenType.Function or TokenType.Class:
+                    if (i + 1 >= tokens.Count)
+                    {
+                        continue;
+                    }
+
+                    var next = tokens[i + 1];
+                    if (next.Type != TokenType.Identifier)
+                    {
+                        continue;
+                    }
+
+                    if (IsStrictReservedName(Symbol.Intern(next.Lexeme)))
+                    {
+                        return true;
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
     }
 
     private static void CollectVarDeclaredNames(

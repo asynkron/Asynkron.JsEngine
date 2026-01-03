@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine;
+using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 using Test262Harness;
@@ -136,7 +139,17 @@ try {
         return HarnessProgramCache.GetOrAdd(source, static s =>
         {
             var parserEngine = new JsEngine();
-            return parserEngine.ParseProgram(s);
+            try
+            {
+                return parserEngine.ParseProgram(s);
+            }
+            catch (ParseException ex)
+            {
+                // Normalize lexer/parser failures to a JS SyntaxError so harness files
+                // behave like regular scripts that go through ParseProgramOrThrowSyntaxError.
+                throw new ThrowSignal(
+                    StandardLibrary.CreateSyntaxError(ex.Message, realm: parserEngine.RealmState));
+            }
         });
     }
 

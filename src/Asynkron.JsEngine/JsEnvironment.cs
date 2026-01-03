@@ -663,7 +663,8 @@ public sealed class JsEnvironment : IRentable
         }
 
         var initialValue = value;
-        var shouldWriteGlobal = true;
+        // Lexical (let/const/class) bindings should never create or update properties on the global object.
+        var shouldWriteGlobal = !isLexical;
 
         if (isGlobalScope && !hasInitializer && (existingDescriptor is not null || hasLooseGlobalValue))
         {

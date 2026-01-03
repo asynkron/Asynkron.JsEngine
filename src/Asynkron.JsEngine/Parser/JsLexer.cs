@@ -1821,18 +1821,7 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         {
             if (Peek() == '\\')
             {
-                // Include escape sequences in the pattern
-                pattern.Append(Advance());
-                if (!IsAtEnd)
-                {
-                    var escapedChar = Advance();
-                    if (IsLineTerminator(escapedChar))
-                    {
-                        throw new ParseException("Unterminated regex literal - newline in pattern.");
-                    }
-
-                    pattern.Append(escapedChar);
-                }
+                ConsumeRegexEscape(pattern);
             }
             else if (IsLineTerminator(Peek()))
             {
@@ -1844,13 +1833,14 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                 pattern.Append(Advance());
                 while (!IsAtEnd && Peek() != ']')
                 {
+                    if (IsLineTerminator(Peek()))
+                    {
+                        throw new ParseException("Unterminated regex literal - newline in pattern.");
+                    }
+
                     if (Peek() == '\\')
                     {
-                        pattern.Append(Advance());
-                        if (!IsAtEnd)
-                        {
-                            pattern.Append(Advance());
-                        }
+                        ConsumeRegexEscape(pattern);
                     }
                     else
                     {
@@ -1886,6 +1876,136 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
 
         var regexValue = new RegexLiteralValue(pattern.ToString(), flags.ToString());
         AddToken(TokenType.RegexLiteral, regexValue);
+    }
+
+    private void ConsumeRegexEscape(StringBuilder pattern)
+    {
+        // Include escape sequences in the pattern
+        pattern.Append(Advance());
+        if (IsAtEnd)
+        {
+            return;
+        }
+
+        var escapedChar = Peek();
+
+        // Detect unicode/hex escapes that decode to a line terminator (e.g. \u000A)
+        if (escapedChar == 'u')
+        {
+            if (TryPeekUnicodeEscape(out var codePoint, out var consumedChars) &&
+                IsLineTerminator((char)codePoint))
+            {
+                throw new ParseException("Unterminated regex literal - newline in pattern.");
+            }
+
+            // Consume the escape sequence characters
+            pattern.Append(Advance()); // 'u'
+            for (var i = 0; i < consumedChars && !IsAtEnd; i++)
+            {
+                pattern.Append(Advance());
+            }
+            return;
+        }
+
+        if (escapedChar == 'x')
+        {
+            if (TryPeekHexEscape(out var codePoint) && IsLineTerminator((char)codePoint))
+            {
+                throw new ParseException("Unterminated regex literal - newline in pattern.");
+            }
+
+            pattern.Append(Advance()); // 'x'
+            // Consume the two hex digits if present
+            for (var i = 0; i < 2 && !IsAtEnd; i++)
+            {
+                pattern.Append(Advance());
+            }
+            return;
+        }
+
+        // Simple escape - just consume the next char and ensure it's not a raw line terminator
+        var escaped = Advance();
+        if (IsLineTerminator(escaped))
+        {
+            throw new ParseException("Unterminated regex literal - newline in pattern.");
+        }
+
+        pattern.Append(escaped);
+    }
+
+    private bool TryPeekUnicodeEscape(out int codePoint, out int consumedChars)
+    {
+        codePoint = 0;
+        consumedChars = 0;
+
+        // Expecting either \uXXXX or \u{XXXX}
+        if (_current >= source.Length || source[_current] != 'u')
+        {
+            return false;
+        }
+
+        // \u{XXXX}
+        if (_current + 1 < source.Length && source[_current + 1] == '{')
+        {
+            var start = _current + 2;
+            var end = start;
+            while (end < source.Length && source[end] != '}')
+            {
+                if (!IsHexDigit(source[end]))
+                {
+                    return false;
+                }
+                end++;
+            }
+
+            if (end >= source.Length || end == start)
+            {
+                return false;
+            }
+
+            var hexSpan = source.AsSpan(start, end - start);
+            if (!int.TryParse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out codePoint))
+            {
+                return false;
+            }
+
+            // Characters after the leading 'u' to consume: "{digits}"
+            consumedChars = end - _current;
+            return true;
+        }
+
+        // \uXXXX
+        if (_current + 4 < source.Length &&
+            IsHexDigit(source[_current + 1]) &&
+            IsHexDigit(source[_current + 2]) &&
+            IsHexDigit(source[_current + 3]) &&
+            IsHexDigit(source[_current + 4]))
+        {
+            var hexSpan = source.AsSpan(_current + 1, 4);
+            codePoint = int.Parse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            consumedChars = 4;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryPeekHexEscape(out int codePoint)
+    {
+        codePoint = 0;
+        if (_current + 2 >= source.Length || source[_current] != 'x')
+        {
+            return false;
+        }
+
+        if (!IsHexDigit(source[_current + 1]) || !IsHexDigit(source[_current + 2]))
+        {
+            return false;
+        }
+
+        var hexSpan = source.AsSpan(_current + 1, 2);
+        codePoint = int.Parse(hexSpan, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        return true;
     }
 
     private static DecodedString DecodeEscapeSequences(string rawString)

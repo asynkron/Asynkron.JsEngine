@@ -115,8 +115,8 @@ internal sealed partial class ExecutionPlanBuilder
 
     private bool TryBuildInternal(FunctionExpression function, out ExecutionPlan plan)
     {
+        _rootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
         var analysisRootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
-        _rootScopeId = function.ScopeId >= 0 ? function.ScopeId : SyntheticScopeIdAllocator.NextFunctionRoot();
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
         var implicitReturnIndex = Append(new ReturnInstruction(-1, null));
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))

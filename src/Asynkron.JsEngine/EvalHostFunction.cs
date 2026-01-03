@@ -72,9 +72,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             environment.IsStrict ||
             (CallingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
 
-        Console.WriteLine($"[eval-debug] isDirectEval={isDirectEval} hasStrictCaller={hasStrictCaller} code='{code}'");
         var hasStrictReservedToken = hasStrictCaller && ContainsStrictReservedBindingTokens(code);
-        Console.WriteLine($"[eval-debug] hasStrictReservedToken={hasStrictReservedToken}");
         if (hasStrictReservedToken)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -82,7 +80,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 CallingContext,
                 environment.RealmState);
         }
-        Console.WriteLine("[eval-debug] after reserved check");
 
         var forceStrict = hasStrictCaller;
 
@@ -320,24 +317,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
         var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
         var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, isStrictEval, false);
-        if (hasStrictCaller)
-        {
-            Console.WriteLine(
-                $"[eval-debug-vars] varCount={varDeclaredNames.Count} lexCount={lexicallyDeclaredNames.Count} strictEval={isStrictEval} programStrict={program.IsStrict}");
-            for (var i = 0; i < program.Body.Length; i++)
-            {
-                var stmt = program.Body[i];
-                Console.WriteLine($"[eval-debug-stmt] #{i} type={stmt.GetType().Name}");
-            }
-            foreach (var v in varDeclaredNames)
-            {
-                Console.WriteLine($"[eval-debug-vars] varName={v.Name}");
-            }
-            foreach (var v in lexicallyDeclaredNames)
-            {
-                Console.WriteLine($"[eval-debug-vars] lexName={v.Name}");
-            }
-        }
         if (isStrictEval && ContainsStrictReservedBinding(program.Body))
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -378,12 +357,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
             foreach (var name in varDeclaredNames)
             {
-                if (code.Contains("var x;", StringComparison.Ordinal))
-                {
-                    Console.WriteLine(
-                        $"[eval-debug] varEnvStrict={varEnv.IsStrict} envStrict={environment.IsStrict} hasGlobalLex={globalLexicalRecord.HasGlobalLexicalDeclaration(name)} lexEnvHas={HasLexicalInChain(lexicalEnv, name)} varEnvHas={HasLexicalInChain(varEnv, name)}");
-                }
-
                 if (isDirectEval &&
                     varEnv.IsParameterEnvironment &&
                     varEnv.HasOwnBinding(name))
@@ -807,22 +780,18 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             switch (statement)
             {
                 case VariableDeclaration decl:
-                    Console.WriteLine($"[eval-debug-reserved] var decl kind={decl.Kind} count={decl.Declarators.Length}");
                     foreach (var declarator in decl.Declarators)
                     {
                         if (BindingContainsStrictReserved(declarator.Target))
                         {
-                            Console.WriteLine("[eval-debug-reserved] hit reserved in var binding");
                             return true;
                         }
                     }
 
                     break;
                 case FunctionDeclaration { Function.Name: not null } funcDecl when IsStrictReservedName(funcDecl.Function.Name):
-                    Console.WriteLine("[eval-debug-reserved] hit reserved in function name");
                     return true;
                 case ClassDeclaration classDecl when IsStrictReservedName(classDecl.Name):
-                    Console.WriteLine("[eval-debug-reserved] hit reserved in class name");
                     return true;
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
@@ -930,7 +899,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             switch (target)
             {
                 case IdentifierBinding identifier when IsStrictReservedName(identifier.Name):
-                    Console.WriteLine($"[eval-debug-reserved] ident={identifier.Name.Name}");
                     return true;
                 case ArrayBinding arrayBinding:
                     foreach (var element in arrayBinding.Elements)

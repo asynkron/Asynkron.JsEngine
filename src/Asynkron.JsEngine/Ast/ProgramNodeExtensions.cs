@@ -561,7 +561,13 @@ public static partial class TypedAstEvaluator
             if (hasDynamicScope)
             {
                 context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval).");
-                return programBlock.EvaluateStatementJsValue(executionEnvironment, context);
+                var dynamicResult = programBlock.EvaluateStatementJsValue(executionEnvironment, context);
+                if (context.IsThrow)
+                {
+                    throw new ThrowSignal(context.FlowValue);
+                }
+
+                return dynamicResult;
             }
 
             // Try IR execution path first (unified execution model)
@@ -608,11 +614,6 @@ public static partial class TypedAstEvaluator
                 var completionJs = statement.EvaluateStatementJsValue(executionEnvironment, context);
                 var shouldStop = context.ShouldStopEvaluation;
 
-                if (executionKind == ExecutionKind.Eval && shouldStop && context.IsThrow)
-                {
-                    Console.WriteLine("[eval-debug-program] stop due to throw in eval");
-                }
-
                 if (!completionJs.IsUnit)
                 {
                     resultJs = completionJs;
@@ -637,7 +638,6 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                Console.WriteLine("[eval-debug-program] throwing throwsignal out of eval");
                 throw new ThrowSignal(context.FlowValue);
             }
 

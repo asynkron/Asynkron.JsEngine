@@ -641,7 +641,6 @@ public static partial class TypedAstEvaluator
             }
             catch (ThrowSignal signal)
             {
-                Console.WriteLine($"[eval-debug-call] caught ThrowSignal type={signal.ThrownValue.Kind} callee={callable.GetType().Name}");
                 var thrownObj = signal.ThrownValue.Kind == JsValueKind.Object ? signal.ThrownValue.ObjectValue : null;
                 context.RealmState.Logger?.LogInformation(
                     "EvaluateCall caught ThrowSignal type={Type} calleeType={CalleeType}",
@@ -655,7 +654,6 @@ public static partial class TypedAstEvaluator
                 else
                 {
                     context.SetThrow(signal.ThrownValue);
-                    Console.WriteLine($"[eval-debug-call] after SetThrow IsThrow={context.IsThrow}");
                     return signal.ThrownValue;
                 }
             }

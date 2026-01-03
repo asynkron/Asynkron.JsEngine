@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -2515,9 +2516,20 @@ public sealed class JsAstParser(
                     return ApplyCallSuffix(importMetaExpr, allowCallSuffix);
                 }
 
+                if (!allowCallSuffix)
+                {
+                    throw new ParseException("Dynamic import cannot be used in this context.", importToken, source);
+                }
+
                 var importSymbol = Symbol.Intern(importToken.Lexeme);
-                expr = new IdentifierExpression(CreateSourceReference(importToken), importSymbol);
-                return ApplyCallSuffix(expr, allowCallSuffix);
+                var importIdent = new IdentifierExpression(CreateSourceReference(importToken), importSymbol);
+                var parsedImport = ApplyCallSuffix(importIdent, allowCallSuffix);
+                if (parsedImport is IdentifierExpression { Name.Name: "import" })
+                {
+                    throw new ParseException("Dynamic import must be followed by '(' or '.'.", importToken, source);
+                }
+
+                return parsedImport;
             }
 
             if (Match(TokenType.Async))
@@ -2622,6 +2634,11 @@ public sealed class JsAstParser(
             {
                 if (Match(TokenType.QuestionDot))
                 {
+                    if (IsImportCallee(expression))
+                    {
+                        throw new ParseException("Dynamic import cannot use optional chaining.", Previous(), source);
+                    }
+
                     if (Match(TokenType.LeftParen))
                     {
                         var optionalArguments = ParseArgumentList();
@@ -2643,6 +2660,49 @@ public sealed class JsAstParser(
 
                 if (Match(TokenType.LeftParen))
                 {
+                    if (IsImportCallee(expression))
+                    {
+                        // Dynamic import grammar: import(AssignmentExpression) with no spreads and exactly one argument.
+                        var openParen = Previous();
+
+                        // AllowIn must be true for AssignmentExpression inside import()
+                        var previousAllowIn = _allowInExpressions;
+                        _allowInExpressions = true;
+
+                        try
+                        {
+                            if (Check(TokenType.RightParen))
+                            {
+                                throw new ParseException("Dynamic import requires exactly one argument.", openParen,
+                                    source);
+                            }
+
+                            if (Match(TokenType.DotDotDot))
+                            {
+                                throw new ParseException("Dynamic import does not support spread arguments.",
+                                    Previous(), source);
+                            }
+
+                            var argExpr = ParseExpression(false);
+                            // Dynamic import does not allow multiple arguments or trailing commas
+                            if (Match(TokenType.Comma))
+                            {
+                                throw new ParseException("Dynamic import only accepts one argument.", Previous(),
+                                    source);
+                            }
+
+                            Consume(TokenType.RightParen, "Expected ')' after import argument.");
+                            expression = new CallExpression(CreateSourceReference(openParen), expression,
+                                ImmutableArray.Create(new CallArgument(argExpr.Source, argExpr, false)), false);
+                        }
+                        finally
+                        {
+                            _allowInExpressions = previousAllowIn;
+                        }
+
+                        continue;
+                    }
+
                     var arguments = ParseArgumentList();
                     expression = new CallExpression(CreateSourceReference(Previous()), expression, arguments, false);
                     continue;
@@ -2720,6 +2780,12 @@ public sealed class JsAstParser(
 
             Consume(TokenType.RightParen, "Expected ')' after arguments.");
             return arguments.ToImmutable();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsImportCallee(ExpressionNode expression)
+        {
+            return expression is IdentifierExpression { Name.Name: "import" };
         }
 
         private ExpressionNode FinishDotAccess(ExpressionNode target, bool isOptional = false)
@@ -4263,6 +4329,14 @@ public sealed class JsAstParser(
                 {
                     throw new ParseException(
                         $"'{lexeme}' cannot be used as a binding identifier in strict mode.",
+                        token,
+                        source);
+                }
+
+                if (IsStrictModeReservedWord(token))
+                {
+                    throw new ParseException(
+                        $"Unexpected reserved identifier '{lexeme}' in strict mode.",
                         token,
                         source);
                 }

@@ -1,9 +1,11 @@
 #region
 
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
@@ -63,7 +65,24 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             ? CallingJsEnvironment ?? throw new InvalidOperationException("eval() called without a calling environment")
             : evalRealmGlobal;
 
-        var forceStrict = isDirectEval && (CallingContext?.CurrentScope.IsStrict ?? false);
+        var hasStrictCaller = isDirectEval && (
+            (CallingContext?.CurrentScope.Mode == ScopeMode.Strict) ||
+            (CallingContext?.IsStrictSource ?? false) ||
+            (CallingJsEnvironment?.IsStrict ?? false) ||
+            environment.IsStrict ||
+            (CallingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
+
+        if (isDirectEval)
+        {
+            Console.WriteLine($"[eval-debug-code-v2] raw='{code}' strictCaller={hasStrictCaller} containsPublic={code.Contains("public", StringComparison.Ordinal)}");
+        }
+        if (code.Contains("var public = 1", StringComparison.Ordinal))
+        {
+            Console.WriteLine(
+                $"[eval-debug] strictCaller={hasStrictCaller} envStrict={environment.IsStrict} ctxStrict={CallingContext?.IsStrictSource} scopeStrict={CallingContext?.CurrentScope.Mode} callEnvStrict={CallingJsEnvironment?.IsStrict}");
+        }
+
+        var forceStrict = hasStrictCaller;
 
         // Parse the code and build the typed AST so eval shares the same pipeline
         ProgramNode program;
@@ -76,6 +95,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var errorObject =
                 StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
             throw new ThrowSignal(errorObject);
+        }
+
+        if (code.Contains("public", StringComparison.Ordinal))
+        {
+            var stmtTypes = string.Join(",", program.Body.Select(s => s.GetType().Name));
+            throw new Exception($"AST:{stmtTypes};strict={program.IsStrict}");
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).
@@ -243,7 +268,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        var isStrictEval = program.IsStrict;
+        var isStrictEval = program.IsStrict || hasStrictCaller;
         JsEnvironment lexicalEnv;
         if (!isDirectEval)
         {
@@ -299,10 +324,70 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
         var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
         var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, isStrictEval, false);
-        if (!isStrictEval)
+        if (hasStrictCaller)
+        {
+            Console.WriteLine(
+                $"[eval-debug-vars] varCount={varDeclaredNames.Count} lexCount={lexicallyDeclaredNames.Count} strictEval={isStrictEval} programStrict={program.IsStrict}");
+            for (var i = 0; i < program.Body.Length; i++)
+            {
+                var stmt = program.Body[i];
+                Console.WriteLine($"[eval-debug-stmt] #{i} type={stmt.GetType().Name}");
+            }
+            foreach (var v in varDeclaredNames)
+            {
+                Console.WriteLine($"[eval-debug-vars] varName={v.Name}");
+            }
+            foreach (var v in lexicallyDeclaredNames)
+            {
+                Console.WriteLine($"[eval-debug-vars] lexName={v.Name}");
+            }
+        }
+        if (isStrictEval && ContainsStrictReservedBinding(program.Body))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "Unexpected reserved identifier in strict eval.",
+                CallingContext,
+                environment.RealmState);
+        }
+
+        // Strict eval must reject strict reserved words that appear as binding identifiers
+        if (isStrictEval)
         {
             foreach (var name in varDeclaredNames)
             {
+                if (IsStrictReservedName(name))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Unexpected reserved identifier '{name.Name}' in strict mode.",
+                        CallingContext,
+                        environment.RealmState);
+                }
+            }
+
+            foreach (var name in lexicallyDeclaredNames)
+            {
+                if (IsStrictReservedName(name))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Unexpected reserved identifier '{name.Name}' in strict mode.",
+                        CallingContext,
+                        environment.RealmState);
+                }
+            }
+        }
+
+        if (!isStrictEval)
+        {
+            var globalLexicalRecord = Engine.GlobalEnvironment ?? varEnv;
+
+            foreach (var name in varDeclaredNames)
+            {
+                if (code.Contains("var x;", StringComparison.Ordinal))
+                {
+                    Console.WriteLine(
+                        $"[eval-debug] varEnvStrict={varEnv.IsStrict} envStrict={environment.IsStrict} hasGlobalLex={globalLexicalRecord.HasGlobalLexicalDeclaration(name)} lexEnvHas={HasLexicalInChain(lexicalEnv, name)} varEnvHas={HasLexicalInChain(varEnv, name)}");
+                }
+
                 if (isDirectEval &&
                     varEnv.IsParameterEnvironment &&
                     varEnv.HasOwnBinding(name))
@@ -331,8 +416,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         environment.RealmState);
                 }
 
-                var hasGlobalLexical = varEnv.IsGlobalFunctionScope &&
-                                       (varEnv.HasOwnLexicalBinding(name) || varEnv.HasBodyLexicalName(name));
+                var hasGlobalLexical =
+                    HasLexicalInChain(lexicalEnv, name) ||
+                    HasLexicalInChain(varEnv, name) ||
+                    globalLexicalRecord.HasGlobalLexicalDeclaration(name);
                 // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
                 // that collide with existing lexical bindings on the path to the var
                 // environment, except for simple catch parameters (Annex B.3.3.3).
@@ -342,6 +429,26 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing lexical declaration.",
                         CallingContext,
                         environment.RealmState);
+                }
+            }
+
+            // ES2024 19.2.1.3 step 5.d: var names that collide with existing global lexicals
+            // must throw before any bindings are created, even when HasDeclarativeBindingBetween
+            // returns false (e.g., direct eval in global scope).
+            if (varEnv.IsGlobalFunctionScope)
+            {
+                foreach (var name in varDeclaredNames)
+                {
+                    var hasLexical = varEnv.HasOwnLexicalBinding(name) || varEnv.HasBodyLexicalName(name) ||
+                                     globalLexicalRecord.HasGlobalLexicalDeclaration(name);
+
+                    if (hasLexical)
+                    {
+                        throw StandardLibrary.ThrowSyntaxError(
+                            $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing lexical declaration.",
+                            CallingContext,
+                            environment.RealmState);
+                    }
                 }
             }
         }
@@ -499,6 +606,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         SetProperty(name, value, JsValue.FromObjectUnsafe(this));
     }
 
+    private static bool IsStrictReservedName(Symbol name)
+    {
+        var lexeme = name.Name;
+        return lexeme is "implements" or "interface" or "let" or "package" or "private" or "protected"
+            or "public" or "static" or "yield";
+    }
+
     private static void CollectVarDeclaredNames(
         ImmutableArray<StatementNode> statements,
         HashSet<Symbol> names,
@@ -642,6 +756,191 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         return names;
+    }
+
+    private static bool ContainsStrictReservedBinding(ImmutableArray<StatementNode> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (StatementContainsStrictReservedBinding(statement))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StatementContainsStrictReservedBinding(StatementNode statement)
+    {
+        while (true)
+        {
+            switch (statement)
+            {
+                case VariableDeclaration decl:
+                    Console.WriteLine($"[eval-debug-reserved] var decl kind={decl.Kind} count={decl.Declarators.Length}");
+                    foreach (var declarator in decl.Declarators)
+                    {
+                        if (BindingContainsStrictReserved(declarator.Target))
+                        {
+                            Console.WriteLine("[eval-debug-reserved] hit reserved in var binding");
+                            return true;
+                        }
+                    }
+
+                    break;
+                case FunctionDeclaration { Function.Name: not null } funcDecl when IsStrictReservedName(funcDecl.Function.Name):
+                    Console.WriteLine("[eval-debug-reserved] hit reserved in function name");
+                    return true;
+                case ClassDeclaration classDecl when IsStrictReservedName(classDecl.Name):
+                    Console.WriteLine("[eval-debug-reserved] hit reserved in class name");
+                    return true;
+                case BlockStatement block:
+                    foreach (var inner in block.Statements)
+                    {
+                        if (StatementContainsStrictReservedBinding(inner))
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case IfStatement ifStatement:
+                    if (StatementContainsStrictReservedBinding(ifStatement.Then))
+                    {
+                        return true;
+                    }
+
+                    if (ifStatement.Else is { } elseBranch)
+                    {
+                        statement = elseBranch;
+                        continue;
+                    }
+
+                    break;
+                case WhileStatement whileStatement:
+                    statement = whileStatement.Body;
+                    continue;
+                case DoWhileStatement doWhileStatement:
+                    statement = doWhileStatement.Body;
+                    continue;
+                case WithStatement withStatement:
+                    statement = withStatement.Body;
+                    continue;
+                case ForStatement forStatement:
+                    if (forStatement.Initializer is VariableDeclaration initVar &&
+                        StatementContainsStrictReservedBinding(initVar))
+                    {
+                        return true;
+                    }
+
+                    if (forStatement.Body is not null)
+                    {
+                        statement = forStatement.Body;
+                        continue;
+                    }
+
+                    break;
+                case ForEachStatement forEachStatement:
+                    if (forEachStatement.DeclarationKind is not null &&
+                        BindingContainsStrictReserved(forEachStatement.Target))
+                    {
+                        return true;
+                    }
+
+                    statement = forEachStatement.Body;
+                    continue;
+                case SwitchStatement switchStatement:
+                    foreach (var switchCase in switchStatement.Cases)
+                    {
+                        if (StatementContainsStrictReservedBinding(switchCase.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case TryStatement tryStatement:
+                    if (StatementContainsStrictReservedBinding(tryStatement.TryBlock))
+                    {
+                        return true;
+                    }
+
+                    if (tryStatement.Catch is { Body: not null } catchClause)
+                    {
+                        if (catchClause.Binding is not null && BindingContainsStrictReserved(catchClause.Binding))
+                        {
+                            return true;
+                        }
+
+                        if (StatementContainsStrictReservedBinding(catchClause.Body))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (tryStatement.Finally is not null)
+                    {
+                        statement = tryStatement.Finally;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+
+        return false;
+    }
+
+    private static bool BindingContainsStrictReserved(BindingTarget target)
+    {
+        while (true)
+        {
+            switch (target)
+            {
+                case IdentifierBinding identifier when IsStrictReservedName(identifier.Name):
+                    Console.WriteLine($"[eval-debug-reserved] ident={identifier.Name.Name}");
+                    return true;
+                case ArrayBinding arrayBinding:
+                    foreach (var element in arrayBinding.Elements)
+                    {
+                        if (element.Target is not null && BindingContainsStrictReserved(element.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (arrayBinding.RestElement is not null)
+                    {
+                        target = arrayBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding objectBinding:
+                    foreach (var property in objectBinding.Properties)
+                    {
+                        if (BindingContainsStrictReserved(property.Target))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (objectBinding.RestElement is not null)
+                    {
+                        target = objectBinding.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
+        }
+
+        return false;
     }
 
     private static List<FunctionDeclaration> CollectVarFunctionDeclarations(
@@ -861,12 +1160,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var current = lexicalEnv;
         while (current is not null && !ReferenceEquals(current, varEnv))
         {
-            if (current.IsObjectEnvironment)
-            {
-                current = current.Enclosing;
-                continue;
-            }
-
             if (current.IsSimpleCatchParameter(name))
             {
                 current = current.Enclosing;
@@ -878,7 +1171,29 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 return true;
             }
 
-            if (current.HasOwnLexicalBinding(name))
+            if (current.HasOwnLexicalBinding(name) || current.HasBodyLexicalName(name))
+            {
+                return true;
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
+    }
+
+    private static bool HasLexicalInChain(JsEnvironment environment, Symbol name)
+    {
+        var current = environment;
+        while (current is not null)
+        {
+            if (current.HasOwnLexicalBinding(name) || current.HasBodyLexicalName(name))
+            {
+                return true;
+            }
+
+            ref var slot = ref current.TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot) && slot.IsLexical)
             {
                 return true;
             }

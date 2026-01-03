@@ -272,7 +272,9 @@ public static partial class TypedAstEvaluator
             HashSet<Symbol>? lexicalNames = null,
             HashSet<Symbol>? catchParameterNames = null,
             HashSet<Symbol>? simpleCatchParameterNames = null,
-            bool inBlockScope = false)
+            bool inBlockScope = false,
+            bool reverseFunctionHoist = false,
+            HashSet<Symbol>? functionHoistDedupe = null)
         {
             var effectiveLexicalNames = lexicalNames is null
                 ? block.CollectLexicalNames()
@@ -305,7 +307,9 @@ public static partial class TypedAstEvaluator
                 effectiveCatchNames,
                 effectiveSimpleCatchNames,
                 HoistPass.Functions,
-                inBlockScope);
+                inBlockScope,
+                reverseFunctionHoist,
+                functionHoistDedupe);
             block.HoistVarDeclarationsPass(environment,
                 context,
                 false,
@@ -313,7 +317,9 @@ public static partial class TypedAstEvaluator
                 effectiveCatchNames,
                 effectiveSimpleCatchNames,
                 HoistPass.Vars,
-                inBlockScope);
+                inBlockScope,
+                reverseFunctionHoist: false,
+                functionHoistDedupe: null);
         }
 
         private void HoistVarDeclarationsPass(JsEnvironment environment,
@@ -323,15 +329,35 @@ public static partial class TypedAstEvaluator
             HashSet<Symbol> catchParameterNames,
             HashSet<Symbol> simpleCatchParameterNames,
             HoistPass pass,
-            bool inBlockScope)
+            bool inBlockScope,
+            bool reverseFunctionHoist,
+            HashSet<Symbol>? functionHoistDedupe)
         {
+            if (reverseFunctionHoist && pass == HoistPass.Functions)
+            {
+                for (var i = block.Statements.Length - 1; i >= 0; i--)
+                {
+                    var statement = block.Statements[i];
+                    statement.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
+                        catchParameterNames,
+                        simpleCatchParameterNames,
+                        pass,
+                        inBlockScope,
+                        reverseFunctionHoist,
+                        functionHoistDedupe);
+                }
+                return;
+            }
+
             foreach (var statement in block.Statements)
             {
                 statement.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
                     catchParameterNames,
                     simpleCatchParameterNames,
                     pass,
-                    inBlockScope);
+                    inBlockScope,
+                    reverseFunctionHoist,
+                    functionHoistDedupe);
             }
         }
 

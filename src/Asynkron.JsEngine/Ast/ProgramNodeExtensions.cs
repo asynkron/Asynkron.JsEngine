@@ -358,6 +358,12 @@ public static partial class TypedAstEvaluator
                 ? topLevelLexicalNames
                 : new HashSet<Symbol>(topLevelLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
             var functionScope = executionEnvironment.GetFunctionScope();
+            var reverseFunctionHoist = functionScope.IsGlobalFunctionScope;
+            HashSet<Symbol>? functionHoistDedupe = null;
+            if (reverseFunctionHoist)
+            {
+                functionHoistDedupe = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            }
             // Get the engine's true GlobalEnvironment for storing/checking lexical names.
             // GlobalExecutionScope gets overwritten by each script, but GlobalEnvironment
             // persists and should be the canonical location for global lexical declarations.
@@ -548,7 +554,9 @@ public static partial class TypedAstEvaluator
                 context,
                 lexicalNames: lexicalNames,
                 catchParameterNames: catchParameterNames,
-                simpleCatchParameterNames: simpleCatchParameterNames);
+                simpleCatchParameterNames: simpleCatchParameterNames,
+                reverseFunctionHoist: reverseFunctionHoist,
+                functionHoistDedupe: functionHoistDedupe);
 
             // Dynamic scope constructs (with/eval) require dictionary-based lookups; skip IR/slot stamping.
             if (hasDynamicScope)

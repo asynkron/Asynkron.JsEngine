@@ -110,7 +110,9 @@ public static partial class TypedAstEvaluator
             HashSet<Symbol> catchParameterNames,
             HashSet<Symbol> simpleCatchParameterNames,
             HoistPass pass,
-            bool inBlockScope)
+            bool inBlockScope,
+            bool reverseFunctionHoist,
+            HashSet<Symbol>? functionHoistDedupe)
         {
             while (true)
             {
@@ -130,11 +132,15 @@ public static partial class TypedAstEvaluator
                             block.MergeCatchNames(catchParameterNames),
                             block.MergeSimpleCatchNames(simpleCatchParameterNames),
                             pass,
-                            true);
+                            true,
+                            reverseFunctionHoist,
+                            functionHoistDedupe);
                         break;
                     case IfStatement ifStatement:
                         ifStatement.Then.HoistFromStatement(environment, context, false,
-                            lexicalNames, catchParameterNames, simpleCatchParameterNames, pass, true);
+                            lexicalNames, catchParameterNames, simpleCatchParameterNames, pass, true,
+                            reverseFunctionHoist,
+                            functionHoistDedupe);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
@@ -148,16 +154,19 @@ public static partial class TypedAstEvaluator
                         statement = whileStatement.Body;
                         hoistFunctionValues = false;
                         inBlockScope = true;
+                        reverseFunctionHoist = false;
                         continue;
                     case DoWhileStatement doWhileStatement:
                         statement = doWhileStatement.Body;
                         hoistFunctionValues = false;
                         inBlockScope = true;
+                        reverseFunctionHoist = false;
                         continue;
                     case WithStatement withStatement:
                         statement = withStatement.Body;
                         hoistFunctionValues = false;
                         inBlockScope = true;
+                        reverseFunctionHoist = false;
                         continue;
                     case ForStatement forStatement:
                         if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initVar &&
@@ -165,12 +174,15 @@ public static partial class TypedAstEvaluator
                         {
                             initVar.HoistFromStatement(environment, context, hoistFunctionValues, lexicalNames,
                                 catchParameterNames, simpleCatchParameterNames, pass,
-                                inBlockScope);
+                                inBlockScope,
+                                reverseFunctionHoist,
+                                functionHoistDedupe);
                         }
 
                         statement = forStatement.Body;
                         hoistFunctionValues = false;
                         inBlockScope = true;
+                        reverseFunctionHoist = false;
                         continue;
                     case ForEachStatement forEachStatement:
                         if (pass == HoistPass.Vars && forEachStatement.DeclarationKind == VariableKind.Var)
@@ -181,15 +193,19 @@ public static partial class TypedAstEvaluator
                         statement = forEachStatement.Body;
                         hoistFunctionValues = false;
                         inBlockScope = true;
+                        reverseFunctionHoist = false;
                         continue;
                     case ExportDeclarationStatement exportDeclaration:
                         statement = exportDeclaration.Declaration;
+                        reverseFunctionHoist = false;
                         continue;
                     case ExportDefaultStatement { Value: ExportDefaultDeclaration { Declaration: { } decl } }:
                         statement = decl;
+                        reverseFunctionHoist = false;
                         continue;
                     case LabeledStatement labeled:
                         statement = labeled.Statement;
+                        reverseFunctionHoist = false;
                         continue;
                     case TryStatement tryStatement:
                         tryStatement.TryBlock.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
@@ -197,7 +213,9 @@ public static partial class TypedAstEvaluator
                             tryStatement.TryBlock.MergeCatchNames(catchParameterNames),
                             tryStatement.TryBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
                             pass,
-                            true);
+                            true,
+                            reverseFunctionHoist,
+                            functionHoistDedupe);
                         if (tryStatement.Catch is { } catchClause)
                         {
                             catchClause.Body.HoistVarDeclarationsPass(environment, context, hoistFunctionValues,
@@ -205,7 +223,9 @@ public static partial class TypedAstEvaluator
                                 catchClause.Body.MergeCatchNames(catchParameterNames),
                                 catchClause.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
-                                true);
+                                true,
+                                reverseFunctionHoist,
+                                functionHoistDedupe);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)
@@ -215,7 +235,9 @@ public static partial class TypedAstEvaluator
                                 finallyBlock.MergeCatchNames(catchParameterNames),
                                 finallyBlock.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
-                                true);
+                                true,
+                                reverseFunctionHoist,
+                                functionHoistDedupe);
                         }
 
                         break;
@@ -227,13 +249,21 @@ public static partial class TypedAstEvaluator
                                 switchCase.Body.MergeCatchNames(catchParameterNames),
                                 switchCase.Body.MergeSimpleCatchNames(simpleCatchParameterNames),
                                 pass,
-                                true);
+                                true,
+                                reverseFunctionHoist,
+                                functionHoistDedupe);
                         }
 
                         break;
                     case FunctionDeclaration functionDeclaration:
                     {
                         if (pass != HoistPass.Functions)
+                        {
+                            break;
+                        }
+
+                        if (functionHoistDedupe is not null &&
+                            !functionHoistDedupe.Add(functionDeclaration.Name))
                         {
                             break;
                         }

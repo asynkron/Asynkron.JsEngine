@@ -427,7 +427,7 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
 
     private static ImmutableDictionary<Symbol, int> GetSlotMap(ExecutionPlan plan, int scopeId)
     {
-        if (scopeId == 0)
+        if (scopeId == 0 || scopeId == plan.RootScopeId)
         {
             return plan.SafeRootSlotMap;
         }
@@ -448,7 +448,7 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         // Root scope first
         if (plan.SafeRootSlotMap.TryGetValue(symbol, out slotIndex))
         {
-            scopeId = 0;
+            scopeId = plan.RootScopeId;
             return true;
         }
 

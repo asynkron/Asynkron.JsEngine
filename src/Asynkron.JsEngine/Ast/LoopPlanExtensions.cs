@@ -298,7 +298,7 @@ public static partial class TypedAstEvaluator
                 loopEnvironment.GetHashCode(),
                 newIterationEnvironment.GetHashCode(),
                 outerEnvironment.GetHashCode(),
-                iterationScopeId,
+                JsEnvironment.FormatScopeIdForLog(iterationScopeId),
                 iterationSlotCount);
 
             newIterationEnvironment.Initialize(iterationScopeId, plan.IterationSlotMap);
@@ -509,7 +509,7 @@ public static partial class TypedAstEvaluator
                     "Reset per-iteration env reuse env={Env} outer={Outer} scopeId={ScopeId} slots={Slots}",
                     currentIterationEnvironment.GetHashCode(),
                     outerEnvironment.GetHashCode(),
-                    plan.IterationScopeId,
+                    JsEnvironment.FormatScopeIdForLog(plan.IterationScopeId),
                     plan.IterationSlotCount);
 
                 return currentIterationEnvironment;

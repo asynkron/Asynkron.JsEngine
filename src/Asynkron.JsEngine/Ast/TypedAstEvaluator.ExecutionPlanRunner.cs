@@ -88,6 +88,7 @@ public static partial class TypedAstEvaluator
         private int _programCounter;
         private JsValue _scriptCompletionValue = JsValue.Unit;
         private GeneratorState _state = GeneratorState.Start;
+        private bool _rootScopeLogged;
 
         // Lazy state objects - only allocated when needed
         // TryCatchState needs explicit backing field for hot-path null check without allocation
@@ -909,12 +910,21 @@ public static partial class TypedAstEvaluator
                                 var stmtResult =
                                     statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
                                 // In script mode, track the completion value (per ES spec, block completion is last statement value)
-                                // Per UpdateEmpty semantics: if result is Unit (empty), do NOT update completion value.
-                                // Empty completions preserve the previous completion value.
-                                // Only update when the statement actually produces a value (non-Unit).
-                                if (_isScriptMode && !stmtResult.IsUnit)
+                                // Per UpdateEmpty semantics:
+                                // - When a statement produces a value (non-Unit), capture it.
+                                // - For "completion-scoped" statements (if/try/switch/loops), an empty completion
+                                //   overrides the previous value with undefined.
+                                // - Plain blocks/empty statements still preserve the previous value.
+                                if (_isScriptMode)
                                 {
-                                    _scriptCompletionValue = stmtResult;
+                                    if (!stmtResult.IsUnit)
+                                    {
+                                        _scriptCompletionValue = stmtResult;
+                                    }
+                                    else if (ShouldResetScriptCompletion(statementInstruction.Statement))
+                                    {
+                                        _scriptCompletionValue = JsValue.Undefined;
+                                    }
                                 }
 
                                 if (_isAsync && TryHandlePendingAwait(context, out var pendingResult, environment))
@@ -975,6 +985,11 @@ public static partial class TypedAstEvaluator
                                 // Handle break/continue signals from AST-evaluated code inside loops
                                 if (context.IsBreak || context.IsContinue)
                                 {
+                                    if (_isScriptMode)
+                                    {
+                                        _scriptCompletionValue = JsValue.Undefined;
+                                    }
+
                                     var isBreak = context.IsBreak;
                                     var label = (context.CurrentSignal as BreakCompletionSignal)?.Label
                                                 ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
@@ -3371,9 +3386,23 @@ public static partial class TypedAstEvaluator
             if (_executionEnvironment is null)
             {
                 _executionEnvironment = CreateExecutionEnvironment();
+                LogRootScopeIdOnce();
             }
 
             return _executionEnvironment;
+        }
+
+        private void LogRootScopeIdOnce()
+        {
+            if (_rootScopeLogged || _realmState.Logger is null || _plan is null)
+            {
+                return;
+            }
+
+            _realmState.Logger.LogInformation(
+                "ExecutionPlanRunner scopeId={RootScopeId}",
+                JsEnvironment.FormatScopeIdForLog(_plan.RootScopeId));
+            _rootScopeLogged = true;
         }
 
         private EvaluationContext EnsureEvaluationContext()
@@ -3393,6 +3422,22 @@ public static partial class TypedAstEvaluator
             ApplyPrivateNameScopes();
 
             return _context;
+        }
+
+        private static bool ShouldResetScriptCompletion(StatementNode statement)
+        {
+            return statement switch
+            {
+                IfStatement => true,
+                SwitchStatement => true,
+                TryStatement => true,
+                ForStatement => true,
+                ForEachStatement => true,
+                WhileStatement => true,
+                DoWhileStatement => true,
+                LabeledStatement => true,
+                _ => false
+            };
         }
 
         private void ApplyPrivateNameScopes()

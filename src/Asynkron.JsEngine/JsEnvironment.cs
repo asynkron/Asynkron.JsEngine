@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -112,6 +113,13 @@ public sealed class JsEnvironment : IRentable
     /// -1 means not set (use fallback to dictionary lookup).
     /// </summary>
     internal int ScopeId { get; set; } = -1;
+
+    internal static string FormatScopeIdForLog(int scopeId)
+    {
+        return scopeId >= 0
+            ? scopeId.ToString(CultureInfo.InvariantCulture)
+            : "unknown";
+    }
 
     internal RealmState? RealmState { get; private set; }
     internal bool IsAsyncModule { get; set; }
@@ -1254,10 +1262,10 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogTrace(
-                    "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
                     targetEnv!.GetHashCode(),
                     name.Name,
-                    targetEnv.ScopeId,
+                    FormatScopeIdForLog(targetEnv.ScopeId),
                     slotIndex,
                     value.Kind);
             }
@@ -1341,10 +1349,10 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot write hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    "Identifier slot write hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
                     targetEnv!.GetHashCode(),
                     name.Name,
-                    scopeId,
+                    FormatScopeIdForLog(scopeId),
                     slotIndex,
                     value.Kind);
             }
@@ -1395,10 +1403,10 @@ public sealed class JsEnvironment : IRentable
         if (shouldLogSlots)
         {
             logger?.LogInformation(
-                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
                 GetHashCode(),
                 name.Name,
-                ScopeId,
+                FormatScopeIdForLog(ScopeId),
                 slotIndex,
                 value.Kind);
         }
@@ -3341,15 +3349,14 @@ public sealed class JsEnvironment : IRentable
         }
 
         // Populate slots from slotMap - each entry maps Symbol -> index
-        foreach (var (symbol, index) in slotMap)
-        {
-            if (index >= 0 && index < count)
+            foreach (var (symbol, index) in slotMap)
             {
-                var flags = ScopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
-                _slots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
+                if (index >= 0 && index < count)
+                {
+                    _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
+                }
             }
         }
-    }
 
     /// <summary>
     /// Sets slot names from a slot map. Used for compatibility with old API.
@@ -3388,8 +3395,7 @@ public sealed class JsEnvironment : IRentable
             {
                 if (index >= 0 && index < _slots.Length && _slots[index].Name is null)
                 {
-                    var flags = ScopeId > 0 ? SlotFlags.Lexical | SlotFlags.Uninitialized : SlotFlags.None;
-                    _slots[index] = new JsSlot(symbol, JsValue.Undefined, flags);
+                    _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
                 }
             }
 
@@ -3535,10 +3541,10 @@ public sealed class JsEnvironment : IRentable
             if (realmState?.Options.DebugMode == true)
             {
                 realmState.Logger?.LogTrace(
-                    "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
                     GetHashCode(),
                     slot.Name.Name,
-                    ScopeId,
+                    FormatScopeIdForLog(ScopeId),
                     index,
                     slot.Value.Kind);
             }
@@ -3681,7 +3687,7 @@ public sealed class JsEnvironment : IRentable
         if (realmState?.Options.DebugMode == true)
         {
             realmState.Logger?.LogTrace(
-                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
                 GetHashCode(),
                 slot.Name.Name,
                 ScopeId,
@@ -3761,9 +3767,9 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot fallback name={Name} scopeId={ScopeId} slot={Slot} reason=env_or_index_mismatch",
+                    "Identifier slot fallback name={Name} slotScopeId={ScopeId} slot={Slot} reason=env_or_index_mismatch",
                     name.Name,
-                    scopeId,
+                    FormatScopeIdForLog(scopeId),
                     slotIndex);
             }
 
@@ -3776,9 +3782,9 @@ public sealed class JsEnvironment : IRentable
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot fallback name={Name} scopeId={ScopeId} slot={Slot} reason=name_mismatch actualName={ActualName}",
+                    "Identifier slot fallback name={Name} slotScopeId={ScopeId} slot={Slot} reason=name_mismatch actualName={ActualName}",
                     name.Name,
-                    scopeId,
+                    FormatScopeIdForLog(scopeId),
                     slotIndex,
                     slot.Name?.Name ?? "<null>");
             }
@@ -3789,16 +3795,16 @@ public sealed class JsEnvironment : IRentable
         if (shouldLogSlots)
         {
             logger?.LogInformation(
-                "Identifier slot read/write validated env={Env} name={Name} scopeId={ScopeId} slot={Slot}",
+                "Identifier slot read/write validated env={Env} name={Name} slotScopeId={ScopeId} slot={Slot}",
                 resolvedEnv.GetHashCode(),
                 name.Name,
-                scopeId,
+                FormatScopeIdForLog(scopeId),
                 slotIndex);
             logger?.LogTrace(
-                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                "Identifier slot read hit env={Env} name={Name} slotScopeId={ScopeId} slot={Slot} valueKind={Kind}",
                 resolvedEnv.GetHashCode(),
                 name.Name,
-                scopeId,
+                FormatScopeIdForLog(scopeId),
                 slotIndex,
                 slot.Value.Kind);
         }

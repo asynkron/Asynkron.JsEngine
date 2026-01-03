@@ -21,6 +21,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private const int FirstBlockScopeId = 1000; // Reserve lower IDs for IR-generated scopes
 
     private readonly int _rootScopeId;
+    private readonly BlockStatement? _functionBody;
     private readonly Func<Symbol, int> _allocateRootSlot;
 
     private readonly Dictionary<Symbol, int> _bindingScopeHints =
@@ -44,6 +45,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         FunctionExpression? function = null)
     {
         _rootScopeId = function?.ScopeId >= 0 ? function.ScopeId : 0;
+        _functionBody = function?.Body;
         _allocateRootSlot = allocateRootSlot;
         _instructions = instructions.ToList();
         _entryIndex = entryIndex;
@@ -442,6 +444,28 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     protected override void VisitBlockStatement(BlockStatement block)
     {
+        // The function body shares the function's root scope. Do not create a nested
+        // block scope for it; allocate its lexical bindings directly in the root.
+        if (_functionBody is not null && ReferenceEquals(block, _functionBody))
+        {
+            var functionBodyHoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+            if (functionBodyHoistPlan.NeedsEnvironment)
+            {
+                var rootInfo = GetOrCreateScopeInfo(_rootScopeId);
+                foreach (var lexName in functionBodyHoistPlan.TopLevelLexicalNames)
+                {
+                    AllocateSlotInScope(_rootScopeId, lexName);
+                    rootInfo.LexicalBindings.Add(lexName);
+                }
+
+                rootInfo.SlotCountHint = Math.Max(rootInfo.SlotCountHint,
+                    functionBodyHoistPlan.TopLevelLexicalNames.Count);
+            }
+
+            base.VisitBlockStatement(block);
+            return;
+        }
+
         // Check if this block needs its own lexical scope (has let/const declarations or functions)
         var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
         if (!hoistPlan.NeedsEnvironment)

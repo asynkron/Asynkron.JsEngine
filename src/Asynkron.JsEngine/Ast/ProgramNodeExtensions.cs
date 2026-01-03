@@ -600,18 +600,21 @@ public static partial class TypedAstEvaluator
                 context.ThrowIfCancellationRequested();
                 var completionJs = statement.EvaluateStatementJsValue(executionEnvironment, context);
                 var shouldStop = context.ShouldStopEvaluation;
-                var shouldCapture =
-                    !completionJs.IsUnit &&
-                    (!shouldStop ||
-                     context.IsReturn ||
-                     context.IsThrow ||
-                     context.IsYield ||
-                     context.IsBreak ||
-                     context.IsContinue);
 
-                if (shouldCapture)
+                if (!completionJs.IsUnit)
                 {
                     resultJs = completionJs;
+                }
+                else if (ShouldResetScriptCompletion(statement))
+                {
+                    // Compound statements with empty completion reset the script completion to undefined
+                    resultJs = JsValue.Undefined;
+                }
+
+                // Abrupt completions should yield undefined as the script result (per spec test cases)
+                if (context.IsBreak || context.IsContinue)
+                {
+                    resultJs = JsValue.Undefined;
                 }
 
                 if (shouldStop)
@@ -626,6 +629,22 @@ public static partial class TypedAstEvaluator
             }
 
             return resultJs;
+        }
+
+        private static bool ShouldResetScriptCompletion(StatementNode statement)
+        {
+            return statement switch
+            {
+                IfStatement => true,
+                SwitchStatement => true,
+                TryStatement => true,
+                ForStatement => true,
+                ForEachStatement => true,
+                WhileStatement => true,
+                DoWhileStatement => true,
+                LabeledStatement => true,
+                _ => false
+            };
         }
     }
 }

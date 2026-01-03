@@ -279,32 +279,58 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     protected override StatementNode RewriteStatement(StatementNode statement)
     {
-        // Handle BlockStatement specially to stamp with scope metadata
-        if (statement is BlockStatement block && _blockScopeIds.TryGetValue(block, out var scopeId))
+        if (statement is BlockStatement block)
         {
-            var mappedScopeId = RemapScopeId(scopeId);
-            // Push the block's scope onto the stack for rewriting children
-            _scopeStack.Push(mappedScopeId);
-            try
-            {
-                // Rewrite children in this scope
-                var rewrittenStatements = RewriteStatementList(block.Statements);
+            var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
 
-                // Stamp the block with its scope metadata
-                return block with
-                {
-                    Statements = rewrittenStatements,
-                    ScopeId = mappedScopeId,
-                    SlotCount = GetSlotCount(mappedScopeId),
-                    SlotMap = GetSlotMap(mappedScopeId)
-                };
-            }
-            finally
+            // Fallback: if scope analysis missed this block, synthesize a scope so shadowed lets
+            // get their own slots instead of reusing the parent scope.
+            if (!_blockScopeIds.ContainsKey(block) && hoistPlan.NeedsEnvironment)
             {
-                _scopeStack.Pop();
+                var syntheticScopeId = SyntheticScopeIdAllocator.Next();
+                var scopeInfo = new ScopeSlotInfo(syntheticScopeId);
+                var slotIndex = 0;
+                foreach (var lexName in hoistPlan.TopLevelLexicalNames)
+                {
+                    scopeInfo.IncludeSlot(lexName, slotIndex++);
+                    scopeInfo.LexicalBindings.Add(lexName);
+                }
+
+                scopeInfo.SlotCountHint = Math.Max(scopeInfo.SlotCountHint, slotIndex);
+                _blockScopeIds[block] = syntheticScopeId;
+                _scopes[syntheticScopeId] = scopeInfo;
+                _immutableSlotMaps[syntheticScopeId] = scopeInfo.ToImmutableSlotMap();
+                _lexicalBindings[syntheticScopeId] = scopeInfo.LexicalBindings
+                    .ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
+            }
+
+            if (_blockScopeIds.TryGetValue(block, out var scopeId))
+            {
+                var mappedScopeId = RemapScopeId(scopeId);
+                // Push the block's scope onto the stack for rewriting children
+                _scopeStack.Push(mappedScopeId);
+                try
+                {
+                    // Rewrite children in this scope
+                    var rewrittenStatements = RewriteStatementList(block.Statements);
+
+                    // Stamp the block with its scope metadata
+                    return block with
+                    {
+                        Statements = rewrittenStatements,
+                        ScopeId = mappedScopeId,
+                        SlotCount = GetSlotCount(mappedScopeId),
+                        SlotMap = GetSlotMap(mappedScopeId)
+                    };
+                }
+                finally
+                {
+                    _scopeStack.Pop();
+                }
             }
         }
 
+        // Handle BlockStatement specially to stamp with scope metadata
         return base.RewriteStatement(statement);
     }
 

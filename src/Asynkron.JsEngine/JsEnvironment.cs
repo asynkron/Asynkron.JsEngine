@@ -751,7 +751,10 @@ public sealed class JsEnvironment : IRentable
             {
                 if (slot.IsUninitialized)
                 {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                    var realm = current.RealmState ?? current.Enclosing?.RealmState;
+                    throw StandardLibrary.ThrowReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        realm: realm);
                 }
 
                 // Check for special binding (import/export) - use flag for fast detection
@@ -793,7 +796,9 @@ public sealed class JsEnvironment : IRentable
 
         if (!IsGlobalFunctionScope)
         {
-            throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+            throw StandardLibrary.ThrowReferenceError(
+                $"ReferenceError: {name.Name} is not defined",
+                realm: RealmState ?? Enclosing?.RealmState);
         }
 
         var rootGlobal = GetRootGlobalObject();
@@ -802,7 +807,9 @@ public sealed class JsEnvironment : IRentable
             return propertyValue;
         }
 
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        throw StandardLibrary.ThrowReferenceError(
+            $"ReferenceError: {name.Name} is not defined",
+            realm: RealmState ?? Enclosing?.RealmState);
     }
 
     internal bool IsConstBinding(Symbol name)
@@ -1549,12 +1556,12 @@ public sealed class JsEnvironment : IRentable
 
     internal static object ReadUnresolvable(Symbol name)
     {
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined");
     }
 
     internal static JsValue ReadUnresolvableJsValue(Symbol name)
     {
-        throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+        throw StandardLibrary.ThrowReferenceError($"ReferenceError: {name.Name} is not defined");
     }
 
     internal static void AssignUnresolvableJsValue(Symbol name, JsValue value, bool isStrictContext,
@@ -2021,7 +2028,10 @@ public sealed class JsEnvironment : IRentable
                 // Check IsUninitialized before reading
                 if (slot.IsUninitialized)
                 {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                    var realm = current.RealmState ?? current.Enclosing?.RealmState;
+                    throw StandardLibrary.ThrowReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        realm: realm);
                 }
 
                 if (current.IsGlobalFunctionScope)
@@ -2085,12 +2095,14 @@ public sealed class JsEnvironment : IRentable
         while (current is not null && hops++ < maxLookupDepth)
         {
             ref var slot = ref current.TryGetSlotRef(name);
-            if (!Unsafe.IsNullRef(ref slot))
-            {
-                if (slot.IsUninitialized)
+                if (!Unsafe.IsNullRef(ref slot))
                 {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
-                }
+                    if (slot.IsUninitialized)
+                    {
+                        throw StandardLibrary.ThrowReferenceError(
+                            $"Cannot access '{name.Name}' before initialization",
+                            realm: current.RealmState ?? current.Enclosing?.RealmState);
+                    }
 
                 if (slot.HasSpecialBinding)
                 {
@@ -2153,7 +2165,9 @@ public sealed class JsEnvironment : IRentable
             {
                 if (slot.IsUninitialized && !allowUninitialized)
                 {
-                    throw new InvalidOperationException($"ReferenceError: {name.Name} is not defined");
+                    throw StandardLibrary.ThrowReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        realm: current.RealmState ?? current.Enclosing?.RealmState);
                 }
 
                 environment = current;

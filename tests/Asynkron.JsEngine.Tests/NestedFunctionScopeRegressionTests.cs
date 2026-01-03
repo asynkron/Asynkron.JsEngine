@@ -1,4 +1,6 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Tests.Helpers;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -62,6 +64,23 @@ public sealed class NestedFunctionScopeRegressionTests : InternalTestBase
 
     private async Task AssertInvariantResult(string script, string expected)
     {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(script);
+        var outerDecl = AstTestHelpers.FindFirst<FunctionDeclaration>(pipeline.Analyzed);
+        var outerFunc = outerDecl.Function;
+        var innerDecl = AstTestHelpers.Walk(outerFunc.Body, includeSelf: true)
+            .OfType<FunctionDeclaration>()
+            .FirstOrDefault(f => !ReferenceEquals(f.Function, outerFunc));
+        var innerFunc = innerDecl?.Function ??
+                        AstTestHelpers.FindFirst<FunctionExpression>(outerFunc.Body,
+                            f => !ReferenceEquals(f, outerFunc));
+        var ifStatement = AstTestHelpers.FindFirst<IfStatement>(innerFunc.Body);
+        var thenBlock = Assert.IsType<BlockStatement>(ifStatement.Then);
+        var hoistPlan = ((IAstCacheable<HoistPlan>)thenBlock).GetOrCreateCache();
+
+        Output.WriteLine(
+            $"Inner if-block ScopeId={thenBlock.ScopeId} SlotCount={thenBlock.SlotCount} NeedsEnv={hoistPlan.NeedsEnvironment}");
+        Assert.True(hoistPlan.NeedsEnvironment, "Inner if-block must allocate lexical environment for shadowed let");
+
         await using var engine = CreateEngine();
         var first = await engine.Evaluate(script);
         var second = await engine.Evaluate(script);

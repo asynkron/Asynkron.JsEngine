@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
@@ -24,7 +25,7 @@ public static partial class TypedAstEvaluator
         {
             var env = JsEnvironmentPool.Rent(loopEnvironment, false, false, plan.Body.Source, "for-each-iteration",
                 logger: logger);
-            env.InitializeSlots(plan.IterationSlotCount, plan.IterationScopeId);
+            InitializeIterationEnvironmentLayout(plan, env);
             return env;
         }
 
@@ -708,6 +709,47 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Initializes an iteration environment so slot-based lookups hit the correct bindings.
+    /// Ensures slot layout and names align with the iterator driver plan metadata.
+    /// </summary>
+    private static void InitializeIterationEnvironmentLayout(IteratorDriverPlan plan, JsEnvironment environment)
+    {
+        if (plan.IterationScopeId < 0 || plan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var slotIndices = plan.PerIterationSlotIndices;
+        var bindings = plan.PerIterationBindings;
+        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
+        var maxSlotIndex = -1;
+        for (var i = 0; i < bindings.Length; i++)
+        {
+            var slotIndex = !slotIndices.IsDefaultOrEmpty && slotIndices.Length > i && slotIndices[i] >= 0
+                ? slotIndices[i]
+                : i;
+            slotMapBuilder[bindings[i]] = slotIndex;
+            if (slotIndex > maxSlotIndex)
+            {
+                maxSlotIndex = slotIndex;
+            }
+        }
+
+        var requiredSlots = Math.Max(plan.IterationSlotCount, maxSlotIndex + 1);
+        if (requiredSlots < 0)
+        {
+            requiredSlots = maxSlotIndex + 1;
+        }
+
+        environment.InitializeSlots(requiredSlots, plan.IterationScopeId);
+        var slotMap = slotMapBuilder.ToImmutable();
+        if (!slotMap.IsEmpty)
+        {
+            environment.SetSlotMap(slotMap);
         }
     }
 }

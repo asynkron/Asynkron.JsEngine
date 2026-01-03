@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
@@ -26,6 +25,8 @@ public static partial class TypedAstEvaluator
             var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
             var logger = context.RealmState.Logger;
 
+            var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+
             var iterableEnvironment = environment;
             var pooledTdzEnvironment = false;
             var hasLexicalDeclaration = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
@@ -46,30 +47,7 @@ public static partial class TypedAstEvaluator
                         "for-each-head-tdz");
                 }
 
-                // Align slot metadata with the per-iteration scope so slot-stamped identifiers
-                // hit the TDZ bindings instead of bypassing to an outer scope.
-                if (statement.PerIterationSlotCount >= 0 && statement.PerIterationScopeId >= 0)
-                {
-                    iterableEnvironment.InitializeSlots(statement.PerIterationSlotCount,
-                        statement.PerIterationScopeId);
-                    if (!statement.PerIterationBindings.IsDefaultOrEmpty &&
-                        !statement.PerIterationSlotIndices.IsDefaultOrEmpty)
-                    {
-                        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-                        var count = Math.Min(statement.PerIterationBindings.Length,
-                            statement.PerIterationSlotIndices.Length);
-                        for (var i = 0; i < count; i++)
-                        {
-                            var slotIndex = statement.PerIterationSlotIndices[i];
-                            if (slotIndex >= 0)
-                            {
-                                slotMapBuilder[statement.PerIterationBindings[i]] = slotIndex;
-                            }
-                        }
-
-                        iterableEnvironment.SetSlotMap(slotMapBuilder.ToImmutable());
-                    }
-                }
+                InitializeIterationEnvironmentLayout(cachedPlan, iterableEnvironment);
 
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;
@@ -186,7 +164,6 @@ public static partial class TypedAstEvaluator
                     _ => throw new ArgumentOutOfRangeException()
                 };
 
-                var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
                 // OPTIMIZATION: Compute bool instead of allocating Func<JsEnvironment> lambda
                 var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
                                              statement.DeclarationKind is VariableKind.Let or VariableKind.Const
@@ -209,7 +186,7 @@ public static partial class TypedAstEvaluator
                         {
                             iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
                                 description: "for-each-iteration");
-                            iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
+                            InitializeIterationEnvironmentLayout(cachedPlan, iterationEnvironment);
                         }
                         else
                         {
@@ -300,6 +277,9 @@ public static partial class TypedAstEvaluator
                     iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
                         "for-each-head-tdz");
                 }
+
+                var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+                InitializeIterationEnvironmentLayout(plan, iterableEnvironment);
 
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
                     or VariableKind.AwaitUsing;

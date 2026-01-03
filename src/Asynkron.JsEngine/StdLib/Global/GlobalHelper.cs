@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Text;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -542,38 +543,66 @@ public static class GlobalHelper
         '@', '*', '_', '+', '-', '.', '/'
     ];
 
+    private static void DefineNameAndLength(HostFunction fn, string name, int length)
+    {
+        fn.DefineProperty("name", new PropertyDescriptor
+        {
+            Value = (JsValue)name,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+
+        fn.DefineProperty("length", new PropertyDescriptor
+        {
+            Value = JsValue.FromDouble(length),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+    }
+
     /// <summary>
     ///     Creates the legacy global escape function.
     /// </summary>
     public static HostFunction CreateEscapeFunction()
     {
-        var fn = new HostFunction(args =>
-        {
-            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-            var sb = new StringBuilder();
-
-            foreach (var c in str)
-            {
-                if (EscapeUnescaped.Contains(c))
-                {
-                    sb.Append(c);
-                }
-                else if (c < 256)
-                {
-                    sb.Append('%');
-                    sb.Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
-                }
-                else
-                {
-                    sb.Append("%u");
-                    sb.Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
-                }
-            }
-
-            return sb.ToString();
-        }, isConstructor: false);
+        var fn = new HostFunction(args => EscapeFromArgs(args, null), isConstructor: false);
+        fn.SetInvokeWithContext((args, _, context, _) => EscapeFromArgs(args, context));
         fn.Properties.Delete("prototype");
+        DefineNameAndLength(fn, "escape", 1);
         return fn;
+    }
+
+    private static JsValue EscapeFromArgs(IReadOnlyList<JsValue> args, EvaluationContext? context)
+    {
+        var str = args.Count > 0 ? JsOps.ToJsString(args[0], context) : "undefined";
+        return new JsValue(EscapeString(str));
+    }
+
+    private static string EscapeString(string str)
+    {
+        var sb = new StringBuilder();
+
+        foreach (var c in str)
+        {
+            if (EscapeUnescaped.Contains(c))
+            {
+                sb.Append(c);
+            }
+            else if (c < 256)
+            {
+                sb.Append('%');
+                sb.Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                sb.Append("%u");
+                sb.Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
+            }
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>
@@ -581,45 +610,51 @@ public static class GlobalHelper
     /// </summary>
     public static HostFunction CreateUnescapeFunction()
     {
-        var fn = new HostFunction(args =>
-        {
-            var str = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? "" : "undefined";
-            var sb = new StringBuilder();
+        var fn = new HostFunction(args => UnescapeFromArgs(args, null), isConstructor: false);
+        fn.SetInvokeWithContext((args, _, context, _) => UnescapeFromArgs(args, context));
+        fn.Properties.Delete("prototype");
+        DefineNameAndLength(fn, "unescape", 1);
+        return fn;
+    }
 
-            for (var i = 0; i < str.Length; i++)
+    private static JsValue UnescapeFromArgs(IReadOnlyList<JsValue> args, EvaluationContext? context)
+    {
+        var str = args.Count > 0 ? JsOps.ToJsString(args[0], context) : "undefined";
+        var sb = new StringBuilder();
+
+        for (var i = 0; i < str.Length; i++)
+        {
+            var c = str[i];
+            if (c == '%')
             {
-                var c = str[i];
-                if (c == '%')
+                // Check for %uXXXX format
+                if (i + 5 < str.Length && str[i + 1] == 'u')
                 {
-                    // Check for %uXXXX format
-                    if (i + 5 < str.Length && str[i + 1] == 'u')
+                    var hex = str.Substring(i + 2, 4);
+                    if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var charCode))
                     {
-                        var hex = str.Substring(i + 2, 4);
-                        if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var charCode))
-                        {
-                            sb.Append((char)charCode);
-                            i += 5;
-                            continue;
-                        }
-                    }
-                    // Check for %XX format
-                    else if (i + 2 < str.Length)
-                    {
-                        var hex = str.Substring(i + 1, 2);
-                        if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var charCode))
-                        {
-                            sb.Append((char)charCode);
-                            i += 2;
-                            continue;
-                        }
+                        sb.Append((char)charCode);
+                        i += 5;
+                        continue;
                     }
                 }
-                sb.Append(c);
+                // Check for %XX format
+                else if (i + 2 < str.Length)
+                {
+                    var hex = str.Substring(i + 1, 2);
+                    if (int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var charCode))
+                    {
+                        sb.Append((char)charCode);
+                        i += 2;
+                        continue;
+                    }
+                }
             }
 
-            return sb.ToString();
-        }, isConstructor: false);
-        fn.Properties.Delete("prototype");
-        return fn;
+            // If not a valid escape sequence, keep the original character
+            sb.Append(c);
+        }
+
+        return new JsValue(sb.ToString());
     }
 }

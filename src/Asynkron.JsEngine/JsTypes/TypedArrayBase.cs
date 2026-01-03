@@ -3,6 +3,7 @@
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -591,11 +592,6 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
 
     internal static JsValue IncludesInternal(TypedArrayBase target, IReadOnlyList<JsValue> args)
     {
-        if (target.IsDetachedOrOutOfBounds())
-        {
-            throw target.CreateOutOfBoundsTypeError();
-        }
-
         var evalContext = target._buffer.RealmState?.CreateContext();
         var searchElement = args.GetArgument(0);
         var initialLength = target.Length;
@@ -606,18 +602,7 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
 
         var fromIndex = args.Count > 1 ? ToIntegerOrInfinity(args[1], evalContext) : 0d;
 
-        if (target.IsDetachedOrOutOfBounds())
-        {
-            return JsValue.False;
-        }
-
-        var currentLength = target.Length;
-        var len = target._isLengthTracking ? initialLength : Math.Min(initialLength, currentLength);
-        if (len <= 0)
-        {
-            return JsValue.False;
-        }
-
+        var len = initialLength;
         if (double.IsPositiveInfinity(fromIndex))
         {
             return JsValue.False;
@@ -640,22 +625,12 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
         var start = (int)startIndexNumber;
         for (var i = start; i < len; i++)
         {
-            if (target.IsDetachedOrOutOfBounds())
+            var key = ToIndexString(i);
+            var _ = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(target), key, out var element, evalContext);
+            if (evalContext?.IsThrow == true)
             {
-                return JsValue.False;
+                throw new ThrowSignal(evalContext.FlowValue);
             }
-
-            if (i >= target.Length)
-            {
-                continue;
-            }
-
-            var element = target switch
-            {
-                JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
-                JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
-                _ => new JsValue(target.GetElement(i))
-            };
 
             if (SameValueZero(element, searchElement))
             {

@@ -27,6 +27,29 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateIdentifier(JsEnvironment environment,
             EvaluationContext context)
         {
+            // `arguments` is an implicit binding; its slot isn't present in the analyzer's slot map,
+            // so a cached slot hint can incorrectly point to an outer scope (e.g., a `var arguments`).
+            // Always resolve it via normal binding lookup to ensure the per-call arguments object wins.
+            if (ReferenceEquals(identifier.Name, Symbol.Arguments))
+            {
+                if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var argumentsValue))
+                {
+                    return argumentsValue;
+                }
+
+                return HandleIdentifierNotFound(identifier.Name, context);
+            }
+
+            if (!context.AllowIdentifierCache)
+            {
+                if (environment.TryGetIdentifierJsValue(identifier.Name, context, out var value))
+                {
+                    return value;
+                }
+
+                return HandleIdentifierNotFound(identifier.Name, context);
+            }
+
             if (environment.TryReadIdentifierWithSlot(identifier, context, out var slotValue))
             {
                 return slotValue;

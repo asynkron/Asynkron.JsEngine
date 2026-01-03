@@ -1121,7 +1121,7 @@ public static partial class TypedAstEvaluator
                 if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject = _function.CreateArgumentsObject(arguments, parameterEnvironment, RealmState,
+                    var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment, RealmState,
                         this,
                         _isStrict);
                     parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),

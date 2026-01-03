@@ -96,36 +96,20 @@ public sealed partial class ArrayPrototype
         var start = (long)Math.Min(fromIndex, length);
         var lenLong = (long)Math.Min(length, MaxArrayLength);
 
-        if (accessor is JsArray jsArr && lenLong > 100000)
+        // Spec: Let elementK be Get(O, ToString(k)) for every k (holes become undefined, prototype chain applies).
+        for (var i = start; i < lenLong; i++)
         {
-            // Collect and filter indices without closure allocation
-            var filteredIndices = new List<uint>();
-            foreach (var idx in jsArr.GetOwnIndices())
+            var key = ToIndexString(i);
+            var got = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), key, out var value, evalContext);
+            if (evalContext?.IsThrow == true)
             {
-                if (idx >= start && idx < lenLong)
-                {
-                    filteredIndices.Add(idx);
-                }
+                throw new ThrowSignal(evalContext.FlowValue);
             }
 
-            filteredIndices.Sort();
-            foreach (var idx in filteredIndices)
+            // Even if the property is missing (got == false), value will be undefined which matches spec behaviour.
+            if (SameValueZero(value, searchElement))
             {
-                var val = jsArr.GetElement(idx);
-                if (SameValueZero(val, searchElement))
-                {
-                    return new JsValue(true);
-                }
-            }
-        }
-        else
-        {
-            for (var i = start; i < lenLong; i++)
-            {
-                if (TryGetExistingElement(accessor, i, out var value) && SameValueZero(value, searchElement))
-                {
-                    return new JsValue(true);
-                }
+                return JsValue.True;
             }
         }
 

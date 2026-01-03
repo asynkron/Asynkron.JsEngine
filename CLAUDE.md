@@ -12,7 +12,7 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
-- [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md)
+- [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use the gh CLI patterns there to view/create/comment/patch and log every session’s progress.
 - [Git worktree workflow](agents/how-to-worktrees.md)
 
 ## JsValue and Performance Patterns

@@ -1364,6 +1364,7 @@ public sealed class JsEnvironment : IRentable
                     value.Kind);
             }
 
+            targetEnv?.NotifyBindingObservers(name, value);
             return true;
         }
 
@@ -3059,6 +3060,8 @@ public sealed class JsEnvironment : IRentable
                 var globalObject = _environment.GetRootGlobalObject();
                 globalObject?.SetProperty(_name.Name, value);
             }
+
+            _environment.NotifyBindingObservers(_name, value);
         }
     }
 
@@ -3692,7 +3695,7 @@ public sealed class JsEnvironment : IRentable
             }
         }
 
-        env._slots![slotIndex].Value = value;
+        env.SetSlotDirect(slotIndex, value);
     }
 
     /// <summary>
@@ -3704,7 +3707,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlot(int slotIndex, JsValue value)
     {
-        _slots![slotIndex].Value = value;
+        SetSlotDirect(slotIndex, value);
     }
 
     /// <summary>
@@ -3748,6 +3751,10 @@ public sealed class JsEnvironment : IRentable
         slot.Value = value;
         // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
         slot.Flags &= ~SlotFlags.Uninitialized;
+        if (_bindingObservers is not null)
+        {
+            NotifyBindingObservers(slot.Name, value);
+        }
     }
 
     /// <summary>

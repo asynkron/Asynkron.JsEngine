@@ -393,11 +393,18 @@ public static partial class TypedAstEvaluator
             // Scan the environment for all IActiveIteratorState objects and close their iterators
             var statesToClose = new List<(IActiveIteratorState State, IJsObjectLike Iterator)>();
             ScanEnvironmentForActiveIterators(_executionEnvironment, statesToClose);
+            var closedIterators = new HashSet<IJsObjectLike>(ReferenceEqualityComparer<IJsObjectLike>.Instance);
 
             foreach (var (state, iterator) in statesToClose)
             {
                 // Mark as closed first (before potential exception)
                 state.MarkIteratorClosed();
+
+                // Skip duplicate iterator objects to avoid double-closing the same iterator
+                if (!closedIterators.Add(iterator))
+                {
+                    continue;
+                }
 
                 // Close the iterator - if it throws, that error replaces the return completion
                 // Let the exception propagate directly without catching

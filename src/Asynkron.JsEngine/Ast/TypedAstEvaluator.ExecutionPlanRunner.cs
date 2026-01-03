@@ -2527,6 +2527,30 @@ public static partial class TypedAstEvaluator
 
                                 if (!driverState.IsAsyncIterator)
                                 {
+                                    // If we're resuming this iterator site with an abrupt completion (return/throw),
+                                    // propagate it immediately instead of calling iterator.next() again.
+                                    var pendingResumeKind = AsyncStateRef.PendingResumeKind;
+                                    if (pendingResumeKind is ResumePayloadKind.Throw or ResumePayloadKind.Return)
+                                    {
+                                        var (kind, payload) = ConsumeResumeValue();
+                                        var abruptKind = kind == ResumePayloadKind.Return
+                                            ? AbruptKind.Return
+                                            : AbruptKind.Throw;
+
+                                        if (HandleAbruptCompletion(abruptKind, payload, environment))
+                                        {
+                                            continue;
+                                        }
+
+                                        if (abruptKind == AbruptKind.Throw)
+                                        {
+                                            TryCatchStateRef.TryStack.Clear();
+                                            throw new ThrowSignal(payload);
+                                        }
+
+                                        return CompleteReturn(payload);
+                                    }
+
                                     JsValue currentValue;
                                     if (driverState.IteratorObject is { } iteratorObj)
                                     {

@@ -103,6 +103,18 @@ public static partial class TypedAstEvaluator
             var pendingValue = resumeState?.PendingValue;
             var pendingDone = resumeState?.PendingDone ?? false;
 
+            // If we're resuming with an existing completion (e.g., generator return/throw),
+            // don't advance the iterator again. Just close it and propagate the completion.
+            if (context.ShouldStopEvaluation)
+            {
+                if (iterator is not null && !iteratorDone)
+                {
+                    CloseIterator(preserveExistingThrow: true);
+                }
+
+                return;
+            }
+
             try
             {
                 for (var elementIndex = startIndex; elementIndex < binding.Elements.Length; elementIndex++)

@@ -516,6 +516,13 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
+            context.RealmState.Logger?.LogInformation(
+                "EvaluateAssignment target={Name} slotIndex={SlotIndex} scopeId={ScopeId} allowCache={AllowCache}",
+                expression.Target.Name,
+                expression.SlotIndex,
+                expression.ScopeId,
+                context.AllowIdentifierCache);
+
             // Check for immutable binding (e.g., named function expression name)
             // Per ECMAScript spec, in strict mode throw TypeError, in non-strict mode silently ignore
             if (expression.IsImmutableTarget)
@@ -730,6 +737,19 @@ public static partial class TypedAstEvaluator
                             realm: context.RealmState));
                     }
 
+                    if (compoundSlot.IsImmutableBinding)
+                    {
+                        if (environment.IsStrict || context.CurrentScope.IsStrict)
+                        {
+                            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                                $"Assignment to constant variable '{expression.Target.Name}'.",
+                                realm: context.RealmState));
+                        }
+
+                        // Sloppy mode: ignore write but still return the computed value
+                        return compoundResult;
+                    }
+
                     compoundSlot.Value = compoundResult;
 
                     // For non-lexical bindings (var) in global scope, also update the global object
@@ -758,6 +778,18 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(StandardLibrary.CreateTypeError(
                             $"Assignment to constant variable '{expression.Target.Name}'.",
                             realm: context.RealmState));
+                    }
+
+                    if (simpleSlot.IsImmutableBinding)
+                    {
+                        if (environment.IsStrict || context.CurrentScope.IsStrict)
+                        {
+                            throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                                $"Assignment to constant variable '{expression.Target.Name}'.",
+                                realm: context.RealmState));
+                        }
+
+                        return rhsValue;
                     }
 
                     simpleSlot.Value = rhsValue;

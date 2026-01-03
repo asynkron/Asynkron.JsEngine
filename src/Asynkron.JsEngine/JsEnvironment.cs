@@ -1448,6 +1448,18 @@ public sealed class JsEnvironment : IRentable
                 realm: context.RealmState));
         }
 
+        if (slot.IsImmutableBinding)
+        {
+            if (context.CurrentScope.IsStrict || IsStrict)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Assignment to constant variable '{name.Name}'.",
+                    realm: context.RealmState));
+            }
+
+            return true;
+        }
+
         // Check for special binding (import/export) - use flag for fast detection
         if (slot.HasSpecialBinding)
         {
@@ -1613,6 +1625,11 @@ public sealed class JsEnvironment : IRentable
         out JsEnvironment bindingEnvironment,
         out int slotIndex)
     {
+        if (name.Name == "C" && RealmState?.Logger is { } locateLog)
+        {
+            locateLog.LogInformation("TryLocateBinding name={Name} startScope={ScopeId}", name.Name, ScopeId);
+        }
+
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
@@ -3017,6 +3034,18 @@ public sealed class JsEnvironment : IRentable
                 throw new ThrowSignal(StandardLibrary.CreateTypeError(
                     $"Assignment to constant variable '{_name.Name}'.",
                     realm: _environment.RealmState));
+            }
+
+            if (slot.IsImmutableBinding)
+            {
+                if (isStrictContext)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        $"Assignment to constant variable '{_name.Name}'.",
+                        realm: _environment.RealmState));
+                }
+
+                return;
             }
 
             if (slot.HasSpecialBinding)

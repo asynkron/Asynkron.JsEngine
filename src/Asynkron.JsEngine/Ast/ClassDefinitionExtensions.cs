@@ -25,7 +25,8 @@ public static partial class TypedAstEvaluator
 
         var classScope =
             new JsEnvironment(environment, isStrict: true, creatingSource: source, description: "class scope");
-        classScope.DefineJsValue(className, JsValue.Uninitialized, true, blocksFunctionScopeOverride: true);
+        classScope.DefineJsValue(className, JsValue.Uninitialized, true, blocksFunctionScopeOverride: true,
+            isImmutableBinding: true);
         return (classScope, classScope);
     }
 
@@ -128,7 +129,12 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var constructorJsValue = definition.Constructor.EvaluateExpression(evaluationEnvironment, context);
+            var constructorCallable = definition.Constructor.CreateFunctionValue(
+                evaluationEnvironment,
+                context,
+                isConstructorFunction: true,
+                skipInternalNameBinding: true);
+            var constructorJsValue = JsValue.FromObjectUnsafe(constructorCallable);
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;

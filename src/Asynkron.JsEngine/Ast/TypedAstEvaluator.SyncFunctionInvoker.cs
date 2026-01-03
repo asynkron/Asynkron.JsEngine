@@ -78,8 +78,6 @@ public static partial class TypedAstEvaluator
             RealmState = realmState;
             _properties.RealmState = RealmState;
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
-            RealmState.Logger?.LogInformation("SyncFunctionInvoker ctor name={Name} isStrict={Strict} isClassCtor={IsClassCtor}",
-                function.Name?.Name ?? "<anonymous>", _isStrict, IsClassConstructor);
             IsAsyncFunction = function.IsAsync;
             _wasAsyncFunction = function.WasAsync;
             _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
@@ -1467,9 +1465,6 @@ public static partial class TypedAstEvaluator
             IsClassConstructor = true;
             _isDerivedClassConstructor = isDerived;
             _canUseFastPathBase = false;
-            RealmState.Logger?.LogInformation(
-                "SetIsClassConstructor name={Name} isDerived={Derived}", _function.Name?.Name ?? "<anonymous>",
-                isDerived);
         }
 
         public void SetInstanceFields(ImmutableArray<ClassField> fields)

@@ -516,13 +516,6 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateAssignment(JsEnvironment environment,
             EvaluationContext context)
         {
-            context.RealmState.Logger?.LogInformation(
-                "EvaluateAssignment target={Name} slotIndex={SlotIndex} scopeId={ScopeId} allowCache={AllowCache}",
-                expression.Target.Name,
-                expression.SlotIndex,
-                expression.ScopeId,
-                context.AllowIdentifierCache);
-
             // Check for immutable binding (e.g., named function expression name)
             // Per ECMAScript spec, in strict mode throw TypeError, in non-strict mode silently ignore
             if (expression.IsImmutableTarget)

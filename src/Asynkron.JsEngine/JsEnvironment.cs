@@ -1625,11 +1625,6 @@ public sealed class JsEnvironment : IRentable
         out JsEnvironment bindingEnvironment,
         out int slotIndex)
     {
-        if (name.Name == "C" && RealmState?.Logger is { } locateLog)
-        {
-            locateLog.LogInformation("TryLocateBinding name={Name} startScope={ScopeId}", name.Name, ScopeId);
-        }
-
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;

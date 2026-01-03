@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -31,6 +32,9 @@ internal static class LoopEmitter
         out int entryIndex)
     {
         var instructionStart = ctx.InstructionCount;
+        var lexicalBindings = plan.PerIterationBindings.IsDefaultOrEmpty
+            ? null
+            : plan.PerIterationBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
 
         // Create BreakableExitInstruction first (we build bottom-up)
         // This pops the breakable stack when exiting the loop (normal exit or break)
@@ -80,7 +84,8 @@ internal static class LoopEmitter
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMap,
-                plan.AllowIterationEnvironmentPooling));
+                plan.AllowIterationEnvironmentPooling,
+                lexicalBindings));
 
             // Continue should go through CreateEnv before increment
             continueTarget = createEnvIndex;
@@ -143,7 +148,8 @@ internal static class LoopEmitter
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMap,
-                plan.AllowIterationEnvironmentPooling));
+                plan.AllowIterationEnvironmentPooling,
+                lexicalBindings));
             iterationBodyEntry = createEnvBeforeBody;
         }
 
@@ -182,7 +188,8 @@ internal static class LoopEmitter
                 plan.IterationScopeId,
                 plan.IterationSlotCount,
                 slotMap,
-                plan.AllowIterationEnvironmentPooling));
+                plan.AllowIterationEnvironmentPooling,
+                lexicalBindings));
         }
 
         if (!plan.LeadingStatements.IsDefaultOrEmpty)
@@ -225,7 +232,8 @@ internal static class LoopEmitter
                 loopScopeId,
                 plan.IterationSlotCount,
                 slotMap,
-                plan.AllowIterationEnvironmentPooling));
+                plan.AllowIterationEnvironmentPooling,
+                lexicalBindings));
         }
 
         // Wrap entry with BreakableEnterInstruction to push context at runtime.

@@ -1,8 +1,10 @@
 #region
 
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -35,6 +37,9 @@ internal static class ForOfEmitter
         var iteratorPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
 
         var instructionStart = ctx.InstructionCount;
+        var lexicalBindings = iteratorPlan.PerIterationBindings.IsDefaultOrEmpty
+            ? null
+            : iteratorPlan.PerIterationBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
 
         // Build the structure bottom-up:
         // 1. EndFinally -> nextIndex
@@ -156,7 +161,8 @@ internal static class ForOfEmitter
                 iteratorPlan.IterationScopeId,
                 iteratorPlan.IterationSlotCount,
                 slotMap,
-                iteratorPlan.CanReuseIterationEnvironment));
+                iteratorPlan.CanReuseIterationEnvironment,
+                lexicalBindings));
             loopEntry = createEnvIndex;
         }
 

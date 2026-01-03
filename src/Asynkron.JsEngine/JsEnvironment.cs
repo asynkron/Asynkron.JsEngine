@@ -325,6 +325,17 @@ public sealed class JsEnvironment : IRentable
         ref var slot = ref TryGetSlotRef(name);
         if (!Unsafe.IsNullRef(ref slot))
         {
+            // Upgrade flags on existing slot so pre-initialized layouts (InitializeSlots)
+            // can still become const/immutable/global-constant bindings.
+            var flags = slot.Flags;
+            if (isConst) flags |= SlotFlags.Const;
+            if (isGlobalConstant) flags |= SlotFlags.GlobalConstant;
+            if (isLexical) flags |= SlotFlags.Lexical;
+            if (blocksFunctionScopeOverride) flags |= SlotFlags.BlocksFunctionScopeOverride;
+            if (canDelete) flags |= SlotFlags.CanDelete;
+            if (isImmutableBinding) flags |= SlotFlags.ImmutableBinding;
+            slot.Flags = flags;
+
             // Can't overwrite global constants
             if (slot.IsGlobalConstant)
             {
@@ -345,6 +356,21 @@ public sealed class JsEnvironment : IRentable
             // Can't overwrite const unless it's a lexical override
             if (slot.IsConst)
             {
+                if (slot.IsUninitialized || slot.Value.IsUninitialized)
+                {
+                    // First-time initialization for a TDZ slot
+                    slot.Value = value;
+                    if (value.IsUninitialized)
+                    {
+                        slot.Flags |= SlotFlags.Uninitialized;
+                    }
+                    else
+                    {
+                        slot.Flags &= ~SlotFlags.Uninitialized;
+                    }
+                    return;
+                }
+
                 if (isLexical && blocksFunctionScopeOverride)
                 {
                     var isUninit = value.IsUninitialized;

@@ -47,7 +47,7 @@ public class ScopeIdentityTests
                 let x = 1;
                 return x;
             }
-            await run();
+            run();
             """;
 
         var logger = new TestLogger();

@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -217,10 +218,10 @@ internal sealed partial class ExecutionPlanBuilder
         // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
         StampIteratorBodies(function, rewriter);
 
-        // Nested function stamping remains disabled; nested bodies still fall back to dynamic
-        // lookup which correctly traverses the closure chain. With unique scope ids in place,
-        // this can be re-enabled once the feature flag and tests from step 8 are added.
-        // StampNestedFunctionBodies(function, rewriter, analysis);
+        if (EngineFeatureFlags.EnableNestedSlotStamping && analysis is not null)
+        {
+            StampNestedFunctionBodies(function, rewriter, analysis);
+        }
 
         return analysis;
     }

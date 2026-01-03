@@ -613,7 +613,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment? accumEnv = null;
             var useSlotAccess = false;
 
-            if (loopEnvironment.TryResolveSlot(assignExpr.ScopeId, assignExpr.SlotIndex, out accumEnv) &&
+            if (loopEnvironment.TryResolveSlot(assignExpr.Target, assignExpr.ScopeId, assignExpr.SlotIndex,
+                    out accumEnv) &&
                 accumEnv is not null)
             {
                 useSlotAccess = true;

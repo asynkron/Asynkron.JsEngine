@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
@@ -43,6 +44,12 @@ public sealed class JsEnvironment : IRentable
     /// Number of slots currently in use (may be less than array length due to pooling).
     /// </summary>
     internal int _slotCount;
+
+    /// <summary>
+    /// Tracks the expected slot layout identity for pooled environments.
+    /// Used to detect when a pooled environment needs its slots rebuilt.
+    /// </summary>
+    internal int LayoutId { get; private set; } = -1;
 
     /// <summary>
     /// Fast storage for 'this' binding in slot-only environments (InvokeSimpleFast).
@@ -217,6 +224,7 @@ public sealed class JsEnvironment : IRentable
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
+        LayoutId = -1;
     }
 
     /// <summary>
@@ -278,6 +286,7 @@ public sealed class JsEnvironment : IRentable
         _thisValue = default;
         _hasThisValue = false;
         ScopeId = -1;
+        LayoutId = -1;
 
         if (Depth > 5000)
         {
@@ -1220,50 +1229,22 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
-        if (scopeId >= 0 && slotIndex >= 0)
+        if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out var targetEnv, out var slots))
         {
-            // Fast path: if current environment matches scopeId, use it directly
-            // This avoids the FindByScopeId loop traversal in the common case
-            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
-            var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            ref var slot = ref slots![slotIndex];
+            if (slot.IsUninitialized)
             {
-                ref var slot = ref slots[slotIndex];
-                if (shouldLogSlots)
-                {
-                    logger?.LogInformation(
-                        "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
-                        targetEnv.GetHashCode(),
-                        name.Name,
-                        scopeId,
-                        slotIndex,
-                        slot.Value.Kind);
-                }
-
-                if (slot.IsUninitialized)
-                {
-                    var errorObject = StandardLibrary.CreateReferenceError(
-                        $"Cannot access '{name.Name}' before initialization",
-                        context,
-                        context.RealmState);
-                    value = errorObject;
-                    context.SetThrow(value);
-                    return true;
-                }
-
-                value = slot.Value;
+                var errorObject = StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{name.Name}' before initialization",
+                    context,
+                    context.RealmState);
+                value = errorObject;
+                context.SetThrow(value);
                 return true;
             }
 
-            if (shouldLogSlots)
-            {
-                logger?.LogInformation(
-                    "Identifier slot read miss name={Name} scopeId={ScopeId} slot={Slot} env={Env}",
-                    name.Name,
-                    scopeId,
-                    slotIndex,
-                    GetHashCode());
-            }
+            value = slot.Value;
+            return true;
         }
 
         if (TryGetIdentifierJsValue(name, context, out var resolved))
@@ -1300,74 +1281,57 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
-        if (scopeId >= 0 && slotIndex >= 0)
+        if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out var targetEnv, out var slots))
         {
-            // Fast path: if current environment matches scopeId, use it directly
-            // This avoids the FindByScopeId loop traversal in the common case
-            var targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
-            var slots = targetEnv?._slots;
-            if (targetEnv is not null && slots is not null && slotIndex < slots.Length)
+            ref var currentSlot = ref slots![slotIndex];
+
+            // TDZ check: if the slot is uninitialized, this is a TDZ violation.
+            if (currentSlot.IsUninitialized)
             {
-                ref var currentSlot = ref slots[slotIndex];
+                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                    $"Cannot access '{name.Name}' before initialization",
+                    context,
+                    context.RealmState));
+            }
 
-                // TDZ check: if the slot is uninitialized, this is a TDZ violation.
-                if (currentSlot.IsUninitialized)
-                {
-                    throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                        $"Cannot access '{name.Name}' before initialization",
-                        context,
-                        context.RealmState));
-                }
+            // Check for const assignment
+            if (currentSlot.IsConst)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Cannot reassign constant '{name.Name}'.",
+                    realm: context.RealmState));
+            }
 
-                // Check for const assignment
-                if (currentSlot.IsConst)
-                {
-                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                        $"Cannot reassign constant '{name.Name}'.",
-                        realm: context.RealmState));
-                }
+            // Check for special binding (import/export) - use flag for fast detection
+            if (currentSlot.HasSpecialBinding)
+            {
+                ((ISpecialBinding)currentSlot.Value.ObjectValue!).SetJsValue(value);
+            }
+            else
+            {
+                currentSlot.Value = value;
+            }
 
-                // Check for special binding (import/export) - use flag for fast detection
-                if (currentSlot.HasSpecialBinding)
-                {
-                    ((ISpecialBinding)currentSlot.Value.ObjectValue!).SetJsValue(value);
-                }
-                else
-                {
-                    currentSlot.Value = value;
-                }
-
-                // For non-lexical bindings (var) in global scope, also update the global object
-                // This mirrors the behavior of AssignJsValue which syncs with the global object
-                if (!currentSlot.IsLexical && targetEnv.IsGlobalFunctionScope)
-                {
-                    var globalObject = targetEnv.GetRootGlobalObject();
-                    globalObject?.SetProperty(name.Name, value);
-                }
-
-                if (shouldLogSlots)
-                {
-                    logger?.LogInformation(
-                        "Identifier slot write hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
-                        targetEnv.GetHashCode(),
-                        name.Name,
-                        scopeId,
-                        slotIndex,
-                        value.Kind);
-                }
-
-                return true;
+            // For non-lexical bindings (var) in global scope, also update the global object
+            // This mirrors the behavior of AssignJsValue which syncs with the global object
+            if (!currentSlot.IsLexical && targetEnv!.IsGlobalFunctionScope)
+            {
+                var globalObject = targetEnv.GetRootGlobalObject();
+                globalObject?.SetProperty(name.Name, value);
             }
 
             if (shouldLogSlots)
             {
                 logger?.LogInformation(
-                    "Identifier slot write miss env={Env} name={Name} scopeId={ScopeId} slot={Slot}",
-                    GetHashCode(),
+                    "Identifier slot write hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    targetEnv!.GetHashCode(),
                     name.Name,
                     scopeId,
-                    slotIndex);
+                    slotIndex,
+                    value.Kind);
             }
+
+            return true;
         }
 
         SetIdentifierJsValue(name, value, context);
@@ -3482,6 +3446,51 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Ensures the slot layout matches the expected plan layout.
+    /// If the layoutId or capacity does not match, the slots are rebuilt.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void ResetSlotLayoutForPlan(
+        int requiredSlots,
+        ImmutableDictionary<Symbol, int> slotMap,
+        ImmutableHashSet<Symbol> lexicalBindings,
+        ImmutableArray<Symbol> slotSymbols,
+        int layoutId)
+    {
+        var needsRebuild = LayoutId != layoutId || _slots is null || _slots.Length < requiredSlots ||
+                           _slotCount < requiredSlots;
+        if (needsRebuild)
+        {
+            JsSlotArrayPool.Return(_slots);
+            _slots = null;
+        }
+
+        InitializeSlots(requiredSlots, 0);
+
+        if (!slotMap.IsEmpty)
+        {
+            SetSlotMap(slotMap);
+        }
+        else if (!slotSymbols.IsDefaultOrEmpty)
+        {
+            var builder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+            for (var i = 0; i < slotSymbols.Length; i++)
+            {
+                builder[slotSymbols[i]] = i;
+            }
+
+            SetSlotMap(builder.ToImmutable());
+        }
+
+        if (!lexicalBindings.IsEmpty)
+        {
+            MarkSlotsLexicalUninitialized(lexicalBindings);
+        }
+
+        LayoutId = layoutId;
+    }
+
+    /// <summary>
     /// Initializes all scope-related metadata for this environment using a slot map.
     /// This converts from the old ImmutableDictionary-based approach.
     /// </summary>
@@ -3864,21 +3873,94 @@ public sealed class JsEnvironment : IRentable
     /// Returns true if the identifier can be accessed via slots, false if dictionary fallback is needed.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal bool TryResolveSlot(int scopeId, int slotIndex, out JsEnvironment? targetEnv)
+    internal bool TryResolveSlot(Symbol name, int scopeId, int slotIndex, out JsEnvironment? targetEnv)
     {
-        if (scopeId >= 0 && slotIndex >= 0)
+        if (scopeId < 0 || slotIndex < 0)
         {
-            // Fast path: if current environment matches scopeId, use it directly
-            // This avoids the FindByScopeId loop traversal in the common case
-            targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
-            if (targetEnv?._slots is not null && slotIndex < targetEnv._slotCount)
-            {
-                return true;
-            }
+            targetEnv = null;
+            return false;
         }
 
+        targetEnv = (ScopeId == scopeId) ? this : FindByScopeId(scopeId);
+        var slots = targetEnv?._slots;
+        if (targetEnv is null || slots is null || slotIndex >= targetEnv._slotCount)
+        {
+            targetEnv = null;
+            return false;
+        }
+
+        ref var slot = ref slots[slotIndex];
+        if (!ReferenceEquals(slot.Name, name))
+        {
+            targetEnv = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool TryValidateSlotTarget(
+        Symbol name,
+        int scopeId,
+        int slotIndex,
+        bool shouldLogSlots,
+        ILogger? logger,
+        [NotNullWhen(true)] out JsEnvironment? targetEnv,
+        out JsSlot[]? slots)
+    {
         targetEnv = null;
-        return false;
+        slots = null;
+
+        if (scopeId < 0 || slotIndex < 0)
+        {
+            return false;
+        }
+
+        var resolvedEnv = ScopeId == scopeId ? this : FindByScopeId(scopeId);
+        var resolvedSlots = resolvedEnv?._slots;
+        if (resolvedEnv is null || resolvedSlots is null || slotIndex >= resolvedEnv._slotCount)
+        {
+            if (shouldLogSlots)
+            {
+                logger?.LogInformation(
+                    "Identifier slot fallback name={Name} scopeId={ScopeId} slot={Slot} reason=env_or_index_mismatch",
+                    name.Name,
+                    scopeId,
+                    slotIndex);
+            }
+
+            return false;
+        }
+
+        ref var slot = ref resolvedSlots[slotIndex];
+        if (!ReferenceEquals(slot.Name, name))
+        {
+            if (shouldLogSlots)
+            {
+                logger?.LogInformation(
+                    "Identifier slot fallback name={Name} scopeId={ScopeId} slot={Slot} reason=name_mismatch actualName={ActualName}",
+                    name.Name,
+                    scopeId,
+                    slotIndex,
+                    slot.Name?.Name ?? "<null>");
+            }
+
+            return false;
+        }
+
+        if (shouldLogSlots)
+        {
+            logger?.LogInformation(
+                "Identifier slot read/write validated env={Env} name={Name} scopeId={ScopeId} slot={Slot}",
+                resolvedEnv.GetHashCode(),
+                name.Name,
+                scopeId,
+                slotIndex);
+        }
+
+        targetEnv = resolvedEnv;
+        slots = resolvedSlots;
+        return true;
     }
 
     #endregion

@@ -765,14 +765,14 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId,
-                    out var accumSlotIndex, out var operation))
+            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
+                    out var accumScopeId, out var accumSlotIndex, out var operation))
             {
                 return false;
             }
 
-            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId,
-                accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+            return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
+                accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>
@@ -807,8 +807,8 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumScopeId,
-                    out var accumSlotIndex, out var operation))
+            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
+                    out var accumScopeId, out var accumSlotIndex, out var operation))
             {
                 return false;
             }
@@ -834,8 +834,8 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            return LoopPlan.ExecuteFastNumericLoop(loopVarId, limit, comparison, isIncrement, accumScopeId,
-                accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+            return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
+                accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>
@@ -844,10 +844,12 @@ public static partial class TypedAstEvaluator
         private static bool TryExtractAccumulatorPattern(
             AssignmentExpression assignExpr,
             IdentifierExpression loopVarId,
+            out Symbol accumulatorName,
             out int accumScopeId,
             out int accumSlotIndex,
             out FastLoopOperation operation)
         {
+            accumulatorName = null!;
             accumScopeId = -1;
             accumSlotIndex = -1;
             operation = default;
@@ -898,6 +900,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            accumulatorName = assignExpr.Target;
             accumScopeId = assignExpr.ScopeId;
             accumSlotIndex = assignExpr.SlotIndex;
             return true;
@@ -909,6 +912,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private static bool ExecuteFastNumericLoop(
             IdentifierExpression loopVarId,
+            Symbol accumulatorName,
             double limit,
             FastLoopComparison comparison,
             bool isIncrement,
@@ -922,13 +926,14 @@ public static partial class TypedAstEvaluator
             result = JsValue.Undefined;
 
             // Pre-resolve slots
-            if (!environment.TryResolveSlot(loopVarId.ScopeId, loopVarId.SlotIndex, out var loopVarEnv) ||
+            if (!environment.TryResolveSlot(loopVarId.Name, loopVarId.ScopeId, loopVarId.SlotIndex,
+                    out var loopVarEnv) ||
                 loopVarEnv is null)
             {
                 return false;
             }
 
-            if (!environment.TryResolveSlot(accumScopeId, accumSlotIndex, out var accumEnv) ||
+            if (!environment.TryResolveSlot(accumulatorName, accumScopeId, accumSlotIndex, out var accumEnv) ||
                 accumEnv is null)
             {
                 return false;

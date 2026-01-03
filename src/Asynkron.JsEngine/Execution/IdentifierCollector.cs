@@ -425,22 +425,18 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
-    protected override void VisitStatement(StatementNode statement)
+    protected override StatementNode? VisitFunctionDeclaration(FunctionDeclaration funcDecl)
     {
-        if (statement is FunctionDeclaration funcDecl)
-        {
-            // Function declarations:
-            // - If we're inside a nested block scope (stack has more than just root), allocate to block scope
-            // - Otherwise, allocate to the function/global scope (hoisted function)
-            // Note: _scopeStack always has at least RootScopeId (pushed in constructor), so:
-            // - Count == 1 means we're at function body level → RootScopeId
-            // - Count > 1 means we're in a nested block → block's scope
-            var targetScope = _scopeStack.Count > 1 ? _scopeStack.Peek() : RootScopeId;
-            AllocateSlotInScope(targetScope, funcDecl.Name);
-            // Continue visiting to collect closure references from the function body
-        }
-
-        base.VisitStatement(statement);
+        // Function declarations:
+        // - If we're inside a nested block scope (stack has more than just root), allocate to block scope
+        // - Otherwise, allocate to the function/global scope (hoisted function)
+        // Note: _scopeStack always has at least RootScopeId (pushed in constructor), so:
+        // - Count == 1 means we're at function body level → RootScopeId
+        // - Count > 1 means we're in a nested block → block's scope
+        var targetScope = _scopeStack.Count > 1 ? _scopeStack.Peek() : RootScopeId;
+        AllocateSlotInScope(targetScope, funcDecl.Name);
+        // Do not traverse the nested function body here; nested functions are analyzed separately
+        return null;
     }
 
     protected override void VisitBlockStatement(BlockStatement block)
@@ -485,10 +481,9 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
     protected override void VisitFunctionExpression(FunctionExpression node)
     {
-        // Don't descend into nested function bodies - they're analyzed separately with their own
+        // Do not descend into nested function bodies - they're analyzed separately with their own
         // ScopeSlotCollector. Visiting them here would incorrectly create block scopes for their
         // function bodies within the parent function's scope analysis.
-        // The function expression itself is handled by CreateFunctionInstruction in the IR.
     }
 
     private static ImmutableArray<Symbol> CollectParameterSymbols(FunctionExpression? function)

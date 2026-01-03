@@ -10,6 +10,10 @@ namespace Asynkron.JsEngine.Execution;
 
 internal static class IteratorDriverFactory
 {
+    /// <remarks>
+    /// Always reach this through the cached path (IAstCacheable&lt;IteratorDriverPlan&gt;.GetOrCreateCache)
+    /// so a ForEachStatement has exactly one plan instance.
+    /// </remarks>
     public static IteratorDriverPlan CreatePlan(ForEachStatement statement, BlockStatement rewrittenBody)
     {
         var kind = statement.Kind == ForEachKind.AwaitOf

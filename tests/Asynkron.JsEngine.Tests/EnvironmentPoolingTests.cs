@@ -60,6 +60,35 @@ public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : Internal
     }
 
     [Fact]
+    public async Task PooledEnvironmentWithStaleLayoutRebuildsSlots()
+    {
+        // Simulate a pooled environment with an old layout and ensure it rebuilds safely.
+        var logger = new TestLogger();
+        await using var engine = CreateEngine(() => new JsEngineOptions
+        {
+            DebugMode = true,
+            Logger = logger
+        });
+
+        // First run: establish an initial layout (two bindings).
+        var first = await engine.Evaluate("""
+            'use strict';
+            function run(a, b) { return [a, b].join(','); }
+            run(1, 2);
+            """);
+        Assert.Equal("1,2", first);
+
+        // Second run: different shape (three bindings). If layout is reused incorrectly,
+        // we'll either throw or get the wrong values. The new layout should be rebuilt.
+        var second = await engine.Evaluate("""
+            'use strict';
+            function run(a, b, c) { return [a, b, c].join(','); }
+            run(3, 4, 5);
+            """);
+        Assert.Equal("3,4,5", second);
+    }
+
+    [Fact]
     public async Task ForLoop_WithVar_NoPerIterationEnvironments()
     {
         // for (var i = 0; i < 5; i++) { }

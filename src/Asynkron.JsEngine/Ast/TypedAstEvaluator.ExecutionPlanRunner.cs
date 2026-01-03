@@ -437,25 +437,6 @@ public static partial class TypedAstEvaluator
                     requiredSlots = _plan.SlotCount;
                 }
 
-                executionEnvironment.InitializeSlots(requiredSlots, 0);
-
-                if (rootSlotMap.Count > 0)
-                {
-                    executionEnvironment.SetSlotMap(rootSlotMap);
-                }
-                else
-                {
-                    var slotMap =
-                        ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
-                    for (var i = 0; i < _plan.SlotSymbols.Length; i++)
-                    {
-                        // Use direct indices (no offset) since plan slots are allocated first
-                        slotMap[_plan.SlotSymbols[i]] = i;
-                    }
-
-                    executionEnvironment.SetSlotMap(slotMap.ToImmutable());
-                }
-
                 var scopeLexicals = _plan.SafeScopeLexicalBindings;
                 var rootLexicals = _plan.SafeRootLexicalBindings;
                 if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
@@ -463,10 +444,12 @@ public static partial class TypedAstEvaluator
                     rootLexicals = fromScope0;
                 }
 
-                if (!rootLexicals.IsEmpty)
-                {
-                    executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
-                }
+                executionEnvironment.ResetSlotLayoutForPlan(
+                    requiredSlots,
+                    rootSlotMap,
+                    rootLexicals,
+                    _plan.SlotSymbols,
+                    _plan.LayoutId);
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:

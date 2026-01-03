@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
@@ -142,17 +143,20 @@ internal sealed partial class ExecutionPlanBuilder
         var rootLexicalBindings = analysis is not null && analysis.LexicalBindings.TryGetValue(0, out var rootLex)
             ? rootLex
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
+        var slotSymbols = _slotSymbols.ToImmutableArray();
+        var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
 
         plan = new ExecutionPlan(
             [..Instructions],
             entryIndex,
             _slotSymbols.Count,
-            [.._slotSymbols],
+            slotSymbols,
             rootSlotCount,
             rootSlotMap,
             rootLexicalBindings,
             _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
-                EqualityComparer<int>.Default));
+                EqualityComparer<int>.Default),
+            layoutId);
         return true;
     }
 
@@ -331,7 +335,8 @@ internal sealed partial class ExecutionPlanBuilder
             plan.RootSlotCount,
             plan.RootSlotMap,
             plan.RootLexicalBindings,
-            plan.ScopeLexicalBindings);
+            plan.ScopeLexicalBindings,
+            plan.LayoutId);
 
         // Update the cached plan on the FunctionExpression
         UpdateCachedExecutionPlan(funcExpr, stampedPlan);
@@ -348,11 +353,11 @@ internal sealed partial class ExecutionPlanBuilder
         {
             // Create a new ExecutionPlanCache with the stamped plan
             var cacheType = typeof(ExecutionPlanCache);
-            var ctor = cacheType.GetConstructor(
-                BindingFlags.NonPublic | BindingFlags.Instance,
-                null,
-                [typeof(ExecutionPlan), typeof(string)],
-                null);
+        var ctor = cacheType.GetConstructor(
+            BindingFlags.NonPublic | BindingFlags.Instance,
+            null,
+            [typeof(ExecutionPlan), typeof(string)],
+            null);
             if (ctor is not null)
             {
                 var newCache = ctor.Invoke([stampedPlan, null]);
@@ -368,6 +373,35 @@ internal sealed partial class ExecutionPlanBuilder
         {
             Debug.WriteLine("[UpdateCachedExecutionPlan] ERROR: Field not found");
         }
+    }
+
+    private static int ComputeLayoutId(
+        int rootSlotCount,
+        ImmutableDictionary<Symbol, int> rootSlotMap,
+        ImmutableArray<Symbol> slotSymbols)
+    {
+        var hash = new HashCode();
+        hash.Add(rootSlotCount);
+
+        if (!rootSlotMap.IsEmpty)
+        {
+            foreach (var kv in rootSlotMap.OrderBy(kv => kv.Value))
+            {
+                hash.Add(kv.Value);
+                hash.Add(kv.Key.GetHashCode());
+            }
+        }
+        else
+        {
+            hash.Add(slotSymbols.Length);
+            for (var i = 0; i < slotSymbols.Length; i++)
+            {
+                hash.Add(i);
+                hash.Add(slotSymbols[i].GetHashCode());
+            }
+        }
+
+        return hash.ToHashCode();
     }
 
     private static void UpdateFunctionBody(FunctionExpression funcExpr, BlockStatement stampedBody)

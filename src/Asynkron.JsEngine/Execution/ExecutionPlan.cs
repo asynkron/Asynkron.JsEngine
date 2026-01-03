@@ -23,6 +23,7 @@ namespace Asynkron.JsEngine.Execution;
 /// <param name="RootSlotMap">Slot map for the root (function) scope user bindings.</param>
 /// <param name="RootLexicalBindings">Lexical bindings in the root scope (for TDZ).</param>
 /// <param name="ScopeLexicalBindings">Lexical bindings per scope id.</param>
+/// <param name="LayoutId">Stable identity for the expected slot layout, used to validate pooled environments.</param>
 internal sealed record ExecutionPlan(
     ImmutableArray<ExecutionInstruction> Instructions,
     int EntryPoint,
@@ -31,7 +32,8 @@ internal sealed record ExecutionPlan(
     int RootSlotCount = 0,
     ImmutableDictionary<Symbol, int>? RootSlotMap = null,
     ImmutableHashSet<Symbol>? RootLexicalBindings = null,
-    ImmutableDictionary<int, ImmutableHashSet<Symbol>>? ScopeLexicalBindings = null)
+    ImmutableDictionary<int, ImmutableHashSet<Symbol>>? ScopeLexicalBindings = null,
+    int LayoutId = 0)
 {
     public ImmutableDictionary<Symbol, int> SafeRootSlotMap =>
         RootSlotMap ?? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);

@@ -25,162 +25,34 @@ public abstract class AstVisitor
     {
         while (true)
         {
-            switch (statement)
+            StatementNode? next = statement switch
             {
-                case ExpressionStatement node:
-                {
-                    VisitExpression(node.Expression);
-                    break;
-                }
-                case BlockStatement node:
-                {
-                    VisitBlockStatement(node);
-                    break;
-                }
-                case ReturnStatement node:
-                {
-                    if (node.Expression is not null)
-                    {
-                        VisitExpression(node.Expression);
-                    }
+                ExpressionStatement node => VisitExpressionStatement(node),
+                BlockStatement node => VisitBlock(node),
+                ReturnStatement node => VisitReturnStatement(node),
+                ThrowStatement node => VisitThrowStatement(node),
+                VariableDeclaration node => VisitVariableDeclaration(node),
+                IfStatement node => VisitIfStatement(node),
+                WhileStatement node => VisitWhileStatement(node),
+                DoWhileStatement node => VisitDoWhileStatement(node),
+                ForStatement node => VisitForStatement(node),
+                ForEachStatement node => VisitForEachStatement(node),
+                TryStatement node => VisitTryStatement(node),
+                SwitchStatement node => VisitSwitchStatement(node),
+                LabeledStatement node => VisitLabeledStatement(node),
+                WithStatement node => VisitWithStatement(node),
+                BreakStatement node => VisitBreakStatement(node),
+                ContinueStatement node => VisitContinueStatement(node),
+                FunctionDeclaration node => VisitFunctionDeclaration(node),
+                _ => null
+            };
 
-                    break;
-                }
-                case ThrowStatement node:
-                {
-                    VisitExpression(node.Expression);
-                    break;
-                }
-                case VariableDeclaration node:
-                {
-                    foreach (var declarator in node.Declarators)
-                    {
-                        VisitBindingTarget(declarator.Target);
-                        if (declarator.Initializer is not null)
-                        {
-                            VisitExpression(declarator.Initializer);
-                        }
-                    }
-
-                    break;
-                }
-                case IfStatement node:
-                {
-                    VisitExpression(node.Condition);
-                    VisitStatement(node.Then);
-                    if (node.Else is not null)
-                    {
-                        statement = node.Else;
-                        continue;
-                    }
-
-                    break;
-                }
-                case WhileStatement node:
-                {
-                    VisitExpression(node.Condition);
-                    statement = node.Body;
-                    continue;
-                }
-                case DoWhileStatement node:
-                {
-                    VisitStatement(node.Body);
-                    VisitExpression(node.Condition);
-                    break;
-                }
-                case ForStatement node:
-                {
-                    if (node.Initializer is not null)
-                    {
-                        VisitStatement(node.Initializer);
-                    }
-
-                    if (node.Condition is not null)
-                    {
-                        VisitExpression(node.Condition);
-                    }
-
-                    if (node.Increment is not null)
-                    {
-                        VisitExpression(node.Increment);
-                    }
-
-                    statement = node.Body;
-                    continue;
-                }
-                case ForEachStatement node:
-                {
-                    VisitBindingTarget(node.Target);
-                    VisitExpression(node.Iterable);
-                    statement = node.Body;
-                    continue;
-                }
-                case TryStatement node:
-                {
-                    VisitBlockStatement(node.TryBlock);
-                    if (node.Catch is not null)
-                    {
-                        if (node.Catch.Binding is not null)
-                        {
-                            VisitBindingTarget(node.Catch.Binding);
-                        }
-
-                        VisitBlockStatement(node.Catch.Body);
-                    }
-
-                    if (node.Finally is not null)
-                    {
-                        VisitBlockStatement(node.Finally);
-                    }
-
-                    break;
-                }
-                case SwitchStatement node:
-                {
-                    VisitExpression(node.Discriminant);
-                    foreach (var caseNode in node.Cases)
-                    {
-                        if (caseNode.Test is not null)
-                        {
-                            VisitExpression(caseNode.Test);
-                        }
-
-                        VisitBlockStatement(caseNode.Body);
-                    }
-
-                    break;
-                }
-                case LabeledStatement node:
-                {
-                    statement = node.Statement;
-                    continue;
-                }
-                case WithStatement node:
-                {
-                    VisitExpression(node.Object);
-                    statement = node.Body;
-                    continue;
-                }
-                case BreakStatement node:
-                {
-                    // Break with optional label - override VisitBreak if you need to process the label
-                    VisitBreak(node);
-                    break;
-                }
-                case ContinueStatement node:
-                {
-                    // Continue with optional label - override VisitContinue if you need to process the label
-                    VisitContinue(node);
-                    break;
-                }
-                case FunctionDeclaration:
-                {
-                    // Functions create their own scope, don't traverse body by default
-                    break;
-                }
+            if (next is null)
+            {
+                break;
             }
 
-            break;
+            statement = next;
         }
     }
 
@@ -199,61 +71,36 @@ public abstract class AstVisitor
             switch (expression)
             {
                 case IdentifierExpression node:
-                {
                     VisitIdentifier(node);
                     break;
-                }
                 case BinaryExpression node:
-                {
                     VisitExpression(node.Left);
                     expression = node.Right;
                     continue;
-                }
                 case UnaryExpression node:
-                {
                     expression = node.Operand;
                     continue;
-                }
                 case AssignmentExpression node:
-                {
                     VisitAssignment(node);
                     break;
-                }
                 case PropertyAssignmentExpression node:
-                {
                     VisitExpression(node.Target);
                     VisitExpression(node.Property);
                     expression = node.Value;
                     continue;
-                }
                 case IndexAssignmentExpression node:
-                {
                     VisitExpression(node.Target);
                     VisitExpression(node.Index);
                     expression = node.Value;
                     continue;
-                }
                 case DestructuringAssignmentExpression node:
-                {
                     VisitBindingTarget(node.Target);
                     expression = node.Value;
                     continue;
-                }
                 case CallExpression node:
-                {
-                    VisitExpression(node.Callee);
-                    foreach (var arg in node.Arguments)
-                    {
-                        if (arg.Expression is not null)
-                        {
-                            VisitExpression(arg.Expression);
-                        }
-                    }
-
+                    VisitCallExpression(node);
                     break;
-                }
                 case MemberExpression node:
-                {
                     VisitExpression(node.Target);
                     if (node.IsComputed)
                     {
@@ -262,51 +109,22 @@ public abstract class AstVisitor
                     }
 
                     break;
-                }
                 case ConditionalExpression node:
-                {
                     VisitExpression(node.Test);
                     VisitExpression(node.Consequent);
                     expression = node.Alternate;
                     continue;
-                }
                 case SequenceExpression node:
-                {
                     VisitExpression(node.Left);
                     expression = node.Right;
                     continue;
-                }
                 case ArrayExpression node:
-                {
-                    foreach (var element in node.Elements)
-                    {
-                        if (element.Expression is not null)
-                        {
-                            VisitExpression(element.Expression);
-                        }
-                    }
-
+                    VisitArrayExpression(node);
                     break;
-                }
                 case ObjectExpression node:
-                {
-                    foreach (var member in node.Members)
-                    {
-                        if (member.Key is ExpressionNode keyExpr)
-                        {
-                            VisitExpression(keyExpr);
-                        }
-
-                        if (member.Value is not null)
-                        {
-                            VisitExpression(member.Value);
-                        }
-                    }
-
+                    VisitObjectExpression(node);
                     break;
-                }
                 case YieldExpression node:
-                {
                     if (node.Expression is not null)
                     {
                         expression = node.Expression;
@@ -314,33 +132,224 @@ public abstract class AstVisitor
                     }
 
                     break;
-                }
                 case AwaitExpression node:
-                {
                     expression = node.Expression;
                     continue;
-                }
                 case NewExpression node:
-                {
-                    VisitExpression(node.Constructor);
-                    foreach (var arg in node.Arguments)
-                    {
-                        if (arg.Expression is not null)
-                        {
-                            VisitExpression(arg.Expression);
-                        }
-                    }
-
+                    VisitNewExpression(node);
                     break;
-                }
                 case FunctionExpression node:
-                {
                     VisitFunctionExpression(node);
                     break;
-                }
             }
 
             break;
+        }
+    }
+
+    protected virtual StatementNode? VisitExpressionStatement(ExpressionStatement node)
+    {
+        VisitExpression(node.Expression);
+        return null;
+    }
+
+    protected virtual StatementNode? VisitBlock(BlockStatement node)
+    {
+        VisitBlockStatement(node);
+        return null;
+    }
+
+    protected virtual StatementNode? VisitReturnStatement(ReturnStatement node)
+    {
+        if (node.Expression is not null)
+        {
+            VisitExpression(node.Expression);
+        }
+
+        return null;
+    }
+
+    protected virtual StatementNode? VisitThrowStatement(ThrowStatement node)
+    {
+        VisitExpression(node.Expression);
+        return null;
+    }
+
+    protected virtual StatementNode? VisitVariableDeclaration(VariableDeclaration node)
+    {
+        foreach (var declarator in node.Declarators)
+        {
+            VisitBindingTarget(declarator.Target);
+            if (declarator.Initializer is not null)
+            {
+                VisitExpression(declarator.Initializer);
+            }
+        }
+
+        return null;
+    }
+
+    protected virtual StatementNode? VisitIfStatement(IfStatement node)
+    {
+        VisitExpression(node.Condition);
+        VisitStatement(node.Then);
+        return node.Else;
+    }
+
+    protected virtual StatementNode? VisitWhileStatement(WhileStatement node)
+    {
+        VisitExpression(node.Condition);
+        return node.Body;
+    }
+
+    protected virtual StatementNode? VisitDoWhileStatement(DoWhileStatement node)
+    {
+        VisitStatement(node.Body);
+        VisitExpression(node.Condition);
+        return null;
+    }
+
+    protected virtual StatementNode? VisitForStatement(ForStatement node)
+    {
+        if (node.Initializer is not null)
+        {
+            VisitStatement(node.Initializer);
+        }
+
+        if (node.Condition is not null)
+        {
+            VisitExpression(node.Condition);
+        }
+
+        if (node.Increment is not null)
+        {
+            VisitExpression(node.Increment);
+        }
+
+        return node.Body;
+    }
+
+    protected virtual StatementNode? VisitForEachStatement(ForEachStatement node)
+    {
+        VisitBindingTarget(node.Target);
+        VisitExpression(node.Iterable);
+        return node.Body;
+    }
+
+    protected virtual StatementNode? VisitTryStatement(TryStatement node)
+    {
+        VisitBlockStatement(node.TryBlock);
+        if (node.Catch is not null)
+        {
+            if (node.Catch.Binding is not null)
+            {
+                VisitBindingTarget(node.Catch.Binding);
+            }
+
+            VisitBlockStatement(node.Catch.Body);
+        }
+
+        if (node.Finally is not null)
+        {
+            VisitBlockStatement(node.Finally);
+        }
+
+        return null;
+    }
+
+    protected virtual StatementNode? VisitSwitchStatement(SwitchStatement node)
+    {
+        VisitExpression(node.Discriminant);
+        foreach (var caseNode in node.Cases)
+        {
+            if (caseNode.Test is not null)
+            {
+                VisitExpression(caseNode.Test);
+            }
+
+            VisitBlockStatement(caseNode.Body);
+        }
+
+        return null;
+    }
+
+    protected virtual StatementNode? VisitLabeledStatement(LabeledStatement node)
+    {
+        return node.Statement;
+    }
+
+    protected virtual StatementNode? VisitWithStatement(WithStatement node)
+    {
+        VisitExpression(node.Object);
+        return node.Body;
+    }
+
+    protected virtual StatementNode? VisitBreakStatement(BreakStatement node)
+    {
+        VisitBreak(node);
+        return null;
+    }
+
+    protected virtual StatementNode? VisitContinueStatement(ContinueStatement node)
+    {
+        VisitContinue(node);
+        return null;
+    }
+
+    protected virtual StatementNode? VisitFunctionDeclaration(FunctionDeclaration node)
+    {
+        VisitFunctionExpression(node.Function);
+        return null;
+    }
+
+    protected virtual void VisitCallExpression(CallExpression node)
+    {
+        VisitExpression(node.Callee);
+        foreach (var arg in node.Arguments)
+        {
+            if (arg.Expression is not null)
+            {
+                VisitExpression(arg.Expression);
+            }
+        }
+    }
+
+    protected virtual void VisitArrayExpression(ArrayExpression node)
+    {
+        foreach (var element in node.Elements)
+        {
+            if (element.Expression is not null)
+            {
+                VisitExpression(element.Expression);
+            }
+        }
+    }
+
+    protected virtual void VisitObjectExpression(ObjectExpression node)
+    {
+        foreach (var member in node.Members)
+        {
+            if (member.Key is ExpressionNode keyExpr)
+            {
+                VisitExpression(keyExpr);
+            }
+
+            if (member.Value is not null)
+            {
+                VisitExpression(member.Value);
+            }
+        }
+    }
+
+    protected virtual void VisitNewExpression(NewExpression node)
+    {
+        VisitExpression(node.Constructor);
+        foreach (var arg in node.Arguments)
+        {
+            if (arg.Expression is not null)
+            {
+                VisitExpression(arg.Expression);
+            }
         }
     }
 
@@ -368,8 +377,20 @@ public abstract class AstVisitor
 
     protected virtual void VisitFunctionExpression(FunctionExpression node)
     {
-        // Functions create their own scope, don't traverse body by default
-        // Override in derived class if you need to process function expressions
+        foreach (var parameter in node.Parameters)
+        {
+            if (parameter.Pattern is not null)
+            {
+                VisitBindingTarget(parameter.Pattern);
+            }
+
+            if (parameter.DefaultValue is not null)
+            {
+                VisitExpression(parameter.DefaultValue);
+            }
+        }
+
+        VisitBlockStatement(node.Body);
     }
 
     protected virtual void VisitBindingTarget(BindingTarget target)

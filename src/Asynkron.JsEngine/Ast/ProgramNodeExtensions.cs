@@ -493,23 +493,6 @@ public static partial class TypedAstEvaluator
 
                         if (requiredSlots > 0)
                         {
-                            executionEnvironment.InitializeSlots(requiredSlots, 0);
-                            if (rootSlotMap.Count > 0)
-                            {
-                                executionEnvironment.SetSlotMap(rootSlotMap);
-                            }
-                            else if (!scriptPlan.SlotSymbols.IsDefaultOrEmpty)
-                            {
-                                var slotMap = ImmutableDictionary.CreateBuilder<Symbol, int>(
-                                    ReferenceEqualityComparer<Symbol>.Instance);
-                                for (var i = 0; i < scriptPlan.SlotSymbols.Length; i++)
-                                {
-                                    slotMap[scriptPlan.SlotSymbols[i]] = i;
-                                }
-
-                                executionEnvironment.SetSlotMap(slotMap.ToImmutable());
-                            }
-
                             var scopeLexicals = scriptPlan.SafeScopeLexicalBindings;
                             var rootLexicals = scriptPlan.SafeRootLexicalBindings;
                             if (rootLexicals.Count == 0 && scopeLexicals.TryGetValue(0, out var fromScope0))
@@ -517,10 +500,12 @@ public static partial class TypedAstEvaluator
                                 rootLexicals = fromScope0;
                             }
 
-                            if (!rootLexicals.IsEmpty)
-                            {
-                                executionEnvironment.MarkSlotsLexicalUninitialized(rootLexicals);
-                            }
+                            executionEnvironment.ResetSlotLayoutForPlan(
+                                requiredSlots,
+                                rootSlotMap,
+                                rootLexicals,
+                                scriptPlan.SlotSymbols,
+                                scriptPlan.LayoutId);
                         }
                     }
                 }

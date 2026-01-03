@@ -115,8 +115,11 @@ internal sealed partial class ExecutionPlanBuilder
 
     private bool TryBuildInternal(FunctionExpression function, out ExecutionPlan plan)
     {
-        _rootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
-        var analysisRootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
+        // Ensure the root scope id is a stable, positive value. Scope analysis should
+        // stamp functions with a non-negative ScopeId, but if it's missing or 0, allocate
+        // a synthetic id so downstream slot layout and logging remain consistent.
+        _rootScopeId = function.ScopeId > 0 ? function.ScopeId : SyntheticScopeIdAllocator.Next();
+        var analysisRootScopeId = _rootScopeId;
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
         var implicitReturnIndex = Append(new ReturnInstruction(-1, null));
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))

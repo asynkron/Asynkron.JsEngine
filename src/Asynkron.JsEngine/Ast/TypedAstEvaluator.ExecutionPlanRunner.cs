@@ -2952,6 +2952,13 @@ public static partial class TypedAstEvaluator
                                         environment.GetHashCode());
                                 }
 
+                                // For async iterators, clear any pending completion flags that would
+                                // prevent subsequent iterations after continue.
+                                if (_isAsync)
+                                {
+                                    TryCatchStateRef.TryStack.Clear();
+                                }
+
                                 _programCounter = iteratorMoveNextInstruction.Next;
                                 continue;
                             }
@@ -3017,11 +3024,20 @@ public static partial class TypedAstEvaluator
                                 // Pop environments until we reach the target scope
                                 if (breakInstruction.TargetScopeId >= 0)
                                 {
-                                    while (environment.ScopeId != breakInstruction.TargetScopeId &&
-                                           environment.Enclosing != null)
+                                    var targetScopeId = breakInstruction.TargetScopeId;
+                                    var walkEnv = environment;
+                                    while (walkEnv.ScopeId != targetScopeId &&
+                                           walkEnv.Enclosing != null)
                                     {
-                                        environment = environment.Enclosing;
+                                        walkEnv = walkEnv.Enclosing;
                                         // Note: we don't return to pool here as we don't track pooling per-env
+                                    }
+
+                                    // Only update the environment if we actually found the target scope.
+                                    // This prevents popping past the loop scope when a stale scope id is present.
+                                    if (walkEnv.ScopeId == targetScopeId)
+                                    {
+                                        environment = walkEnv;
                                     }
                                 }
 
@@ -3055,11 +3071,21 @@ public static partial class TypedAstEvaluator
                                 // Pop environments until we reach the target scope
                                 if (continueInstruction.TargetScopeId >= 0)
                                 {
-                                    while (environment.ScopeId != continueInstruction.TargetScopeId &&
-                                           environment.Enclosing != null)
+                                    var targetScopeId = continueInstruction.TargetScopeId;
+                                    var walkEnv = environment;
+                                    while (walkEnv.ScopeId != targetScopeId &&
+                                           walkEnv.Enclosing != null)
                                     {
-                                        environment = environment.Enclosing;
+                                        walkEnv = walkEnv.Enclosing;
                                         // Note: we don't return to pool here as we don't track pooling per-env
+                                    }
+
+                                    // Only update the environment when the target scope exists on the chain.
+                                    // When scope ids drift (e.g., synthetic ids not stamped onto environments),
+                                    // avoid popping to an unrelated outer scope which disconnects iterator state.
+                                    if (walkEnv.ScopeId == targetScopeId)
+                                    {
+                                        environment = walkEnv;
                                     }
                                 }
 

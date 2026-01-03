@@ -1253,7 +1253,7 @@ public sealed class JsEnvironment : IRentable
             value = slot.Value;
             if (shouldLogSlots)
             {
-                logger?.LogInformation(
+                logger?.LogTrace(
                     "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
                     targetEnv!.GetHashCode(),
                     name.Name,
@@ -1930,40 +1930,63 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal bool TryGetJsValueLocalSafe(Symbol name, out JsValue value)
     {
-        ref var slot = ref TryGetSlotRef(name);
-        if (!Unsafe.IsNullRef(ref slot))
+        try
         {
-            // Return false for uninitialized bindings instead of throwing
-            if (slot.IsUninitialized)
+            // If slots have been cleared (e.g., pooled environment reset), treat as missing binding.
+            if (_slots is null || _slotCount == 0)
             {
                 value = default;
                 return false;
             }
 
-            // Import bindings may throw if the source binding isn't defined yet
-            // (e.g., self-importing module with *default* export not yet evaluated)
-            try
+            ref var slot = ref TryGetSlotRef(name);
+            if (!Unsafe.IsNullRef(ref slot))
             {
-                if (slot.HasSpecialBinding)
+                // Return false for uninitialized bindings instead of throwing
+                if (slot.IsUninitialized)
                 {
-                    value = ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                    value = default;
+                    return false;
                 }
-                else
+
+                // Import bindings may throw if the source binding isn't defined yet
+                // (e.g., self-importing module with *default* export not yet evaluated)
+                try
                 {
-                    value = slot.Value;
+                    if (slot.HasSpecialBinding)
+                    {
+                        if (slot.Value.ObjectValue is null)
+                        {
+                            value = default;
+                            return false;
+                        }
+
+                        value = ((ISpecialBinding)slot.Value.ObjectValue!).GetJsValue();
+                    }
+                    else
+                    {
+                        value = slot.Value;
+                    }
+
+                    return true;
                 }
-                return true;
+                catch (InvalidOperationException)
+                {
+                    // Source binding not yet available
+                    value = default;
+                    return false;
+                }
             }
-            catch (InvalidOperationException)
-            {
-                // Source binding not yet available
-                value = default;
-                return false;
-            }
+
+            value = default;
+            return false;
         }
-
-        value = default;
-        return false;
+        catch (NullReferenceException)
+        {
+            // If the environment has been torn down (pooled and reset), treat as no binding.
+            value = default;
+            return false;
+        }
     }
 
     /// <summary>
@@ -3507,7 +3530,20 @@ public sealed class JsEnvironment : IRentable
         var index = FindSlotIndex(name);
         if (index >= 0)
         {
-            return ref _slots![index];
+            ref var slot = ref _slots![index];
+            var realmState = RealmState;
+            if (realmState?.Options.DebugMode == true)
+            {
+                realmState.Logger?.LogTrace(
+                    "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    GetHashCode(),
+                    slot.Name.Name,
+                    ScopeId,
+                    index,
+                    slot.Value.Kind);
+            }
+
+            return ref slot;
         }
 
         return ref Unsafe.NullRef<JsSlot>();
@@ -3644,7 +3680,7 @@ public sealed class JsEnvironment : IRentable
         var realmState = RealmState;
         if (realmState?.Options.DebugMode == true)
         {
-            realmState.Logger?.LogInformation(
+            realmState.Logger?.LogTrace(
                 "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
                 GetHashCode(),
                 slot.Name.Name,
@@ -3758,6 +3794,13 @@ public sealed class JsEnvironment : IRentable
                 name.Name,
                 scopeId,
                 slotIndex);
+            logger?.LogTrace(
+                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                resolvedEnv.GetHashCode(),
+                name.Name,
+                scopeId,
+                slotIndex,
+                slot.Value.Kind);
         }
 
         targetEnv = resolvedEnv;

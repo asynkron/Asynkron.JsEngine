@@ -2,6 +2,7 @@ using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Tests.Helpers;
+using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -326,7 +327,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
     [Fact]
     public async Task SlotFastPath_ShouldBeUsedForLoopVariables()
     {
-        var logger = new TestLogger();
+        var logger = new TestLogger(minLogLevel: LogLevel.Trace);
         await using var engine = new JsEngine(new JsEngineOptions
         {
             DebugMode = true,

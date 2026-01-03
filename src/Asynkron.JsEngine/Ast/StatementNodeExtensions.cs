@@ -262,13 +262,15 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        if (functionHoistDedupe is not null &&
-                            !functionHoistDedupe.Add(functionDeclaration.Name))
+                        // In strict mode, block-level function declarations are block-scoped only
+                        // (no Annex B var-style hoisting). Skip hoisting when we are inside a block.
+                        if (inBlockScope && context.CurrentScope.IsStrict)
                         {
                             break;
                         }
 
-                        if (context.CurrentScope.IsStrict && lexicalNames.Contains(functionDeclaration.Name))
+                        if (functionHoistDedupe is not null &&
+                            !functionHoistDedupe.Add(functionDeclaration.Name))
                         {
                             break;
                         }

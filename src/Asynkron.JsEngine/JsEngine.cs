@@ -530,6 +530,24 @@ public sealed class JsEngine : IAsyncDisposable
         return typedParser.ParseProgram();
     }
 
+    private ProgramNode ParseProgramOrThrowSyntaxError(
+        string source,
+        bool forceStrict = false,
+        bool allowTopLevelAwait = false,
+        bool allowHtmlComments = true,
+        IJsEngineOptions? options = null)
+    {
+        try
+        {
+            return ParseProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options);
+        }
+        catch (ParseException parseException)
+        {
+            // Convert parser/lexer failures to JS SyntaxError for proper early error semantics.
+            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(parseException.Message, realm: RealmState));
+        }
+    }
+
     private CancellationToken CreateEvaluationCancellationToken(CancellationToken cancellationToken,
         out CancellationTokenSource? timeoutCts)
     {
@@ -678,7 +696,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     public Task<object?> Evaluate(string source, CancellationToken cancellationToken = default)
     {
-        var program = ParseProgram(source);
+        var program = ParseProgramOrThrowSyntaxError(source);
         return Evaluate(program, cancellationToken);
     }
 
@@ -723,7 +741,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <returns>The result of the evaluation after microtasks have drained.</returns>
     public async Task<object?> EvaluateAndAwait(string source, CancellationToken cancellationToken = default)
     {
-        var program = ParseProgram(source);
+        var program = ParseProgramOrThrowSyntaxError(source);
 
         // Check if the last statement is an expression statement with an identifier
         Symbol? trailingIdentifier = null;
@@ -789,7 +807,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <returns>The result of the evaluation.</returns>
     public object? EvaluateSync(string source, CancellationToken cancellationToken = default)
     {
-        var program = ParseProgram(source);
+        var program = ParseProgramOrThrowSyntaxError(source);
         return EvaluateSyncInternal(program, cancellationToken);
     }
 
@@ -858,7 +876,7 @@ public sealed class JsEngine : IAsyncDisposable
     public Task<object?> EvaluateModule(string source, string? sourcePath = null,
         CancellationToken cancellationToken = default)
     {
-        var program = ParseProgram(source, true, true);
+        var program = ParseProgramOrThrowSyntaxError(source, forceStrict: true, allowTopLevelAwait: true);
         return Evaluate(program, cancellationToken, sourcePath, true);
     }
 

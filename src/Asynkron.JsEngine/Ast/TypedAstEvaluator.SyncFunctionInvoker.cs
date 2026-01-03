@@ -803,7 +803,6 @@ public static partial class TypedAstEvaluator
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 // Don't initialize slots for complex parameter expressions (destructuring, defaults)
                 // Values are bound via dictionary, not slots - only set scope metadata
                 functionEnvironment.ScopeId = _function.ScopeId;
@@ -812,17 +811,14 @@ public static partial class TypedAstEvaluator
                 parameterEnvironment = new JsEnvironment(functionEnvironment, false, _isStrict, _function.Source,
                     _functionDescription, isParameterEnvironment: true);
                 parameterEnvironment.IsArrowFunctionEnvironment = IsArrowFunction;
-                parameterEnvironment.SetBodyLexicalNames(bodyLexicalNames);
 
                 varEnvironment = new JsEnvironment(parameterEnvironment, true, _isStrict, _function.Source,
                     _functionDescription);
-                varEnvironment.SetBodyLexicalNames(bodyLexicalNames);
             }
             else
             {
                 functionEnvironment = new JsEnvironment(_closure, true, _isStrict, _function.Source,
                     _functionDescription);
-                functionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
                 // InvokeWithContext uses dictionary-based lookups (slow path).
                 // Set ScopeId for scope chain navigation but DON'T initialize slots.
                 // Function declarations are hoisted into the dictionary via DefineFunctionScoped,

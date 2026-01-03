@@ -165,11 +165,9 @@ public static partial class TypedAstEvaluator
                     {
                         if (useIterationSlotsForIn)
                         {
-                            iterationEnvironment = JsEnvironmentPool.Rent(loopEnvironment, false, false,
-                                statement.Source,
-                                "for-each-iteration", logger: logger);
-                            iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount,
-                                cachedPlan.IterationScopeId);
+                            iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                                description: "for-each-iteration");
+                            iterationEnvironment.InitializeSlots(cachedPlan.IterationSlotCount, cachedPlan.IterationScopeId);
                         }
                         else
                         {

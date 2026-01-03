@@ -3,6 +3,7 @@ using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -17,6 +18,12 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class SlotOptimizationTestBomb : IAsyncLifetime
 {
     private JsEngine _engine = null!;
+    private readonly ITestOutputHelper _output;
+
+    public SlotOptimizationTestBomb(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     public Task InitializeAsync()
     {
@@ -141,7 +148,7 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         var pushScopes = cache.Plan.Instructions.OfType<PushEnvironmentInstruction>()
             .Select(p => (p.ScopeId, Keys: string.Join(",", p.SlotMap.Keys.Select(k => k.Name))))
             .ToArray();
-        Console.WriteLine(
+        _output.WriteLine(
             $"[H3] RootScopeId={cache.Plan.RootScopeId} RootKeys={string.Join(",", cache.Plan.SafeRootSlotMap.Keys.Select(k => k.Name))} ReturnScope={returnId.ScopeId} ReturnSlot={returnId.SlotIndex} PushScopes={string.Join(" | ", pushScopes.Select(p => $"{p.ScopeId}:{p.Keys}"))}");
 
         AssertIdentifierHasSlot(returnId, cache.Plan);

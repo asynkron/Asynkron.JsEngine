@@ -1235,7 +1235,8 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
-        if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out _, out var slots))
+        if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out var targetEnv,
+                out var slots))
         {
             ref var slot = ref slots![slotIndex];
             if (slot.IsUninitialized)
@@ -1250,6 +1251,17 @@ public sealed class JsEnvironment : IRentable
             }
 
             value = slot.Value;
+            if (shouldLogSlots)
+            {
+                logger?.LogInformation(
+                    "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                    targetEnv!.GetHashCode(),
+                    name.Name,
+                    targetEnv.ScopeId,
+                    slotIndex,
+                    value.Kind);
+            }
+
             return true;
         }
 
@@ -3628,7 +3640,20 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref JsValue GetSlotRef(int slotIndex)
     {
-        return ref _slots![slotIndex].Value;
+        ref var slot = ref _slots![slotIndex];
+        var realmState = RealmState;
+        if (realmState?.Options.DebugMode == true)
+        {
+            realmState.Logger?.LogInformation(
+                "Identifier slot read hit env={Env} name={Name} scopeId={ScopeId} slot={Slot} valueKind={Kind}",
+                GetHashCode(),
+                slot.Name.Name,
+                ScopeId,
+                slotIndex,
+                slot.Value.Kind);
+        }
+
+        return ref slot.Value;
     }
 
     /// <summary>

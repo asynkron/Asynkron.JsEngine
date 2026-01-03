@@ -1,5 +1,6 @@
 #region
 
+using System;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
@@ -507,15 +508,26 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                callResult = callable switch
+                if (expression.Callee is SuperExpression)
                 {
-                    SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue,
-                        context,
-                        newTargetForCall),
-                    HostFunction hostFunction => hostFunction.InvokeWithContext(frozenArguments, thisValue, context,
-                        newTargetForCall),
-                    _ => callable.Invoke(frozenArguments, thisValue)
-                };
+                    var realm = context.RealmState ?? throw new InvalidOperationException("Realm is required.");
+                    var newTargetCallable = newTargetForCall.TryGetObject<IJsCallable>(out var nt)
+                        ? nt
+                        : callable;
+                    callResult = ReflectHelper.Construct(callable, frozenArguments, newTargetCallable, realm);
+                }
+                else
+                {
+                    callResult = callable switch
+                    {
+                        SyncFunctionInvoker typedFunction => typedFunction.InvokeWithContext(frozenArguments, thisValue,
+                            context,
+                            newTargetForCall),
+                        HostFunction hostFunction => hostFunction.InvokeWithContext(frozenArguments, thisValue, context,
+                            newTargetForCall),
+                        _ => callable.Invoke(frozenArguments, thisValue)
+                    };
+                }
 
                 if (expression.Callee is SuperExpression)
                 {

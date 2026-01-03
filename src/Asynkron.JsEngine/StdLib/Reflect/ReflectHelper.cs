@@ -114,9 +114,29 @@ public static class ReflectHelper
                 arrayInstance.SetPrototype(proto);
             }
 
-            var result = target.Invoke(argList, JsValue.FromJsArray(arrayInstance));
-            return result.TryGetObject<JsObject>(out var jsObj)
-                ? new JsValue(jsObj)
+            JsValue result;
+            if (target is HostFunction hostFunction &&
+                hostFunction.InvokeWithContextForSnapshot is not null)
+            {
+                var constructContext = realm.CreateContext(pushScope: false);
+                result = hostFunction.InvokeWithContext(
+                    argList,
+                    JsValue.FromJsArray(arrayInstance),
+                    constructContext,
+                    JsValue.FromObjectUnsafe(newTarget));
+
+                if (constructContext.IsThrow)
+                {
+                    throw new ThrowSignal(constructContext.FlowValue);
+                }
+            }
+            else
+            {
+                result = target.Invoke(argList, JsValue.FromJsArray(arrayInstance));
+            }
+
+            return result.TryGetObject<IJsObjectLike>(out var jsObj)
+                ? JsValue.FromObjectUnsafe(jsObj)
                 : JsValue.FromJsArray(arrayInstance);
         }
 

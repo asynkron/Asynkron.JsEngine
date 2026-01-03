@@ -49,7 +49,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         Realm.ArrayConstructor ??= constructor;
         Realm.ArrayPrototype ??= Prototype;
 
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
+        constructor.SetInvokeWithContext((args, thisValue, _, newTarget) =>
         {
             var targetCtor = Realm.ArrayConstructor ?? constructor;
             IJsCallable newTargetCallable;
@@ -65,8 +65,13 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
             var proto = ResolveConstructPrototype(newTargetCallable, targetCtor, Realm) ??
                         Prototype;
             var instanceRealm = ResolveInstanceRealm(proto, newTargetCallable);
-            var array = new JsArray(instanceRealm);
-            if (proto is not null)
+            var array = thisValue switch
+            {
+                JsValue { Kind: JsValueKind.Object } jsVal when jsVal.TryGetObject<JsArray>(out var provided) =>
+                    provided,
+                _ => new JsArray(instanceRealm)
+            };
+            if (proto is not null && !ReferenceEquals(array.Prototype, proto))
             {
                 array.SetPrototype(proto);
             }

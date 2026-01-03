@@ -123,6 +123,9 @@ public static partial class TypedAstEvaluator
                     {
                         restArray.Push(arguments[argumentIndex]);
                     }
+                    if (function.IsDefaultDerivedConstructor)
+                    {
+                    }
 
                     if (parameter.Pattern is not null)
                     {

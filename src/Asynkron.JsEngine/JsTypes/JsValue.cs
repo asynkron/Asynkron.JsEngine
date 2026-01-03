@@ -775,10 +775,10 @@ public readonly struct JsValue : IEquatable<JsValue>
                 return NumberValue != 0.0;
             }
 
-            // Fast path for objects (always truthy)
+            // Fast path for objects (except IsHTMLDDA, which is falsy)
             if (Kind == JsValueKind.Object)
             {
-                return true;
+                return ObjectValue is not IIsHtmlDda;
             }
 
             return Kind switch

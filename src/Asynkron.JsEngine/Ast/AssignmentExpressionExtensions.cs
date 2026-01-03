@@ -726,7 +726,11 @@ public static partial class TypedAstEvaluator
                             break;
                     }
 
-                    var rhsValue = binary.Right.EvaluateExpression(environment, context);
+                    var rhsValue = EvaluateAssignmentRhsWithNameHintJsValue(
+                        expression,
+                        binary.Right,
+                        environment,
+                        context);
                     if (context.ShouldStopEvaluation)
                     {
                         return rhsValue;

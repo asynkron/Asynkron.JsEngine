@@ -129,7 +129,15 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            var constructorCallable = definition.Constructor.CreateFunctionValue(
+            var constructorDefinition = definition.Constructor;
+            if (definition.Extends is not null &&
+                !constructorDefinition.IsDefaultDerivedConstructor &&
+                IsImplicitDefaultDerivedConstructor(constructorDefinition))
+            {
+                constructorDefinition = constructorDefinition with { IsDefaultDerivedConstructor = true };
+            }
+
+            var constructorCallable = constructorDefinition.CreateFunctionValue(
                 evaluationEnvironment,
                 context,
                 isConstructorFunction: true,
@@ -316,6 +324,37 @@ public static partial class TypedAstEvaluator
             _ = context;
             _ = privateNameScope;
             return fields;
+        }
+
+        private static bool IsImplicitDefaultDerivedConstructor(FunctionExpression constructor)
+        {
+            if (constructor.Parameters.Length != 0)
+            {
+                return false;
+            }
+
+            if (constructor.Body.Statements.Length != 1)
+            {
+                return false;
+            }
+
+            if (constructor.Body.Statements[0] is not ExpressionStatement
+                {
+                    Expression: CallExpression
+                    {
+                        Callee: SuperExpression,
+                        Arguments.Length: 1
+                    } superCall
+                })
+            {
+                return false;
+            }
+
+            var arg = superCall.Arguments[0];
+            return arg.IsSpread && arg.Expression is IdentifierExpression
+            {
+                Name.Name: "arguments"
+            };
         }
     }
 }

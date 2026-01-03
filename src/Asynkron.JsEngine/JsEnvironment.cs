@@ -2,11 +2,8 @@
 
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.IO;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Collections;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -96,6 +93,15 @@ public sealed class JsEnvironment : IRentable
         {
             throw new InvalidOperationException(
                 $"Exceeded maximum environment depth of {MaxDepth}. Possible unbounded recursion detected.");
+        }
+    }
+
+    private static void ValidateScopeId(int scopeId)
+    {
+        if (scopeId == 0 && EngineFeatureFlags.ThrowOnZeroScopeId)
+        {
+            throw new InvalidOperationException(
+                "JsEnvironment initialized with ScopeId=0; scope analysis likely missing or incorrect.");
         }
     }
 
@@ -1229,7 +1235,7 @@ public sealed class JsEnvironment : IRentable
         var shouldLogSlots = realmState.Options.DebugMode;
         var logger = shouldLogSlots ? realmState.Logger : null;
 
-        if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out var targetEnv, out var slots))
+        if (TryValidateSlotTarget(name, scopeId, slotIndex, shouldLogSlots, logger, out _, out var slots))
         {
             ref var slot = ref slots![slotIndex];
             if (slot.IsUninitialized)
@@ -1519,135 +1525,6 @@ public sealed class JsEnvironment : IRentable
         _identifierBindingCache ??=
             new Dictionary<Symbol, ResolvedIdentifierBinding>(ReferenceEqualityComparer<Symbol>.Instance);
         _identifierBindingCache[name] = binding;
-    }
-
-    /// <summary>
-    /// Reads a resolved binding value as JsValue, avoiding boxing for primitives.
-    /// </summary>
-    private static JsValue ReadResolvedBindingJsValue(JsEnvironment bindingEnvironment, ref Binding binding,
-        Symbol name, EvaluationContext context)
-    {
-        // Check IsUninitialized before reading - this is a TDZ violation
-        // Note: This check doesn't work for import bindings (special bindings), handled below
-        if (binding.IsUninitialized)
-        {
-            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                $"Cannot access '{name.Name}' before initialization",
-                context,
-                context.RealmState));
-        }
-
-        // Check for live export bindings
-        if (binding.LiveExportBindingOrNull is { } liveBinding)
-        {
-            return liveBinding.GetValue();
-        }
-
-        if (!bindingEnvironment.IsGlobalFunctionScope || binding.IsLexical)
-        {
-            // Import bindings may throw InvalidOperationException if target is uninitialized (TDZ)
-            // Convert to proper JS ReferenceError
-            try
-            {
-                return binding.JsValue;
-            }
-            catch (InvalidOperationException ex) when
-                (ex.Message.Contains("ReferenceError", StringComparison.Ordinal) ||
-                 ex.Message.Contains("is not defined", StringComparison.Ordinal))
-            {
-                throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                    $"Cannot access '{name.Name}' before initialization",
-                    context,
-                    context.RealmState));
-            }
-        }
-
-        var globalObject = bindingEnvironment.GetRootGlobalObject();
-        if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
-        {
-            return globalValue; // globalValue is already JsValue - don't box via FromObject!
-        }
-
-        return binding.JsValue;
-    }
-
-    private void WriteResolvedBindingJsValue(
-        JsEnvironment bindingEnvironment,
-        ref Binding binding,
-        Symbol name,
-        JsValue value,
-        bool isStrictContext)
-    {
-        var realmState = bindingEnvironment.RealmState ?? RealmState;
-        if (realmState?.Options.DebugMode == true)
-        {
-            realmState.Logger?.LogInformation(
-                "Write binding '{Name}' (envDepth={Depth}, lexical={Lexical}, const={Const}, strictCtx={StrictCtx}, bindingHash={Hash}) = {Value}",
-                name.Name,
-                bindingEnvironment.Depth,
-                binding.IsLexical,
-                binding.IsConst,
-                isStrictContext,
-                binding.GetHashCode(),
-                value);
-        }
-        var realm = bindingEnvironment.RealmState ?? bindingEnvironment.Enclosing?.RealmState;
-
-        // Check IsUninitialized before reading
-        // TDZ (Temporal Dead Zone) violation - must be catchable by JavaScript try/catch
-        if (binding is { IsUninitialized: true, IsLexical: true } &&
-            !Equals(name, Symbol.This))
-        {
-            throw new ThrowSignal(StandardLibrary.CreateReferenceError(
-                $"Cannot access '{name.Name}' before initialization", null, realm));
-        }
-
-        if (binding.IsConst)
-        {
-            // Per ES spec, assignment to const always throws TypeError regardless of strict mode
-            throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                $"Cannot reassign constant '{name.Name}'.", realm: realm));
-        }
-
-        if (binding.IsImmutableBinding)
-        {
-            // Immutable bindings (named function expression names) throw in strict mode,
-            // but silently fail in non-strict mode
-            var bindingIsStrict = bindingEnvironment.IsStrict || bindingEnvironment.GetFunctionScope().IsStrict;
-            if (bindingIsStrict || isStrictContext)
-            {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    $"Cannot reassign constant '{name.Name}'.", realm: realm));
-            }
-
-            return;
-        }
-
-        if (binding.IsGlobalConstant)
-        {
-            if (isStrictContext)
-            {
-                throw new ThrowSignal(
-                    StandardLibrary.CreateTypeError($"ReferenceError: {name.Name} is not writable", realm: realm));
-            }
-
-            return;
-        }
-
-        // Use JsValue directly to avoid boxing
-        binding.JsValue = value;
-        if (!binding.IsLexical && bindingEnvironment.IsGlobalFunctionScope)
-        {
-            bindingEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, value);
-        }
-
-        bindingEnvironment.TrySetSlot(name, value);
-
-        // Only notify if there are observers
-        if (bindingEnvironment._bindingObservers is not null)
-        {
-            bindingEnvironment.NotifyBindingObservers(name, value);
-        }
     }
 
     internal static object ReadUnresolvable(Symbol name)
@@ -3179,96 +3056,6 @@ public sealed class JsEnvironment : IRentable
             _flags = flags | BindingFlags.HasSpecialBinding;
         }
 
-        public static Binding CreateAsyncExport(JsPromise promise, bool isConst, bool isLexical)
-        {
-            var flags = BindingFlags.None;
-            if (isConst)
-            {
-                flags |= BindingFlags.IsConst;
-            }
-
-            if (isLexical)
-            {
-                flags |= BindingFlags.IsLexical;
-            }
-
-            return new Binding(new AsyncExportBinding(promise, isConst), flags);
-        }
-
-        public static Binding CreateImport(JsEnvironment sourceEnvironment, Symbol bindingName)
-        {
-            return new Binding(
-                new ImportBindingWrapper(sourceEnvironment, bindingName),
-                BindingFlags.IsConst | BindingFlags.IsLexical);
-        }
-
-        /// <summary>
-        /// Gets or sets the value as JsValue directly, avoiding boxing for primitives.
-        /// </summary>
-        public JsValue JsValue
-        {
-            readonly get => (_flags & BindingFlags.HasSpecialBinding) != 0
-                ? _specialBinding!.GetJsValue()
-                : _jsValue;
-            set
-            {
-                if ((_flags & BindingFlags.HasSpecialBinding) != 0)
-                {
-                    _specialBinding!.SetJsValue(value);
-                }
-                else
-                {
-                    _jsValue = value;
-                }
-            }
-        }
-
-        public readonly bool IsConst => (_flags & BindingFlags.HasSpecialBinding) != 0
-            ? _specialBinding!.IsConst
-            : (_flags & BindingFlags.IsConst) != 0;
-
-        public readonly bool IsGlobalConstant => (_flags & BindingFlags.IsGlobalConstant) != 0;
-
-        public readonly bool IsLexical => (_flags & BindingFlags.IsLexical) != 0;
-
-        public readonly bool BlocksFunctionScopeOverride => (_flags & BindingFlags.BlocksFunctionScopeOverride) != 0;
-
-        public readonly bool CanDelete => (_flags & BindingFlags.CanDelete) != 0;
-
-        public readonly bool IsImmutableBinding => (_flags & BindingFlags.IsImmutableBinding) != 0;
-
-        public readonly bool IsAsyncExportBinding => (_flags & BindingFlags.HasSpecialBinding) != 0
-                                                     && _specialBinding is AsyncExportBinding;
-
-        /// <summary>
-        /// Checks if this binding holds the Uninitialized sentinel without triggering ToObject().
-        /// </summary>
-        public readonly bool IsUninitialized =>
-            (_flags & BindingFlags.HasSpecialBinding) == 0 &&
-            (_jsValue.IsUninitialized || ReferenceEquals(_jsValue.ObjectValue, Uninitialized));
-
-        /// <summary>
-        /// Gets the LiveExportBinding if this is a live export, otherwise null.
-        /// Does not trigger ToObject() boxing.
-        /// </summary>
-        public readonly LiveExportBinding? LiveExportBindingOrNull =>
-            (_flags & BindingFlags.HasSpecialBinding) == 0
-                ? _jsValue.ObjectValue as LiveExportBinding
-                : null;
-
-        public void UpgradeLexical(bool isLexical, bool blocksFunctionScopeOverride)
-        {
-            if (isLexical)
-            {
-                _flags |= BindingFlags.IsLexical;
-            }
-
-            if (blocksFunctionScopeOverride)
-            {
-                _flags |= BindingFlags.BlocksFunctionScopeOverride;
-            }
-        }
-
         public readonly bool Equals(Binding other)
         {
             return _jsValue.Equals(other._jsValue) && Equals(_specialBinding, other._specialBinding) &&
@@ -3397,6 +3184,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void InitializeSlots(int slotCount, int scopeId)
     {
+        ValidateScopeId(scopeId);
         ScopeId = scopeId;
 
         // If we already have slots (from hoisting), preserve them and ensure capacity
@@ -3500,6 +3288,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Initialize(int scopeId, System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
     {
+        ValidateScopeId(scopeId);
         ScopeId = scopeId;
         var count = slotMap.Count;
         _slotCount = count;
@@ -3824,19 +3613,6 @@ public sealed class JsEnvironment : IRentable
     internal void SetSlot(int slotIndex, JsValue value)
     {
         _slots![slotIndex].Value = value;
-    }
-
-    /// <summary>
-    /// Tries to set a slot value by name. Uses linear scan to find the slot.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void TrySetSlot(Symbol name, JsValue value)
-    {
-        var slotIndex = FindSlotIndex(name);
-        if (slotIndex >= 0)
-        {
-            _slots![slotIndex].Value = value;
-        }
     }
 
     /// <summary>

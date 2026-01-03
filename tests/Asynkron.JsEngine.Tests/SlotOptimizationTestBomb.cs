@@ -138,6 +138,12 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         Assert.NotNull(returnId);
         Assert.Equal("s", returnId.Name.Name);
 
+        var pushScopes = cache.Plan.Instructions.OfType<PushEnvironmentInstruction>()
+            .Select(p => (p.ScopeId, Keys: string.Join(",", p.SlotMap.Keys.Select(k => k.Name))))
+            .ToArray();
+        Console.WriteLine(
+            $"[H3] RootScopeId={cache.Plan.RootScopeId} RootKeys={string.Join(",", cache.Plan.SafeRootSlotMap.Keys.Select(k => k.Name))} ReturnScope={returnId.ScopeId} ReturnSlot={returnId.SlotIndex} PushScopes={string.Join(" | ", pushScopes.Select(p => $"{p.ScopeId}:{p.Keys}"))}");
+
         AssertIdentifierHasSlot(returnId, cache.Plan);
     }
 
@@ -394,8 +400,10 @@ public sealed class SlotOptimizationTestBomb : IAsyncLifetime
         }
 
         var slotMap = GetSlotMap(plan, id.ScopeId);
+        var keys = string.Join(",", slotMap.Keys.Select(k => k.Name));
+        var rootKeys = string.Join(",", plan.SafeRootSlotMap.Keys.Select(k => k.Name));
         Assert.True(slotMap.TryGetValue(id.Name, out var mappedIndex),
-            $"Slot map for scope {id.ScopeId} should contain '{id.Name.Name}'");
+            $"Slot map for scope {id.ScopeId} should contain '{id.Name.Name}'. Keys=[{keys}] RootKeys=[{rootKeys}] RootScope={plan.RootScopeId}");
         Assert.Equal(mappedIndex, id.SlotIndex);
     }
 

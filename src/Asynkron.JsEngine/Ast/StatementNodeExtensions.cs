@@ -266,6 +266,12 @@ public static partial class TypedAstEvaluator
                         // (no Annex B var-style hoisting). Skip hoisting when we are inside a block.
                         if (inBlockScope && context.CurrentScope.IsStrict)
                         {
+                            environment.DefineJsValue(
+                                functionDeclaration.Name,
+                                JsValue.Uninitialized,
+                                isConst: true,
+                                isLexical: true,
+                                blocksFunctionScopeOverride: true);
                             break;
                         }
 

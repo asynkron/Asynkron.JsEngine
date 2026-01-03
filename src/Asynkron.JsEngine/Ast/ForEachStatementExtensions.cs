@@ -27,8 +27,9 @@ public static partial class TypedAstEvaluator
 
             var iterableEnvironment = environment;
             var pooledTdzEnvironment = false;
-            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                or VariableKind.AwaitUsing)
+            var hasLexicalDeclaration = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                or VariableKind.Using or VariableKind.AwaitUsing;
+            if (hasLexicalDeclaration)
             {
                 // Create TDZ environment for the for-of head bindings.
                 // Pool this environment when there are no closures in target/iterable that could capture it.
@@ -49,7 +50,22 @@ public static partial class TypedAstEvaluator
                 statement.Target.CreateUninitializedLexicalBindings(iterableEnvironment, isConstDeclaration);
             }
 
-            var iterableJsValue = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
+            var previousAllowIdentifierCache = context.AllowIdentifierCache;
+            if (hasLexicalDeclaration)
+            {
+                // Disable identifier cache so the TDZ bindings in iterableEnvironment are respected.
+                context.AllowIdentifierCache = false;
+            }
+
+            JsValue iterableJsValue;
+            try
+            {
+                iterableJsValue = statement.Iterable.EvaluateExpression(iterableEnvironment, context);
+            }
+            finally
+            {
+                context.AllowIdentifierCache = previousAllowIdentifierCache;
+            }
 
             if (context.ShouldStopEvaluation)
             {

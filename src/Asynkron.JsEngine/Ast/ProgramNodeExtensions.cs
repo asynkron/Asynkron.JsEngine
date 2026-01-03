@@ -360,6 +360,14 @@ public static partial class TypedAstEvaluator
             var functionScope = executionEnvironment.GetFunctionScope();
             var reverseFunctionHoist = false;
             HashSet<Symbol>? functionHoistDedupe = null;
+            if (!program.IsStrict && executionKind == ExecutionKind.Script)
+            {
+                // Per ES spec 15.1.8 step 10 (GlobalDeclarationInstantiation),
+                // duplicate function declarations are processed in reverse order
+                // and only the last declaration for a given name is hoisted.
+                reverseFunctionHoist = true;
+                functionHoistDedupe = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            }
             // Get the engine's true GlobalEnvironment for storing/checking lexical names.
             // GlobalExecutionScope gets overwritten by each script, but GlobalEnvironment
             // persists and should be the canonical location for global lexical declarations.

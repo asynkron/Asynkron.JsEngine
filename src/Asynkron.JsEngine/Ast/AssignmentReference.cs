@@ -190,6 +190,8 @@ internal readonly struct AssignmentReference
     /// <summary>
     /// Gets the value as JsValue, avoiding boxing for primitives.
     /// </summary>
+    internal bool IsUnresolvable => _kind == ReferenceKind.Unresolvable;
+
     public JsValue GetJsValue()
     {
         return _kind switch

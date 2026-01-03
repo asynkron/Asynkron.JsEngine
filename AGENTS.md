@@ -64,6 +64,14 @@ Different cultures format numbers differently:
 
 JavaScript expects consistent number formatting (US/Invariant style with periods), so we must always use InvariantCulture to match JavaScript behavior.
 
+## Architecture Overview (current)
+
+- Parse to typed AST: `Lexer` + `JsAstParser` produce typed nodes (`ProgramNode`, `StatementNode`, `ExpressionNode`); scope analysis stamps scope ids and slot metadata consumed by IR.
+- IR-first execution: every function shape (sync/async, generators/async generators) and top-level scripts attempt IR via `ExecutionPlanBuilder` (scripts use `ScriptPlanCache`). Dynamic-scope constructs (`with`, direct `eval`) bypass IR and stay on the AST walker.
+- Unified runner: `ExecutionPlanRunner` executes `ExecutionPlan` streams with slot-based `JsEnvironment` layouts keyed by `LayoutId`/`RootScopeId`, handling per-iteration bindings, try/catch/finally, `break`/`continue`, `yield`/`yield*`, and `await`.
+- Generator prep: `GeneratorYieldLowerer` reshapes generator bodies for pausing; async/await is emitted directly into IR instructions.
+- Fallback: if IR build reports unsupported constructs or the runner throws `NotSupportedException`, the engine falls back to `TypedAstEvaluator` AST walking for that function or script.
+
 ## Build and Test (Codex Web)
 
 These are the standard commands to build and run tests in this repo:
@@ -83,6 +91,16 @@ Optional: to run a narrower test subset (replace the filter as needed):
 
 ```bash
 dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
+```
+
+**Important**: Never use `--no-build` - always ensure you are working with the latest compiled code.
+
+### Demos
+
+```bash
+dotnet run --project examples/Demo
+dotnet run --project examples/PromiseDemo
+dotnet run --project examples/NpmPackageDemo
 ```
 
 ## Profiling
@@ -221,6 +239,61 @@ dotnet-trace convert trace.nettrace --format Speedscope
 - Allocations: 322 MB → 107.49 MB = **~67% reduction**
 - Speed: ~172 ms → 116.84 ms = **~32% faster**
 - Gap with Jint: 2.2x time, 2.1x allocations (down from 3.1x and 6.4x)
+
+## Development Rules
+
+### Thread Safety
+- Never use `Task.Wait()`, `Task.Result`, or `Thread.Sleep()` - these block threads.
+- Never use `ThreadStatic`, `AsyncLocal<T>`, or shared state between async calls.
+- Pass all context explicitly via `JsEnvironment` or similar parameters.
+
+### ECMAScript Compliance
+- Follow ECMAScript specification behavior closely.
+- Do not introduce non-standard language extensions.
+- Support both strict and sloppy mode with spec-defined differences.
+
+### Error Handling
+- Throw `NotSupportedException` with clear reason for unsupported features - never silently degrade.
+- Use `realm.Logger?.LogInformation(...)` for diagnostics, never `Console.WriteLine`.
+
+### Code Generation
+- Never edit files with `.generated.` in their names - they are produced by tooling.
+- Edit non-generated partials/helpers instead.
+
+### Test Timeouts
+- All tests should complete within 20 seconds.
+- When running tests via CLI, use: `dotnet test -- xUnit.MaxParallelThreads=1 -timeout 20000`.
+- Tests that exceed 20 seconds indicate a bug (infinite loop, deadlock, or inefficient implementation).
+
+## Project Structure
+
+```
+src/
+  Asynkron.JsEngine/            # Main engine library
+  Asynkron.JsEngine.Generators/ # Source generators
+tests/
+  Asynkron.JsEngine.Tests/      # Unit tests (xUnit)
+  Asynkron.JsEngine.Tests.Test262/ # ECMAScript Test262 conformance tests
+examples/                       # Demo console applications
+docs/                           # Detailed documentation
+```
+
+## Workflow
+
+The `continue.md` file at repo root contains rolling next steps. When completing a task, remove it from `continue.md` and update with new steps.
+
+## GitHub Issue Logging (persistent working memory)
+
+- Treat GitHub issues as the long-lived log of progress, research, and reasoning. Every work session should either update an existing issue or create one.
+- Find or confirm the right issue before working:
+  - List/search: `gh issue list -S "keyword"` or open known ids with `gh issue view <number>`.
+  - If no suitable issue exists, create one: `gh issue create -t "Title" -b "Context, plan, next steps"`.
+- Update progress in the issue:
+  - Append comments: `gh issue comment <number> -b "Update text"`.
+  - Patch an existing comment (to keep a single rolling TODO/progress list) using `gh api --method PATCH repos/asynkron/Asynkron.JsEngine/issues/comments/<comment_id> -f body="$(cat /tmp/body.txt)"`.
+- Link related work:
+  - Note blockers/relations in the body or comments using markdown references, e.g., “Blocked by #123” or “Related to #344”.
+- Always summarize what changed, remaining work, and any test results in the issue so future agents can resume quickly.
 
 ## Git Worktree Workflow
 

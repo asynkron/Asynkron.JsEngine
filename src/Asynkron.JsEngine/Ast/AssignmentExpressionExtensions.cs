@@ -821,6 +821,16 @@ public static partial class TypedAstEvaluator
             var reference = AssignmentReferenceResolver.ResolveIdentifierDirect(
                 expression.Target, environment, context);
 
+            // Spec: GetValue on an unresolvable Reference (compound assignments must read first)
+            // must throw ReferenceError in both strict and non-strict mode.
+            if (expression.IsCompoundAssignment && reference.IsUnresolvable)
+            {
+                throw StandardLibrary.ThrowReferenceError(
+                    $"{expression.Target.Name} is not defined",
+                    context,
+                    context.RealmState);
+            }
+
             // Use JsValue version of the compound assignment to avoid boxing
             if (expression.IsCompoundAssignment &&
                 TryEvaluateCompoundAssignmentJsValue(expression, expression.Value, reference, environment, context,

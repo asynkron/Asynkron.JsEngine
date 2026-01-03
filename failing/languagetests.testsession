@@ -1,8 +1,0 @@
-<SessionState ContinuousTestingMode="0" IsActive="True" Name="All tests from &lt;tests&gt;\&lt;Asynkron.JsEngine.Tests&gt;" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session">
-  <Or>
-    <Project Location="/Users/rogerjohansson/git/asynkron/JsEngine2/tests/Asynkron.JsEngine.Tests" Presentation="&lt;tests&gt;\&lt;Asynkron.JsEngine.Tests&gt;" />
-    <TestAncestor>
-      <TestId>NUnit3x::7527CADC-BF6A-4F99-846F-92122ACFB155::net10.0::Asynkron.JsEngine.Tests.Test262.LanguageTests</TestId>
-    </TestAncestor>
-  </Or>
-</SessionState>

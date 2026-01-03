@@ -126,6 +126,13 @@ public static partial class TypedAstEvaluator
             JsEnvironment scope,
             EvaluationContext context)
         {
+            // Ensure we mark lexical bindings as TDZ before executing the block body.
+            // SlotAssignmentRewriter can pre-seed slots (SlotMap) which means HasBinding
+            // returns true and the hoist loop below would otherwise skip defining the
+            // bindings as uninitialized. Explicitly flagging the lexical slots here
+            // preserves the TDZ semantics even when slots already exist.
+            var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
+
             // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
             // which doesn't override previous statement completion values
             var resultJs = JsValue.Unit;
@@ -133,6 +140,10 @@ public static partial class TypedAstEvaluator
             // Use unified Initialize method that properly sets slot names from the map
             // This ensures name-based lookups (TryLocateBinding) can find block-scoped variables
             scope.Initialize(block.ScopeId, block.SlotMap);
+            if (hoistPlan.TopLevelLexicalNames.Count > 0)
+            {
+                scope.MarkSlotsLexicalUninitialized(hoistPlan.TopLevelLexicalNames);
+            }
 
             var mode = scope.IsStrict || block.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, mode);

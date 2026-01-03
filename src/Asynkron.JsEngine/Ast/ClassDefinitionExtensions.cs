@@ -15,9 +15,10 @@ public static partial class TypedAstEvaluator
     private static (JsEnvironment EvaluationEnvironment, JsEnvironment? ClassScope) CreateClassScopeIfNeeded(
         JsEnvironment environment,
         Symbol? className,
-        SourceReference? source)
+        SourceReference? source,
+        bool createNameScope)
     {
-        if (className is null)
+        if (className is null || !createNameScope)
         {
             return (environment, null);
         }
@@ -94,15 +95,17 @@ public static partial class TypedAstEvaluator
 
     extension(ClassDefinition definition)
     {
-        private JsValue CreateClassValue(JsEnvironment environment,
-            EvaluationContext context,
-            Symbol? className)
-        {
-            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
-            var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
-                environment,
-                className,
-                definition.Source);
+    private JsValue CreateClassValue(JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? className,
+        bool createNameScope = true)
+    {
+        using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
+        var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
+            environment,
+            className,
+            definition.Source,
+            createNameScope);
 
             var (superConstructor, superPrototype) =
                 definition.Extends.ResolveSuperclass(evaluationEnvironment, context);

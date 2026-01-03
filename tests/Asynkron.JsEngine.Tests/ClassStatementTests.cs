@@ -302,5 +302,36 @@ public sealed class ClassStatementTests(ITestOutputHelper output) : InternalTest
 
         Assert.Equal(42.0, result);
     }
-}
 
+    [Fact(Timeout = 2000)]
+    public async Task ClassNameBinding_IsConstLike()
+    {
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("""
+                class C { constructor() { C = 42; } }
+                new C();
+                """));
+
+        Assert.Contains("Assignment to constant variable", ex.Message);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ClassExtendsNull_SuperCallThrows()
+    {
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("""
+                class C extends null {
+                  constructor() {
+                    super();
+                  }
+                }
+                new C();
+                """));
+
+        Assert.Contains("TypeError", ex.Message);
+    }
+}

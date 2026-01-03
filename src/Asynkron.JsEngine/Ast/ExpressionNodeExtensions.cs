@@ -530,6 +530,16 @@ public static partial class TypedAstEvaluator
 
                     // Fallback: dictionary-based lookup
                     var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
+                    if (reference.IsUnresolvable)
+                    {
+                        var error = StandardLibrary.CreateReferenceError(
+                            $"{identifier.Name.Name} is not defined",
+                            context,
+                            context.RealmState);
+                        context.SetThrow(error);
+                        return (JsValue.Undefined, JsValue.Undefined, true);
+                    }
+
                     var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetJsValue, context);
                     if (context.ShouldStopEvaluation)
                     {

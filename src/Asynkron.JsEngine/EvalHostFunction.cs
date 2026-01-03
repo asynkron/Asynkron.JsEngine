@@ -72,18 +72,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             environment.IsStrict ||
             (CallingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
 
-        if (isDirectEval)
-        {
-            Console.WriteLine($"[eval-debug-code-v2] raw='{code}' strictCaller={hasStrictCaller} containsPublic={code.Contains("public", StringComparison.Ordinal)}");
-        }
-        if (code.Contains("var public = 1", StringComparison.Ordinal))
-        {
-            Console.WriteLine(
-                $"[eval-debug] strictCaller={hasStrictCaller} envStrict={environment.IsStrict} ctxStrict={CallingContext?.IsStrictSource} scopeStrict={CallingContext?.CurrentScope.Mode} callEnvStrict={CallingJsEnvironment?.IsStrict}");
-        }
-
+        Console.WriteLine($"[eval-debug] isDirectEval={isDirectEval} hasStrictCaller={hasStrictCaller} code='{code}'");
         var hasStrictReservedToken = hasStrictCaller && ContainsStrictReservedBindingTokens(code);
-        Console.WriteLine($"[eval-debug-check] hasStrictCaller={hasStrictCaller} hasStrictReservedToken={hasStrictReservedToken}");
+        Console.WriteLine($"[eval-debug] hasStrictReservedToken={hasStrictReservedToken}");
         if (hasStrictReservedToken)
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -91,12 +82,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 CallingContext,
                 environment.RealmState);
         }
-        if (hasStrictCaller)
-        {
-            Console.WriteLine($"[eval-debug-reserved] hasStrictReservedToken={hasStrictReservedToken}");
-            System.IO.File.WriteAllText("/tmp/eval-ast.log",
-                $"strictReservedToken={hasStrictReservedToken}");
-        }
+        Console.WriteLine("[eval-debug] after reserved check");
 
         var forceStrict = hasStrictCaller;
 
@@ -111,12 +97,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var errorObject =
                 StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
             throw new ThrowSignal(errorObject);
-        }
-
-        if (code.Contains("public", StringComparison.Ordinal))
-        {
-            var stmtTypes = string.Join(",", program.Body.Select(s => s.GetType().Name));
-            System.IO.File.WriteAllText("/tmp/eval-ast.log", $"stmts={stmtTypes}; strict={program.IsStrict}");
         }
 
         // Scripts evaluated via eval may not contain module syntax (export/import).

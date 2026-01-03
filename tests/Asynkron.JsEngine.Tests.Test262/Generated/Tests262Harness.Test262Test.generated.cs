@@ -70,6 +70,10 @@ public abstract partial class Test262Test
         {
             testCase = testCase.AsStrict();
         }
+        if (test.Contains("strict-caller-global"))
+        {
+            Console.WriteLine($"[debug test262] strict-caller-global negative={testCase.Negative} strict={strict}");
+        }
 
         string lastError = null;
         try

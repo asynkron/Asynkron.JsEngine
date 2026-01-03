@@ -9,18 +9,9 @@ internal static class Program
         await using var engine = new JsEngine();
         try
         {
-            var source = "var public = 1;";
-            Console.WriteLine("Tokens:");
-            var lexer = new Asynkron.JsEngine.Parser.JsLexer(source);
-            var tokens = lexer.Tokenize();
-            foreach (var token in tokens)
-            {
-                Console.WriteLine($"{token.Type}: '{token.Lexeme}'");
-            }
-
-            var result = await engine.Evaluate($"""
+            var result = await engine.Evaluate("""
                 'use strict';
-                eval("{source}");
+                eval('var public = 1;');
                 """);
             Console.WriteLine($"Result: {result}");
         }

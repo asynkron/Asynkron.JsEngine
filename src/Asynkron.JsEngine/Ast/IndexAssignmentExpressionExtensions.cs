@@ -51,35 +51,7 @@ public static partial class TypedAstEvaluator
                     return JsValue.Undefined;
                 }
 
-                var binding = environment.ExpectSuperBinding(context);
-                environment.RealmState?.Logger?.LogInformation(
-                    "SuperBinding: assign super index protoNull={ProtoNull} thisInit={ThisInit}",
-                    binding.Prototype is null,
-                    binding.IsThisInitialized);
-                if (!binding.IsThisInitialized)
-                {
-                    throw environment.CreateSuperReferenceError(context, null);
-                }
-
-                if (binding.Prototype is null)
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        "Cannot assign to super property when prototype is null or undefined.",
-                        context,
-                        context.RealmState);
-                }
-
-                // Per ES spec 6.2.3.2 PutValue, if set fails in strict mode, throw TypeError
-                if (!binding.TrySetProperty(propertyName, superAssignedValueJs, out _) &&
-                    context.CurrentScope.IsStrict)
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot assign to read only property '{propertyName}' of object",
-                        context,
-                        context.RealmState);
-                }
-
-                return superAssignedValueJs;
+                return AssignToSuperBinding(environment, context, propertyName, superAssignedValueJs, "index");
             }
 
             var targetJs = expression.Target.EvaluateExpression(environment, context);

@@ -987,17 +987,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             descriptors[name] = newDescriptor;
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, newDescriptor);
-            if (_trackArrayLength)
-            {
-                if (string.Equals(name, "length", StringComparison.Ordinal))
-                {
-                    TrackLengthAssignment(newDescriptor.JsValue.ToObject());
-                }
-                else if (!newDescriptor.IsAccessorDescriptor)
-                {
-                    TrackArrayIndexWriteIfNeeded(name);
-                }
-            }
+            TrackArrayLengthChange(name, newDescriptor);
 
             return true;
         }
@@ -1019,17 +1009,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         AssignDescriptorStorage(name, currentDescriptor);
-        if (_trackArrayLength)
-        {
-            if (string.Equals(name, "length", StringComparison.Ordinal))
-            {
-                TrackLengthAssignment(currentDescriptor.JsValue.ToObject());
-            }
-            else if (!currentDescriptor.IsAccessorDescriptor)
-            {
-                TrackArrayIndexWriteIfNeeded(name);
-            }
-        }
+        TrackArrayLengthChange(name, currentDescriptor);
 
         return true;
     }
@@ -1085,17 +1065,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             descriptors[name] = descriptor;
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, descriptor);
-            if (_trackArrayLength)
-            {
-                if (string.Equals(name, "length", StringComparison.Ordinal))
-                {
-                    TrackLengthAssignment(descriptor.JsValue.ToObject());
-                }
-                else if (!descriptor.IsAccessorDescriptor)
-                {
-                    TrackArrayIndexWriteIfNeeded(name);
-                }
-            }
+            TrackArrayLengthChange(name, descriptor);
 
             return true;
         }
@@ -1117,19 +1087,23 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         AssignDescriptorStorage(name, currentDescriptor);
-        if (_trackArrayLength)
-        {
-            if (string.Equals(name, "length", StringComparison.Ordinal))
-            {
-                TrackLengthAssignment(currentDescriptor.JsValue.ToObject());
-            }
-            else if (!currentDescriptor.IsAccessorDescriptor)
-            {
-                TrackArrayIndexWriteIfNeeded(name);
-            }
-        }
+        TrackArrayLengthChange(name, currentDescriptor);
 
         return true;
+    }
+
+    private void TrackArrayLengthChange(string name, PropertyDescriptor descriptor)
+    {
+        if (!_trackArrayLength) return;
+
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            TrackLengthAssignment(descriptor.JsValue.ToObject());
+        }
+        else if (!descriptor.IsAccessorDescriptor)
+        {
+            TrackArrayIndexWriteIfNeeded(name);
+        }
     }
 
     private static PropertyDescriptor CreateDataDescriptorFromExistingValue(object? value)

@@ -498,19 +498,10 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                 break;
             }
 
-            if (builder is not null)
-            {
-                builder.Append(Advance());
-            }
-            else
-            {
-                Advance();
-            }
+            AdvanceAndAppend(builder);
         }
 
-        var text = builder is null
-            ? SliceText(_start, _current - _start)
-            : builder.ToString();
+        var text = GetBuiltText(builder);
         if (!containsEscape && Keywords.TryGetValue(text, out var keyword))
         {
             _tokens.Add(new Token(keyword, text, null, _startLine, _startColumn, _start, _current));
@@ -614,19 +605,10 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                 break;
             }
 
-            if (builder is not null)
-            {
-                builder.Append(Advance());
-            }
-            else
-            {
-                Advance();
-            }
+            AdvanceAndAppend(builder);
         }
 
-        var text = builder is null
-            ? SliceText(_start, _current - _start)
-            : builder.ToString();
+        var text = GetBuiltText(builder);
         _tokens.Add(new Token(TokenType.PrivateIdentifier, text, null, _startLine, _startColumn, _start, _current));
     }
 
@@ -1052,6 +1034,25 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         var c = source[_current++];
         _column++;
         return c;
+    }
+
+    private void AdvanceAndAppend(StringBuilder? builder)
+    {
+        if (builder is not null)
+        {
+            builder.Append(Advance());
+        }
+        else
+        {
+            Advance();
+        }
+    }
+
+    private string GetBuiltText(StringBuilder? builder)
+    {
+        return builder is null
+            ? SliceText(_start, _current - _start)
+            : builder.ToString();
     }
 
     private bool Match(char expected)

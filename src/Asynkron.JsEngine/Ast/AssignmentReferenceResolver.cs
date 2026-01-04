@@ -11,6 +11,67 @@ namespace Asynkron.JsEngine.Ast;
 internal static class AssignmentReferenceResolver
 {
     /// <summary>
+    /// Handles inherited property descriptor logic during property assignment.
+    /// Returns true if the property was handled (caller should return), false otherwise.
+    /// </summary>
+    private static bool TryHandleInheritedDescriptor(
+        PropertyDescriptor inheritedDescriptor,
+        string propertyName,
+        JsValue value,
+        JsValue receiverValue,
+        JsObject target,
+        bool isStrict,
+        EvaluationContext? context,
+        RealmState? realmState)
+    {
+        if (inheritedDescriptor.IsAccessorDescriptor)
+        {
+            if (inheritedDescriptor.Set is null)
+            {
+                if (isStrict)
+                {
+                    throw StandardLibrary.ThrowTypeError(
+                        $"Cannot set property '{propertyName}' that has only a getter.",
+                        context,
+                        realmState);
+                }
+
+                return true;
+            }
+
+            TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue, context);
+            return true;
+        }
+
+        if (!inheritedDescriptor.Writable)
+        {
+            if (isStrict)
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Cannot assign to read only property '{propertyName}'.",
+                    context,
+                    realmState);
+            }
+
+            return true;
+        }
+
+        target.DefineProperty(propertyName,
+            new PropertyDescriptor
+            {
+                JsValue = value,
+                Writable = true,
+                Enumerable = inheritedDescriptor.Enumerable,
+                Configurable = inheritedDescriptor.Configurable,
+                HasValue = true,
+                HasWritable = true,
+                HasEnumerable = inheritedDescriptor.HasEnumerable,
+                HasConfigurable = inheritedDescriptor.HasConfigurable
+            });
+        return true;
+    }
+
+    /// <summary>
     /// Fastest path - resolve a Symbol directly without any expression object allocation.
     /// Use this when you already have the Symbol (e.g., from AssignmentExpression.Target).
     /// </summary>
@@ -374,53 +435,10 @@ internal static class AssignmentReferenceResolver
             if (prototypeAccessor is JsObject protoObj)
             {
                 var inheritedDescriptor = protoObj.GetOwnPropertyDescriptor(propertyName);
-                if (inheritedDescriptor is not null)
+                if (inheritedDescriptor is not null &&
+                    TryHandleInheritedDescriptor(inheritedDescriptor, propertyName, value, receiverValue,
+                        target, isStrict, context, realmState))
                 {
-                    if (inheritedDescriptor.IsAccessorDescriptor)
-                    {
-                        if (inheritedDescriptor.Set is null)
-                        {
-                            if (isStrict)
-                            {
-                                throw StandardLibrary.ThrowTypeError(
-                                    $"Cannot set property '{propertyName}' that has only a getter.",
-                                    context,
-                                    realmState);
-                            }
-
-                            return;
-                        }
-
-                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue,
-                            context);
-                        return;
-                    }
-
-                    if (!inheritedDescriptor.Writable)
-                    {
-                        if (isStrict)
-                        {
-                            throw StandardLibrary.ThrowTypeError(
-                                $"Cannot assign to read only property '{propertyName}'.",
-                                context,
-                                realmState);
-                        }
-
-                        return;
-                    }
-
-                    target.DefineProperty(propertyName,
-                        new PropertyDescriptor
-                        {
-                            JsValue = value,
-                            Writable = true,
-                            Enumerable = inheritedDescriptor.Enumerable,
-                            Configurable = inheritedDescriptor.Configurable,
-                            HasValue = true,
-                            HasWritable = true,
-                            HasEnumerable = inheritedDescriptor.HasEnumerable,
-                            HasConfigurable = inheritedDescriptor.HasConfigurable
-                        });
                     return;
                 }
 
@@ -431,53 +449,10 @@ internal static class AssignmentReferenceResolver
             if (prototypeAccessor is IJsObjectLike objectLike)
             {
                 var inheritedDescriptor = objectLike.GetOwnPropertyDescriptor(propertyName);
-                if (inheritedDescriptor is not null)
+                if (inheritedDescriptor is not null &&
+                    TryHandleInheritedDescriptor(inheritedDescriptor, propertyName, value, receiverValue,
+                        target, isStrict, context, realmState))
                 {
-                    if (inheritedDescriptor.IsAccessorDescriptor)
-                    {
-                        if (inheritedDescriptor.Set is null)
-                        {
-                            if (isStrict)
-                            {
-                                throw StandardLibrary.ThrowTypeError(
-                                    $"Cannot set property '{propertyName}' that has only a getter.",
-                                    context,
-                                    realmState);
-                            }
-
-                            return;
-                        }
-
-                        TypedAstEvaluator.InvokeCallableJsValue(inheritedDescriptor.Set, [value], receiverValue,
-                            context);
-                        return;
-                    }
-
-                    if (!inheritedDescriptor.Writable)
-                    {
-                        if (isStrict)
-                        {
-                            throw StandardLibrary.ThrowTypeError(
-                                $"Cannot assign to read only property '{propertyName}'.",
-                                context,
-                                realmState);
-                        }
-
-                        return;
-                    }
-
-                    target.DefineProperty(propertyName,
-                        new PropertyDescriptor
-                        {
-                            JsValue = value,
-                            Writable = true,
-                            Enumerable = inheritedDescriptor.Enumerable,
-                            Configurable = inheritedDescriptor.Configurable,
-                            HasValue = true,
-                            HasWritable = true,
-                            HasEnumerable = inheritedDescriptor.HasEnumerable,
-                            HasConfigurable = inheritedDescriptor.HasConfigurable
-                        });
                     return;
                 }
             }

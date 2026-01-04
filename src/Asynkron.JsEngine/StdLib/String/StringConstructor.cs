@@ -274,20 +274,6 @@ public sealed partial class StringConstructor(IJsObjectLike prototype, RealmStat
         return str;
     }
 
-    private void ApplyPrototype(JsObject instance, IJsCallable target)
-    {
-        if (instance.Prototype is not null)
-        {
-            return;
-        }
-
-        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
-    }
-
     private static int ToUint16(double number)
     {
         if (double.IsNaN(number) || double.IsInfinity(number) || number == 0)

@@ -707,17 +707,6 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         return obj;
     }
 
-    private void ApplyPrototype(JsObject instance, IJsCallable target)
-    {
-        if (instance.Prototype is not null)
-        {
-            return;
-        }
-
-        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        instance.SetPrototype(proto);
-    }
-
     private void AttachPrototypeShortcut(HostFunction constructor)
     {
         if (Prototype.TryGetProperty("hasOwnProperty", out var hasOwn))

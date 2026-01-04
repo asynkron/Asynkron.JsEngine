@@ -93,20 +93,6 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
             new PropertyDescriptor { Value = message, Writable = true, Enumerable = false, Configurable = true });
     }
 
-    private void ApplyPrototype(JsObject instance, IJsCallable target)
-    {
-        if (instance.Prototype is not null)
-        {
-            return;
-        }
-
-        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
-    }
-
     private void LinkPrototypeChain()
     {
         if (string.Equals(ErrorType, "Error", StringComparison.Ordinal))

@@ -307,15 +307,4 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
         DefineConstantProperty(constructor, "NEGATIVE_INFINITY", double.NegativeInfinity);
         DefineConstantProperty(constructor, "NaN", double.NaN);
     }
-
-    private void ApplyPrototype(JsObject instance, IJsCallable target)
-    {
-        if (instance.Prototype is not null)
-        {
-            return;
-        }
-
-        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        instance.SetPrototype(proto);
-    }
 }

@@ -48,4 +48,21 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
     protected virtual void ConfigureConstructor(HostFunction constructor)
     {
     }
+
+    /// <summary>
+    /// Applies the prototype to the instance, resolving it from the target callable.
+    /// </summary>
+    protected void ApplyPrototype(JsObject instance, IJsCallable target)
+    {
+        if (instance.Prototype is not null)
+        {
+            return;
+        }
+
+        var proto = StdLib.ReflectHelper.ResolveConstructPrototype(target, target, Realm) ?? Prototype;
+        if (proto is not null)
+        {
+            instance.SetPrototype(proto);
+        }
+    }
 }

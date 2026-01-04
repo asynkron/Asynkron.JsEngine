@@ -70,15 +70,4 @@ public sealed partial class BooleanConstructor(IJsObjectLike prototype, RealmSta
         var value = JsOps.ToBoolean(args.GetArgument(0));
         wrapper.SetProperty("__value__", value);
     }
-
-    private void ApplyPrototype(JsObject instance, IJsCallable target)
-    {
-        if (instance.Prototype is not null)
-        {
-            return;
-        }
-
-        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        instance.SetPrototype(proto);
-    }
 }

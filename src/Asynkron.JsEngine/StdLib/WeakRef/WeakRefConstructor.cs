@@ -78,18 +78,4 @@ public sealed partial class WeakRefConstructor(IJsObjectLike prototype, RealmSta
         instance.SetProperty("_target", target);
         instance.RealmState ??= Realm;
     }
-
-    private void ApplyPrototype(JsObject instance, IJsCallable target)
-    {
-        if (instance.Prototype is not null)
-        {
-            return;
-        }
-
-        var proto = ResolveConstructPrototype(target, target, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
-    }
 }

@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 #endregion
 
@@ -122,7 +123,8 @@ internal static class NumericStringParser
         return BigInteger.TryParse(digits, styles, CultureInfo.InvariantCulture, out value);
     }
 
-    private static bool TryParseBinary(ReadOnlySpan<char> span, out BigInteger value)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool TryParseBinary(ReadOnlySpan<char> span, out BigInteger value)
     {
         value = BigInteger.Zero;
         if (span.Length <= 2 || span[0] != '0' || span[1] is not ('b' or 'B'))
@@ -154,7 +156,8 @@ internal static class NumericStringParser
         return true;
     }
 
-    private static bool TryParseOctal(ReadOnlySpan<char> span, out BigInteger value)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool TryParseOctal(ReadOnlySpan<char> span, out BigInteger value)
     {
         value = BigInteger.Zero;
         if (span.Length <= 2 || span[0] != '0' || span[1] is not ('o' or 'O'))

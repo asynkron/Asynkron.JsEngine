@@ -3317,22 +3317,6 @@ public static partial class TypedAstEvaluator
             return _context;
         }
 
-        private static bool ShouldResetScriptCompletion(StatementNode statement)
-        {
-            return statement switch
-            {
-                IfStatement => true,
-                SwitchStatement => true,
-                TryStatement => true,
-                ForStatement => true,
-                ForEachStatement => true,
-                WhileStatement => true,
-                DoWhileStatement => true,
-                LabeledStatement => true,
-                _ => false
-            };
-        }
-
         private void ApplyPrivateNameScopes()
         {
             if (_privateScopesApplied || _context is null)

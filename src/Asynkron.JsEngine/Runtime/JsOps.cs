@@ -1445,8 +1445,8 @@ internal static class JsOps
         }
 
         if (!TryParsePrefixedBigInt(span, 16, NumberStyles.AllowHexSpecifier, out var parsed) &&
-            !TryParseBinaryBigInt(span, out parsed) &&
-            !TryParseOctalBigInt(span, out parsed) &&
+            !NumericStringParser.TryParseBinary(span, out parsed) &&
+            !NumericStringParser.TryParseOctal(span, out parsed) &&
             !BigInteger.TryParse(span, NumberStyles.None, CultureInfo.InvariantCulture, out parsed))
         {
             return false;
@@ -1494,67 +1494,6 @@ internal static class JsOps
 
         var padded = $"0{digits.ToString()}";
         return BigInteger.TryParse(padded, styles, CultureInfo.InvariantCulture, out value);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryParseBinaryBigInt(ReadOnlySpan<char> span, out BigInteger value)
-    {
-        value = BigInteger.Zero;
-        if (span.Length <= 2 || span[0] != '0' || span[1] is not ('b' or 'B'))
-        {
-            return false;
-        }
-
-        var digits = span[2..];
-        if (digits.Length == 0)
-        {
-            return false;
-        }
-
-        foreach (var ch in digits)
-        {
-            value <<= 1;
-            switch (ch)
-            {
-                case '0':
-                    break;
-                case '1':
-                    value += BigInteger.One;
-                    break;
-                default:
-                    return false;
-            }
-        }
-
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool TryParseOctalBigInt(ReadOnlySpan<char> span, out BigInteger value)
-    {
-        value = BigInteger.Zero;
-        if (span.Length <= 2 || span[0] != '0' || span[1] is not ('o' or 'O'))
-        {
-            return false;
-        }
-
-        var digits = span[2..];
-        if (digits.Length == 0)
-        {
-            return false;
-        }
-
-        foreach (var ch in digits)
-        {
-            if (ch is < '0' or > '7')
-            {
-                return false;
-            }
-
-            value = (value << 3) + (ch - '0');
-        }
-
-        return true;
     }
 
     /// <summary>

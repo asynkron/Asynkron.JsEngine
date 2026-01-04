@@ -328,7 +328,10 @@ internal static class JsOps
         primitive = JsValue.Undefined;
         var attempted = false;
 
-        if (TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), SymbolKeys.ToPrimitive, out var toPrimitive, context))
+        // Cache accessor JsValue to avoid repeated FromObjectUnsafe calls
+        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+
+        if (TryGetPropertyValue(accessorJsValue, SymbolKeys.ToPrimitive, out var toPrimitive, context))
         {
             if (context?.IsThrow == true)
             {
@@ -342,7 +345,7 @@ internal static class JsOps
                     var result = TypedAstEvaluator.InvokeCallableJsValue(
                         toPrimFn,
                         [new JsValue("number")],
-                        JsValue.FromObjectUnsafe(accessor),
+                        accessorJsValue,
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)
@@ -458,7 +461,10 @@ internal static class JsOps
             hint = ToPrimitiveHint.String;
         }
 
-        if (TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), SymbolKeys.ToPrimitive, out var ownOrInheritedToPrimitive, context))
+        // Cache accessor JsValue to avoid repeated FromObjectUnsafe calls
+        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
+
+        if (TryGetPropertyValue(accessorJsValue, SymbolKeys.ToPrimitive, out var ownOrInheritedToPrimitive, context))
         {
             if (context?.IsThrow == true)
             {
@@ -485,7 +491,7 @@ internal static class JsOps
                     var result = TypedAstEvaluator.InvokeCallableJsValue(
                         toPrimFn,
                         [new JsValue(hintString)],
-                        JsValue.FromObjectUnsafe(accessor),
+                        accessorJsValue,
                         context,
                         accessor is JsObject obj ? obj.RealmState?.Engine?.GlobalEnvironment : null);
                     if (context?.IsThrow == true)

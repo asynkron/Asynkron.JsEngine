@@ -59,7 +59,7 @@ public sealed class AstVisitorDispatchTests
         public List<string> Identifiers { get; } = [];
         public int BlockVisits { get; private set; }
 
-        protected override void VisitIdentifier(IdentifierExpression node)
+        protected override void VisitIdentifierExpression(IdentifierExpression node)
         {
             Identifiers.Add(node.Name.Name);
         }

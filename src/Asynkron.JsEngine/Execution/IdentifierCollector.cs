@@ -398,7 +398,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
-    protected override void VisitIdentifier(IdentifierExpression node)
+    protected override void VisitIdentifierExpression(IdentifierExpression node)
     {
         // Compiler-generated identifiers (resume slots, iterator state, etc.) live in the root scope.
         if (node.Name.Name.StartsWith('\u0001'))
@@ -407,7 +407,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
-    protected override StatementNode? VisitFunctionDeclaration(FunctionDeclaration funcDecl)
+    protected override void VisitFunctionDeclaration(FunctionDeclaration funcDecl)
     {
         // Function declarations:
         // - If we're inside a nested block scope (stack has more than just root), allocate to block scope
@@ -418,7 +418,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
         var targetScope = _scopeStack.Count > 1 ? _scopeStack.Peek() : _rootScopeId;
         AllocateSlotInScope(targetScope, funcDecl.Name);
         // Do not traverse the nested function body here; nested functions are analyzed separately
-        return null;
     }
 
     protected override void VisitBlockStatement(BlockStatement block)

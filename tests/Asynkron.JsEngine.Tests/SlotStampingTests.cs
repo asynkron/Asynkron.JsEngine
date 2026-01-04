@@ -114,7 +114,7 @@ public sealed class SlotStampingTests(ITestOutputHelper output) : InternalTestBa
     {
         public List<IdentifierExpression> Matches { get; } = new();
 
-        protected override void VisitIdentifier(IdentifierExpression node)
+        protected override void VisitIdentifierExpression(IdentifierExpression node)
         {
             if (ReferenceEquals(node.Name, match))
             {

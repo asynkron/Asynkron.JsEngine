@@ -81,4 +81,23 @@ public abstract class JsPrototype
             Configurable = true
         });
     }
+
+    /// <summary>
+    /// Ensures the "disposed" accessor has proper function metadata.
+    /// </summary>
+    protected void EnsureDisposedAccessorMetadata()
+    {
+        if (Prototype.GetOwnPropertyDescriptor("disposed") is not { Get: { } getter })
+        {
+            return;
+        }
+
+        if (getter is not IJsObjectLike getterObj)
+        {
+            return;
+        }
+
+        EnsureFunctionMetadata(getterObj, "length", 0d);
+        EnsureFunctionMetadata(getterObj, "name", "get disposed");
+    }
 }

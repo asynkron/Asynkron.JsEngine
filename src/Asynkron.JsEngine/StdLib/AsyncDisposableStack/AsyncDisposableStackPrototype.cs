@@ -164,19 +164,4 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
         }
     }
 
-    private void EnsureDisposedAccessorMetadata()
-    {
-        if (Prototype.GetOwnPropertyDescriptor("disposed") is not { Get: { } getter })
-        {
-            return;
-        }
-
-        if (getter is not IJsObjectLike getterObj)
-        {
-            return;
-        }
-
-        EnsureFunctionMetadata(getterObj, "length", 0d);
-        EnsureFunctionMetadata(getterObj, "name", "get disposed");
-    }
 }

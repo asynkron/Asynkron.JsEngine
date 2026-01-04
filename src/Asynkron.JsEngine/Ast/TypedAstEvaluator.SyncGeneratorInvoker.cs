@@ -151,61 +151,13 @@ public static partial class TypedAstEvaluator
             JsEngine engine,
             RealmState realm)
         {
-            var evalContext = realm.CreateContext();
-            var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : (JsValue)string.Empty;
-            var parameterCount = Math.Max(argCount - 1, 0);
-
-            var parameters = new string[parameterCount];
-            for (var i = 0; i < parameterCount; i++)
-            {
-                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
-                parameters[i] = paramText;
-            }
-
-            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var paramList = string.Join(',', parameters);
-
-            // Build source as a generator function (note the *)
-            var functionSource = $"(function* anonymous({paramList}\n) {{\n{bodySource}\n}})";
-
-            // Per ES spec, Generator constructor parses with Script goal, which means
-            // import.meta is not allowed (it's only valid in Module goal).
-            var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
-
-            ProgramNode program;
-            try
-            {
-                program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
-            }
-            catch (ParseException parseException)
-            {
-                var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
-            }
-
-            var createdObj = engine.ExecuteProgram(
-                program,
-                engine.GlobalEnvironment,
-                CancellationToken.None);
-
-            var created = JsValue.FromObjectUnsafe(createdObj);
-
-            // The result should now be a SyncGeneratorInvoker
-            if (created.TryUnwrap(out IJsObjectLike? objectLike))
-            {
-                // Resolve the prototype from the newTarget
-                var proto = ReflectHelper.ResolveConstructPrototype(
-                    newTarget,
-                    realm.GeneratorFunctionConstructor!,
-                    realm);
-                if (proto is not null)
-                {
-                    objectLike.SetPrototype(proto);
-                }
-            }
-
-            return created;
+            return CreateDynamicGeneratorFunction(
+                args,
+                newTarget,
+                engine,
+                realm,
+                "function*",
+                realm.GeneratorFunctionConstructor!);
         }
     }
 }

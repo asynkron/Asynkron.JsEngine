@@ -176,55 +176,13 @@ public static partial class TypedAstEvaluator
             JsEngine engine,
             RealmState realm)
         {
-            var evalContext = realm.CreateContext();
-            var argCount = args.Count;
-            var bodyValue = argCount > 0 ? args[argCount - 1] : (JsValue)string.Empty;
-            var parameterCount = Math.Max(argCount - 1, 0);
-
-            var parameters = new string[parameterCount];
-            for (var i = 0; i < parameterCount; i++)
-            {
-                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
-                parameters[i] = paramText;
-            }
-
-            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
-            var paramList = string.Join(',', parameters);
-            var functionSource = $"(async function* anonymous({paramList}\n) {{\n{bodySource}\n}})";
-
-            var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
-
-            ProgramNode program;
-            try
-            {
-                program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
-            }
-            catch (ParseException parseException)
-            {
-                var message = parseException.Message ?? "SyntaxError";
-                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
-            }
-
-            var createdObj = engine.ExecuteProgram(
-                program,
-                engine.GlobalEnvironment,
-                CancellationToken.None);
-
-            var created = JsValue.FromObjectUnsafe(createdObj);
-
-            if (created.TryUnwrap(out IJsObjectLike? objectLike))
-            {
-                var proto = ReflectHelper.ResolveConstructPrototype(
-                    newTarget,
-                    realm.AsyncGeneratorFunctionConstructor!,
-                    realm);
-                if (proto is not null)
-                {
-                    objectLike.SetPrototype(proto);
-                }
-            }
-
-            return created;
+            return CreateDynamicGeneratorFunction(
+                args,
+                newTarget,
+                engine,
+                realm,
+                "async function*",
+                realm.AsyncGeneratorFunctionConstructor!);
         }
     }
 }

@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -459,6 +460,72 @@ public static partial class TypedAstEvaluator
             // At this point, all primitive types have been handled above;
             // remaining cases are objects, so use ObjectValue directly.
             return Convert.ToString(primitive.ObjectValue, CultureInfo.InvariantCulture) ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Common implementation for generator function constructor body (GeneratorFunction, AsyncGeneratorFunction).
+        /// Parses dynamic function source and returns the created function with proper prototype.
+        /// </summary>
+        /// <param name="args">Constructor arguments (parameters..., body).</param>
+        /// <param name="newTarget">The new.target for prototype resolution.</param>
+        /// <param name="engine">The JS engine instance.</param>
+        /// <param name="realm">The current realm.</param>
+        /// <param name="functionPrefix">The function declaration prefix (e.g., "function*" or "async function*").</param>
+        /// <param name="defaultConstructor">The default constructor for prototype resolution.</param>
+        protected static JsValue CreateDynamicGeneratorFunction(
+            IReadOnlyList<JsValue> args,
+            IJsCallable newTarget,
+            JsEngine engine,
+            RealmState realm,
+            string functionPrefix,
+            IJsCallable defaultConstructor)
+        {
+            var evalContext = realm.CreateContext();
+            var argCount = args.Count;
+            var bodyValue = argCount > 0 ? args[argCount - 1] : (JsValue)string.Empty;
+            var parameterCount = Math.Max(argCount - 1, 0);
+
+            var parameters = new string[parameterCount];
+            for (var i = 0; i < parameterCount; i++)
+            {
+                var paramText = ToFunctionArgumentString(args[i], evalContext, realm);
+                parameters[i] = paramText;
+            }
+
+            var bodySource = ToFunctionArgumentString(bodyValue, evalContext, realm);
+            var paramList = string.Join(',', parameters);
+            var functionSource = $"({functionPrefix} anonymous({paramList}\n) {{\n{bodySource}\n}})";
+
+            var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
+
+            ProgramNode program;
+            try
+            {
+                program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
+            }
+            catch (ParseException parseException)
+            {
+                var message = parseException.Message ?? "SyntaxError";
+                throw new ThrowSignal(StandardLibrary.CreateSyntaxError(message, evalContext, realm));
+            }
+
+            var createdObj = engine.ExecuteProgram(
+                program,
+                engine.GlobalEnvironment,
+                CancellationToken.None);
+
+            var created = JsValue.FromObjectUnsafe(createdObj);
+
+            if (created.TryUnwrap(out IJsObjectLike? objectLike))
+            {
+                var proto = ReflectHelper.ResolveConstructPrototype(newTarget, defaultConstructor, realm);
+                if (proto is not null)
+                {
+                    objectLike.SetPrototype(proto);
+                }
+            }
+
+            return created;
         }
 
         /// <summary>

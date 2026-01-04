@@ -85,12 +85,12 @@ public static partial class TypedAstEvaluator
                 catch (ThrowSignal signal)
                 {
                     // Early error during initialization - reject the promise
-                    InvokeWithOneArg(reject, signal.ThrownValue);
+                    AsyncInvokeWithOneArg(reject, signal.ThrownValue);
                 }
                 catch (Exception ex)
                 {
                     // Non-JS exception during initialization - wrap in error message
-                    InvokeWithOneArg(reject, (JsValue)ex.Message);
+                    AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
                 }
 
                 return JsValue.Undefined;
@@ -118,7 +118,7 @@ public static partial class TypedAstEvaluator
                 {
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                         // Async function completed - resolve with the return value
-                        InvokeWithOneArg(resolve, step.Value);
+                        AsyncInvokeWithOneArg(resolve, step.Value);
                         break;
 
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
@@ -129,7 +129,7 @@ public static partial class TypedAstEvaluator
 
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
                         // Async function threw - reject the promise
-                        InvokeWithOneArg(reject, step.Value);
+                        AsyncInvokeWithOneArg(reject, step.Value);
                         break;
 
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
@@ -141,12 +141,12 @@ public static partial class TypedAstEvaluator
             catch (ThrowSignal signal)
             {
                 // Uncaught exception - reject the promise
-                InvokeWithOneArg(reject, signal.ThrownValue);
+                AsyncInvokeWithOneArg(reject, signal.ThrownValue);
             }
             catch (Exception ex)
             {
                 // Non-JS exception - wrap in error message
-                InvokeWithOneArg(reject, (JsValue)ex.Message);
+                AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
             }
         }
 
@@ -155,66 +155,15 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
-            if (!step.PendingPromise.TryGetPropertyAccessor(out var pendingPromise))
-            {
-                InvokeWithOneArg(reject, (JsValue)"Awaited value is not a promise");
+            if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
                 return;
-            }
 
-            if (!pendingPromise.TryGetProperty("then", out var thenValue))
-            {
-                InvokeWithOneArg(reject, (JsValue)"Awaited value has no 'then' method");
-                return;
-            }
-
-            if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
-            {
-                InvokeWithOneArg(reject, (JsValue)"'then' is not callable");
-                return;
-            }
-
-            // Use pooled callbacks to avoid allocation on hot path
             var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
-
-            InvokeWithTwoArgs(
+            AsyncInvokeWithTwoArgs(
                 thenCallable,
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
                 step.PendingPromise);
-
-            // Don't drain microtasks here - let them drain naturally after synchronous
-            // code completes. This ensures proper async semantics where async functions
-            // suspend at await and synchronous code continues executing.
-            // The engine's DrainMicrotasks() call after ExecuteProgram handles this.
-        }
-
-        private static void InvokeWithOneArg(IJsCallable callable, JsValue arg0)
-        {
-            var args = JsValueCache.RentJsValueArray(1);
-            try
-            {
-                args[0] = arg0;
-                callable.Invoke(args, JsValue.Undefined);
-            }
-            finally
-            {
-                JsValueCache.ReturnJsValueArray(args);
-            }
-        }
-
-        private static void InvokeWithTwoArgs(IJsCallable callable, JsValue arg0, JsValue arg1, JsValue thisValue)
-        {
-            var args = JsValueCache.RentJsValueArray(2);
-            try
-            {
-                args[0] = arg0;
-                args[1] = arg1;
-                callable.Invoke(args, thisValue);
-            }
-            finally
-            {
-                JsValueCache.ReturnJsValueArray(args);
-            }
         }
 
         /// <summary>

@@ -157,12 +157,12 @@ public static partial class TypedAstEvaluator
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                 {
                     var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                    InvokeWithOneArg(resolve, (JsValue)iteratorResult);
+                    AsyncInvokeWithOneArg(resolve, (JsValue)iteratorResult);
                     break;
                 }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
                     // step.Value is already JsValue
-                    InvokeWithOneArg(reject, step.Value);
+                    AsyncInvokeWithOneArg(reject, step.Value);
                     break;
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
                     HandlePendingStep(step, resolve, reject);
@@ -175,29 +175,11 @@ public static partial class TypedAstEvaluator
             IJsCallable resolve,
             IJsCallable reject)
         {
-            if (!step.PendingPromise.TryGetPropertyAccessor(out var pendingPromise))
-            {
-                InvokeWithOneArg(reject, (JsValue)"Awaited value is not a promise");
+            if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
                 return;
-            }
 
-            if (!pendingPromise.TryGetProperty("then", out var thenValue))
-            {
-                InvokeWithOneArg(reject, (JsValue)"Awaited value has no 'then' method");
-                return;
-            }
-
-            // thenValue is already a JsValue from TryGetProperty
-            if (!thenValue.TryUnwrap(out IJsCallable? thenCallable))
-            {
-                InvokeWithOneArg(reject, (JsValue)"'then' is not callable");
-                return;
-            }
-
-            // Use pooled callbacks to avoid allocation on hot path
             var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
-
-            InvokeWithTwoArgs(
+            AsyncInvokeWithTwoArgs(
                 thenCallable,
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
@@ -214,35 +196,6 @@ public static partial class TypedAstEvaluator
             }
 
             return realmState.AsyncGeneratorPrototype ?? realmState.ObjectPrototype;
-        }
-
-        private static void InvokeWithOneArg(IJsCallable callable, JsValue arg0)
-        {
-            var args = JsValueCache.RentJsValueArray(1);
-            try
-            {
-                args[0] = arg0;
-                callable.Invoke(args, JsValue.Undefined);
-            }
-            finally
-            {
-                JsValueCache.ReturnJsValueArray(args);
-            }
-        }
-
-        private static void InvokeWithTwoArgs(IJsCallable callable, JsValue arg0, JsValue arg1, JsValue thisValue)
-        {
-            var args = JsValueCache.RentJsValueArray(2);
-            try
-            {
-                args[0] = arg0;
-                args[1] = arg1;
-                callable.Invoke(args, thisValue);
-            }
-            finally
-            {
-                JsValueCache.ReturnJsValueArray(args);
-            }
         }
 
         /// <summary>

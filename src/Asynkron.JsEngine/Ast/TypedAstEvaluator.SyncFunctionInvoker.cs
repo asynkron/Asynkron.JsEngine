@@ -18,10 +18,13 @@ public static partial class TypedAstEvaluator
 {
     public sealed class SyncFunctionInvoker : IJsEnvironmentAwareCallable, IJsObjectLike,
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
-        IExtensibilityControl, IPrototypeAccessorProvider
+        IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
     {
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
+
+        // Cached JsValue to avoid repeated struct creation
+        private readonly JsValue _cachedJsValue;
 
         private readonly bool _allowIdentifierCache;
         private readonly bool _argumentsObjectNeeded;
@@ -68,6 +71,9 @@ public static partial class TypedAstEvaluator
             bool hasFunctionNameEnvironment = false,
             bool isConstructorFunction = true)
         {
+            // Initialize cached JsValue first (before any code that might reference 'this')
+            _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
+
             if (function.IsGenerator)
             {
                 throw new NotSupportedException(
@@ -248,6 +254,9 @@ public static partial class TypedAstEvaluator
 
         public bool IsAsyncFunction { get; }
 
+        /// <inheritdoc />
+        public ref readonly JsValue AsJsValue => ref _cachedJsValue;
+
         internal bool IsClassConstructor { get; private set; }
 
         internal bool IsDerivedClassConstructor => IsClassConstructor && _isDerivedClassConstructor;
@@ -356,7 +365,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (_properties.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+            if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver,
                     out value))
             {
                 return true;
@@ -404,11 +413,12 @@ public static partial class TypedAstEvaluator
                     return true;
 
                 case "bind":
+                    var cachedThis = _cachedJsValue; // Capture to avoid closure over 'this'
                     value = (JsValue)new HostFunction((_, args) =>
                     {
                         var boundThis = args.GetArgument(0);
                         var boundArgs = args.SliceFrom(1);
-                        var targetIsConstructor = JsOps.IsConstructor(JsValue.FromObjectUnsafe(callable));
+                        var targetIsConstructor = JsOps.IsConstructor(cachedThis);
                         return (JsValue)HostFunction.CreateBoundFunction(callable, boundThis, boundArgs,
                             targetIsConstructor,
                             RealmState);
@@ -422,17 +432,17 @@ public static partial class TypedAstEvaluator
 
         public bool TryGetProperty(string name, out JsValue value)
         {
-            return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
+            return TryGetProperty(name, _cachedJsValue, out value);
         }
 
         public void SetProperty(string name, JsValue value)
         {
-            SetProperty(name, value, JsValue.FromObjectUnsafe(this));
+            SetProperty(name, value, _cachedJsValue);
         }
 
         public void SetProperty(string name, JsValue value, JsValue receiver)
         {
-            _properties.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
+            _properties.SetProperty(name, value, receiver.IsUndefined ? _cachedJsValue : receiver);
         }
 
         PropertyDescriptor? IJsPropertyAccessor.GetOwnPropertyDescriptor(string name)
@@ -1113,7 +1123,7 @@ public static partial class TypedAstEvaluator
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
-                    parameterEnvironment.DefineJsValue(functionName, JsValue.FromObjectUnsafe(this), true,
+                    parameterEnvironment.DefineJsValue(functionName, _cachedJsValue, true,
                         isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
@@ -1467,7 +1477,7 @@ public static partial class TypedAstEvaluator
             // (e.g., FooObj.prototype = anotherFunction). Per ES spec, if the prototype property
             // is not an object, we should use the intrinsic %Object.prototype% instead, but
             // this is handled at the call site.
-            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) &&
+            if (_properties.TryGetProperty("prototype", _cachedJsValue, out var value) &&
                 value.TryGetObject<IJsObjectLike>(out var objLike))
             {
                 prototype = objLike;
@@ -1496,7 +1506,7 @@ public static partial class TypedAstEvaluator
             // Always check the current prototype property value first, in case it was reassigned
             // (e.g., FooObj.prototype = protoObj). The _prototypeObject cache is only used
             // as a fallback when the property hasn't been explicitly set.
-            if (_properties.TryGetProperty("prototype", JsValue.FromObjectUnsafe(this), out var value) &&
+            if (_properties.TryGetProperty("prototype", _cachedJsValue, out var value) &&
                 value.TryGetObject<JsObject>(out var jsObj))
             {
                 _prototypeObject = jsObj;

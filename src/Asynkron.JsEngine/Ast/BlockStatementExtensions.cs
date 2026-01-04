@@ -57,36 +57,7 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
-            // which doesn't override previous statement completion values
-            var resultJs = JsValue.Unit;
-            foreach (var statement in block.Statements)
-            {
-                context.ThrowIfCancellationRequested();
-
-                var completionJs = statement.EvaluateStatementJsValue(environment, context);
-                var shouldStop = context.ShouldStopEvaluation;
-                var shouldCapture =
-                    !completionJs.IsUnit &&
-                    (!shouldStop ||
-                     context.IsReturn ||
-                     context.IsThrow ||
-                     context.IsYield ||
-                     context.IsBreak ||
-                     context.IsContinue);
-
-                if (shouldCapture)
-                {
-                    resultJs = completionJs;
-                }
-
-                if (shouldStop)
-                {
-                    break;
-                }
-            }
-
-            return resultJs;
+            return EvaluateStatementList(block.Statements, environment, context);
         }
 
         /// <summary>
@@ -132,10 +103,6 @@ public static partial class TypedAstEvaluator
             // bindings as uninitialized. Explicitly flagging the lexical slots here
             // preserves the TDZ semantics even when slots already exist.
             var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
-
-            // Start with Unit (empty completion) - per ES spec, empty blocks return empty completion
-            // which doesn't override previous statement completion values
-            var resultJs = JsValue.Unit;
 
             // Use unified Initialize method that properly sets slot names from the map
             // This ensures name-based lookups (TryLocateBinding) can find block-scoped variables
@@ -183,33 +150,7 @@ public static partial class TypedAstEvaluator
             // Block-scoped function declarations (strict mode behavior - no AnnexB hoisting)
             block.InstantiateLexicalBlockFunctions(scope, context);
 
-            foreach (var statement in block.Statements)
-            {
-                context.ThrowIfCancellationRequested();
-
-                var completionJs = statement.EvaluateStatementJsValue(scope, context);
-                var shouldStop = context.ShouldStopEvaluation;
-                var shouldCapture =
-                    !completionJs.IsUnit &&
-                    (!shouldStop ||
-                     context.IsReturn ||
-                     context.IsThrow ||
-                     context.IsYield ||
-                     context.IsBreak ||
-                     context.IsContinue);
-
-                if (shouldCapture)
-                {
-                    resultJs = completionJs;
-                }
-
-                if (shouldStop)
-                {
-                    break;
-                }
-            }
-
-            return resultJs;
+            return EvaluateStatementList(block.Statements, scope, context);
         }
 
         private void InstantiateLexicalBlockFunctions(
@@ -414,5 +355,40 @@ public static partial class TypedAstEvaluator
             block.CollectSimpleCatchNamesFromStatement(names);
             return names;
         }
+    }
+
+    private static JsValue EvaluateStatementList(
+        IReadOnlyList<StatementNode> statements,
+        JsEnvironment env,
+        EvaluationContext context)
+    {
+        var resultJs = JsValue.Unit;
+        foreach (var statement in statements)
+        {
+            context.ThrowIfCancellationRequested();
+
+            var completionJs = statement.EvaluateStatementJsValue(env, context);
+            var shouldStop = context.ShouldStopEvaluation;
+            var shouldCapture =
+                !completionJs.IsUnit &&
+                (!shouldStop ||
+                 context.IsReturn ||
+                 context.IsThrow ||
+                 context.IsYield ||
+                 context.IsBreak ||
+                 context.IsContinue);
+
+            if (shouldCapture)
+            {
+                resultJs = completionJs;
+            }
+
+            if (shouldStop)
+            {
+                break;
+            }
+        }
+
+        return resultJs;
     }
 }

@@ -91,11 +91,7 @@ public static partial class TypedAstEvaluator
                         Value = RealmState.AsyncGeneratorPrototype,
                         Writable = false,
                         Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = true
                     });
 
                 if (RealmState.AsyncGeneratorFunctionConstructor is null)
@@ -115,11 +111,7 @@ public static partial class TypedAstEvaluator
                         Value = RealmState.AsyncGeneratorFunctionConstructor,
                         Writable = false,
                         Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = true
                     });
 
                 RealmState.AsyncGeneratorFunctionPrototype = asyncGenFuncProto;
@@ -145,11 +137,7 @@ public static partial class TypedAstEvaluator
                     Value = this,
                     Writable = true,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
         }
 

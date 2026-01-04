@@ -75,11 +75,7 @@ public static partial class TypedAstEvaluator
                         Value = RealmState.GeneratorPrototype,
                         Writable = false,
                         Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = true
                     });
 
                 RealmState.GeneratorFunctionPrototype = genFuncProto;
@@ -97,11 +93,7 @@ public static partial class TypedAstEvaluator
                             Value = generatorFunctionConstructor,
                             Writable = false,
                             Enumerable = false,
-                            Configurable = true,
-                            HasValue = true,
-                            HasWritable = true,
-                            HasEnumerable = true,
-                            HasConfigurable = true
+                            Configurable = true
                         });
 
                     // GeneratorFunction.__proto__ === Function (inherit from Function)

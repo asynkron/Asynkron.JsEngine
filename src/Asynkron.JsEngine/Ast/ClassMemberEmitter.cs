@@ -40,11 +40,7 @@ internal static class ClassMemberEmitter
                 Value = callable,
                 Writable = member.IsPrivate ? false : true,
                 Enumerable = false,
-                Configurable = member.IsPrivate ? false : true,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = member.IsPrivate ? false : true
             };
 
             if (member.IsStatic)

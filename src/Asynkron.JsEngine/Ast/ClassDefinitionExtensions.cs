@@ -223,11 +223,7 @@ public static partial class TypedAstEvaluator
                         Value = prototype,
                         Writable = false,
                         Enumerable = false,
-                        Configurable = false,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = false
                     });
             }
 

@@ -1351,11 +1351,7 @@ public sealed partial class StringPrototype
                 Value = 0d,
                 Writable = false,
                 Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = false
             });
 
         Realm.StringPrototypeMethodsInitialized = true;

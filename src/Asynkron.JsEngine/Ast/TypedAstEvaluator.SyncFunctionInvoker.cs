@@ -209,11 +209,7 @@ public static partial class TypedAstEvaluator
                         Value = this,
                         Writable = true,
                         Enumerable = false,
-                        Configurable = true,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = true
                     });
                 _properties.DefinePropertyDirect("prototype",
                     new PropertyDescriptor
@@ -221,11 +217,7 @@ public static partial class TypedAstEvaluator
                         Value = functionPrototype,
                         Writable = true,
                         Enumerable = false,
-                        Configurable = false,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = false
                     });
             }
 
@@ -235,11 +227,7 @@ public static partial class TypedAstEvaluator
                     Value = (double)paramCount,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
 
             _properties.DefinePropertyDirect("name",
@@ -248,11 +236,7 @@ public static partial class TypedAstEvaluator
                     Value = functionNameValue,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
 
             // Initialize precomputed fast path eligibility
@@ -323,11 +307,7 @@ public static partial class TypedAstEvaluator
                     JsValue = new JsValue(name),
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
         }
 

@@ -96,11 +96,7 @@ public static partial class TypedAstEvaluator
                     JsValue = new JsValue(name),
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
         }
 
@@ -372,11 +368,7 @@ public static partial class TypedAstEvaluator
                         Value = generatorPrototype,
                         Writable = true,
                         Enumerable = false,
-                        Configurable = false,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = false
                     });
             }
 
@@ -387,11 +379,7 @@ public static partial class TypedAstEvaluator
                     Value = (double)paramCount,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
 
             var functionNameValue = _function.Name?.Name ?? string.Empty;
@@ -401,11 +389,7 @@ public static partial class TypedAstEvaluator
                     Value = functionNameValue,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
         }
 

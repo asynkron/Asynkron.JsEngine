@@ -21,11 +21,7 @@ public static class StringHelper
                 Value = (double)str.Length,
                 Writable = false,
                 Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = false
             });
         wrapper.SetVirtualPropertyProvider(new StringVirtualPropertyProvider(str));
         wrapper.RealmState ??= realm;
@@ -97,11 +93,7 @@ public static class StringHelper
                 Value = ch,
                 Writable = false,
                 Enumerable = true,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = false
             };
             return true;
         }

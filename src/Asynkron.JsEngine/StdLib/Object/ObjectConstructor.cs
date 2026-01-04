@@ -23,33 +23,38 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
 
     private HostFunction ConstructFallback =>
         _constructor ?? throw new InvalidOperationException("Object constructor not initialized");
-    // Static methods registered via code generation
 
-    [JsConstructorMethod("keys", Length = 1d)]
-    public static JsValue Keys(IReadOnlyList<JsValue> args, RealmState? realm)
+    /// <summary>
+    /// Common argument extraction for keys/values/entries methods.
+    /// Throws TypeError for null/undefined, returns null for non-object primitives.
+    /// </summary>
+    private static IJsPropertyAccessor? GetObjectForEnumeration(
+        IReadOnlyList<JsValue> args,
+        RealmState? realm,
+        out RealmState realmState)
     {
-        var realmState = RequireRealm(realm);
+        realmState = RequireRealm(realm);
         var arg = args.GetArgument(0);
 
-        // Per spec: Object.keys throws TypeError for null/undefined
         if (arg.IsNullOrUndefined)
         {
             throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
-        IJsPropertyAccessor? obj = null;
-        if (!arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
+        if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
         {
-            if (TryGetObject(arg, realmState, out var coerced))
-            {
-                obj = coerced;
-            }
-        }
-        else
-        {
-            obj = accessor;
+            return accessor;
         }
 
+        return TryGetObject(arg, realmState, out var coerced) ? coerced : null;
+    }
+
+    // Static methods registered via code generation
+
+    [JsConstructorMethod("keys", Length = 1d)]
+    public static JsValue Keys(IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        var obj = GetObjectForEnumeration(args, realm, out var realmState);
         if (obj is null)
         {
             return JsValue.FromJsArray(new JsArray(realmState));
@@ -71,28 +76,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     [JsConstructorMethod("values", Length = 1d)]
     public static JsValue Values(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        var realmState = RequireRealm(realm);
-        var arg = args.GetArgument(0);
-
-        // Per spec: Object.values throws TypeError for null/undefined
-        if (arg.IsNullOrUndefined)
-        {
-            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
-        }
-
-        IJsPropertyAccessor? obj = null;
-        if (!arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            if (TryGetObject(arg, realmState, out var coerced))
-            {
-                obj = coerced;
-            }
-        }
-        else
-        {
-            obj = accessor;
-        }
-
+        var obj = GetObjectForEnumeration(args, realm, out var realmState);
         if (obj is null)
         {
             return JsValue.FromJsArray(new JsArray(realmState));
@@ -114,28 +98,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
     [JsConstructorMethod("entries", Length = 1d)]
     public static JsValue Entries(IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        var realmState = RequireRealm(realm);
-        var arg = args.GetArgument(0);
-
-        // Per spec: Object.entries throws TypeError for null/undefined
-        if (arg.IsNullOrUndefined)
-        {
-            throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
-        }
-
-        IJsPropertyAccessor? obj = null;
-        if (!arg.TryGetObject<IJsPropertyAccessor>(out var accessor))
-        {
-            if (TryGetObject(arg, realmState, out var coerced))
-            {
-                obj = coerced;
-            }
-        }
-        else
-        {
-            obj = accessor;
-        }
-
+        var obj = GetObjectForEnumeration(args, realm, out var realmState);
         if (obj is null)
         {
             return JsValue.FromJsArray(new JsArray(realmState));

@@ -357,6 +357,103 @@ internal sealed class NonParameterCalleeDetector : AstVisitor
 }
 
 /// <summary>
+/// Visitor that checks if a function contains a var declaration with a specific name.
+/// Does not traverse into nested function bodies.
+/// </summary>
+internal sealed class VarDeclarationDetector : AstVisitor
+{
+    [ThreadStatic] private static VarDeclarationDetector? _instance;
+
+    private Symbol? _targetName;
+    public bool Found { get; private set; }
+
+    private void Reset(Symbol name)
+    {
+        Found = false;
+        ShouldStop = false;
+        _targetName = name;
+    }
+
+    public static bool ContainsVarDeclaration(BlockStatement block, Symbol name)
+    {
+        var detector = _instance ??= new VarDeclarationDetector();
+        detector.Reset(name);
+        detector.Visit(block);
+        return detector.Found;
+    }
+
+    protected override void VisitVariableDeclaration(VariableDeclaration node)
+    {
+        if (node.Kind == VariableKind.Var)
+        {
+            foreach (var declarator in node.Declarators)
+            {
+                if (BindingTargetContainsName(declarator.Target, _targetName!))
+                {
+                    Found = true;
+                    ShouldStop = true;
+                    return;
+                }
+            }
+        }
+
+        base.VisitVariableDeclaration(node);
+    }
+
+    protected override void VisitForEachStatement(ForEachStatement node)
+    {
+        if (node.DeclarationKind == VariableKind.Var &&
+            BindingTargetContainsName(node.Target, _targetName!))
+        {
+            Found = true;
+            ShouldStop = true;
+            return;
+        }
+
+        base.VisitForEachStatement(node);
+    }
+
+    private static bool BindingTargetContainsName(BindingTarget? target, Symbol name)
+    {
+        while (target is not null)
+        {
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    return Equals(id.Name, name);
+                case ArrayBinding array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (BindingTargetContainsName(element.Target, name))
+                        {
+                            return true;
+                        }
+                    }
+                    target = array.RestElement;
+                    continue;
+                case ObjectBinding obj:
+                    foreach (var property in obj.Properties)
+                    {
+                        if (BindingTargetContainsName(property.Target, name))
+                        {
+                            return true;
+                        }
+                    }
+                    target = obj.RestElement;
+                    continue;
+                default:
+                    return false;
+            }
+        }
+        return false;
+    }
+
+    // Don't traverse into nested functions
+    protected override void VisitFunctionExpression(FunctionExpression node) { }
+    protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
+}
+
+/// <summary>
 /// Visitor that collects var-declared names from a block.
 /// Does not traverse into nested function bodies (var declarations don't hoist out of functions).
 /// </summary>

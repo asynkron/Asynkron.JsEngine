@@ -328,8 +328,8 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         {
             // Use lightweight callback objects directly - no HostFunction wrapper needed
             // IJsCallable converts to JsValue via FromObjectUnsafe without allocation
-            var resolveCallback = new ChainResolveCallback(nextPromise);
-            var rejectCallback = new ChainRejectCallback(nextPromise);
+            var resolveCallback = new ChainCallback(nextPromise, isResolve: true);
+            var rejectCallback = new ChainCallback(nextPromise, isResolve: false);
             thenCallable.Invoke([JsValue.FromObjectUnsafe(resolveCallback), JsValue.FromObjectUnsafe(rejectCallback)],
                 result);
         }
@@ -383,25 +383,17 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     }
 
     /// <summary>
-    ///     Lightweight callback for promise chain resolution - avoids closure allocation.
+    ///     Lightweight callback for promise chain resolution/rejection - avoids closure allocation.
     /// </summary>
-    private sealed class ChainResolveCallback(JsPromise nextPromise) : IJsCallable
+    private sealed class ChainCallback(JsPromise nextPromise, bool isResolve) : IJsCallable
     {
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
-            nextPromise.Resolve(args.Count > 0 ? args[0] : JsValue.Undefined);
-            return JsValue.Undefined;
-        }
-    }
-
-    /// <summary>
-    ///     Lightweight callback for promise chain rejection - avoids closure allocation.
-    /// </summary>
-    private sealed class ChainRejectCallback(JsPromise nextPromise) : IJsCallable
-    {
-        public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
-        {
-            nextPromise.Reject(args.Count > 0 ? args[0] : JsValue.Undefined);
+            var value = args.Count > 0 ? args[0] : JsValue.Undefined;
+            if (isResolve)
+                nextPromise.Resolve(value);
+            else
+                nextPromise.Reject(value);
             return JsValue.Undefined;
         }
     }

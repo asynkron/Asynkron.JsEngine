@@ -63,7 +63,7 @@ internal static class BlockEmitter
         var instructionStart = ctx.InstructionCount;
 
         // Check if we can pool the environment (no closures or dynamic scope)
-        var allowPooling = !ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
+        var allowPooling = !DynamicScopeDetector.ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
 
         // Get scope info from the block (stamped by scope analysis)
         var scopeId = block.ScopeId >= 0 ? block.ScopeId : -1;

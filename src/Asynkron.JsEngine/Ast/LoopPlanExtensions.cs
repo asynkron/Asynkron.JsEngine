@@ -570,7 +570,7 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            if (plan.Condition is not null && ContainsDirectEval(plan.Condition))
+            if (plan.Condition is not null && DynamicScopeDetector.ContainsDirectEval(plan.Condition))
             {
                 return true;
             }
@@ -586,7 +586,7 @@ public static partial class TypedAstEvaluator
             }
 
             var synthetic = new BlockStatement(null, statements, false);
-            return ContainsWithOrDirectEval(synthetic);
+            return DynamicScopeDetector.ContainsWithOrDirectEval(synthetic);
         }
 
         /// <summary>

@@ -69,7 +69,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             // Check if we can safely pool the environment (no closures or dynamic scope that would capture it)
-            var canPoolEnvironment = !ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
+            var canPoolEnvironment = !DynamicScopeDetector.ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
             var logger = context.RealmState.Logger;
 
             var scope = canPoolEnvironment

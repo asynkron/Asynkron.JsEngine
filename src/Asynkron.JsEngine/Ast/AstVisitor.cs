@@ -94,6 +94,9 @@ public abstract class AstVisitor
             case FunctionDeclaration node:
                 VisitFunctionDeclaration(node);
                 break;
+            case ClassDeclaration node:
+                VisitClassDeclaration(node);
+                break;
             case EmptyStatement node:
                 VisitEmptyStatement(node);
                 break;
@@ -375,6 +378,49 @@ public abstract class AstVisitor
     protected virtual void VisitFunctionDeclaration(FunctionDeclaration node)
     {
         VisitFunctionExpression(node.Function);
+    }
+
+    protected virtual void VisitClassDeclaration(ClassDeclaration node)
+    {
+        // Visit the class definition - same as ClassExpression
+        if (node.Definition.Extends is not null)
+        {
+            VisitExpression(node.Definition.Extends);
+        }
+
+        if (ShouldStop) return;
+
+        VisitFunctionExpression(node.Definition.Constructor);
+
+        foreach (var member in node.Definition.Members)
+        {
+            if (ShouldStop) break;
+
+            if (member.IsComputed && member.ComputedName is not null)
+            {
+                VisitExpression(member.ComputedName);
+            }
+
+            if (!ShouldStop)
+            {
+                VisitFunctionExpression(member.Function);
+            }
+        }
+
+        foreach (var field in node.Definition.Fields)
+        {
+            if (ShouldStop) break;
+            if (field.Initializer is not null)
+            {
+                VisitExpression(field.Initializer);
+            }
+        }
+
+        foreach (var staticBlock in node.Definition.StaticBlocks)
+        {
+            if (ShouldStop) break;
+            VisitBlockStatement(staticBlock.Body);
+        }
     }
 
     protected virtual void VisitEmptyStatement(EmptyStatement node)

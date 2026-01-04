@@ -504,107 +504,43 @@ public sealed partial class TypedArrayPrototype
 
     private JsValue FindImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.find");
-
-        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
-        {
-            throw ThrowTypeError("TypedArray.prototype.find expects a callable callback", realm: Realm);
-        }
-
-        var thisArg = args.GetArgument(1);
-        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
-        {
-            envAware.CallingJsEnvironment = globalEnv;
-        }
-
-        var length = typedArray.Length;
-        for (var k = 0; k < length; k++)
-        {
-            var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
-                ? candidate
-                : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
-            if (IsTruthy(match))
-            {
-                return value;
-            }
-        }
-
-        return JsValue.Undefined;
+        var result = FindCore(thisValue, args, "TypedArray.prototype.find", reverse: false);
+        return result?.Value ?? JsValue.Undefined;
     }
 
     private JsValue FindIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findIndex");
-
-        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
-        {
-            throw ThrowTypeError("TypedArray.prototype.findIndex expects a callable callback", realm: Realm);
-        }
-
-        var thisArg = args.GetArgument(1);
-        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
-        {
-            envAware.CallingJsEnvironment = globalEnv;
-        }
-
-        var length = typedArray.Length;
-        for (var k = 0; k < length; k++)
-        {
-            var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
-                ? candidate
-                : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
-            if (IsTruthy(match))
-            {
-                return (double)k;
-            }
-        }
-
-        return -1d;
+        var result = FindCore(thisValue, args, "TypedArray.prototype.findIndex", reverse: false);
+        return result is { } r ? (double)r.Value.Index : -1d;
     }
 
     private JsValue FindLastImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findLast");
-
-        if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
-        {
-            throw ThrowTypeError("TypedArray.prototype.findLast expects a callable callback", realm: Realm);
-        }
-
-        var thisArg = args.GetArgument(1);
-        if (callback is IJsEnvironmentAwareCallable envAware && Realm.Engine?.GlobalEnvironment is { } globalEnv)
-        {
-            envAware.CallingJsEnvironment = globalEnv;
-        }
-
-        var length = typedArray.Length;
-        for (var k = length - 1; k >= 0; k--)
-        {
-            var key = k.ToString(CultureInfo.InvariantCulture);
-            var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
-                ? candidate
-                : JsValue.Undefined;
-            var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
-            if (IsTruthy(match))
-            {
-                return value;
-            }
-        }
-
-        return JsValue.Undefined;
+        var result = FindCore(thisValue, args, "TypedArray.prototype.findLast", reverse: true);
+        return result?.Value ?? JsValue.Undefined;
     }
 
     private JsValue FindLastIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var typedArray = ValidateReceiver(thisValue, "TypedArray.prototype.findLastIndex");
+        var result = FindCore(thisValue, args, "TypedArray.prototype.findLastIndex", reverse: true);
+        return result is { } r ? (double)r.Value.Index : -1d;
+    }
+
+    /// <summary>
+    /// Core find implementation that returns both index and value.
+    /// Used by find, findIndex, findLast, and findLastIndex.
+    /// </summary>
+    private (int Index, JsValue Value)? FindCore(
+        JsValue thisValue,
+        IReadOnlyList<JsValue> args,
+        string methodName,
+        bool reverse)
+    {
+        var typedArray = ValidateReceiver(thisValue, methodName);
 
         if (args.Count == 0 || !args[0].TryGetObject<IJsCallable>(out var callback))
         {
-            throw ThrowTypeError("TypedArray.prototype.findLastIndex expects a callable callback", realm: Realm);
+            throw ThrowTypeError($"{methodName} expects a callable callback", realm: Realm);
         }
 
         var thisArg = args.GetArgument(1);
@@ -614,7 +550,11 @@ public sealed partial class TypedArrayPrototype
         }
 
         var length = typedArray.Length;
-        for (var k = length - 1; k >= 0; k--)
+        var start = reverse ? length - 1 : 0;
+        var end = reverse ? -1 : length;
+        var step = reverse ? -1 : 1;
+
+        for (var k = start; k != end; k += step)
         {
             var key = k.ToString(CultureInfo.InvariantCulture);
             var value = typedArray.TryGetProperty(key, (JsValue)typedArray, out var candidate)
@@ -623,11 +563,11 @@ public sealed partial class TypedArrayPrototype
             var match = callback.Invoke([value, JsValue.FromNumber((double)k), (JsValue)typedArray], thisArg);
             if (IsTruthy(match))
             {
-                return (double)k;
+                return (k, value);
             }
         }
 
-        return -1d;
+        return null;
     }
 
     private JsValue ForEachImpl(JsValue thisValue, IReadOnlyList<JsValue> args)

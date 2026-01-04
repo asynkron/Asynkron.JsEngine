@@ -100,50 +100,15 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("find", Length = 1d)]
     public JsValue Find(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.find");
-        // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
-        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
-
-        for (long k = 0; k < length; k++)
-        {
-            var key = ToIndexString(k);
-            // candidate is already a JsValue from TryGetProperty
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
-
-            var match = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
-            if (match.IsTruthy)
-            {
-                return value;
-            }
-        }
-
-        return JsValue.Undefined;
+        var result = FindCore(thisValue, args, "Array.prototype.find", reverse: false);
+        return result?.Value ?? JsValue.Undefined;
     }
 
     [JsHostMethod("findIndex", Length = 1d)]
     public JsValue FindIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findIndex");
-        // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
-        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
-
-        for (long k = 0; k < length; k++)
-        {
-            var key = ToIndexString(k);
-            // candidate is already a JsValue from TryGetProperty
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
-
-            var match = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
-
-            if (match.IsTruthy)
-            {
-                return new JsValue((double)k);
-            }
-        }
-
-        return new JsValue(-1d);
+        var result = FindCore(thisValue, args, "Array.prototype.findIndex", reverse: false);
+        return result is { } r ? new JsValue((double)r.Index) : new JsValue(-1d);
     }
 
     [JsHostMethod("some", Length = 1d)]
@@ -180,48 +145,49 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("findLast", Length = 1d)]
     public JsValue FindLast(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findLast");
-        // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
-        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
-
-        for (var k = length - 1; k >= 0; k--)
-        {
-            var key = ToIndexString(k);
-            // candidate is already a JsValue from TryGetProperty
-            var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
-
-            var matches = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
-            if (matches.IsTruthy)
-            {
-                return value;
-            }
-        }
-
-        return JsValue.Undefined;
+        var result = FindCore(thisValue, args, "Array.prototype.findLast", reverse: true);
+        return result?.Value ?? JsValue.Undefined;
     }
 
     [JsHostMethod("findLastIndex", Length = 1d)]
     public JsValue FindLastIndex(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        var result = FindCore(thisValue, args, "Array.prototype.findLastIndex", reverse: true);
+        return result is { } r ? new JsValue((double)r.Index) : new JsValue(-1d);
+    }
+
+    /// <summary>
+    /// Core find implementation that returns both index and value.
+    /// Used by find, findIndex, findLast, and findLastIndex.
+    /// </summary>
+    private (long Index, JsValue Value)? FindCore(
+        JsValue thisValue,
+        IReadOnlyList<JsValue> args,
+        string methodName,
+        bool reverse)
+    {
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.findLastIndex");
+            PrepareArrayIteration(thisValue, args, Realm, methodName);
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
 
-        for (var k = length - 1; k >= 0; k--)
+        var start = reverse ? length - 1 : 0L;
+        var end = reverse ? -1L : length;
+        var step = reverse ? -1L : 1L;
+
+        for (var k = start; k != end; k += step)
         {
             var key = ToIndexString(k);
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var matches = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
-            if (matches.IsTruthy)
+            var match = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            if (match.IsTruthy)
             {
-                return new JsValue((double)k);
+                return (k, value);
             }
         }
 
-        return new JsValue(-1d);
+        return null;
     }
 }

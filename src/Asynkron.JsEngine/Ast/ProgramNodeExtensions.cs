@@ -26,7 +26,7 @@ public static partial class TypedAstEvaluator
                 } decl:
                     foreach (var declarator in decl.Declarators)
                     {
-                        CollectBindingNames(declarator.Target, names);
+                        declarator.Target.CollectSymbolsFromBinding(names);
                     }
 
                     break;
@@ -37,50 +37,6 @@ public static partial class TypedAstEvaluator
         }
 
         return names;
-    }
-
-    private static void CollectBindingNames(BindingTarget target, HashSet<Symbol> names)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding identifier:
-                    names.Add(identifier.Name);
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is not null)
-                        {
-                            CollectBindingNames(element.Target, names);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        target = arrayBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        CollectBindingNames(property.Target, names);
-                    }
-
-                    if (objectBinding.RestElement is not null)
-                    {
-                        target = objectBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-            }
-
-            break;
-        }
     }
 
     /// <summary>
@@ -121,7 +77,7 @@ public static partial class TypedAstEvaluator
                 case VariableDeclaration { Kind: VariableKind.Var } varDeclaration:
                     foreach (var declarator in varDeclaration.Declarators)
                     {
-                        CollectBindingNames(declarator.Target, names);
+                        declarator.Target.CollectSymbolsFromBinding(names);
                     }
 
                     break;
@@ -157,14 +113,14 @@ public static partial class TypedAstEvaluator
                     {
                         foreach (var declarator in initVar.Declarators)
                         {
-                            CollectBindingNames(declarator.Target, names);
+                            declarator.Target.CollectSymbolsFromBinding(names);
                         }
                     }
 
                     statement = forStatement.Body;
                     continue;
                 case ForEachStatement { DeclarationKind: VariableKind.Var } forEachStatement:
-                    CollectBindingNames(forEachStatement.Target, names);
+                    forEachStatement.Target.CollectSymbolsFromBinding(names);
                     statement = forEachStatement.Body;
                     continue;
                 case ForEachStatement forEachStatement:

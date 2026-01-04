@@ -661,7 +661,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case VariableDeclaration { Kind: VariableKind.Var } varDecl:
                     foreach (var declarator in varDecl.Declarators)
                     {
-                        CollectBindingNames(declarator.Target, names);
+                        declarator.Target.CollectSymbolsFromBinding(names);
                     }
 
                     break;
@@ -681,7 +681,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     foreach (var declarator in initDecl.Declarators)
                     {
-                        CollectBindingNames(declarator.Target, names);
+                        declarator.Target.CollectSymbolsFromBinding(names);
                     }
 
                     if (forStatement.Body is not null)
@@ -693,7 +693,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     break;
                 }
                 case ForEachStatement { DeclarationKind: VariableKind.Var } forEach:
-                    CollectBindingNames(forEach.Target, names);
+                    forEach.Target.CollectSymbolsFromBinding(names);
                     statement = forEach.Body;
                     continue;
                 case SwitchStatement switchStatement:
@@ -720,50 +720,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case LabeledStatement labeledStatement:
                     statement = labeledStatement.Statement;
                     continue;
-            }
-
-            break;
-        }
-    }
-
-    private static void CollectBindingNames(BindingTarget target, HashSet<Symbol> names)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding identifier:
-                    names.Add(identifier.Name);
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is not null)
-                        {
-                            CollectBindingNames(element.Target, names);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        target = arrayBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        CollectBindingNames(property.Target, names);
-                    }
-
-                    if (objectBinding.RestElement is not null)
-                    {
-                        target = objectBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
             }
 
             break;
@@ -994,7 +950,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 } decl:
                     foreach (var declarator in decl.Declarators)
                     {
-                        CollectBindingNames(declarator.Target, names);
+                        declarator.Target.CollectSymbolsFromBinding(names);
                     }
 
                     break;
@@ -1031,7 +987,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         foreach (var declarator in initDecl.Declarators)
                         {
-                            CollectBindingNames(declarator.Target, names);
+                            declarator.Target.CollectSymbolsFromBinding(names);
                         }
                     }
 
@@ -1046,7 +1002,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
                         or VariableKind.Using or VariableKind.AwaitUsing)
                     {
-                        CollectBindingNames(forEachStatement.Target, names);
+                        forEachStatement.Target.CollectSymbolsFromBinding(names);
                     }
 
                     statement = forEachStatement.Body;
@@ -1064,7 +1020,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         if (catchClause.Binding is not null)
                         {
-                            CollectBindingNames(catchClause.Binding, names);
+                            catchClause.Binding.CollectSymbolsFromBinding(names);
                         }
 
                         CollectLexicallyDeclaredNamesFromStatement(catchClause.Body, names);

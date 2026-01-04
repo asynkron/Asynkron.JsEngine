@@ -100,7 +100,11 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void CollectSymbolsFromBinding(HashSet<Symbol> names)
+        /// <summary>
+        /// Collects all symbol names from a binding target (identifier or destructuring pattern).
+        /// Works with any collection type (List, HashSet, etc.) via ICollection interface.
+        /// </summary>
+        public void CollectSymbolsFromBinding(ICollection<Symbol> names)
         {
             // Fast path for simple identifier binding
             if (target is IdentifierBinding id)

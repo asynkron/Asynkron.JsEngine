@@ -65,7 +65,7 @@ internal static class LoopNormalizer
                 var bindingNames = new List<Symbol>();
                 foreach (var declarator in decl.Declarators)
                 {
-                    CollectBindingNames(declarator.Target, bindingNames);
+                    declarator.Target.CollectSymbolsFromBinding(bindingNames);
                 }
 
                 perIterationBindings = [..bindingNames];
@@ -98,50 +98,6 @@ internal static class LoopNormalizer
             statement.PerIterationSlotIndices);
         failureReason = null;
         return true;
-    }
-
-    private static void CollectBindingNames(BindingTarget target, List<Symbol> names)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding id:
-                    names.Add(id.Name);
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is not null)
-                        {
-                            CollectBindingNames(element.Target, names);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        target = arrayBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        CollectBindingNames(property.Target, names);
-                    }
-
-                    if (objectBinding.RestElement is not null)
-                    {
-                        target = objectBinding.RestElement;
-                        continue;
-                    }
-
-                    break;
-            }
-
-            break;
-        }
     }
 
     private static LoopPlan CreateSimplePlan(

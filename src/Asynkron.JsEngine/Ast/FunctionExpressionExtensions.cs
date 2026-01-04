@@ -319,59 +319,9 @@ public static partial class TypedAstEvaluator
                     names.Add(parameter.Name);
                 }
 
-                if (parameter.Pattern is not null)
-                {
-                    CollectBindingNames(parameter.Pattern, names);
-                }
-            }
-
-            static void CollectBindingNames(BindingTarget target, List<Symbol> names)
-            {
-                while (true)
-                {
-                    switch (target)
-                    {
-                        case IdentifierBinding identifier:
-                            names.Add(identifier.Name);
-                            break;
-                        case ArrayBinding arrayBinding:
-                            foreach (var element in arrayBinding.Elements)
-                            {
-                                if (element.Target is not null)
-                                {
-                                    CollectBindingNames(element.Target, names);
-                                }
-                            }
-
-                            if (arrayBinding.RestElement is not null)
-                            {
-                                target = arrayBinding.RestElement;
-                                continue;
-                            }
-
-                            break;
-                        case ObjectBinding objectBinding:
-                            foreach (var property in objectBinding.Properties)
-                            {
-                                CollectBindingNames(property.Target, names);
-                            }
-
-                            if (objectBinding.RestElement is not null)
-                            {
-                                target = objectBinding.RestElement;
-                                continue;
-                            }
-
-                            break;
-                        case AssignmentTargetBinding:
-                            // Assignment targets do not declare new bindings in parameter lists.
-                            break;
-                        default:
-                            throw new NotSupportedException($"Unsupported binding target '{target.GetType().Name}'.");
-                    }
-
-                    break;
-                }
+                // Note: AssignmentTargetBinding is silently skipped by CollectSymbolsFromBinding
+                // (it doesn't declare new bindings in parameter lists)
+                parameter.Pattern?.CollectSymbolsFromBinding(names);
             }
         }
 

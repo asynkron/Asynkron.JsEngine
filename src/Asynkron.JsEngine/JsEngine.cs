@@ -4816,7 +4816,7 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     try
                     {
-                        var result = resolveCallable.Invoke([value], promiseCtorValue);
+                        var result = resolveCallable.Invoke(new SingleValueArgs(value), promiseCtorValue);
                         if (result.TryGetObject<JsObject>(out var resolvedPromise))
                         {
                             return resolvedPromise;

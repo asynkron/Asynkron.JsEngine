@@ -292,7 +292,7 @@ public static partial class TypedAstEvaluator
             {
                 try
                 {
-                    errorValue = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
+                    errorValue = callable.Invoke(new SingleValueArgs(new JsValue(ex.Message)), JsValue.Undefined);
                 }
                 catch (ThrowSignal signal)
                 {

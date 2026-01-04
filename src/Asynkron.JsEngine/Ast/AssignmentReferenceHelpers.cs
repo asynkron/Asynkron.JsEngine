@@ -142,7 +142,7 @@ public static partial class TypedAstEvaluator
                         return;
                     }
 
-                    descriptor.Set.Invoke([value], target);
+                    descriptor.Set.Invoke(new SingleValueArgs(value), target);
                     return;
                 }
 

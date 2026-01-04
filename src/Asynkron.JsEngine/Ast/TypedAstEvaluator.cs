@@ -390,7 +390,7 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(accessor));
+            return rejectCallable.Invoke(new SingleValueArgs(reason), JsValue.FromObjectUnsafe(accessor));
         }
         catch (ThrowSignal signal)
         {
@@ -415,7 +415,7 @@ public static partial class TypedAstEvaluator
 
         try
         {
-            return resolveCallable.Invoke([value], JsValue.FromObjectUnsafe(accessor));
+            return resolveCallable.Invoke(new SingleValueArgs(value), JsValue.FromObjectUnsafe(accessor));
         }
         catch (ThrowSignal signal)
         {
@@ -830,7 +830,7 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    var result = callable.Invoke([left], right);
+                    var result = callable.Invoke(new SingleValueArgs(left), right);
                     return result.IsTruthy;
                 }
                 catch (ThrowSignal signal)

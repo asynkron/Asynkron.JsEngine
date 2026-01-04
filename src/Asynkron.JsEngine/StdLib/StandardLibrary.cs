@@ -26,7 +26,7 @@ public static partial class StandardLibrary
             return CreateErrorFallback("TypeError", message, realm);
         }
 
-        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         if (result.IsUndefined)
         {
             return CreateErrorFallback("TypeError", message, realm);
@@ -43,7 +43,7 @@ public static partial class StandardLibrary
             return CreateErrorFallback("RangeError", message, realm);
         }
 
-        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         return result.IsUndefined ? CreateErrorFallback("RangeError", message, realm) : result;
     }
 
@@ -56,7 +56,7 @@ public static partial class StandardLibrary
             return CreateErrorFallback("ReferenceError", message, realm);
         }
 
-        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         if (result.IsUndefined || result.IsNull)
         {
             return CreateErrorFallback("ReferenceError", message, realm);
@@ -127,7 +127,7 @@ public static partial class StandardLibrary
             return CreateErrorFallback("URIError", message, realm);
         }
 
-        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         return result.IsUndefined ? CreateErrorFallback("URIError", message, realm) : result;
     }
 
@@ -174,7 +174,7 @@ public static partial class StandardLibrary
             return CreateErrorFallback("SyntaxError", message, realm);
         }
 
-        var result = callable.Invoke([new JsValue(message)], JsValue.Null);
+        var result = callable.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Null);
         return result.IsUndefined ? CreateErrorFallback("SyntaxError", message, realm) : result;
     }
 
@@ -440,7 +440,7 @@ public static partial class StandardLibrary
             return false;
         }
 
-        formatted = formatFn.Invoke([numericValue], formatter);
+        formatted = formatFn.Invoke(new SingleValueArgs(numericValue), formatter);
         return true;
     }
 

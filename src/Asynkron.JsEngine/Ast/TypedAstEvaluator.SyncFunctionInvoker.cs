@@ -1386,7 +1386,7 @@ public static partial class TypedAstEvaluator
                 accessor.TryGetProperty("reject", out var rejectValue) &&
                 rejectValue.TryGetObject<IJsCallable>(out var rejectCallable))
             {
-                return rejectCallable.Invoke([reason], JsValue.FromObjectUnsafe(promiseCtor));
+                return rejectCallable.Invoke(new SingleValueArgs(reason), JsValue.FromObjectUnsafe(promiseCtor));
             }
 
             // Fallback if Promise.reject isn't available - return the reason directly

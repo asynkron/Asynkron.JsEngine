@@ -101,7 +101,7 @@ public static partial class TypedAstEvaluator
                 return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined);
+            return promiseCtor.Invoke(new SingleValueArgs((JsValue)executor), JsValue.Undefined);
         }
 
         private void DriveToCompletion(

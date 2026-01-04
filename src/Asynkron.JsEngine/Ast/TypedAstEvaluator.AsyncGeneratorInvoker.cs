@@ -114,12 +114,12 @@ public static partial class TypedAstEvaluator
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        resolve.Invoke([(JsValue)iteratorResult], JsValue.Undefined);
+                        resolve.Invoke(new SingleValueArgs((JsValue)iteratorResult), JsValue.Undefined);
                         break;
                     }
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
                         // step.Value is already JsValue
-                        reject.Invoke([step.Value], JsValue.Undefined);
+                        reject.Invoke(new SingleValueArgs(step.Value), JsValue.Undefined);
                         break;
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
                         HandlePendingStep(step, resolve, reject);
@@ -134,7 +134,7 @@ public static partial class TypedAstEvaluator
                 return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke([(JsValue)executor], JsValue.Undefined);
+            return promiseCtor.Invoke(new SingleValueArgs((JsValue)executor), JsValue.Undefined);
         }
 
         private static JsObject CreateAsyncIteratorResult(JsValue value, bool done)

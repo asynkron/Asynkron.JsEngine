@@ -42,7 +42,7 @@ public static partial class TypedAstEvaluator
                     accessor.TryGetProperty("resolve", out var resolveValue) &&
                     resolveValue.TryGetObject<IJsCallable>(out var resolveCallable))
                 {
-                    var resolveResult = resolveCallable.Invoke([awaitedValue], JsValue.FromObjectUnsafe(promiseCtor));
+                    var resolveResult = resolveCallable.Invoke(new SingleValueArgs(awaitedValue), JsValue.FromObjectUnsafe(promiseCtor));
                     if (resolveResult.IsObject)
                     {
                         wrappedPromise = resolveResult.AsObject();

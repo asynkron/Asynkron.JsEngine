@@ -574,16 +574,9 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
                 continue;
             }
 
-            var element = target switch
+            if (TryFindElementIndex(target, i, searchElement, out var indexResult))
             {
-                JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
-                JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
-                _ => new JsValue(target.GetElement(i))
-            };
-
-            if (JsOps.StrictEquals(element, searchElement))
-            {
-                return new JsValue((double)i);
+                return indexResult;
             }
         }
 
@@ -707,20 +700,36 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
                 continue;
             }
 
-            var element = target switch
+            if (TryFindElementIndex(target, i, searchElement, out var indexResult))
             {
-                JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(i)),
-                JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(i)),
-                _ => new JsValue(target.GetElement(i))
-            };
-
-            if (JsOps.StrictEquals(element, searchElement))
-            {
-                return new JsValue((double)i);
+                return indexResult;
             }
         }
 
         return new JsValue(-1d);
+    }
+
+    /// <summary>
+    /// Compares an element at the given index with the search element using strict equality.
+    /// Returns true if found, with the index as a JsValue in indexResult.
+    /// </summary>
+    private static bool TryFindElementIndex(TypedArrayBase target, int index, JsValue searchElement, out JsValue indexResult)
+    {
+        var element = target switch
+        {
+            JsBigInt64Array bi64 => new JsValue(bi64.GetBigIntElement(index)),
+            JsBigUint64Array bu64 => new JsValue(bu64.GetBigIntElement(index)),
+            _ => new JsValue(target.GetElement(index))
+        };
+
+        if (JsOps.StrictEquals(element, searchElement))
+        {
+            indexResult = new JsValue((double)index);
+            return true;
+        }
+
+        indexResult = default;
+        return false;
     }
 
     /// <summary>

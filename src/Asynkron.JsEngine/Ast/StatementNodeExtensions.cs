@@ -337,7 +337,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void CollectLexicalNamesFromStatement(HashSet<Symbol> names)
+        internal void CollectLexicalNamesFromStatement(HashSet<Symbol> names)
         {
             while (true)
             {

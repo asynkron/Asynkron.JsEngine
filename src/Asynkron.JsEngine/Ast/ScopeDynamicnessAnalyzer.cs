@@ -794,7 +794,14 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    private static bool ContainsDirectEval(BindingTarget target)
+    private static bool ContainsDirectEval(BindingTarget target) =>
+        BindingTargetContains(target, ContainsDirectEval);
+
+    /// <summary>
+    /// Traverses a binding target checking if any expression satisfies the predicate.
+    /// Used to detect specific patterns (direct eval, inner functions) in destructuring.
+    /// </summary>
+    private static bool BindingTargetContains(BindingTarget target, Func<ExpressionNode, bool> predicate)
     {
         var work = new Stack<BindingTarget>();
         work.Push(target);
@@ -807,7 +814,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding:
                     break;
                 case AssignmentTargetBinding assignmentTarget:
-                    if (ContainsDirectEval(assignmentTarget.Expression))
+                    if (predicate(assignmentTarget.Expression))
                     {
                         return true;
                     }
@@ -816,8 +823,7 @@ public static partial class TypedAstEvaluator
                 case ArrayBinding arrayBinding:
                     foreach (var element in arrayBinding.Elements)
                     {
-                        if (element.DefaultValue is not null &&
-                            ContainsDirectEval(element.DefaultValue))
+                        if (element.DefaultValue is not null && predicate(element.DefaultValue))
                         {
                             return true;
                         }
@@ -837,14 +843,12 @@ public static partial class TypedAstEvaluator
                 case ObjectBinding objectBinding:
                     foreach (var property in objectBinding.Properties)
                     {
-                        if (property.NameExpression is not null &&
-                            ContainsDirectEval(property.NameExpression))
+                        if (property.NameExpression is not null && predicate(property.NameExpression))
                         {
                             return true;
                         }
 
-                        if (property.DefaultValue is not null &&
-                            ContainsDirectEval(property.DefaultValue))
+                        if (property.DefaultValue is not null && predicate(property.DefaultValue))
                         {
                             return true;
                         }
@@ -1205,78 +1209,8 @@ public static partial class TypedAstEvaluator
     /// Determines whether a binding target (destructuring pattern) contains inner function expressions.
     /// Used to detect if closures in destructuring defaults would capture the iteration environment.
     /// </summary>
-    internal static bool ContainsInnerFunctionExpression(BindingTarget target)
-    {
-        var work = new Stack<BindingTarget>();
-        work.Push(target);
-
-        while (work.Count > 0)
-        {
-            var node = work.Pop();
-            switch (node)
-            {
-                case IdentifierBinding:
-                    break;
-                case AssignmentTargetBinding assignmentTarget:
-                    if (ContainsInnerFunctionExpression(assignmentTarget.Expression))
-                    {
-                        return true;
-                    }
-
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        // Check default values for function expressions
-                        if (element.DefaultValue is not null &&
-                            ContainsInnerFunctionExpression(element.DefaultValue))
-                        {
-                            return true;
-                        }
-
-                        if (element.Target is not null)
-                        {
-                            work.Push(element.Target);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null)
-                    {
-                        work.Push(arrayBinding.RestElement);
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var property in objectBinding.Properties)
-                    {
-                        // Check computed property names for function expressions
-                        if (property.NameExpression is not null &&
-                            ContainsInnerFunctionExpression(property.NameExpression))
-                        {
-                            return true;
-                        }
-
-                        // Check default values for function expressions
-                        if (property.DefaultValue is not null &&
-                            ContainsInnerFunctionExpression(property.DefaultValue))
-                        {
-                            return true;
-                        }
-
-                        work.Push(property.Target);
-                    }
-
-                    if (objectBinding.RestElement is not null)
-                    {
-                        work.Push(objectBinding.RestElement);
-                    }
-
-                    break;
-            }
-        }
-
-        return false;
-    }
+    internal static bool ContainsInnerFunctionExpression(BindingTarget target) =>
+        BindingTargetContains(target, ContainsInnerFunctionExpression);
 
     /// <summary>
     /// Checks if a function body contains any CallExpression where the callee is an identifier

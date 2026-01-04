@@ -85,66 +85,14 @@ public sealed partial class NumberPrototype
     public JsValue ToExponential(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toExponential");
-        if (double.IsNaN(num))
-        {
-            return "NaN";
-        }
-
-        if (double.IsInfinity(num))
-        {
-            return num > 0 ? "Infinity" : "-Infinity";
-        }
-
-        string result;
-        if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
-        {
-            result = num.ToString("e", CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            var fractionDigits = (int)d;
-            if (fractionDigits is < 0 or > 100)
-            {
-                throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: Realm);
-            }
-
-            result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
-        }
-
-        return FormatExponentialForJs(result);
+        return NumberHelper.FormatToExponentialCore(num, args, Realm);
     }
 
     [JsHostMethod("toPrecision", Length = 1d)]
     public JsValue ToPrecision(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var num = RequireNumberReceiver(thisValue, "Number.prototype.toPrecision");
-        if (args.Count == 0)
-        {
-            return num.ToString(CultureInfo.InvariantCulture);
-        }
-
-        if (double.IsNaN(num))
-        {
-            return "NaN";
-        }
-
-        if (double.IsInfinity(num))
-        {
-            return num > 0 ? "Infinity" : "-Infinity";
-        }
-
-        if (!args[0].TryGetDouble(out var d))
-        {
-            return num.ToString(CultureInfo.InvariantCulture);
-        }
-
-        var precision = (int)d;
-        if (precision is < 1 or > 100)
-        {
-            throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: Realm);
-        }
-
-        return num.ToString("G" + precision, CultureInfo.InvariantCulture);
+        return NumberHelper.FormatToPrecisionCore(num, args, Realm);
     }
 
     [JsHostMethod("toLocaleString", Length = 0d)]
@@ -224,31 +172,5 @@ public sealed partial class NumberPrototype
         }
 
         throw ThrowTypeError($"{methodName} called on non-number object", realm: Realm);
-    }
-
-    private static string FormatExponentialForJs(string netExponential)
-    {
-        var eIndex = netExponential.IndexOf('e', StringComparison.Ordinal);
-        if (eIndex < 0)
-        {
-            return netExponential;
-        }
-
-        var mantissa = netExponential[..(eIndex + 1)];
-        var exponent = netExponential[(eIndex + 1)..];
-        var sign = "";
-        if (exponent.Length > 0 && (exponent[0] == '+' || exponent[0] == '-'))
-        {
-            sign = exponent[..1];
-            exponent = exponent[1..];
-        }
-
-        exponent = exponent.TrimStart('0');
-        if (exponent.Length == 0)
-        {
-            exponent = "0";
-        }
-
-        return mantissa + sign + exponent;
     }
 }

@@ -147,7 +147,7 @@ public static partial class TypedAstEvaluator
             HostFunction constructor = null!;
 
             constructor = new HostFunction((_, args) =>
-                AsyncGeneratorFunctionConstructorBody(args, constructor, engine, realm)) { RealmState = realm };
+                CreateDynamicGeneratorFunction(args, constructor, engine, realm, "async function*", realm.AsyncGeneratorFunctionConstructor!)) { RealmState = realm };
 
             constructor.SetInvokeWithContext((args, _, _, newTarget) =>
             {
@@ -157,7 +157,7 @@ public static partial class TypedAstEvaluator
                     targetCallable = callable;
                 }
 
-                return AsyncGeneratorFunctionConstructorBody(args, targetCallable, engine, realm);
+                return CreateDynamicGeneratorFunction(args, targetCallable, engine, realm, "async function*", realm.AsyncGeneratorFunctionConstructor!);
             });
 
             StandardLibrary.DefineConstantProperty(constructor, "length", 1d, true);
@@ -169,21 +169,6 @@ public static partial class TypedAstEvaluator
             }
 
             return constructor;
-        }
-
-        private static JsValue AsyncGeneratorFunctionConstructorBody(
-            IReadOnlyList<JsValue> args,
-            IJsCallable newTarget,
-            JsEngine engine,
-            RealmState realm)
-        {
-            return CreateDynamicGeneratorFunction(
-                args,
-                newTarget,
-                engine,
-                realm,
-                "async function*",
-                realm.AsyncGeneratorFunctionConstructor!);
         }
     }
 }

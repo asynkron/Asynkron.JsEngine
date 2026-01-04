@@ -731,7 +731,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var names = new HashSet<Symbol>();
         foreach (var statement in statements)
         {
-            CollectLexicallyDeclaredNamesFromStatement(statement, names);
+            statement.CollectLexicalNamesFromStatement(names);
         }
 
         return names;
@@ -929,114 +929,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         return functions;
-    }
-
-    private static void CollectLexicallyDeclaredNamesFromStatement(StatementNode statement, HashSet<Symbol> names)
-    {
-        while (true)
-        {
-            switch (statement)
-            {
-                case BlockStatement block:
-                    foreach (var inner in block.Statements)
-                    {
-                        CollectLexicallyDeclaredNamesFromStatement(inner, names);
-                    }
-
-                    break;
-                case VariableDeclaration
-                {
-                    Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
-                } decl:
-                    foreach (var declarator in decl.Declarators)
-                    {
-                        declarator.Target.CollectSymbolsFromBinding(names);
-                    }
-
-                    break;
-                case ClassDeclaration classDeclaration:
-                    names.Add(classDeclaration.Name);
-                    break;
-                case FunctionDeclaration:
-                    // Function declarations are handled as var-scoped in eval code.
-                    break;
-                case IfStatement ifStatement:
-                    CollectLexicallyDeclaredNamesFromStatement(ifStatement.Then, names);
-                    if (ifStatement.Else is { } elseBranch)
-                    {
-                        statement = elseBranch;
-                        continue;
-                    }
-
-                    break;
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
-                    continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    continue;
-                case WithStatement withStatement:
-                    statement = withStatement.Body;
-                    continue;
-                case ForStatement forStatement:
-                    if (forStatement.Initializer is VariableDeclaration
-                        {
-                            Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using
-                            or VariableKind.AwaitUsing
-                        } initDecl)
-                    {
-                        foreach (var declarator in initDecl.Declarators)
-                        {
-                            declarator.Target.CollectSymbolsFromBinding(names);
-                        }
-                    }
-
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
-
-                    break;
-                case ForEachStatement forEachStatement:
-                    if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                        or VariableKind.Using or VariableKind.AwaitUsing)
-                    {
-                        forEachStatement.Target.CollectSymbolsFromBinding(names);
-                    }
-
-                    statement = forEachStatement.Body;
-                    continue;
-                case SwitchStatement switchStatement:
-                    foreach (var switchCase in switchStatement.Cases)
-                    {
-                        CollectLexicallyDeclaredNamesFromStatement(switchCase.Body, names);
-                    }
-
-                    break;
-                case TryStatement tryStatement:
-                    CollectLexicallyDeclaredNamesFromStatement(tryStatement.TryBlock, names);
-                    if (tryStatement.Catch is { } catchClause)
-                    {
-                        if (catchClause.Binding is not null)
-                        {
-                            catchClause.Binding.CollectSymbolsFromBinding(names);
-                        }
-
-                        CollectLexicallyDeclaredNamesFromStatement(catchClause.Body, names);
-                    }
-
-                    if (tryStatement.Finally is { } finallyBlock)
-                    {
-                        statement = finallyBlock;
-                        continue;
-                    }
-
-                    break;
-            }
-
-            break;
-        }
     }
 
     private static void CollectVarFunctionsFromStatement(

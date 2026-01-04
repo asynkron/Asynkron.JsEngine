@@ -24,6 +24,20 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         return thisValue;
     }
 
+    /// <summary>
+    /// Validates args and extracts the array for Promise.all/race/allSettled/any.
+    /// Returns false if args are invalid.
+    /// </summary>
+    private bool TryGetPromiseIterableArray(IReadOnlyList<JsValue> args, out JsArray array)
+    {
+        if (args.Count == 0 || !args[0].TryGetArray(out array!))
+        {
+            array = null!;
+            return false;
+        }
+        return true;
+    }
+
     private HostFunction ConstructFallback =>
         _constructor ?? throw new InvalidOperationException("Promise constructor not initialized");
 
@@ -140,7 +154,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseAll(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetArray(out var array))
+        if (!TryGetPromiseIterableArray(args, out var array))
         {
             return JsValue.Undefined;
         }
@@ -160,9 +174,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             // Handle case where item is already a boxed JsValue
             var rawItem = array.Items[i];
 
-            // thenMethod is already a JsValue from TryGetProperty
-            if (rawItem.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                thenMethod.TryGetCallable(out var thenCallable))
+            if (TryGetThenMethod(rawItem, out var thenCallable))
             {
                 var thenArgs = new[] { (JsValue)CreateAllResolve(i), (JsValue)CreateAllReject() };
                 thenCallable.Invoke(thenArgs, rawItem);
@@ -211,7 +223,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseRace(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetArray(out var array))
+        if (!TryGetPromiseIterableArray(args, out var array))
         {
             return JsValue.Undefined;
         }
@@ -221,10 +233,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         foreach (var item in array.Items)
         {
-            // Handle case where item is already a boxed JsValue
-            // thenMethod is already a JsValue from TryGetProperty
-            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                thenMethod.TryGetCallable(out var thenCallable))
+            if (TryGetThenMethod(item, out var thenCallable))
             {
                 var thenArgs = new[] { (JsValue)CreateRaceResolve(), (JsValue)CreateRaceReject() };
                 thenCallable.Invoke(thenArgs, item);
@@ -276,7 +285,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseAllSettled(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetArray(out var array))
+        if (!TryGetPromiseIterableArray(args, out var array))
         {
             return JsValue.Undefined;
         }
@@ -293,11 +302,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         for (var i = 0; i < array.Items.Count; i++)
         {
-            // array.Items[i] is already JsValue
             var item = array.Items[i];
-            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                // thenMethod is already JsValue from TryGetProperty
-                thenMethod.TryGetCallable(out var thenCallable))
+            if (TryGetThenMethod(item, out var thenCallable))
             {
                 var thenArgs = new[] { (JsValue)CreateResolve(i), (JsValue)CreateReject(i) };
                 thenCallable.Invoke(thenArgs, item);
@@ -361,7 +367,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
     private JsValue PromiseAny(JsValue _, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || !args[0].TryGetArray(out var array))
+        if (!TryGetPromiseIterableArray(args, out var array))
         {
             return JsValue.Undefined;
         }
@@ -379,11 +385,8 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         for (var i = 0; i < array.Items.Count; i++)
         {
-            // array.Items[i] is already JsValue
             var item = array.Items[i];
-            if (item.TryGetObject<JsObject>(out var itemObj) && itemObj.TryGetProperty("then", out var thenMethod) &&
-                // thenMethod is already JsValue from TryGetProperty
-                thenMethod.TryGetCallable(out var thenCallable))
+            if (TryGetThenMethod(item, out var thenCallable))
             {
                 var thenArgs = new[] { (JsValue)CreateResolve(), (JsValue)CreateReject() };
                 thenCallable.Invoke(thenArgs, item);
@@ -495,5 +498,18 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         result.SetProperty("reject", JsValue.FromObjectUnsafe(reject));
 
         return JsValue.FromJsObject(result);
+    }
+
+    /// <summary>
+    /// Checks if a value is a thenable (has a callable "then" method).
+    /// </summary>
+    private static bool TryGetThenMethod(
+        JsValue item,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IJsCallable? thenCallable)
+    {
+        thenCallable = null;
+        return item.TryGetObject<JsObject>(out var itemObj) &&
+               itemObj.TryGetProperty("then", out var thenMethod) &&
+               thenMethod.TryGetCallable(out thenCallable);
     }
 }

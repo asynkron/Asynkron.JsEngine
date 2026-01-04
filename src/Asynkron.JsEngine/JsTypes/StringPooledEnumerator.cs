@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -47,19 +48,7 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
             return false;
         }
 
-        var ch = value[_index];
-        if (char.IsHighSurrogate(ch) && _index + 1 < value.Length && char.IsLowSurrogate(value[_index + 1]))
-        {
-            // Surrogate pair - yield both chars as one string
-            _current = value.Substring(_index, 2);
-            _index += 2;
-        }
-        else
-        {
-            // Single character (BMP or unpaired surrogate)
-            _current = ch.ToString();
-            _index++;
-        }
+        _current = StringHelper.ReadCodePoint(value, ref _index);
 
         return true;
     }

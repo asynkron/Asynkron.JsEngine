@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -11,6 +12,25 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class StringHelper
 {
+    /// <summary>
+    /// Reads a Unicode code point from the string at the given index, handling surrogate pairs.
+    /// Advances the index past the code point (by 1 for BMP, by 2 for surrogate pairs).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static string ReadCodePoint(string str, ref int index)
+    {
+        var ch = str[index];
+        if (char.IsHighSurrogate(ch) && index + 1 < str.Length && char.IsLowSurrogate(str[index + 1]))
+        {
+            var result = str.Substring(index, 2);
+            index += 2;
+            return result;
+        }
+
+        index++;
+        return ch.ToString();
+    }
+
     internal static JsObject InitializeStringWrapper(string str, JsObject wrapper, RealmState? realm = null)
     {
         wrapper.SetProperty("__value__", str);

@@ -82,19 +82,8 @@ public static partial class TypedAstEvaluator
 
                 var reference = CreatePropertyReference(targetJs, propertyName, context, false);
 
-                if (TryEvaluateCompoundAssignmentJsValue(null, expression.Value, reference, environment, context,
-                        out var compoundValueJs, out var shouldAssign))
+                if (TryApplyCompoundAssignment(null, expression.Value, reference, environment, context, out var compoundValueJs))
                 {
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return compoundValueJs;
-                    }
-
-                    if (shouldAssign)
-                    {
-                        reference.SetValue(compoundValueJs);
-                    }
-
                     return compoundValueJs;
                 }
             }

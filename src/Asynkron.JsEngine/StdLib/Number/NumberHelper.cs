@@ -72,67 +72,9 @@ public static partial class NumberHelper
             return (JsValue)num.ToString("F" + fractionDigits, CultureInfo.InvariantCulture);
         });
 
-        numberObj.SetHostedProperty("toExponential", args =>
-        {
-            if (double.IsNaN(num))
-            {
-                return (JsValue)"NaN";
-            }
+        numberObj.SetHostedProperty("toExponential", args => (JsValue)FormatToExponentialCore(num, args, realm));
 
-            if (double.IsInfinity(num))
-            {
-                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
-            }
-
-            string result;
-            if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
-            {
-                result = num.ToString("e", CultureInfo.InvariantCulture);
-            }
-            else
-            {
-                var fractionDigits = (int)d;
-                if (fractionDigits is < 0 or > 100)
-                {
-                    throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
-                }
-
-                result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
-            }
-
-            return (JsValue)FormatExponentialForJs(result);
-        });
-
-        numberObj.SetHostedProperty("toPrecision", args =>
-        {
-            if (args.Count == 0)
-            {
-                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
-            }
-
-            if (double.IsNaN(num))
-            {
-                return (JsValue)"NaN";
-            }
-
-            if (double.IsInfinity(num))
-            {
-                return (JsValue)(num > 0 ? "Infinity" : "-Infinity");
-            }
-
-            if (!args[0].TryGetDouble(out var d))
-            {
-                return (JsValue)num.ToString(CultureInfo.InvariantCulture);
-            }
-
-            var precision = (int)d;
-            if (precision is < 1 or > 100)
-            {
-                throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: realm);
-            }
-
-            return (JsValue)num.ToString("G" + precision, CultureInfo.InvariantCulture);
-        });
+        numberObj.SetHostedProperty("toPrecision", args => (JsValue)FormatToPrecisionCore(num, args, realm));
 
         numberObj.SetHostedProperty("valueOf", _ => num);
 
@@ -191,6 +133,60 @@ public static partial class NumberHelper
         }
 
         return mantissa + sign + exponent;
+    }
+
+    /// <summary>
+    /// Core toExponential formatting logic shared by NumberPrototype and fallback wrapper.
+    /// </summary>
+    internal static string FormatToExponentialCore(double num, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (double.IsNaN(num)) return "NaN";
+        if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+
+        string result;
+        if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
+        {
+            result = num.ToString("e", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            var fractionDigits = (int)d;
+            if (fractionDigits is < 0 or > 100)
+            {
+                throw ThrowRangeError("toExponential() digits argument must be between 0 and 100", realm: realm);
+            }
+
+            result = num.ToString("e" + fractionDigits, CultureInfo.InvariantCulture);
+        }
+
+        return FormatExponentialForJs(result);
+    }
+
+    /// <summary>
+    /// Core toPrecision formatting logic shared by NumberPrototype and fallback wrapper.
+    /// </summary>
+    internal static string FormatToPrecisionCore(double num, IReadOnlyList<JsValue> args, RealmState? realm)
+    {
+        if (args.Count == 0)
+        {
+            return num.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (double.IsNaN(num)) return "NaN";
+        if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+
+        if (!args[0].TryGetDouble(out var d))
+        {
+            return num.ToString(CultureInfo.InvariantCulture);
+        }
+
+        var precision = (int)d;
+        if (precision is < 1 or > 100)
+        {
+            throw ThrowRangeError("toPrecision() precision argument must be between 1 and 100", realm: realm);
+        }
+
+        return num.ToString("G" + precision, CultureInfo.InvariantCulture);
     }
 
     internal static string NumberToString(double num, int radix)

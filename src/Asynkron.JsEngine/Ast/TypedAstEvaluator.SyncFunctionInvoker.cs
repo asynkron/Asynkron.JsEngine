@@ -2019,6 +2019,36 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
+        /// Binds parameters from argument list to slots (fast path) or dictionary (fallback).
+        /// Handles closure dictionary binding when needed.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void BindParametersFromList(JsEnvironment env, IReadOnlyList<JsValue> arguments)
+        {
+            var slots = env._slots;
+            if (slots is not null && env._slotCount > 0)
+            {
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    slots[i].Value = value;
+                    if (_function.HasClosures)
+                    {
+                        env.DefineParameterFast(_parameterNames[i], value);
+                    }
+                }
+            }
+            else
+            {
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    env.DefineParameterFast(_parameterNames[i], value);
+                }
+            }
+        }
+
+        /// <summary>
         /// Executes the function body, handles result/throw/return, and returns pooled resources.
         /// Shared by InvokeSimpleFastCore, InvokeSimpleFastCore1, and InvokeSimpleFastCore2.
         /// </summary>
@@ -2061,34 +2091,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext)
         {
             SetupFastFunctionContext(thisValue, callingContext, out var context, out var functionEnvironment);
-
-            // Bind parameters to slots
-            var slots = functionEnvironment._slots;
-            if (slots is not null && functionEnvironment._slotCount > 0)
-            {
-                for (var i = 0; i < _parameterNames.Length; i++)
-                {
-                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                    slots[i].Value = value;
-                    // When this function has closures (inner functions that capture variables),
-                    // also bind to dictionary so closure lookups via TryLocateBinding work.
-                    // This is needed when inner functions use dynamic scope (with/eval).
-                    if (_function.HasClosures)
-                    {
-                        functionEnvironment.DefineParameterFast(_parameterNames[i], value);
-                    }
-                }
-            }
-            else
-            {
-                // Fallback when slots not available
-                for (var i = 0; i < _parameterNames.Length; i++)
-                {
-                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                    functionEnvironment.DefineParameterFast(_parameterNames[i], value);
-                }
-            }
-
+            BindParametersFromList(functionEnvironment, arguments);
             return ExecuteFunctionAndReturnResources(functionEnvironment, context, callingContext);
         }
 
@@ -2341,32 +2344,7 @@ public static partial class TypedAstEvaluator
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
 
-            // Bind parameters directly to slots for O(1) access (avoids dictionary allocation)
-            var slots = functionEnvironment._slots;
-            if (slots is not null && functionEnvironment._slotCount > 0)
-            {
-                // Fast path: use slots
-                for (var i = 0; i < _parameterNames.Length; i++)
-                {
-                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                    slots[i].Value = value;
-                    // When this function has closures (inner functions that capture variables),
-                    // also bind to dictionary so closure lookups via TryLocateBinding work.
-                    if (_function.HasClosures)
-                    {
-                        functionEnvironment.DefineParameterFast(_parameterNames[i], value);
-                    }
-                }
-            }
-            else
-            {
-                // Fallback: use dictionary when slots not available
-                for (var i = 0; i < _parameterNames.Length; i++)
-                {
-                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
-                    functionEnvironment.DefineParameterFast(_parameterNames[i], value);
-                }
-            }
+            BindParametersFromList(functionEnvironment, arguments);
 
             // Only create arguments object if the function body actually references it
             if (_usesArguments)

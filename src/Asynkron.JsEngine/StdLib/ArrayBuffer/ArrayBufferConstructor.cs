@@ -78,41 +78,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
         return thisValue;
     }
 
-    private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget)
-    {
-        if (newTarget is null)
-        {
-            throw ThrowTypeError("ArrayBuffer constructor requires 'new'", realm: Realm);
-        }
-
-        var byteLength = args.Count > 0 && !args[0].IsUndefined
-            ? ToIndexAsLong(args[0], Realm)
-            : 0L;
-
-        var requestedMax = ArrayBufferHelper.GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined, Realm);
-        if (requestedMax is { } maxValue && byteLength > maxValue)
-        {
-            throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
-        }
-
-        if (ReferenceEquals(newTarget, _constructor ?? newTarget))
-        {
-            var allocLength = ArrayBufferHelper.RequireAllocatableLength(byteLength, Realm);
-            int? allocMax = requestedMax is { } maxIndex ? ArrayBufferHelper.RequireAllocatableLength(maxIndex, Realm) : null;
-            return new JsArrayBuffer(allocLength, allocMax, Realm);
-        }
-
-        var instance = PrepareThisObject(JsValue.Undefined, false);
-        var proto = ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm) ?? Prototype;
-        if (proto is not null)
-        {
-            instance.SetPrototype(proto);
-        }
-
-        var derivedLength = ArrayBufferHelper.RequireAllocatableLength(byteLength, Realm);
-        int? derivedMax = requestedMax is { } maxValue2 ? ArrayBufferHelper.RequireAllocatableLength(maxValue2, Realm) : null;
-        var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm);
-        StoreInternalArrayBuffer(instance, buffer);
-        return instance;
-    }
+    private object ConstructBuffer(IReadOnlyList<JsValue> args, IJsCallable newTarget) =>
+        ArrayBufferHelper.ConstructBufferCore(args, newTarget, _constructor, Prototype, Realm,
+            isShared: false, "ArrayBuffer", PrepareThisObject);
 }

@@ -234,6 +234,35 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
+    /// <summary>
+    /// Tries to evaluate a compound assignment and apply it to the reference.
+    /// Combines TryEvaluateCompoundAssignmentJsValue with the common post-processing pattern.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static bool TryApplyCompoundAssignment(
+        AssignmentExpression? assignment,
+        ExpressionNode candidate,
+        AssignmentReference reference,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue result)
+    {
+        if (!TryEvaluateCompoundAssignmentJsValue(assignment, candidate, reference, environment, context,
+                out var compoundValue, out var shouldAssign))
+        {
+            result = JsValue.Undefined;
+            return false;
+        }
+
+        if (!context.ShouldStopEvaluation && shouldAssign)
+        {
+            reference.SetValue(compoundValue);
+        }
+
+        result = compoundValue;
+        return true;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static JsValue EvaluateAssignmentRhsWithNameHintJsValue(
         AssignmentExpression? assignment,
@@ -634,20 +663,8 @@ public static partial class TypedAstEvaluator
 
             // Use JsValue version of the compound assignment to avoid boxing
             if (expression.IsCompoundAssignment &&
-                TryEvaluateCompoundAssignmentJsValue(expression, expression.Value, reference, environment, context,
-                    out var refCompoundJsValue,
-                    out var refShouldAssignCompound))
+                TryApplyCompoundAssignment(expression, expression.Value, reference, environment, context, out var refCompoundJsValue))
             {
-                if (context.ShouldStopEvaluation)
-                {
-                    return refCompoundJsValue;
-                }
-
-                if (refShouldAssignCompound)
-                {
-                    reference.SetValue(refCompoundJsValue);
-                }
-
                 return refCompoundJsValue;
             }
 

@@ -641,46 +641,36 @@ public static partial class TypedAstEvaluator
             {
                 // Slot-based fast path (function-scoped code)
                 ref var accumRef = ref accumEnv.GetSlotRef(assignExpr.SlotIndex);
-
-                // Only use fast path for numeric accumulators
                 if (!accumRef.IsNumber)
                 {
                     return false;
                 }
 
-                var accum = accumRef.NumberValue;
-
-                while (enumerator.MoveNext())
-                {
-                    var n = enumerator.Current;
-                    var nValue = n.IsNumber ? n.NumberValue : JsOps.ToNumber(n);
-                    loopVarRef = n;
-
-                    accum = operation switch
-                    {
-                        0 => accum + nValue, // Add
-                        1 => accum - nValue, // Subtract
-                        2 => accum * nValue, // Multiply
-                        _ => accum + nValue
-                    };
-                }
-
-                accumRef = new JsValue(accum);
-                result = accumRef;
+                result = accumRef = RunAccumulatorLoop(enumerator, accumRef.NumberValue, operation, ref loopVarRef);
             }
             else
             {
                 // Dictionary-based fallback (top-level code)
-                // Read initial value
                 var initialValue = accumEnv.GetBindingValueDirect(accumName);
-
-                // Only use fast path for numeric accumulators
                 if (!initialValue.IsNumber)
                 {
                     return false;
                 }
 
-                var accum = initialValue.NumberValue;
+                result = RunAccumulatorLoop(enumerator, initialValue.NumberValue, operation, ref loopVarRef);
+                accumEnv.SetBindingValueDirect(accumName, result);
+            }
+
+            return true;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            static JsValue RunAccumulatorLoop(
+                IEnumerator<JsValue> enumerator,
+                double initialValue,
+                int operation,
+                ref JsValue loopVarRef)
+            {
+                var accum = initialValue;
 
                 while (enumerator.MoveNext())
                 {
@@ -697,13 +687,8 @@ public static partial class TypedAstEvaluator
                     };
                 }
 
-                // Write final value back
-                var finalValue = new JsValue(accum);
-                accumEnv.SetBindingValueDirect(accumName, finalValue);
-                result = finalValue;
+                return new JsValue(accum);
             }
-
-            return true;
         }
     }
 

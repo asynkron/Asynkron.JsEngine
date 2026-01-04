@@ -1311,19 +1311,7 @@ public sealed partial class StringPrototype
             var result = new JsObject();
             if (index < value.Length)
             {
-                var first = value[index];
-                string currentValue;
-                if (char.IsHighSurrogate(first) && index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]))
-                {
-                    currentValue = value.Substring(index, 2);
-                    index += 2;
-                }
-                else
-                {
-                    currentValue = first.ToString();
-                    index++;
-                }
-
+                var currentValue = StringHelper.ReadCodePoint(value, ref index);
                 result.SetProperty("value", currentValue);
                 result.SetProperty("done", false);
             }

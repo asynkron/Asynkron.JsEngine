@@ -135,4 +135,57 @@ public static class ArrayBufferHelper
 
         return (int)length;
     }
+
+    /// <summary>
+    /// Shared buffer construction logic for ArrayBuffer and SharedArrayBuffer.
+    /// </summary>
+    internal static object ConstructBufferCore(
+        IReadOnlyList<JsValue> args,
+        IJsCallable newTarget,
+        HostFunction? constructor,
+        IJsObjectLike? prototype,
+        RealmState realm,
+        bool isShared,
+        string typeName,
+        Func<JsValue, bool, JsObject> prepareThisObject)
+    {
+        if (newTarget is null)
+        {
+            throw ThrowTypeError($"{typeName} constructor requires 'new'", realm: realm);
+        }
+
+        var byteLength = args.Count > 0 && !args[0].IsUndefined
+            ? NumberHelper.ToIndexAsLong(args[0], realm)
+            : 0L;
+
+        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined, realm);
+        if (requestedMax is { } maxValue && byteLength > maxValue)
+        {
+            throw ThrowRangeError($"Invalid {typeName} length", realm: realm);
+        }
+
+        var allocLength = RequireAllocatableLength(byteLength, realm);
+        int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex, realm) : null;
+
+        if (ReferenceEquals(newTarget, constructor ?? newTarget))
+        {
+            var directBuffer = new JsArrayBuffer(allocLength, allocMax, realm, isShared);
+            if (isShared && prototype is not null)
+            {
+                directBuffer.SetPrototype(prototype);
+            }
+            return directBuffer;
+        }
+
+        var instance = prepareThisObject(JsValue.Undefined, false);
+        var proto = ReflectHelper.ResolveConstructPrototype(newTarget, constructor ?? newTarget, realm) ?? prototype;
+        if (proto is not null)
+        {
+            instance.SetPrototype(proto);
+        }
+
+        var buffer = new JsArrayBuffer(allocLength, allocMax, realm, isShared);
+        StoreInternalArrayBuffer(instance, buffer);
+        return instance;
+    }
 }

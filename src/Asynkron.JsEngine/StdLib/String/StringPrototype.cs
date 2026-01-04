@@ -1610,58 +1610,28 @@ public sealed partial class StringPrototype
     }
 
     [JsHostMethod("toLocaleLowerCase", Length = 0d)]
-    public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        var str = ResolveString(thisValue);
-
-        // Get locale from first argument if provided
-        CultureInfo culture;
-        if (args.Count > 0 && args[0].TryGetString(out var locale) && !string.IsNullOrEmpty(locale))
-        {
-            try
-            {
-                culture = CultureInfo.GetCultureInfo(locale);
-            }
-            catch
-            {
-                // If locale is invalid, fall back to invariant culture
-                culture = CultureInfo.InvariantCulture;
-            }
-        }
-        else
-        {
-            // Use invariant culture as default (JavaScript behavior)
-            culture = CultureInfo.InvariantCulture;
-        }
-
-        return str.ToLower(culture);
-    }
+    public JsValue ToLocaleLowerCase(JsValue thisValue, IReadOnlyList<JsValue> args) =>
+        ResolveString(thisValue).ToLower(ResolveCulture(args));
 
     [JsHostMethod("toLocaleUpperCase", Length = 0d)]
-    public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        var str = ResolveString(thisValue);
+    public JsValue ToLocaleUpperCase(JsValue thisValue, IReadOnlyList<JsValue> args) =>
+        ResolveString(thisValue).ToUpper(ResolveCulture(args));
 
-        // Get locale from first argument if provided
-        CultureInfo culture;
+    private static CultureInfo ResolveCulture(IReadOnlyList<JsValue> args)
+    {
         if (args.Count > 0 && args[0].TryGetString(out var locale) && !string.IsNullOrEmpty(locale))
         {
             try
             {
-                culture = CultureInfo.GetCultureInfo(locale);
+                return CultureInfo.GetCultureInfo(locale);
             }
             catch
             {
                 // If locale is invalid, fall back to invariant culture
-                culture = CultureInfo.InvariantCulture;
             }
         }
-        else
-        {
-            // Use invariant culture as default (JavaScript behavior)
-            culture = CultureInfo.InvariantCulture;
-        }
 
-        return str.ToUpper(culture);
+        // Use invariant culture as default (JavaScript behavior)
+        return CultureInfo.InvariantCulture;
     }
 }

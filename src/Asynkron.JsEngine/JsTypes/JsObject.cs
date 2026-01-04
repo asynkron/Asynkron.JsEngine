@@ -933,7 +933,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            TrackLengthAssignment(value);
+            TrackLengthAssignment(JsValue.FromObjectUnsafe(value));
             return;
         }
 
@@ -1098,7 +1098,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {
-            TrackLengthAssignment(descriptor.JsValue.ToObject());
+            TrackLengthAssignment(descriptor.JsValue);
         }
         else if (!descriptor.IsAccessorDescriptor)
         {
@@ -1192,7 +1192,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                     return false;
                 }
 
-                if (candidate.HasValue && !SameValue(candidate.JsValue.ToObject(), current.JsValue.ToObject()))
+                if (candidate.HasValue && !JsOps.SameValue(candidate.JsValue, current.JsValue))
                 {
                     return false;
                 }
@@ -1239,7 +1239,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
-    private void TrackLengthAssignment(object? value)
+    private void TrackLengthAssignment(JsValue value)
     {
         if (!_trackArrayLength)
         {
@@ -1249,9 +1249,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         double coerced;
         try
         {
-#pragma warning disable CS0618 // Method accepts object?, ToNumber converts appropriately
-            coerced = value is double d ? d : JsOps.ToNumber(JsValue.FromObjectUnsafe(value), null);
-#pragma warning restore CS0618
+            coerced = value.IsNumber ? value.NumberValue : JsOps.ToNumber(value, null);
         }
         catch (ThrowSignal)
         {
@@ -1397,45 +1395,6 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             this[name] = descriptor.HasValue ? descriptor.JsValue.ToObject() : Symbol.Undefined;
             Remove(GetterPrefix + name);
             Remove(SetterPrefix + name);
-        }
-    }
-
-    private static bool SameValue(object? left, object? right)
-    {
-        switch (left)
-        {
-            case double ld when right is double rd:
-            {
-                if (double.IsNaN(ld) && double.IsNaN(rd))
-                {
-                    return true;
-                }
-
-                if (ld == 0.0 && rd == 0.0)
-                {
-                    return BitConverter.DoubleToInt64Bits(ld) == BitConverter.DoubleToInt64Bits(rd);
-                }
-
-                return ld.Equals(rd);
-            }
-            case float lf when right is float rf:
-            {
-                if (float.IsNaN(lf) && float.IsNaN(rf))
-                {
-                    return true;
-                }
-
-                if (lf == 0f && rf == 0f)
-                {
-                    return BitConverter.SingleToInt32Bits(lf) == BitConverter.SingleToInt32Bits(rf);
-                }
-
-                return lf.Equals(rf);
-            }
-            case JsBigInt lbi when right is JsBigInt rbi:
-                return lbi == rbi;
-            default:
-                return Equals(left, right);
         }
     }
 

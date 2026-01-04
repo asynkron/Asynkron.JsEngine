@@ -32,14 +32,10 @@ public sealed class JsDataView : IJsPropertyAccessor, IAsJsValue
             case JsObject obj:
             {
                 var descriptor = obj.GetOwnPropertyDescriptor("_internalDataView");
-                switch (descriptor != null ? descriptor.JsValue.ToObject() : null)
+                if (descriptor is not null && descriptor.JsValue.TryGetObject<JsDataView>(out var internalDv))
                 {
-                    case JsDataView internalDv:
-                        dataView = internalDv;
-                        return true;
-                    case JsValue dvJsVal when dvJsVal.TryGetObject<JsDataView>(out var dvFromJsValue):
-                        dataView = dvFromJsValue;
-                        return true;
+                    dataView = internalDv;
+                    return true;
                 }
 
                 break;

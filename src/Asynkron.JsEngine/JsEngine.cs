@@ -3946,38 +3946,7 @@ public sealed class JsEngine : IAsyncDisposable
         entry.Evaluating = true;
         try
         {
-            // Capture the epoch before dependency loading - only drain earlier epochs while waiting
-            var moduleEpoch = MicrotaskEpoch;
-            var maxDrainEpoch = moduleEpoch - 1;
-
-            var pendingAsyncDependencies = new List<Task<object?>>();
-            var dependencies = GetModuleDependencies(entry);
-            for (var i = 0; i < dependencies.Count; i++)
-            {
-                var dependency = dependencies[i];
-                EnsureModuleInstantiated(dependency);
-                var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
-                var evaluation = EnsureModuleEvaluatedAsync(dependency, !isAsyncDependency);
-                if (isAsyncDependency)
-                {
-                    pendingAsyncDependencies.Add(evaluation);
-                    var nextIsAsync = i + 1 < dependencies.Count &&
-                                      (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
-                    if (nextIsAsync)
-                    {
-                        await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
-                    }
-
-                    continue;
-                }
-
-                await evaluation.ConfigureAwait(false);
-            }
-
-            if (pendingAsyncDependencies.Count > 0)
-            {
-                await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
-            }
+            await EvaluateModuleDependenciesAsync(entry).ConfigureAwait(false);
 
             // Advance the epoch before executing the body. Any microtasks queued during body
             // execution will be in this new epoch and won't be drained until we explicitly
@@ -4019,38 +3988,7 @@ public sealed class JsEngine : IAsyncDisposable
     {
         try
         {
-            // Capture the epoch before dependency loading - only drain earlier epochs while waiting
-            var moduleEpoch = MicrotaskEpoch;
-            var maxDrainEpoch = moduleEpoch - 1;
-
-            var pendingAsyncDependencies = new List<Task<object?>>();
-            var dependencies = GetModuleDependencies(entry);
-            for (var i = 0; i < dependencies.Count; i++)
-            {
-                var dependency = dependencies[i];
-                EnsureModuleInstantiated(dependency);
-                var evaluation = EnsureModuleEvaluatedAsync(dependency);
-                var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
-                if (isAsyncDependency)
-                {
-                    pendingAsyncDependencies.Add(evaluation);
-                    var nextIsAsync = i + 1 < dependencies.Count &&
-                                      (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
-                    if (nextIsAsync)
-                    {
-                        await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
-                    }
-
-                    continue;
-                }
-
-                await evaluation.ConfigureAwait(false);
-            }
-
-            if (pendingAsyncDependencies.Count > 0)
-            {
-                await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
-            }
+            await EvaluateModuleDependenciesAsync(entry).ConfigureAwait(false);
 
             entry.AsyncBodyRunner ??= new AsyncModuleBodyRunner(this, entry);
             return await entry.AsyncBodyRunner.RunAsync().ConfigureAwait(false);
@@ -4058,6 +3996,46 @@ public sealed class JsEngine : IAsyncDisposable
         finally
         {
             entry.AsyncBodyRunner = null;
+        }
+    }
+
+    /// <summary>
+    /// Evaluates all dependencies of a module, handling async dependencies by batching
+    /// and draining them appropriately based on the microtask epoch.
+    /// </summary>
+    private async Task EvaluateModuleDependenciesAsync(ModuleEntry entry)
+    {
+        // Capture the epoch before dependency loading - only drain earlier epochs while waiting
+        var moduleEpoch = MicrotaskEpoch;
+        var maxDrainEpoch = moduleEpoch - 1;
+
+        var pendingAsyncDependencies = new List<Task<object?>>();
+        var dependencies = GetModuleDependencies(entry);
+        for (var i = 0; i < dependencies.Count; i++)
+        {
+            var dependency = dependencies[i];
+            EnsureModuleInstantiated(dependency);
+            var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
+            var evaluation = EnsureModuleEvaluatedAsync(dependency, !isAsyncDependency);
+            if (isAsyncDependency)
+            {
+                pendingAsyncDependencies.Add(evaluation);
+                var nextIsAsync = i + 1 < dependencies.Count &&
+                                  (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
+                if (nextIsAsync)
+                {
+                    await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
+                }
+
+                continue;
+            }
+
+            await evaluation.ConfigureAwait(false);
+        }
+
+        if (pendingAsyncDependencies.Count > 0)
+        {
+            await DrainAsyncDependencies(pendingAsyncDependencies, maxDrainEpoch).ConfigureAwait(false);
         }
     }
 

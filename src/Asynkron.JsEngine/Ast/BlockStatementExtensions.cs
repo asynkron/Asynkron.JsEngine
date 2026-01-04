@@ -352,7 +352,7 @@ public static partial class TypedAstEvaluator
         private HashSet<Symbol> CollectSimpleCatchParameterNames()
         {
             var names = new HashSet<Symbol>();
-            block.CollectSimpleCatchNamesFromStatement(names);
+            block.CollectCatchNamesFromStatement(names, simpleOnly: true);
             return names;
         }
     }

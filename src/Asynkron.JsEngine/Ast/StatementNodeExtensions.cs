@@ -441,7 +441,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void CollectCatchNamesFromStatement(HashSet<Symbol> names)
+        private void CollectCatchNamesFromStatement(HashSet<Symbol> names, bool simpleOnly = false)
         {
             while (true)
             {
@@ -450,12 +450,12 @@ public static partial class TypedAstEvaluator
                     case BlockStatement block:
                         foreach (var inner in block.Statements)
                         {
-                            inner.CollectCatchNamesFromStatement(names);
+                            inner.CollectCatchNamesFromStatement(names, simpleOnly);
                         }
 
                         break;
                     case IfStatement ifStatement:
-                        ifStatement.Then.CollectCatchNamesFromStatement(names);
+                        ifStatement.Then.CollectCatchNamesFromStatement(names, simpleOnly);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
@@ -481,89 +481,27 @@ public static partial class TypedAstEvaluator
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            switchCase.Body.CollectCatchNamesFromStatement(names);
+                            switchCase.Body.CollectCatchNamesFromStatement(names, simpleOnly);
                         }
 
                         break;
                     case TryStatement tryStatement:
-                        tryStatement.TryBlock.CollectCatchNamesFromStatement(names);
+                        tryStatement.TryBlock.CollectCatchNamesFromStatement(names, simpleOnly);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            if (catchClause.Binding is not null)
+                            if (simpleOnly)
+                            {
+                                if (catchClause.Binding is IdentifierBinding identifierBinding)
+                                {
+                                    names.Add(identifierBinding.Name);
+                                }
+                            }
+                            else if (catchClause.Binding is not null)
                             {
                                 catchClause.Binding.CollectSymbolsFromBinding(names);
                             }
 
-                            catchClause.Body.CollectCatchNamesFromStatement(names);
-                        }
-
-                        if (tryStatement.Finally is { } finallyBlock)
-                        {
-                            statement = finallyBlock;
-                            continue;
-                        }
-
-                        break;
-                }
-
-                break;
-            }
-        }
-
-        private void CollectSimpleCatchNamesFromStatement(HashSet<Symbol> names)
-        {
-            while (true)
-            {
-                switch (statement)
-                {
-                    case BlockStatement block:
-                        foreach (var inner in block.Statements)
-                        {
-                            inner.CollectSimpleCatchNamesFromStatement(names);
-                        }
-
-                        break;
-                    case IfStatement ifStatement:
-                        ifStatement.Then.CollectSimpleCatchNamesFromStatement(names);
-                        if (ifStatement.Else is { } elseBranch)
-                        {
-                            statement = elseBranch;
-                            continue;
-                        }
-
-                        break;
-                    case WhileStatement whileStatement:
-                        statement = whileStatement.Body;
-                        continue;
-                    case DoWhileStatement doWhileStatement:
-                        statement = doWhileStatement.Body;
-                        continue;
-                    case WithStatement withStatement:
-                        statement = withStatement.Body;
-                        continue;
-                    case ForStatement forStatement:
-                        statement = forStatement.Body;
-                        continue;
-                    case ForEachStatement forEachStatement:
-                        statement = forEachStatement.Body;
-                        continue;
-                    case SwitchStatement switchStatement:
-                        foreach (var switchCase in switchStatement.Cases)
-                        {
-                            switchCase.Body.CollectSimpleCatchNamesFromStatement(names);
-                        }
-
-                        break;
-                    case TryStatement tryStatement:
-                        tryStatement.TryBlock.CollectSimpleCatchNamesFromStatement(names);
-                        if (tryStatement.Catch is { } catchClause)
-                        {
-                            if (catchClause.Binding is IdentifierBinding identifierBinding)
-                            {
-                                names.Add(identifierBinding.Name);
-                            }
-
-                            catchClause.Body.CollectSimpleCatchNamesFromStatement(names);
+                            catchClause.Body.CollectCatchNamesFromStatement(names, simpleOnly);
                         }
 
                         if (tryStatement.Finally is { } finallyBlock)

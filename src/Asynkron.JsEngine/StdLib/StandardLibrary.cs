@@ -148,11 +148,7 @@ public static partial class StandardLibrary
             Value = value,
             Writable = false,
             Enumerable = false,
-            Configurable = configurable,
-            HasValue = true,
-            HasWritable = true,
-            HasEnumerable = true,
-            HasConfigurable = true
+            Configurable = configurable
         };
 
         if (target is IPropertyDefinitionHost definable && definable.TryDefineProperty(name, descriptor))

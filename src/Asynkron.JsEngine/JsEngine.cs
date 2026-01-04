@@ -1629,11 +1629,7 @@ public sealed class JsEngine : IAsyncDisposable
                 Value = entry.Path,
                 Writable = true,
                 Enumerable = true,
-                Configurable = true,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = true
             });
 
         entry.Environment.DefineJsValue(Symbol.ImportMeta, (JsValue)importMeta, true, isLexicalBinding: true,

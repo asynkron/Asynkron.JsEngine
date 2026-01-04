@@ -46,30 +46,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
     /* FLAKY */
     [JsHostMethod("and", Length = 3d)]
-    public JsValue And(IReadOnlyList<JsValue> args)
-    {
-        // Atomically computes bitwise AND and returns the old value.
-        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(And), out var isBigInt);
-        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
-
-        var valueArg = args.GetArgument(2);
-        lock (typedArray.Buffer)
-        {
-            if (isBigInt)
-            {
-                var oldValue = ReadBigIntElement(typedArray, index);
-                var mask = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, oldValue & mask);
-                return oldValue;
-            }
-
-            var oldNumber = typedArray.GetElement(index);
-            var maskNumber = JsOps.ToNumber(valueArg);
-            var result = (int)oldNumber & (int)maskNumber;
-            typedArray.SetElement(index, result);
-            return oldNumber;
-        }
-    }
+    public JsValue And(IReadOnlyList<JsValue> args) =>
+        AtomicBitwiseOperation(args, nameof(And), (a, b) => a & b, (a, b) => a & b);
 
     /* FLAKY */
     [JsHostMethod("compareExchange", Length = 4d)]
@@ -165,30 +143,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
     /* FLAKY */
     [JsHostMethod("or", Length = 3d)]
-    public JsValue Or(IReadOnlyList<JsValue> args)
-    {
-        // Atomically computes bitwise OR and returns the old value.
-        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(Or), out var isBigInt);
-        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
-
-        var valueArg = args.GetArgument(2);
-        lock (typedArray.Buffer)
-        {
-            if (isBigInt)
-            {
-                var oldValue = ReadBigIntElement(typedArray, index);
-                var mask = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, oldValue | mask);
-                return oldValue;
-            }
-
-            var oldNumber = typedArray.GetElement(index);
-            var maskNumber = JsOps.ToNumber(valueArg);
-            var result = (int)oldNumber | (int)maskNumber;
-            typedArray.SetElement(index, result);
-            return oldNumber;
-        }
-    }
+    public JsValue Or(IReadOnlyList<JsValue> args) =>
+        AtomicBitwiseOperation(args, nameof(Or), (a, b) => a | b, (a, b) => a | b);
 
     /* FLAKY */
     [JsHostMethod("store", Length = 3d)]
@@ -324,30 +280,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
     /* FLAKY */
     [JsHostMethod("xor", Length = 3d)]
-    public JsValue Xor(IReadOnlyList<JsValue> args)
-    {
-        // Atomically computes bitwise XOR and returns the old value.
-        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(Xor), out var isBigInt);
-        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
-
-        var valueArg = args.GetArgument(2);
-        lock (typedArray.Buffer)
-        {
-            if (isBigInt)
-            {
-                var oldValue = ReadBigIntElement(typedArray, index);
-                var mask = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, oldValue ^ mask);
-                return oldValue;
-            }
-
-            var oldNumber = typedArray.GetElement(index);
-            var maskNumber = JsOps.ToNumber(valueArg);
-            var result = (int)oldNumber ^ (int)maskNumber;
-            typedArray.SetElement(index, result);
-            return oldNumber;
-        }
-    }
+    public JsValue Xor(IReadOnlyList<JsValue> args) =>
+        AtomicBitwiseOperation(args, nameof(Xor), (a, b) => a ^ b, (a, b) => a ^ b);
 
     private TypedArrayBase RequireAtomicTypedArray(JsValue value, string methodName, out bool isBigInt)
     {
@@ -397,6 +331,37 @@ public sealed partial class AtomicsPrototype : JsPrototype
         }
 
         return index;
+    }
+
+    /// <summary>
+    /// Helper for atomic bitwise operations (And, Or, Xor) that share the same pattern.
+    /// </summary>
+    private JsValue AtomicBitwiseOperation(
+        IReadOnlyList<JsValue> args,
+        string methodName,
+        Func<JsBigInt, JsBigInt, JsBigInt> bigIntOp,
+        Func<int, int, int> intOp)
+    {
+        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), methodName, out var isBigInt);
+        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
+        var valueArg = args.GetArgument(2);
+
+        lock (typedArray.Buffer)
+        {
+            if (isBigInt)
+            {
+                var oldValue = ReadBigIntElement(typedArray, index);
+                var mask = ToBigInt(valueArg, realmState: Realm);
+                WriteBigIntElement(typedArray, index, bigIntOp(oldValue, mask));
+                return oldValue;
+            }
+
+            var oldNumber = typedArray.GetElement(index);
+            var maskNumber = JsOps.ToNumber(valueArg);
+            var result = intOp((int)oldNumber, (int)maskNumber);
+            typedArray.SetElement(index, result);
+            return oldNumber;
+        }
     }
 
     private static JsBigInt ReadBigIntElement(TypedArrayBase typedArray, int index)

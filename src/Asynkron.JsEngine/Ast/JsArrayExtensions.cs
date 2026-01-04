@@ -28,11 +28,7 @@ public static partial class TypedAstEvaluator
                         Value = stringsArray.Items[i],
                         Writable = false,
                         Enumerable = true,
-                        Configurable = false,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = false
                     });
             }
 
@@ -44,11 +40,7 @@ public static partial class TypedAstEvaluator
                     Value = (double)stringsArray.Items.Count,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = false
                 });
 
             // Create and configure the raw array - also needs to be a JsArray
@@ -61,11 +53,7 @@ public static partial class TypedAstEvaluator
                         Value = rawStringsArray.Items[i],
                         Writable = false,
                         Enumerable = true,
-                        Configurable = false,
-                        HasValue = true,
-                        HasWritable = true,
-                        HasEnumerable = true,
-                        HasConfigurable = true
+                        Configurable = false
                     });
             }
 
@@ -75,11 +63,7 @@ public static partial class TypedAstEvaluator
                     Value = (double)rawStringsArray.Items.Count,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = false
                 });
 
             // Freeze the raw array
@@ -93,11 +77,7 @@ public static partial class TypedAstEvaluator
                     Value = rawArray,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = false,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = false
                 });
 
             // Freeze the template object

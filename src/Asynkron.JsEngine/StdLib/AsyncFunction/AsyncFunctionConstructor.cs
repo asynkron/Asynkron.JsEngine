@@ -52,11 +52,7 @@ public sealed partial class AsyncFunctionConstructor(IJsObjectLike prototype, Re
                     Value = constructor,
                     Writable = false,
                     Enumerable = false,
-                    Configurable = true,
-                    HasValue = true,
-                    HasWritable = true,
-                    HasEnumerable = true,
-                    HasConfigurable = true
+                    Configurable = true
                 });
         }
     }

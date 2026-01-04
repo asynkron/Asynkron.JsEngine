@@ -29,11 +29,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
                 Value = Symbol.Undefined,
                 Writable = false,
                 Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = false
             });
 
         // Marker to make class heritage resolution reject Proxy as a base.
@@ -43,11 +39,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
                 Value = true,
                 Writable = false,
                 Enumerable = false,
-                Configurable = false,
-                HasValue = true,
-                HasWritable = true,
-                HasEnumerable = true,
-                HasConfigurable = true
+                Configurable = false
             });
     }
 

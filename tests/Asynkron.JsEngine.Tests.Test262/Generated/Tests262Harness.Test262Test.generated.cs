@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 8DE934EC77128E5C0BFE804ECECCE89E87CB3AE2B38343194B1ACCF2D952726F
+//   Template SHA: DE5C37EE1959DD3AB34827CFF995EF609CA257CBD4DB52C80DF97DFD2679C000
 //   Command line:  /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -69,10 +69,6 @@ public abstract partial class Test262Test
         if (strict)
         {
             testCase = testCase.AsStrict();
-        }
-        if (test.Contains("strict-caller-global"))
-        {
-            Console.WriteLine($"[debug test262] strict-caller-global negative={testCase.Negative} strict={strict}");
         }
 
         string lastError = null;

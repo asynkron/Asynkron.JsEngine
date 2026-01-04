@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 665F23B3159CC22A1147AF5699E47FE06CADF7C4CE4FB1FE0CCD8312353CAEEB
+//   Template SHA: 45B8CC712F6BAA21A21C6DF3AF7C88D6F95687E33EF6DBDF1923CB7705B0D644
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -6876,148 +6876,52 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/constructor.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/constructor.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/instance-extensible.js", false, Category = "explicit-resource-management,Reflect")]
-    [TestCase("built-ins/AsyncDisposableStack/instance-extensible.js", true, Category = "explicit-resource-management,Reflect")]
-    [TestCase("built-ins/AsyncDisposableStack/is-a-constructor.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/AsyncDisposableStack/is-a-constructor.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/AsyncDisposableStack/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/newtarget-prototype-is-not-object.js", false, Category = "explicit-resource-management,Reflect.construct,Symbol")]
-    [TestCase("built-ins/AsyncDisposableStack/newtarget-prototype-is-not-object.js", true, Category = "explicit-resource-management,Reflect.construct,Symbol")]
-    [TestCase("built-ins/AsyncDisposableStack/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/proto-from-ctor-realm.js", false, Category = "explicit-resource-management,cross-realm,Reflect,Symbol")]
-    [TestCase("built-ins/AsyncDisposableStack/proto-from-ctor-realm.js", true, Category = "explicit-resource-management,cross-realm,Reflect,Symbol")]
-    [TestCase("built-ins/AsyncDisposableStack/proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/proto.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype-from-newtarget-abrupt.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype-from-newtarget-abrupt.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype-from-newtarget-custom.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype-from-newtarget-custom.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype-from-newtarget.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype-from-newtarget.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/undefined-newtarget-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/undefined-newtarget-throws.js", true, Category = "explicit-resource-management")]
-    public void AsyncDisposableStack(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/proto.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/Symbol.asyncDispose.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/Symbol.asyncDispose.js", true, Category = "explicit-resource-management")]
-    public void AsyncDisposableStack_prototype(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/this-does-not-have-internal-asyncdisposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/this-does-not-have-internal-asyncdisposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/adopt/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    public void AsyncDisposableStack_prototype_adopt(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype_adopt()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/this-does-not-have-internal-asyncdisposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/this-does-not-have-internal-asyncdisposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/defer/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    public void AsyncDisposableStack_prototype_defer(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype_defer()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/this-does-not-have-internal-asyncdisposablestate-rejects.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/this-does-not-have-internal-asyncdisposablestate-rejects.js", true, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/this-not-object-rejects.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposeAsync/this-not-object-rejects.js", true, Category = "explicit-resource-management,async")]
-    public void AsyncDisposableStack_prototype_disposeAsync(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype_disposeAsync()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/does-not-have-asyncdisposablestate-internal-slot.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/does-not-have-asyncdisposablestate-internal-slot.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/getter.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/getter.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/this-not-object-throw.js", false, Category = "explicit-resource-management,Symbol")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/disposed/this-not-object-throw.js", true, Category = "explicit-resource-management,Symbol")]
-    public void AsyncDisposableStack_prototype_disposed(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype_disposed()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/this-does-not-have-internal-asyncdisposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/this-does-not-have-internal-asyncdisposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/move/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    public void AsyncDisposableStack_prototype_move(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype_move()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/this-does-not-have-internal-asyncdisposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/this-does-not-have-internal-asyncdisposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/throws-if-value-not-object.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncDisposableStack/prototype/use/throws-if-value-not-object.js", true, Category = "explicit-resource-management")]
-    public void AsyncDisposableStack_prototype_use(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncDisposableStack_prototype_use()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/AsyncFromSyncIteratorPrototype/next/absent-value-not-passed.js", false, Category = "async-iteration,async")]
@@ -7324,27 +7228,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/invokes-return.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/invokes-return.js", true, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/is-function.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/is-function.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/return-val.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/return-val.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/throw-rejected-return.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/throw-rejected-return.js", true, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/throw-return-getter.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/throw-return-getter.js", true, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/throw-return.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncDispose/throw-return.js", true, Category = "explicit-resource-management,async")]
-    public void AsyncIteratorPrototype_Symbol_asyncDispose(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void AsyncIteratorPrototype_Symbol_asyncDispose()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/AsyncIteratorPrototype/Symbol.asyncIterator/length.js", false, Category = "Symbol.asyncIterator,async-iteration")]
@@ -11479,226 +11366,52 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/constructor.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/constructor.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/instance-extensible.js", false, Category = "explicit-resource-management,Reflect")]
-    [TestCase("built-ins/DisposableStack/instance-extensible.js", true, Category = "explicit-resource-management,Reflect")]
-    [TestCase("built-ins/DisposableStack/is-a-constructor.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/DisposableStack/is-a-constructor.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/DisposableStack/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/newtarget-prototype-is-not-object.js", false, Category = "explicit-resource-management,Reflect.construct,Symbol")]
-    [TestCase("built-ins/DisposableStack/newtarget-prototype-is-not-object.js", true, Category = "explicit-resource-management,Reflect.construct,Symbol")]
-    [TestCase("built-ins/DisposableStack/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/proto-from-ctor-realm.js", false, Category = "explicit-resource-management,cross-realm,Reflect,Symbol")]
-    [TestCase("built-ins/DisposableStack/proto-from-ctor-realm.js", true, Category = "explicit-resource-management,cross-realm,Reflect,Symbol")]
-    [TestCase("built-ins/DisposableStack/proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/proto.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype-from-newtarget-abrupt.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/DisposableStack/prototype-from-newtarget-abrupt.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/DisposableStack/prototype-from-newtarget-custom.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/DisposableStack/prototype-from-newtarget-custom.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/DisposableStack/prototype-from-newtarget.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype-from-newtarget.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/undefined-newtarget-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/undefined-newtarget-throws.js", true, Category = "explicit-resource-management")]
-    public void DisposableStack(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/constructor.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/constructor.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/proto.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/Symbol.dispose.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/Symbol.dispose.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/Symbol.toStringTag.js", false, Category = "explicit-resource-management,Symbol,Symbol.toStringTag")]
-    [TestCase("built-ins/DisposableStack/prototype/Symbol.toStringTag.js", true, Category = "explicit-resource-management,Symbol,Symbol.toStringTag")]
-    public void DisposableStack_prototype(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/adopt/adds-value-onDispose.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/adds-value-onDispose.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/allows-any-value.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/allows-any-value.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/puts-value-onDispose-on-top-of-stack.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/puts-value-onDispose-on-top-of-stack.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/returns-value.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/returns-value.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/this-does-not-have-internal-disposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/this-does-not-have-internal-disposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/throws-if-onDispose-not-callable.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/adopt/throws-if-onDispose-not-callable.js", true, Category = "explicit-resource-management")]
-    public void DisposableStack_prototype_adopt(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype_adopt()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/defer/adds-onDispose.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/adds-onDispose.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/puts-onDispose-on-top-of-stack.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/puts-onDispose-on-top-of-stack.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/returns-undefined.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/returns-undefined.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/this-does-not-have-internal-disposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/this-does-not-have-internal-disposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/throws-if-onDispose-not-callable.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/defer/throws-if-onDispose-not-callable.js", true, Category = "explicit-resource-management")]
-    public void DisposableStack_prototype_defer(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype_defer()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/dispose/disposes-resources-in-reverse-order.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/disposes-resources-in-reverse-order.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/does-not-reinvoke-disposers-if-already-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/does-not-reinvoke-disposers-if-already-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/does-not-throw-if-already-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/does-not-throw-if-already-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/returns-undefined.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/returns-undefined.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/sets-state-to-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/sets-state-to-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/this-does-not-have-internal-disposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/this-does-not-have-internal-disposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/throws-error-as-is-if-only-one-error-during-disposal.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/throws-error-as-is-if-only-one-error-during-disposal.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/throws-suppressederror-if-multiple-errors-during-disposal.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/dispose/throws-suppressederror-if-multiple-errors-during-disposal.js", true, Category = "explicit-resource-management")]
-    public void DisposableStack_prototype_dispose(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype_dispose()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/disposed/does-not-have-disposablestate-internal-slot.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/does-not-have-disposablestate-internal-slot.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/getter.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/getter.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/returns-false-when-not-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/returns-false-when-not-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/returns-true-when-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/returns-true-when-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/this-not-object-throw.js", false, Category = "explicit-resource-management,Symbol")]
-    [TestCase("built-ins/DisposableStack/prototype/disposed/this-not-object-throw.js", true, Category = "explicit-resource-management,Symbol")]
-    public void DisposableStack_prototype_disposed(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype_disposed()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/move/does-not-dispose-resources.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/does-not-dispose-resources.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/move/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/move/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/returns-new-disposablestack-that-contains-moved-resources.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/returns-new-disposablestack-that-contains-moved-resources.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/returns-new-disposablestack-that-is-still-pending.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/returns-new-disposablestack-that-is-still-pending.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/returns-new-disposablestack.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/returns-new-disposablestack.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/sets-state-to-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/sets-state-to-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/still-returns-new-disposablestack-when-subclassed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/still-returns-new-disposablestack-when-subclassed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/this-does-not-have-internal-disposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/this-does-not-have-internal-disposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/throws-if-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/move/throws-if-disposed.js", true, Category = "explicit-resource-management")]
-    public void DisposableStack_prototype_move(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype_move()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/DisposableStack/prototype/use/adds-value.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/adds-value.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/allows-null-value.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/allows-null-value.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/allows-undefined-value.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/allows-undefined-value.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/gets-value-Symbol.dispose-property-once.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/gets-value-Symbol.dispose-property-once.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/not-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/use/not-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management,arrow-function")]
-    [TestCase("built-ins/DisposableStack/prototype/use/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/puts-value-on-top-of-stack.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/puts-value-on-top-of-stack.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/returns-value.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/returns-value.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/Symbol.dispose-getter.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/Symbol.dispose-getter.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/this-does-not-have-internal-disposablestate-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/this-does-not-have-internal-disposablestate-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/this-not-object-throws.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/this-not-object-throws.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-disposed.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-disposed.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-missing-Symbol.dispose.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-missing-Symbol.dispose.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-not-object.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-not-object.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-Symbol.dispose-property-is-null.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-Symbol.dispose-property-is-null.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-Symbol.dispose-property-is-undefined.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-Symbol.dispose-property-is-undefined.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-Symbol.dispose-property-not-callable.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/DisposableStack/prototype/use/throws-if-value-Symbol.dispose-property-not-callable.js", true, Category = "explicit-resource-management")]
-    public void DisposableStack_prototype_use(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void DisposableStack_prototype_use()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/encodeURI/name.js", false)]
@@ -14203,21 +13916,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/invokes-return.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/invokes-return.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/is-function.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/is-function.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/return-val.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Iterator/prototype/Symbol.dispose/return-val.js", true, Category = "explicit-resource-management")]
-    public void Iterator_prototype_Symbol_dispose(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void Iterator_prototype_Symbol_dispose()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Iterator/prototype/Symbol.iterator/is-function.js", false, Category = "Symbol.iterator")]
@@ -16239,58 +15941,16 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/NativeErrors/SuppressedError/is-a-constructor.js", false, Category = "Reflect.construct,explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/is-a-constructor.js", true, Category = "Reflect.construct,explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/length.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/length.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-method-prop-cast.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-method-prop-cast.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-method-prop.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-method-prop.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-tostring-abrupt-symbol.js", false, Category = "explicit-resource-management,Symbol,Symbol.toPrimitive")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-tostring-abrupt-symbol.js", true, Category = "explicit-resource-management,Symbol,Symbol.toPrimitive")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-tostring-abrupt.js", false, Category = "explicit-resource-management,Symbol.toPrimitive")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-tostring-abrupt.js", true, Category = "explicit-resource-management,Symbol.toPrimitive")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-undefined-no-prop.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/message-undefined-no-prop.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-is-undefined.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-is-undefined.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-proto-custom.js", false, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-proto-custom.js", true, Category = "explicit-resource-management,Reflect.construct")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-proto-fallback.js", false, Category = "explicit-resource-management,Symbol")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-proto-fallback.js", true, Category = "explicit-resource-management,Symbol")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/newtarget-proto.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/order-of-args-evaluation.js", false, Category = "explicit-resource-management,Symbol.iterator")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/order-of-args-evaluation.js", true, Category = "explicit-resource-management,Symbol.iterator")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/proto-from-ctor-realm.js", false, Category = "explicit-resource-management,cross-realm,Reflect,Symbol")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/proto-from-ctor-realm.js", true, Category = "explicit-resource-management,cross-realm,Reflect,Symbol")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/proto.js", true, Category = "explicit-resource-management")]
-    public void NativeErrors_SuppressedError(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void NativeErrors_SuppressedError()
     {
-        RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/constructor.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/constructor.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/errors-absent-on-prototype.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/errors-absent-on-prototype.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/message.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/message.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/name.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/name.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/prop-desc.js", true, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/proto.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/NativeErrors/SuppressedError/prototype/proto.js", true, Category = "explicit-resource-management")]
-    public void NativeErrors_SuppressedError_prototype(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void NativeErrors_SuppressedError_prototype()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/NativeErrors/SyntaxError/constructor.js", false)]
@@ -34549,11 +34209,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Symbol/asyncDispose/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Symbol/asyncDispose/prop-desc.js", true, Category = "explicit-resource-management")]
-    public void Symbol_asyncDispose(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void Symbol_asyncDispose()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Symbol/asyncIterator/cross-realm.js", false, Category = "cross-realm,Symbol.asyncIterator")]
@@ -34565,11 +34224,10 @@ public class BuiltInsTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("built-ins/Symbol/dispose/prop-desc.js", false, Category = "explicit-resource-management")]
-    [TestCase("built-ins/Symbol/dispose/prop-desc.js", true, Category = "explicit-resource-management")]
-    public void Symbol_dispose(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void Symbol_dispose()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("built-ins/Symbol/for/create-value.js", false, Category = "Symbol")]

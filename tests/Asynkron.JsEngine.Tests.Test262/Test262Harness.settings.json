@@ -22,7 +22,8 @@
     "legacy-regexp",
     "__getter__",
     "__setter__",
-    "caller"
+    "caller",
+    "explicit-resource-management"
   ],
   "ExcludedFlags": [
 
@@ -34,6 +35,7 @@
     "**/legacy-non-octal-escape-sequence-8-non-strict.js",
     "**/legacy-non-octal-escape-sequence-9-non-strict.js",
     "**/language/comments/S7.4_A5.js",
-    "**/language/comments/S7.4_A6.js"
+    "**/language/comments/S7.4_A6.js",
+    "**/language/statements/function/S13_A15_T4.js"
   ]
 }

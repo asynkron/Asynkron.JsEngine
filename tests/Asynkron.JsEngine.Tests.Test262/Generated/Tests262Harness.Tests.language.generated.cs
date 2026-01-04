@@ -3,7 +3,7 @@
 //   Generated using the Test262Harness v1.0.3.0
 //   Suite Git SHA: a073f479f80b336256b7fc4e04700c827293e2fe
 //   Suite Directory: 
-//   Template SHA: 665F23B3159CC22A1147AF5699E47FE06CADF7C4CE4FB1FE0CCD8312353CAEEB
+//   Template SHA: 45B8CC712F6BAA21A21C6DF3AF7C88D6F95687E33EF6DBDF1923CB7705B0D644
 //   Command line: /Users/rogerjohansson/.nuget/packages/test262harness.console/1.0.3/tools/net8.0/any/Test262Harness.Console.dll generate
 //   Settings file: /Users/rogerjohansson/git/asynkron/Asynkron.JsEngine/tests/Asynkron.JsEngine.Tests.Test262/Test262Harness.settings.json
 // </auto-generated>
@@ -27707,11 +27707,10 @@ public class LanguageTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("language/statements/await-using/throws-if-initializer-not-object.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("language/statements/await-using/throws-if-initializer-not-object.js", true, Category = "explicit-resource-management,async")]
-    public void Statements_awaitUsing(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void Statements_awaitUsing()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("language/statements/block/12.1-1.js", false)]
@@ -40451,16 +40450,16 @@ public class LanguageTests : Test262Test
     [TestCase("language/statements/for-await-of/async-gen-dstr-var-obj-ptrn-rest-val-obj.js", true, Category = "object-rest,destructuring-binding,async-iteration,generated,async")]
     [TestCase("language/statements/for-await-of/escaped-of.js", false, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/escaped-of.js", true, Category = "async-iteration")]
-    [TestCase("language/statements/for-await-of/head-await-using-init.js", false, Category = "async-iteration,explicit-resource-management")]
-    [TestCase("language/statements/for-await-of/head-await-using-init.js", true, Category = "async-iteration,explicit-resource-management")]
+    [TestCase("language/statements/for-await-of/head-await-using-init.js", false, Category = "async-iteration,explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-await-of/head-await-using-init.js", true, Category = "async-iteration,explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
     [TestCase("language/statements/for-await-of/head-const-init.js", false, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/head-const-init.js", true, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/head-let-init.js", false, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/head-let-init.js", true, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/head-lhs-async.js", false, Category = "async-iteration,async")]
     [TestCase("language/statements/for-await-of/head-lhs-async.js", true, Category = "async-iteration,async")]
-    [TestCase("language/statements/for-await-of/head-using-init.js", false, Category = "async-iteration,explicit-resource-management")]
-    [TestCase("language/statements/for-await-of/head-using-init.js", true, Category = "async-iteration,explicit-resource-management")]
+    [TestCase("language/statements/for-await-of/head-using-init.js", false, Category = "async-iteration,explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-await-of/head-using-init.js", true, Category = "async-iteration,explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
     [TestCase("language/statements/for-await-of/head-var-init.js", false, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/head-var-init.js", true, Category = "async-iteration")]
     [TestCase("language/statements/for-await-of/iterator-close-non-throw-get-method-abrupt.js", false, Category = "async-iteration,async")]
@@ -40807,13 +40806,13 @@ public class LanguageTests : Test262Test
     [TestCase("language/statements/for-of/generator.js", true, Category = "generators")]
     [TestCase("language/statements/for-of/generic-iterable.js", false, Category = "Symbol.iterator")]
     [TestCase("language/statements/for-of/generic-iterable.js", true, Category = "Symbol.iterator")]
-    [TestCase("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js", false, Category = "explicit-resource-management,async")]
-    [TestCase("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js", true, Category = "explicit-resource-management,async")]
-    [TestCase("language/statements/for-of/head-await-using-bound-names-in-stmt.js", true, Category = "explicit-resource-management,module")]
-    [TestCase("language/statements/for-of/head-await-using-bound-names-let.js", false, Category = "explicit-resource-management,noStrict")]
-    [TestCase("language/statements/for-of/head-await-using-fresh-binding-per-iteration.js", true, Category = "explicit-resource-management,module")]
-    [TestCase("language/statements/for-of/head-await-using-init.js", false, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-await-using-init.js", true, Category = "explicit-resource-management")]
+    [TestCase("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js", false, Category = "explicit-resource-management,async", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-await-using-bound-names-fordecl-tdz.js", true, Category = "explicit-resource-management,async", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-await-using-bound-names-in-stmt.js", true, Category = "explicit-resource-management,module", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-await-using-bound-names-let.js", false, Category = "explicit-resource-management,noStrict", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-await-using-fresh-binding-per-iteration.js", true, Category = "explicit-resource-management,module", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-await-using-init.js", false, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-await-using-init.js", true, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
     [TestCase("language/statements/for-of/head-const-bound-names-dup.js", false)]
     [TestCase("language/statements/for-of/head-const-bound-names-dup.js", true)]
     [TestCase("language/statements/for-of/head-const-bound-names-fordecl-tdz.js", false)]
@@ -40870,15 +40869,15 @@ public class LanguageTests : Test262Test
     [TestCase("language/statements/for-of/head-lhs-member.js", true)]
     [TestCase("language/statements/for-of/head-lhs-non-asnmt-trgt.js", false)]
     [TestCase("language/statements/for-of/head-lhs-non-asnmt-trgt.js", true)]
-    [TestCase("language/statements/for-of/head-using-bound-names-fordecl-tdz.js", false, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-bound-names-fordecl-tdz.js", true, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-bound-names-in-stmt.js", false, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-bound-names-in-stmt.js", true, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-bound-names-let.js", false, Category = "explicit-resource-management,noStrict")]
-    [TestCase("language/statements/for-of/head-using-fresh-binding-per-iteration.js", false, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-fresh-binding-per-iteration.js", true, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-init.js", false, Category = "explicit-resource-management")]
-    [TestCase("language/statements/for-of/head-using-init.js", true, Category = "explicit-resource-management")]
+    [TestCase("language/statements/for-of/head-using-bound-names-fordecl-tdz.js", false, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-bound-names-fordecl-tdz.js", true, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-bound-names-in-stmt.js", false, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-bound-names-in-stmt.js", true, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-bound-names-let.js", false, Category = "explicit-resource-management,noStrict", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-fresh-binding-per-iteration.js", false, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-fresh-binding-per-iteration.js", true, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-init.js", false, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
+    [TestCase("language/statements/for-of/head-using-init.js", true, Category = "explicit-resource-management", IgnoreReason = "Feature explicit-resource-management excluded")]
     [TestCase("language/statements/for-of/head-var-bound-names-dup.js", false)]
     [TestCase("language/statements/for-of/head-var-bound-names-dup.js", true)]
     [TestCase("language/statements/for-of/head-var-bound-names-in-stmt.js", false)]
@@ -42344,7 +42343,7 @@ public class LanguageTests : Test262Test
     [TestCase("language/statements/function/S13_A15_T1.js", false, Category = "noStrict")]
     [TestCase("language/statements/function/S13_A15_T2.js", false, Category = "noStrict")]
     [TestCase("language/statements/function/S13_A15_T3.js", false, Category = "noStrict")]
-    [TestCase("language/statements/function/S13_A15_T4.js", false, Category = "noStrict")]
+    [TestCase("language/statements/function/S13_A15_T4.js", false, Category = "noStrict", IgnoreReason = "File language/statements/function/s13_a15_t4.js excluded (glob pattern)")]
     [TestCase("language/statements/function/S13_A15_T5.js", false, Category = "noStrict")]
     [TestCase("language/statements/function/S13_A17_T1.js", false)]
     [TestCase("language/statements/function/S13_A17_T1.js", true)]
@@ -44652,11 +44651,10 @@ public class LanguageTests : Test262Test
         RunTestCode(test, strict);
     }
 
-    [TestCase("language/statements/using/throws-if-initializer-not-object.js", false, Category = "explicit-resource-management")]
-    [TestCase("language/statements/using/throws-if-initializer-not-object.js", true, Category = "explicit-resource-management")]
-    public void Statements_using(string test, bool strict)
+    [Test]
+    [Ignore("Feature explicit-resource-management excluded")]
+    public void Statements_using()
     {
-        RunTestCode(test, strict);
     }
 
     [TestCase("language/statements/variable/12.2.1-10-s.js", false)]

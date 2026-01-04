@@ -913,59 +913,13 @@ public static partial class TypedAstEvaluator
                                     }
                                 }
 
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingResult, environment))
+                                var (signalAction, signalResult) = HandleContextSignals(context, environment, statementInstruction.Next);
+                                switch (signalAction)
                                 {
-                                    return pendingResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var thrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                    {
-                                        if (_programCounter == _currentInstructionIndex)
-                                        {
-                                            _programCounter = statementInstruction.Next;
-                                        }
-
+                                    case SignalAction.Return:
+                                        return signalResult;
+                                    case SignalAction.Continue:
                                         continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(thrown);
-                                }
-
-                                if (context.IsReturn)
-                                {
-                                    var returnSignalValue = context.FlowValue;
-                                    context.ClearReturn();
-                                    if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
-                                    {
-                                        return CompleteReturn(returnSignalValue);
-                                    }
-
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = statementInstruction.Next;
-                                    }
-
-                                    continue;
-                                }
-
-                                if (context.IsYield)
-                                {
-                                    var yieldedSignalValue = context.FlowValue;
-                                    // Check if the yield signal includes an original iterator result object (from yield*)
-                                    var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
-                                        ?.IteratorResultObject;
-                                    RecordYield(context, environment);
-                                    context.Clear();
-                                    _state = GeneratorState.Suspended;
-                                    // If we have an original iterator result object, return it to preserve done property
-                                    return iteratorResultObject is not null
-                                        ? new JsValue(JsValueKind.Object, 0.0, iteratorResultObject)
-                                        : CreateIteratorResult(yieldedSignalValue, false);
                                 }
 
                                 // Handle break/continue signals from AST-evaluated code inside loops
@@ -1074,59 +1028,13 @@ public static partial class TypedAstEvaluator
                                     _scriptCompletionValue = evaluatedValue;
                                 }
 
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingEvalResult, environment))
+                                var (evalSignalAction, evalSignalResult) = HandleContextSignals(context, environment, evaluateInstruction.Next);
+                                switch (evalSignalAction)
                                 {
-                                    return pendingEvalResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var evalThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, evalThrown, environment))
-                                    {
-                                        if (_programCounter == _currentInstructionIndex)
-                                        {
-                                            _programCounter = evaluateInstruction.Next;
-                                        }
-
+                                    case SignalAction.Return:
+                                        return evalSignalResult;
+                                    case SignalAction.Continue:
                                         continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(evalThrown);
-                                }
-
-                                if (context.IsReturn)
-                                {
-                                    var returnSignalValue = context.FlowValue;
-                                    context.ClearReturn();
-                                    if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
-                                    {
-                                        return CompleteReturn(returnSignalValue);
-                                    }
-
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = evaluateInstruction.Next;
-                                    }
-
-                                    continue;
-                                }
-
-                                if (context.IsYield)
-                                {
-                                    var yieldedSignalValue = context.FlowValue;
-                                    // Check if the yield signal includes an original iterator result object (from yield*)
-                                    var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
-                                        ?.IteratorResultObject;
-                                    RecordYield(context, environment);
-                                    context.Clear();
-                                    _state = GeneratorState.Suspended;
-                                    // If we have an original iterator result object, return it to preserve done property
-                                    return iteratorResultObject is not null
-                                        ? new JsValue(JsValueKind.Object, 0.0, iteratorResultObject)
-                                        : CreateIteratorResult(yieldedSignalValue, false);
                                 }
 
                                 _programCounter = evaluateInstruction.Next;
@@ -3472,6 +3380,81 @@ public static partial class TypedAstEvaluator
 
             TryCatchStateRef.TryStack.Clear();
             throw new ThrowSignal(thrownValue);
+        }
+
+        /// <summary>
+        /// Result of HandleContextSignals indicating what action the caller should take.
+        /// </summary>
+        private enum SignalAction { None, Continue, Return }
+
+        /// <summary>
+        /// Handles async await, throw, return, and yield signals from context.
+        /// Returns the action the caller should take and any result value.
+        /// For Return action, the result should be returned from the caller.
+        /// For Continue action, the caller should continue the loop.
+        /// For None action, the caller should fall through to normal processing.
+        /// May throw ThrowSignal if a throw cannot be handled.
+        /// </summary>
+        private (SignalAction action, JsValue result) HandleContextSignals(
+            EvaluationContext context,
+            JsEnvironment environment,
+            int nextInstructionIndex)
+        {
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingResult, environment))
+            {
+                return (SignalAction.Return, pendingResult);
+            }
+
+            if (context.IsThrow)
+            {
+                var thrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = nextInstructionIndex;
+                    }
+
+                    return (SignalAction.Continue, default);
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
+            if (context.IsReturn)
+            {
+                var returnSignalValue = context.FlowValue;
+                context.ClearReturn();
+                if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
+                {
+                    return (SignalAction.Return, CompleteReturn(returnSignalValue));
+                }
+
+                if (_programCounter == _currentInstructionIndex)
+                {
+                    _programCounter = nextInstructionIndex;
+                }
+
+                return (SignalAction.Continue, default);
+            }
+
+            if (context.IsYield)
+            {
+                var yieldedSignalValue = context.FlowValue;
+                var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
+                    ?.IteratorResultObject;
+                RecordYield(context, environment);
+                context.Clear();
+                _state = GeneratorState.Suspended;
+                var result = iteratorResultObject is not null
+                    ? new JsValue(JsValueKind.Object, 0.0, iteratorResultObject)
+                    : CreateIteratorResult(yieldedSignalValue, false);
+                return (SignalAction.Return, result);
+            }
+
+            return (SignalAction.None, default);
         }
 
         /// <summary>

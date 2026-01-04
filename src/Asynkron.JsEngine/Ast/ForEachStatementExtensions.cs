@@ -114,36 +114,7 @@ public static partial class TypedAstEvaluator
             {
                 if (statement.Kind == ForEachKind.Of)
                 {
-                    var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                    // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
-                    var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                                            statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                                                or VariableKind.Using
-                                                or VariableKind.AwaitUsing;
-
-                    // FAST PATH: Use IEnumerator<JsValue> for known types (JsArray, TypedArray, string)
-                    // This avoids allocating iterator result objects {done, value} per iteration.
-                    var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJsValue);
-                    if (fastEnumerator is not null)
-                    {
-                        try
-                        {
-                            return plan.ExecuteIteratorDriverJsValue(null,
-                                fastEnumerator,
-                                loopEnvironment,
-                                environment,
-                                context,
-                                loopLabel,
-                                useIterationSlots);
-                        }
-                        finally
-                        {
-                            fastEnumerator.Dispose();
-                        }
-                    }
-
-                    // SLOW PATH: Full iterator protocol for custom iterables
-                    return ExecuteIteratorSlowPath(iterableJsValue, plan, loopEnvironment, environment, context, loopLabel, useIterationSlots);
+                    return ExecuteIteratorWithFastPath(statement, iterableJsValue, loopEnvironment, environment, context, loopLabel);
                 }
 
                 var values = statement.Kind switch
@@ -296,36 +267,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
-                // OPTIMIZATION: Pass bool instead of Func<JsEnvironment> to avoid lambda allocation
-                var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                                        statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                                            or VariableKind.Using
-                                            or VariableKind.AwaitUsing;
-
-                // FAST PATH: Use IEnumerator<JsValue> for sync iterables (arrays, typed arrays, strings)
-                // This avoids iterator result object allocations while maintaining async semantics.
-                var fastEnumerator = TryGetFastEnumeratorForIteration(iterableJs);
-                if (fastEnumerator is not null)
-                {
-                    try
-                    {
-                        return plan.ExecuteIteratorDriverJsValue(null,
-                            fastEnumerator,
-                            loopEnvironment,
-                            environment,
-                            context,
-                            loopLabel,
-                            useIterationSlots);
-                    }
-                    finally
-                    {
-                        fastEnumerator.Dispose();
-                    }
-                }
-
-                // SLOW PATH: Full iterator protocol for custom async/sync iterables
-                return ExecuteIteratorSlowPath(iterableJs, plan, loopEnvironment, environment, context, loopLabel, useIterationSlots);
+                return ExecuteIteratorWithFastPath(statement, iterableJs, loopEnvironment, environment, context, loopLabel);
             }
             finally
             {
@@ -341,6 +283,44 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
+    }
+
+    private static JsValue ExecuteIteratorWithFastPath(
+        ForEachStatement statement,
+        JsValue iterableValue,
+        JsEnvironment loopEnvironment,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel)
+    {
+        var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
+        var useIterationSlots = plan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                    or VariableKind.Using
+                                    or VariableKind.AwaitUsing;
+
+        // FAST PATH: Use IEnumerator<JsValue> for known types
+        var fastEnumerator = TryGetFastEnumeratorForIteration(iterableValue);
+        if (fastEnumerator is not null)
+        {
+            try
+            {
+                return plan.ExecuteIteratorDriverJsValue(null,
+                    fastEnumerator,
+                    loopEnvironment,
+                    environment,
+                    context,
+                    loopLabel,
+                    useIterationSlots);
+            }
+            finally
+            {
+                fastEnumerator.Dispose();
+            }
+        }
+
+        // SLOW PATH: Full iterator protocol for custom iterables
+        return ExecuteIteratorSlowPath(iterableValue, plan, loopEnvironment, environment, context, loopLabel, useIterationSlots);
     }
 
     private static JsValue ExecuteIteratorSlowPath(

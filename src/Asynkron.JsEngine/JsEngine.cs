@@ -2761,37 +2761,7 @@ public sealed class JsEngine : IAsyncDisposable
             return cachedEntry;
         }
 
-        // Load module source
-        string source;
-        if (_moduleLoader != null)
-        {
-            source = _moduleLoader(resolvedPath, referrerPath);
-        }
-        else
-            // Default: load from file system
-        {
-            source = File.ReadAllText(resolvedPath);
-        }
-
-        ModuleEntry entry;
-        if (isJsonModule)
-        {
-            // Create a JSON module - parse JSON and create a synthetic module with the value as default export
-            entry = CreateJsonModule(source, resolvedPath);
-        }
-        else
-        {
-            // Parse the module
-            var program = ParseProgram(source, true, true);
-
-            // Create a module exports object
-            var exports = new JsObject();
-            var moduleEnv = CreateModuleEnvironment(resolvedPath);
-            entry = CreateModuleEntry(EnsureStrictProgram(program), moduleEnv, exports, resolvedPath,
-                program.HasTopLevelAwait);
-        }
-
-        _moduleRegistry[resolvedPath] = entry;
+        var entry = LoadAndRegisterModule(resolvedPath, referrerPath, isJsonModule);
 
         var computedHasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
             new HashSet<string>(StringComparer.Ordinal));
@@ -2895,16 +2865,30 @@ public sealed class JsEngine : IAsyncDisposable
             return cachedEntry;
         }
 
+        var entry = LoadAndRegisterModule(resolvedPath, referrerPath, isJsonModule);
+        if (computeAsyncDependencies)
+        {
+            var hasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+                new HashSet<string>(StringComparer.Ordinal));
+            entry.HasAsyncDependency = hasAsyncDependency;
+            entry.Environment.IsAsyncModule = entry.IsAsync;
+        }
+
+        // Only instantiate, don't evaluate
+        EnsureModuleInstantiated(entry, phase, exportStarSet);
+
+        return entry;
+    }
+
+    /// <summary>
+    /// Loads module source, parses it, creates the module entry, and registers it in the module registry.
+    /// </summary>
+    private ModuleEntry LoadAndRegisterModule(string resolvedPath, string? referrerPath, bool isJsonModule)
+    {
         // Load module source
-        string source;
-        if (_moduleLoader != null)
-        {
-            source = _moduleLoader(resolvedPath, referrerPath);
-        }
-        else
-        {
-            source = File.ReadAllText(resolvedPath);
-        }
+        var source = _moduleLoader != null
+            ? _moduleLoader(resolvedPath, referrerPath)
+            : File.ReadAllText(resolvedPath);
 
         ModuleEntry entry;
         if (isJsonModule)
@@ -2925,17 +2909,6 @@ public sealed class JsEngine : IAsyncDisposable
         }
 
         _moduleRegistry[resolvedPath] = entry;
-        if (computeAsyncDependencies)
-        {
-            var hasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                new HashSet<string>(StringComparer.Ordinal));
-            entry.HasAsyncDependency = hasAsyncDependency;
-            entry.Environment.IsAsyncModule = entry.IsAsync;
-        }
-
-        // Only instantiate, don't evaluate
-        EnsureModuleInstantiated(entry, phase, exportStarSet);
-
         return entry;
     }
 

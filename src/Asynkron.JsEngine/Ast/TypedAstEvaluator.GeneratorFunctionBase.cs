@@ -340,9 +340,25 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
+        /// Validates the function type for this generator invoker.
+        /// Throws ArgumentException if the function type is invalid.
+        /// </summary>
+        protected abstract void ValidateFunctionType();
+
+        /// <summary>
+        /// Validates the function type and initializes properties.
+        /// Call this from derived constructors.
+        /// </summary>
+        protected void Initialize()
+        {
+            ValidateFunctionType();
+            InitializeProperties();
+        }
+
+        /// <summary>
         /// Initializes the standard properties (prototype, length, name).
         /// </summary>
-        protected void InitializeProperties()
+        private void InitializeProperties()
         {
             EnsureIntrinsics();
 

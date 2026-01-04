@@ -25,16 +25,17 @@ public static partial class TypedAstEvaluator
             bool hasFunctionNameEnvironment = false,
             bool isConstructorFunction = true)
             : base(function, closure, realmState, isLexicallyStrict, hasFunctionNameEnvironment, isConstructorFunction)
-        {
-            if (!function.IsGenerator)
-            {
-                throw new ArgumentException("Factory can only wrap generator functions.", nameof(function));
-            }
-
-            InitializeProperties();
-        }
+            => Initialize();
 
         protected override string FunctionTypeName => "GeneratorFunction";
+
+        protected override void ValidateFunctionType()
+        {
+            if (!_function.IsGenerator)
+            {
+                throw new ArgumentException("Factory can only wrap generator functions.", nameof(_function));
+            }
+        }
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {

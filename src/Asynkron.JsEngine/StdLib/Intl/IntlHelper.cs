@@ -230,7 +230,7 @@ public static class IntlHelper
                 input = new JsObject();
             }
 
-            var result = durationCtor.Invoke([new JsValue(input)], JsValue.Undefined);
+            var result = durationCtor.Invoke(new SingleValueArgs(new JsValue(input)), JsValue.Undefined);
             JsObject instance;
             if (!result.TryGetObject<JsObject>(out var resultObj))
             {
@@ -287,7 +287,7 @@ public static class IntlHelper
                 accessor.TryGetProperty("format", out var formatVal) &&
                 formatVal.TryGetObject<IJsCallable>(out var formatFn))
             {
-                return formatFn.Invoke([thisValue], formatterObj);
+                return formatFn.Invoke(new SingleValueArgs(thisValue), formatterObj);
             }
 
             return new JsValue("");

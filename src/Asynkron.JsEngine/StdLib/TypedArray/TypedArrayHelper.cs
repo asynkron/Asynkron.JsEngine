@@ -243,7 +243,7 @@ public static class TypedArrayHelper
             }
 
             var length = args.Count;
-            var taObj = ctor.Invoke([JsValue.FromNumber((double)length)], (JsValue)ctor);
+            var taObj = ctor.Invoke(new SingleValueArgs(JsValue.FromNumber((double)length)), (JsValue)ctor);
             if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
             {
                 throw ThrowTypeError("%TypedArray%.of constructor did not return a typed array");
@@ -407,7 +407,7 @@ public static class TypedArrayHelper
                     return new InvalidOperationException(message);
                 }
 
-                var errorValue = typeErrorCtor.Invoke([(JsValue)message], JsValue.Undefined);
+                var errorValue = typeErrorCtor.Invoke(new SingleValueArgs((JsValue)message), JsValue.Undefined);
                 if (errorValue.TryGetObject<JsObject>(out var errorObj))
                 {
                     errorObj.SetProperty("constructor", JsValue.FromObjectUnsafe(typeErrorCtor));

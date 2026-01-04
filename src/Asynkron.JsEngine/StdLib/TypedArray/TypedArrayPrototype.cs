@@ -961,7 +961,7 @@ public sealed partial class TypedArrayPrototype
             throw ThrowTypeError("TypedArray species constructor must be a constructor", realm: Realm);
         }
 
-        var constructed = callable.Invoke([JsValue.FromNumber((double)length)], JsValue.Undefined);
+        var constructed = callable.Invoke(new SingleValueArgs(JsValue.FromNumber((double)length)), JsValue.Undefined);
         if (!constructed.TryGetObject<TypedArrayBase>(out var typedResult))
         {
             throw ThrowTypeError("TypedArray species constructor did not return a TypedArray instance", realm: Realm);

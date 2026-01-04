@@ -106,7 +106,7 @@ public static partial class TypedAstEvaluator
                 (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")],
+                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")),
                         JsValue.Null)
                     : JsValue.FromObjectUnsafe(new InvalidOperationException(
                         hostFunction.ConstructErrorMessage ?? "Target is not a constructor."));
@@ -116,7 +116,7 @@ public static partial class TypedAstEvaluator
             if (constructor is SyncFunctionInvoker { IsArrowFunction: true })
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null)
+                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
                     : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
                 throw new ThrowSignal(errorJs);
             }
@@ -124,7 +124,7 @@ public static partial class TypedAstEvaluator
             if (constructor is SyncFunctionInvoker { DisallowConstruct: true })
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Target is not a constructor"], JsValue.Null)
+                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
                     : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
                 throw new ThrowSignal(errorJs);
             }
@@ -132,7 +132,7 @@ public static partial class TypedAstEvaluator
             if (constructor is SyncGeneratorInvoker)
             {
                 var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([(JsValue)"Generator functions cannot be constructed with 'new'"],
+                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Generator functions cannot be constructed with 'new'"),
                         JsValue.Null)
                     : JsValue.FromObjectUnsafe(
                         new InvalidOperationException("Generator functions cannot be constructed with 'new'."));

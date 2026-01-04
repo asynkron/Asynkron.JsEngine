@@ -184,7 +184,7 @@ public static class RegExpHelper
         {
             if (descriptor.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([new JsValue(0d)], new JsValue(target));
+                descriptor.Set?.Invoke(new SingleValueArgs(new JsValue(0d)), new JsValue(target));
                 return;
             }
 

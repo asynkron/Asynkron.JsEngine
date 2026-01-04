@@ -49,7 +49,7 @@ public static class ReflectHelper
             {
                 const string message = "newTarget is not a constructor";
                 var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined)
+                    ? typeErrorCtor.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Undefined)
                     : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
                 throw new ThrowSignal(errorResult);
             }
@@ -72,7 +72,7 @@ public static class ReflectHelper
         {
             var message = hostTarget.ConstructErrorMessage ?? "Target is not a constructor";
             var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                ? typeErrorCtor.Invoke([new JsValue(message)], JsValue.Undefined)
+                ? typeErrorCtor.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Undefined)
                 : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
             throw new ThrowSignal(errorResult);
         }
@@ -81,7 +81,7 @@ public static class ReflectHelper
         {
             var message = hostNewTarget.ConstructErrorMessage ?? "newTarget is not a constructor";
             var errorResult = realm.TypeErrorConstructor is IJsCallable typeErrorCtor2
-                ? typeErrorCtor2.Invoke([new JsValue(message)], JsValue.Undefined)
+                ? typeErrorCtor2.Invoke(new SingleValueArgs(new JsValue(message)), JsValue.Undefined)
                 : JsValue.FromObjectUnsafe(new InvalidOperationException(message));
             throw new ThrowSignal(errorResult);
         }

@@ -452,7 +452,7 @@ public static partial class StandardLibrary
                         throw ThrowTypeError($"{methodName} could not set property '{propertyKey}'", realm: realm);
                     }
 
-                    descriptor.Set.Invoke([value], JsValue.FromObjectUnsafe(objectLike));
+                    descriptor.Set.Invoke(new SingleValueArgs(value), JsValue.FromObjectUnsafe(objectLike));
                     return;
                 }
 

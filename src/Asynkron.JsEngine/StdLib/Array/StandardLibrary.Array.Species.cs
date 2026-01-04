@@ -109,7 +109,7 @@ public static partial class StandardLibrary
             receiver.SetPrototype(proto);
         }
 
-        var constructed = callable.Invoke([new JsValue((double)length)], JsValue.FromObjectUnsafe(receiver));
+        var constructed = callable.Invoke(new SingleValueArgs(new JsValue((double)length)), JsValue.FromObjectUnsafe(receiver));
         if (constructed.TryGetObject<IJsObjectLike>(out var objectLike))
         {
             return objectLike;

@@ -513,7 +513,7 @@ public static class DateHelper
             return new JsValue("Invalid Date");
         }
 
-        return formatCallable.Invoke([new JsValue(dateObj)], formatter);
+        return formatCallable.Invoke(new SingleValueArgs(new JsValue(dateObj)), formatter);
     }
 
     internal static JsObject CreateDefaultDateTimeOptions(RealmState realm)

@@ -316,7 +316,7 @@ internal sealed class BaseRealmSnapshot
 
             _map[original.Properties] = clone.Properties;
 
-            var handler = (Func<JsValue, IReadOnlyList<JsValue>, JsValue>)CloneValue(original.HandlerForSnapshot)!;
+            var handler = (JsHostHandler)CloneValue(original.HandlerForSnapshot)!;
             clone.SetHandlerForSnapshot(handler);
 
             if (original.InvokeWithContextForSnapshot is { } invokeWithContext)

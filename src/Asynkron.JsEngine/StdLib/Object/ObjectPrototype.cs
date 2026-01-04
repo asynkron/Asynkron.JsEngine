@@ -230,7 +230,7 @@ public sealed partial class ObjectPrototype
             object error;
             if (Realm.TypeErrorConstructor is IJsCallable ctor)
             {
-                error = ctor.Invoke(["Object.prototype.isPrototypeOf called on null or undefined"], JsValue.Null);
+                error = ctor.Invoke(new SingleValueArgs((JsValue)"Object.prototype.isPrototypeOf called on null or undefined"), JsValue.Null);
             }
             else
             {

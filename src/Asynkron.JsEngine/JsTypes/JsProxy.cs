@@ -99,7 +99,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         IEnumerable<object?> keys;
         if (TryGetTrap("ownKeys", out var trap))
         {
-            var trapResult = trap.Invoke([JsValue.FromObjectUnsafe(Target)], JsValue.FromObjectUnsafe(Handler));
+            var trapResult = trap.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(Target)), JsValue.FromObjectUnsafe(Handler));
             keys = ExtractKeys(trapResult);
         }
         else

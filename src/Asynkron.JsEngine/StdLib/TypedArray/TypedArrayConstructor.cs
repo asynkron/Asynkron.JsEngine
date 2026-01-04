@@ -203,7 +203,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
     private JsValue CreateAndPopulateTypedArray(IJsCallable ctor, IList<JsValue> values, IJsCallable? mapFn, JsValue mapThis)
     {
         var length = values.Count;
-        var taObj = ctor.Invoke([JsValue.FromDouble(length)], JsValue.FromObjectUnsafe(ctor));
+        var taObj = ctor.Invoke(new SingleValueArgs(JsValue.FromDouble(length)), JsValue.FromObjectUnsafe(ctor));
         if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
         {
             throw ThrowTypeError("%TypedArray%.from: constructor did not return a typed array", realm: Realm);
@@ -240,7 +240,7 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         }
 
         // 5. Let newObj be ? TypedArrayCreate(C, « 𝔽(len) »).
-        var taObj = ctor.Invoke([JsValue.FromDouble(length)], JsValue.FromObjectUnsafe(ctor));
+        var taObj = ctor.Invoke(new SingleValueArgs(JsValue.FromDouble(length)), JsValue.FromObjectUnsafe(ctor));
         if (!taObj.TryGetObject<TypedArrayBase>(out var typed))
         {
             throw ThrowTypeError("%TypedArray%.of: constructor did not return a typed array", realm: Realm);

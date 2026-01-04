@@ -532,7 +532,7 @@ public sealed partial class StringPrototype
                             result.Append(value.AsSpan(lastIndex, match.Index - lastIndex));
                         }
 
-                        var replacementValue = replacer.Invoke([new JsValue(match.Value)], JsValue.Undefined);
+                        var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue(match.Value)), JsValue.Undefined);
                         var replacementString = replacementValue.ToJsString();
                         result.Append(replacementString);
 
@@ -552,7 +552,7 @@ public sealed partial class StringPrototype
                         result.Append(value.AsSpan(0, match.Index));
                     }
 
-                    var replacementValue = replacer.Invoke([new JsValue(match.Value)], JsValue.Undefined);
+                    var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue(match.Value)), JsValue.Undefined);
                     var replacementString = replacementValue.ToJsString();
                     result.Append(replacementString);
 
@@ -570,7 +570,7 @@ public sealed partial class StringPrototype
             var searchValueFunc = CoerceToString(search);
             if (searchValueFunc.Length == 0)
             {
-                var replacementValue = replacer.Invoke([new JsValue("")], JsValue.Undefined);
+                var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue("")), JsValue.Undefined);
                 var replacementString = replacementValue.ToJsString();
                 return new JsValue(replacementString + value);
             }
@@ -583,7 +583,7 @@ public sealed partial class StringPrototype
 
             var prefix = value[..idx];
             var suffix = value[(idx + searchValueFunc.Length)..];
-            var replacedSegment = replacer.Invoke([new JsValue(searchValueFunc)], JsValue.Undefined).ToJsString();
+            var replacedSegment = replacer.Invoke(new SingleValueArgs(new JsValue(searchValueFunc)), JsValue.Undefined).ToJsString();
             return new JsValue(prefix + replacedSegment + suffix);
         }
 
@@ -629,7 +629,7 @@ public sealed partial class StringPrototype
         var matcher = GetMethod(searchValue, SymbolKeys.Match, "@@match");
         if (matcher is not null)
         {
-            return matcher.Invoke([new JsValue(value)], searchValue);
+            return matcher.Invoke(new SingleValueArgs(new JsValue(value)), searchValue);
         }
 
         var regex = ToRegExpValue(searchValue, string.Empty, false);
@@ -650,7 +650,7 @@ public sealed partial class StringPrototype
         var searchMethod = GetMethod(searchValue, SymbolKeys.Search, "@@search");
         if (searchMethod is not null)
         {
-            return searchMethod.Invoke([new JsValue(value)], searchValue);
+            return searchMethod.Invoke(new SingleValueArgs(new JsValue(value)), searchValue);
         }
 
         var regex = ToRegExpValue(searchValue, string.Empty, false);
@@ -1008,7 +1008,7 @@ public sealed partial class StringPrototype
             var searchStrFunc = CoerceToString(searchValue);
             if (searchStrFunc.Length == 0)
             {
-                var replacementValue = replacer.Invoke([new JsValue("")], new JsValue(value)).ToJsString();
+                var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue("")), new JsValue(value)).ToJsString();
                 var builder = new StringBuilder();
                 builder.Append(replacementValue);
                 foreach (var ch in value)
@@ -1032,7 +1032,7 @@ public sealed partial class StringPrototype
                 }
 
                 result.Append(value.AsSpan(currentIndex, idx - currentIndex));
-                var replacementValue = replacer.Invoke([new JsValue(searchStrFunc)], new JsValue(value));
+                var replacementValue = replacer.Invoke(new SingleValueArgs(new JsValue(searchStrFunc)), new JsValue(value));
                 var replacementString = replacementValue.ToJsString();
                 result.Append(replacementString);
                 currentIndex = idx + searchStrFunc.Length;
@@ -1177,7 +1177,7 @@ public sealed partial class StringPrototype
         var method = GetMethod(matcher, SymbolKeys.MatchAll, "@@matchAll");
         if (method is not null)
         {
-            return method.Invoke([new JsValue(value)], matcher);
+            return method.Invoke(new SingleValueArgs(new JsValue(value)), matcher);
         }
 
         var regex = ToRegExpValue(matcher, "g", true);

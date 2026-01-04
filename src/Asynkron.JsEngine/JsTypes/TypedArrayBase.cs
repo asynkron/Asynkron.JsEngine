@@ -962,7 +962,7 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
         if (_buffer.RealmState?.TypeErrorConstructor is IJsCallable ctor)
         {
-            var obj = ctor.Invoke([new JsValue("Out of bounds access on TypedArray")], JsValue.Undefined);
+            var obj = ctor.Invoke(new SingleValueArgs(new JsValue("Out of bounds access on TypedArray")), JsValue.Undefined);
             if (!obj.IsUndefined)
             {
                 return new ThrowSignal(obj);

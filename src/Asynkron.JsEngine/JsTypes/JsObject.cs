@@ -843,29 +843,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         {
                             if (desc.Get != null)
                             {
-                                try
-                                {
-                                    value = TypedAstEvaluator.InvokeCallableJsValue(
-                                        desc.Get,
-                                        [],
-                                        receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
-                                        context,
-                                        ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine
-                                            ?.GlobalEnvironment);
-                                }
-                                catch (ThrowSignal signal)
-                                {
-                                    if (context is not null)
-                                    {
-                                        context.SetThrow(signal.ThrownValue);
-                                        value = signal.ThrownValue;
-                                        return true;
-                                    }
-
-                                    throw;
-                                }
-
-                                return true;
+                                return InvokeGetterJsValue(desc.Get, receiver, context, out value);
                             }
 
                             throw StandardLibrary.ThrowTypeError(
@@ -1817,6 +1795,39 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
+    /// <summary>
+    /// Invokes a getter and handles ThrowSignal appropriately, returning JsValue directly.
+    /// Always returns true or throws (never returns false).
+    /// </summary>
+    private bool InvokeGetterJsValue(
+        IJsCallable getter,
+        JsValue receiver,
+        EvaluationContext? context,
+        out JsValue value)
+    {
+        try
+        {
+            value = TypedAstEvaluator.InvokeCallableJsValue(
+                getter,
+                [],
+                receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
+                context,
+                ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            if (context is not null)
+            {
+                context.SetThrow(signal.ThrownValue);
+                value = signal.ThrownValue;
+                return true;
+            }
+
+            throw;
+        }
+    }
+
     private static bool TryGetPropertyFromPrototypeChain(
         IJsPropertyAccessor? prototype,
         string name,
@@ -2020,26 +2031,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
             if (virtualDescriptor.Get != null)
             {
-                try
-                {
-                    value = TypedAstEvaluator.InvokeCallableJsValue(
-                        virtualDescriptor.Get,
-                        [],
-                        receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
-                        context,
-                        ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine?.GlobalEnvironment);
-                }
-                catch (ThrowSignal signal)
-                {
-                    if (context is not null)
-                    {
-                        context.SetThrow(signal.ThrownValue);
-                        value = signal.ThrownValue;
-                        return true;
-                    }
-
-                    throw;
-                }
+                InvokeGetterJsValue(virtualDescriptor.Get, receiver, context, out value);
             }
             else
             {
@@ -2055,29 +2047,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 if (descriptor.Get != null)
                 {
-                    try
-                    {
-                        value = TypedAstEvaluator.InvokeCallableJsValue(
-                            descriptor.Get,
-                            [],
-                            receiver.IsUndefined ? JsValue.FromJsObject(this) : receiver,
-                            context,
-                            ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null)?.Engine
-                                ?.GlobalEnvironment);
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        if (context is not null)
-                        {
-                            context.SetThrow(signal.ThrownValue);
-                            value = signal.ThrownValue;
-                            return true;
-                        }
-
-                        throw;
-                    }
-
-                    return true;
+                    return InvokeGetterJsValue(descriptor.Get, receiver, context, out value);
                 }
 
                 value = JsValue.Undefined;

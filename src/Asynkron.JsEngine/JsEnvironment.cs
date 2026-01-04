@@ -614,51 +614,8 @@ public sealed class JsEnvironment : IRentable
                 return;
             }
 
-            var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
-            if (existingDescriptor is null)
-            {
-                if (!globalThis.TryDefineProperty(
-                        name.Name,
-                        new PropertyDescriptor
-                        {
-                            JsValue = value, Writable = true, Enumerable = true, Configurable = configurable
-                        }))
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot declare global function '{name.Name}'.",
-                        context,
-                        context?.RealmState);
-                }
-            }
-            else if (existingDescriptor.Configurable)
-            {
-                if (!globalThis.TryDefineProperty(
-                        name.Name,
-                        new PropertyDescriptor
-                        {
-                            JsValue = value, Writable = true, Enumerable = true, Configurable = configurable
-                        }))
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot redeclare global function '{name.Name}'.",
-                        context,
-                        context?.RealmState);
-                }
-            }
-            else
-            {
-                // Existing non-configurable property: update value only (CreateGlobalFunctionBinding step 6).
-                if (!globalThis.TryDefineProperty(
-                        name.Name,
-                        new PropertyDescriptor { JsValue = value }))
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot update global function binding for '{name.Name}'.",
-                        context,
-                        context?.RealmState);
-                }
-            }
-
+            DefineGlobalFunctionBinding(globalThis, name, value, existingDescriptor,
+                globalFunctionConfigurable ?? allowConfigurableGlobalBinding, context);
             return;
         }
 
@@ -682,51 +639,8 @@ public sealed class JsEnvironment : IRentable
 
         if (isFunctionDeclaration)
         {
-            var configurable = globalFunctionConfigurable ?? allowConfigurableGlobalBinding;
-            if (existingDescriptor is null)
-            {
-                if (!globalThis!.TryDefineProperty(
-                        name.Name,
-                        new PropertyDescriptor
-                        {
-                            JsValue = initialValue, Writable = true, Enumerable = true, Configurable = configurable
-                        }))
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot declare global function '{name.Name}'.",
-                        context,
-                        context?.RealmState);
-                }
-            }
-            else if (existingDescriptor.Configurable)
-            {
-                if (!globalThis!.TryDefineProperty(
-                        name.Name,
-                        new PropertyDescriptor
-                        {
-                            JsValue = initialValue, Writable = true, Enumerable = true, Configurable = configurable
-                        }))
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot redeclare global function '{name.Name}'.",
-                        context,
-                        context?.RealmState);
-                }
-            }
-            else
-            {
-                // Existing non-configurable property: update value only (CreateGlobalFunctionBinding step 6).
-                if (!globalThis!.TryDefineProperty(
-                        name.Name,
-                        new PropertyDescriptor { JsValue = initialValue }))
-                {
-                    throw StandardLibrary.ThrowTypeError(
-                        $"Cannot update global function binding for '{name.Name}'.",
-                        context,
-                        context?.RealmState);
-                }
-            }
-
+            DefineGlobalFunctionBinding(globalThis!, name, initialValue, existingDescriptor,
+                globalFunctionConfigurable ?? allowConfigurableGlobalBinding, context);
             return;
         }
 
@@ -754,6 +668,59 @@ public sealed class JsEnvironment : IRentable
         }
     }
 
+    private static void DefineGlobalFunctionBinding(
+        JsObject globalThis,
+        Symbol name,
+        JsValue value,
+        PropertyDescriptor? existingDescriptor,
+        bool configurable,
+        EvaluationContext? context)
+    {
+        if (existingDescriptor is null)
+        {
+            if (!globalThis.TryDefineProperty(name.Name,
+                    new PropertyDescriptor
+                    {
+                        JsValue = value,
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = configurable
+                    }))
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Cannot declare global function '{name.Name}'.",
+                    context,
+                    context?.RealmState);
+            }
+        }
+        else if (existingDescriptor.Configurable)
+        {
+            if (!globalThis.TryDefineProperty(name.Name,
+                    new PropertyDescriptor
+                    {
+                        JsValue = value,
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = configurable
+                    }))
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Cannot redeclare global function '{name.Name}'.",
+                    context,
+                    context?.RealmState);
+            }
+        }
+        else
+        {
+            if (!globalThis.TryDefineProperty(name.Name, new PropertyDescriptor { JsValue = value }))
+            {
+                throw StandardLibrary.ThrowTypeError(
+                    $"Cannot update global function binding for '{name.Name}'.",
+                    context,
+                    context?.RealmState);
+            }
+        }
+    }
 
     /// <summary>
     /// Gets a binding value as JsValue, avoiding boxing for primitives.

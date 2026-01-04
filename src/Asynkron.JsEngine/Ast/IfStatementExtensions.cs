@@ -46,11 +46,8 @@ public static partial class TypedAstEvaluator
 
             // Per ECMAScript spec 14.6.2 (Runtime Semantics: Evaluation):
             // Return Completion(UpdateEmpty(stmtCompletion, undefined)).
-            // However, when result is Unit (empty), we return Unit to let "suppressed" completions
-            // propagate up. This allows SuppressCompletionValue statements (e.g., switch __done flag)
-            // to NOT affect the script completion value. The script-level UpdateEmpty (line 223 in
-            // ExecutionPlanRunner) will convert the final Unit to undefined if needed.
-            return result;
+            // If the statement returns an empty completion (Unit), replace with undefined.
+            return result.IsUnit ? JsValue.Undefined : result;
         }
     }
 }

@@ -676,16 +676,10 @@ public sealed class JsEnvironment : IRentable
         bool configurable,
         EvaluationContext? context)
     {
+        var descriptor = CreateWritableEnumerableDescriptor(value, configurable);
         if (existingDescriptor is null)
         {
-            if (!globalThis.TryDefineProperty(name.Name,
-                    new PropertyDescriptor
-                    {
-                        JsValue = value,
-                        Writable = true,
-                        Enumerable = true,
-                        Configurable = configurable
-                    }))
+            if (!globalThis.TryDefineProperty(name.Name, descriptor))
             {
                 throw StandardLibrary.ThrowTypeError(
                     $"Cannot declare global function '{name.Name}'.",
@@ -695,14 +689,7 @@ public sealed class JsEnvironment : IRentable
         }
         else if (existingDescriptor.Configurable)
         {
-            if (!globalThis.TryDefineProperty(name.Name,
-                    new PropertyDescriptor
-                    {
-                        JsValue = value,
-                        Writable = true,
-                        Enumerable = true,
-                        Configurable = configurable
-                    }))
+            if (!globalThis.TryDefineProperty(name.Name, descriptor))
             {
                 throw StandardLibrary.ThrowTypeError(
                     $"Cannot redeclare global function '{name.Name}'.",
@@ -720,6 +707,17 @@ public sealed class JsEnvironment : IRentable
                     context?.RealmState);
             }
         }
+    }
+
+    private static PropertyDescriptor CreateWritableEnumerableDescriptor(JsValue value, bool configurable)
+    {
+        return new PropertyDescriptor
+        {
+            JsValue = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = configurable
+        };
     }
 
     /// <summary>

@@ -50,7 +50,7 @@ public static partial class TypedAstEvaluator
 
                 if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
                 {
-                    ClassField.SetAnonymousFunctionName(valueJs, displayName);
+                    SetAnonymousFunctionName(valueJs, displayName);
                 }
             }
 
@@ -77,22 +77,6 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
-        }
-
-        private static void SetAnonymousFunctionName(JsValue value, string displayName)
-        {
-            switch (value.ObjectValue)
-            {
-                case SyncFunctionInvoker typedFunction:
-                    typedFunction.EnsureHasName(displayName, true);
-                    break;
-                case SyncGeneratorInvoker generatorFactory:
-                    generatorFactory.EnsureHasName(displayName, true);
-                    break;
-                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
-                    asyncGeneratorFactory.EnsureHasName(displayName, true);
-                    break;
-            }
         }
     }
 }

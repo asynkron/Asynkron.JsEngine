@@ -52,6 +52,66 @@ internal static class AstShapeAnalyzer
         return AnalyzeStatement(statement, includeNestedFunctions).HasAwait;
     }
 
+    /// <summary>
+    /// Checks if a binding target contains yield expressions in any of its default values.
+    /// Used by GeneratorYieldLowerer and DeclarationEmitter.
+    /// </summary>
+    public static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
+    {
+        switch (target)
+        {
+            case ArrayBinding arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultValue is not null && ContainsYield(element.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                if (arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
+                {
+                    return true;
+                }
+
+                return false;
+
+            case ObjectBinding objectBinding:
+                foreach (var prop in objectBinding.Properties)
+                {
+                    if (prop.DefaultValue is not null && ContainsYield(prop.DefaultValue))
+                    {
+                        return true;
+                    }
+
+                    if (BindingTargetContainsYieldInDefaultValue(prop.Target))
+                    {
+                        return true;
+                    }
+                }
+
+                if (objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
+                {
+                    return true;
+                }
+
+                return false;
+
+            case AssignmentTargetBinding assignmentTarget:
+                return ContainsYield(assignmentTarget.Expression);
+
+            default:
+                return false;
+        }
+    }
+
     public static bool TryFindSingleYield(ExpressionNode expression,
         [NotNullWhen(true)] out YieldExpression? yieldExpression)
     {

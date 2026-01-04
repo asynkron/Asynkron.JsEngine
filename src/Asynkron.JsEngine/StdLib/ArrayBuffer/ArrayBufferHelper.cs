@@ -86,4 +86,53 @@ public static class ArrayBufferHelper
 
         return callable;
     }
+
+    /// <summary>
+    /// Parses the maxByteLength option from an options object.
+    /// Shared by ArrayBuffer and SharedArrayBuffer constructors.
+    /// </summary>
+    internal static long? GetRequestedMaxByteLength(JsValue options, RealmState realm)
+    {
+        if (options.IsUndefined || options.IsNull)
+        {
+            return null;
+        }
+
+        if (!options.IsObject || options.AsObject() is not IJsPropertyAccessor accessor)
+        {
+            return null;
+        }
+
+        var context = realm.CreateContext();
+        if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), "maxByteLength", out var maxVal, context))
+        {
+            return null;
+        }
+
+        if (context.IsThrow)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        if (maxVal.IsUndefined)
+        {
+            return null;
+        }
+
+        return NumberHelper.ToIndexAsLong(maxVal, realm);
+    }
+
+    /// <summary>
+    /// Validates that the length is allocatable (fits in int).
+    /// Shared by ArrayBuffer and SharedArrayBuffer constructors.
+    /// </summary>
+    internal static int RequireAllocatableLength(long length, RealmState realm)
+    {
+        if (length > int.MaxValue)
+        {
+            throw ThrowRangeError("Invalid ArrayBuffer length", realm: realm);
+        }
+
+        return (int)length;
+    }
 }

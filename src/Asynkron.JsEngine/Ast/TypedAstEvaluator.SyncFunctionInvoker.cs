@@ -1694,22 +1694,6 @@ public static partial class TypedAstEvaluator
                 string.Join(',', instance.GetOwnPropertyKeysInOrder().Select(static k => k.ToString())));
         }
 
-        private static void SetAnonymousFunctionName(JsValue value, string displayName)
-        {
-            switch (value.ObjectValue)
-            {
-                case SyncFunctionInvoker typedFunction:
-                    typedFunction.EnsureHasName(displayName, true);
-                    break;
-                case SyncGeneratorInvoker generatorFactory:
-                    generatorFactory.EnsureHasName(displayName, true);
-                    break;
-                case AsyncGeneratorFunctionInvoker asyncGeneratorFactory:
-                    asyncGeneratorFactory.EnsureHasName(displayName, true);
-                    break;
-            }
-        }
-
         private static string DescribePrototype(object? proto)
         {
             switch (proto)

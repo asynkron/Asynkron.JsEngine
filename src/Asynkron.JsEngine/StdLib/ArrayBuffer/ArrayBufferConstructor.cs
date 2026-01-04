@@ -89,7 +89,7 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             ? ToIndexAsLong(args[0], Realm)
             : 0L;
 
-        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined);
+        var requestedMax = ArrayBufferHelper.GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined, Realm);
         if (requestedMax is { } maxValue && byteLength > maxValue)
         {
             throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
@@ -97,8 +97,8 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
 
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
-            var allocLength = RequireAllocatableLength(byteLength);
-            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
+            var allocLength = ArrayBufferHelper.RequireAllocatableLength(byteLength, Realm);
+            int? allocMax = requestedMax is { } maxIndex ? ArrayBufferHelper.RequireAllocatableLength(maxIndex, Realm) : null;
             return new JsArrayBuffer(allocLength, allocMax, Realm);
         }
 
@@ -109,51 +109,10 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
             instance.SetPrototype(proto);
         }
 
-        var derivedLength = RequireAllocatableLength(byteLength);
-        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
+        var derivedLength = ArrayBufferHelper.RequireAllocatableLength(byteLength, Realm);
+        int? derivedMax = requestedMax is { } maxValue2 ? ArrayBufferHelper.RequireAllocatableLength(maxValue2, Realm) : null;
         var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm);
         StoreInternalArrayBuffer(instance, buffer);
         return instance;
-    }
-
-    private int RequireAllocatableLength(long length)
-    {
-        if (length > int.MaxValue)
-        {
-            throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
-        }
-
-        return (int)length;
-    }
-
-    private long? GetRequestedMaxByteLength(JsValue options)
-    {
-        if (options.IsUndefined || options.IsNull)
-        {
-            return null;
-        }
-
-        if (!options.IsObject || options.AsObject() is not IJsPropertyAccessor accessor)
-        {
-            return null;
-        }
-
-        var context = Realm.CreateContext();
-        if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), "maxByteLength", out var maxValJs, context))
-        {
-            return null;
-        }
-
-        if (context.IsThrow)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (maxValJs.IsUndefined)
-        {
-            return null;
-        }
-
-        return ToIndexAsLong(maxValJs, Realm);
     }
 }

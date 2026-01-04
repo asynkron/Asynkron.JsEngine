@@ -131,64 +131,8 @@ internal static class DeclarationEmitter
     private static bool DeclarationContainsYieldInBindingTargetDefaults(VariableDeclaration declaration)
     {
         return declaration.Declarators.Any(static d =>
-            BindingTargetContainsYieldInDefaultValue(d.Target) ||
+            AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(d.Target) ||
             (d.Initializer is not null && EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(d.Initializer)));
-    }
-
-    private static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
-    {
-        switch (target)
-        {
-            case ArrayBinding arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case ObjectBinding objectBinding:
-                foreach (var prop in objectBinding.Properties)
-                {
-                    if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                    {
-                        return true;
-                    }
-
-                    if (BindingTargetContainsYieldInDefaultValue(prop.Target))
-                    {
-                        return true;
-                    }
-                }
-
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
-
-            case AssignmentTargetBinding assignmentTarget:
-                return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
-
-            default:
-                return false;
-        }
     }
 
     /// <summary>

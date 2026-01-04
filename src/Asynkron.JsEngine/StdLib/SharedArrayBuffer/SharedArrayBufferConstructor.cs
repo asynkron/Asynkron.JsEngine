@@ -63,7 +63,7 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             ? NumberHelper.ToIndexAsLong(args[0], Realm)
             : 0L;
 
-        var requestedMax = GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined);
+        var requestedMax = ArrayBufferHelper.GetRequestedMaxByteLength(args.Count > 1 ? args[1] : JsValue.Undefined, Realm);
         if (requestedMax is { } maxValue && byteLength > maxValue)
         {
             throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
@@ -71,8 +71,8 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 
         if (ReferenceEquals(newTarget, _constructor ?? newTarget))
         {
-            var allocLength = RequireAllocatableLength(byteLength);
-            int? allocMax = requestedMax is { } maxIndex ? RequireAllocatableLength(maxIndex) : null;
+            var allocLength = ArrayBufferHelper.RequireAllocatableLength(byteLength, Realm);
+            int? allocMax = requestedMax is { } maxIndex ? ArrayBufferHelper.RequireAllocatableLength(maxIndex, Realm) : null;
             var directBuffer = new JsArrayBuffer(allocLength, allocMax, Realm, true);
             directBuffer.SetPrototype(Prototype);
             return directBuffer;
@@ -85,51 +85,10 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
             instance.SetPrototype(proto);
         }
 
-        var derivedLength = RequireAllocatableLength(byteLength);
-        int? derivedMax = requestedMax is { } maxValue2 ? RequireAllocatableLength(maxValue2) : null;
+        var derivedLength = ArrayBufferHelper.RequireAllocatableLength(byteLength, Realm);
+        int? derivedMax = requestedMax is { } maxValue2 ? ArrayBufferHelper.RequireAllocatableLength(maxValue2, Realm) : null;
         var buffer = new JsArrayBuffer(derivedLength, derivedMax, Realm, true);
         ArrayBufferHelper.StoreInternalArrayBuffer(instance, buffer);
         return instance;
-    }
-
-    private int RequireAllocatableLength(long length)
-    {
-        if (length > int.MaxValue)
-        {
-            throw ThrowRangeError("Invalid SharedArrayBuffer length", realm: Realm);
-        }
-
-        return (int)length;
-    }
-
-    private long? GetRequestedMaxByteLength(JsValue options)
-    {
-        if (options.IsUndefined || options.IsNull)
-        {
-            return null;
-        }
-
-        if (!options.IsObject || options.AsObject() is not IJsPropertyAccessor accessor)
-        {
-            return null;
-        }
-
-        var context = Realm.CreateContext();
-        if (!JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), "maxByteLength", out var maxVal, context))
-        {
-            return null;
-        }
-
-        if (context.IsThrow)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        if (maxVal.IsUndefined)
-        {
-            return null;
-        }
-
-        return NumberHelper.ToIndexAsLong(maxVal, Realm);
     }
 }

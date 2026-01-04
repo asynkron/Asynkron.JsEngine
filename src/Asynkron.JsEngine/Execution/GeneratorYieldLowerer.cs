@@ -875,7 +875,7 @@ internal static class GeneratorYieldLowerer
                     //   otherwise iterator close semantics break (the iterator won't exist yet)
                     // Let the expression pass through unchanged so the IR builder can wrap it
                     // in a StatementInstruction for proper handling.
-                    if (BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) ||
+                    if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) ||
                         BindingTargetContainsYieldInAssignmentTarget(destructuringAssignment.Target))
                     {
                         return destructuringAssignment;
@@ -1804,7 +1804,7 @@ internal static class GeneratorYieldLowerer
             // Default values are only evaluated if the element is undefined, so extracting them
             // would change when the yield happens relative to iterator operations.
             // Let AST evaluation handle this case via BindArrayPattern's state-saving mechanism.
-            if (BindingTargetContainsYieldInDefaultValue(forEachStatement.Target))
+            if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(forEachStatement.Target))
             {
                 return false;
             }
@@ -1949,72 +1949,6 @@ internal static class GeneratorYieldLowerer
                     return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);
 
                 default:
-                    return false;
-            }
-        }
-
-        /// <summary>
-        /// Checks if the binding target contains yields specifically in default value expressions.
-        /// Yields in default values cannot be safely extracted because defaults are only evaluated
-        /// when the element is undefined - extracting them would change evaluation order.
-        /// </summary>
-        private static bool BindingTargetContainsYieldInDefaultValue(BindingTarget target)
-        {
-            switch (target)
-            {
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        // Check for yields specifically in default values
-                        if (element.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(element.DefaultValue))
-                        {
-                            return true;
-                        }
-
-                        // Recursively check nested bindings for yields in their defaults
-                        if (element.Target is not null && BindingTargetContainsYieldInDefaultValue(element.Target))
-                        {
-                            return true;
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is not null &&
-                        BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
-                    {
-                        return true;
-                    }
-
-                    return false;
-
-                case ObjectBinding objectBinding:
-                    foreach (var prop in objectBinding.Properties)
-                    {
-                        // Check for yields specifically in default values
-                        if (prop.DefaultValue is not null && AstShapeAnalyzer.ContainsYield(prop.DefaultValue))
-                        {
-                            return true;
-                        }
-
-                        // Note: yields in computed property names (NameExpression) CAN be safely extracted
-                        // because they're always evaluated, so we don't check them here
-
-                        // Recursively check nested bindings for yields in their defaults
-                        if (BindingTargetContainsYieldInDefaultValue(prop.Target))
-                        {
-                            return true;
-                        }
-                    }
-
-                    if (objectBinding.RestElement is not null &&
-                        BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
-                    {
-                        return true;
-                    }
-
-                    return false;
-
-                default:
-                    // IdentifierBinding and AssignmentTargetBinding don't have default values
                     return false;
             }
         }

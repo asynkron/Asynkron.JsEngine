@@ -207,36 +207,14 @@ public sealed class JsEnvironment : IRentable
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
-        Enclosing = enclosing;
-        IsFunctionScope = isFunctionScope;
-        IsStrictLocal = isStrict;
-        _creatingSource = creatingSource;
-        _description = description;
-        ClearSlots();
-        _identifierBindingCache?.Clear();
-        _bindingObservers?.Clear();
-        _bodyLexicalNames?.Clear();
-        _simpleCatchParameters?.Clear();
-        _isDefaultDerivedConstructor = false;
-        _varEnvironmentOverride = null;
-        _withObject = null;
+        ResetCommonFields(enclosing, isFunctionScope, isStrict, creatingSource, description);
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
         IsArrowFunctionEnvironment = false;
-        _treatAsGlobalFunctionScope = false;
-        _inheritStrictness = true;
-        // Cache effective strictness - inheritStrictness is always true in Reset
-        _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
-        RealmState = enclosing?.RealmState;
-        ModulePath = enclosing?.ModulePath;
-        IsAsyncModule = enclosing?.IsAsyncModule ?? false;
-        Depth = (enclosing?.Depth ?? 0) + 1;
         // Reset slot-based state - return slots array to pool
         JsSlotArrayPool.Return(_slots);
         _slots = null;
         _slotCount = 0;
-        _thisValue = default;
-        _hasThisValue = false;
         ScopeId = -1;
         LayoutId = -1;
     }
@@ -272,6 +250,27 @@ public sealed class JsEnvironment : IRentable
         SourceReference? creatingSource = null,
         string? description = null)
     {
+        ResetCommonFields(enclosing, isFunctionScope, isStrict, creatingSource, description);
+        IsParameterEnvironment = false;
+        IsBodyEnvironment = false;
+        // Keep _slots for reuse - InitializeSlots will reuse if same size
+        // Note: _slotCount is NOT reset here - InitializeSlots will set it
+        ScopeId = -1;
+        LayoutId = -1;
+
+        if (Depth > 5000)
+        {
+            throw new NotSupportedException("Recursion depth exceeded maximum of 5000");
+        }
+    }
+
+    private void ResetCommonFields(
+        JsEnvironment? enclosing,
+        bool isFunctionScope,
+        bool isStrict,
+        SourceReference? creatingSource,
+        string? description)
+    {
         Enclosing = enclosing;
         IsFunctionScope = isFunctionScope;
         IsStrictLocal = isStrict;
@@ -285,27 +284,15 @@ public sealed class JsEnvironment : IRentable
         _isDefaultDerivedConstructor = false;
         _varEnvironmentOverride = null;
         _withObject = null;
-        IsParameterEnvironment = false;
-        IsBodyEnvironment = false;
         _treatAsGlobalFunctionScope = false;
         _inheritStrictness = true;
-        // Cache effective strictness - inheritStrictness is always true in ResetForReuse
         _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
         RealmState = enclosing?.RealmState;
         ModulePath = enclosing?.ModulePath;
         IsAsyncModule = enclosing?.IsAsyncModule ?? false;
         Depth = (enclosing?.Depth ?? 0) + 1;
-        // Keep _slots for reuse - InitializeSlots will reuse if same size
-        // Note: _slotCount is NOT reset here - InitializeSlots will set it
         _thisValue = default;
         _hasThisValue = false;
-        ScopeId = -1;
-        LayoutId = -1;
-
-        if (Depth > 5000)
-        {
-            throw new NotSupportedException("Recursion depth exceeded maximum of 5000");
-        }
     }
 
     /// <summary>

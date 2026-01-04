@@ -17,36 +17,16 @@ internal static class ClassPropertyNameResolver
             PrivateNameScope? privateNameScope,
             out string propertyName)
         {
-            propertyName = member.Name;
-            if (member.IsComputed)
-            {
-                if (member.ComputedName is null)
-                {
-                    throw new InvalidOperationException("Computed class member is missing name expression.");
-                }
-
-                var nameValue = evaluator(member.ComputedName);
-                if (context.ShouldStopEvaluation)
-                {
-                    return false;
-                }
-
-                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-                return !context.ShouldStopEvaluation;
-            }
-
-            if (member.IsPrivate && privateNameScope is not null)
-            {
-                propertyName = privateNameScope.GetKey(propertyName);
-                return true;
-            }
-
-            if (double.TryParse(propertyName, NumberStyles.Float, CultureInfo.InvariantCulture, out var numericKey))
-            {
-                propertyName = JsOps.ToCanonicalNumberString(numericKey);
-            }
-
-            return true;
+            return TryResolveNameCore(
+                member.Name,
+                member.IsComputed,
+                member.ComputedName,
+                member.IsPrivate,
+                "class member",
+                evaluator,
+                context,
+                privateNameScope,
+                out propertyName);
         }
     }
 
@@ -57,36 +37,60 @@ internal static class ClassPropertyNameResolver
             PrivateNameScope? privateNameScope,
             out string propertyName)
         {
-            propertyName = field.Name;
-            if (field.IsComputed)
+            return TryResolveNameCore(
+                field.Name,
+                field.IsComputed,
+                field.ComputedName,
+                field.IsPrivate,
+                "class field",
+                evaluator,
+                context,
+                privateNameScope,
+                out propertyName);
+        }
+    }
+
+    private static bool TryResolveNameCore(
+        string name,
+        bool isComputed,
+        ExpressionNode? computedName,
+        bool isPrivate,
+        string elementType,
+        Func<ExpressionNode, JsValue> evaluator,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope,
+        out string propertyName)
+    {
+        propertyName = name;
+
+        if (isComputed)
+        {
+            if (computedName is null)
             {
-                if (field.ComputedName is null)
-                {
-                    throw new InvalidOperationException("Computed class field is missing name expression.");
-                }
-
-                var nameValue = evaluator(field.ComputedName);
-                if (context.ShouldStopEvaluation)
-                {
-                    return false;
-                }
-
-                propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
-                return !context.ShouldStopEvaluation;
+                throw new InvalidOperationException($"Computed {elementType} is missing name expression.");
             }
 
-            if (field.IsPrivate && privateNameScope is not null)
+            var nameValue = evaluator(computedName);
+            if (context.ShouldStopEvaluation)
             {
-                propertyName = privateNameScope.GetKey(propertyName);
-                return true;
+                return false;
             }
 
-            if (double.TryParse(propertyName, NumberStyles.Float, CultureInfo.InvariantCulture, out var numericKey))
-            {
-                propertyName = JsOps.ToCanonicalNumberString(numericKey);
-            }
+            propertyName = JsOps.GetRequiredPropertyName(nameValue, context);
+            return !context.ShouldStopEvaluation;
+        }
 
+        if (isPrivate && privateNameScope is not null)
+        {
+            propertyName = privateNameScope.GetKey(propertyName);
             return true;
         }
+
+        if (double.TryParse(propertyName, NumberStyles.Float, CultureInfo.InvariantCulture, out var numericKey))
+        {
+            propertyName = JsOps.ToCanonicalNumberString(numericKey);
+        }
+
+        return true;
     }
 }

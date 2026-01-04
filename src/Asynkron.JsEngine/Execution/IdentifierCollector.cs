@@ -87,31 +87,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
         _visited[index] = true;
 
         var scopeSnapshot = _scopeStack.ToArray();
-        foreach (var successor in GetSuccessors(_instructions[index]))
+        foreach (var successor in _instructions[index].GetSuccessors())
         {
             RestoreStack(scopeSnapshot);
             TraverseFrom(successor);
-        }
-    }
-
-    private static IEnumerable<int> GetSuccessors(ExecutionInstruction instruction)
-    {
-        switch (instruction)
-        {
-            case BranchInstruction branch:
-                yield return branch.ConsequentIndex;
-                yield return branch.AlternateIndex;
-                yield break;
-            case JumpInstruction jump:
-                yield return jump.TargetIndex;
-                yield break;
-            default:
-                if (instruction.Next >= 0)
-                {
-                    yield return instruction.Next;
-                }
-
-                yield break;
         }
     }
 

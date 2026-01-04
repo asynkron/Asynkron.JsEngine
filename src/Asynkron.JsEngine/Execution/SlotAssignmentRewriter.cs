@@ -64,31 +64,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         var scopeSnapshot = _scopeStack.ToArray();
         var catchSnapshot = _catchScopeStack.ToArray();
 
-        foreach (var successor in GetSuccessors(instructions[index]))
+        foreach (var successor in instructions[index].GetSuccessors())
         {
             RestoreStack(scopeSnapshot, catchSnapshot);
             RewriteFrom(successor, instructions, visited);
-        }
-    }
-
-    private static IEnumerable<int> GetSuccessors(ExecutionInstruction instruction)
-    {
-        switch (instruction)
-        {
-            case BranchInstruction branch:
-                yield return branch.ConsequentIndex;
-                yield return branch.AlternateIndex;
-                yield break;
-            case JumpInstruction jump:
-                yield return jump.TargetIndex;
-                yield break;
-            default:
-                if (instruction.Next >= 0)
-                {
-                    yield return instruction.Next;
-                }
-
-                yield break;
         }
     }
 

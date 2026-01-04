@@ -879,18 +879,7 @@ public static partial class TypedAstEvaluator
                             }
 
                             // Check for throw
-                            if (context.IsThrow)
-                            {
-                                var thrownBranch = context.FlowValue;
-                                context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
-                                {
-                                    continue;
-                                }
-
-                                TryCatchStateRef.TryStack.Clear();
-                                throw new ThrowSignal(thrownBranch);
-                            }
+                            if (TryHandleContextThrow(context, environment)) continue;
 
                             // Normal path: branch based on condition
                             _programCounter = testValue.IsTruthy
@@ -2888,18 +2877,7 @@ public static partial class TypedAstEvaluator
                                     return pendingBranchResult;
                                 }
 
-                                if (context.IsThrow)
-                                {
-                                    var thrownBranch = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownBranch, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(thrownBranch);
-                                }
+                                if (TryHandleContextThrow(context, environment)) continue;
 
                                 _programCounter = testValue.IsTruthy
                                     ? branchInstruction.ConsequentIndex
@@ -3474,6 +3452,26 @@ public static partial class TypedAstEvaluator
                 ? JsValue.Undefined
                 : CreateIteratorResult(JsValue.Undefined, false);
             return true;
+        }
+
+        /// <summary>
+        /// Handles throw state from context by attempting abrupt completion handling.
+        /// Returns true if the throw was handled and the caller should continue the loop.
+        /// Throws ThrowSignal if the throw could not be handled.
+        /// </summary>
+        private bool TryHandleContextThrow(EvaluationContext context, JsEnvironment environment)
+        {
+            if (!context.IsThrow) return false;
+
+            var thrownValue = context.FlowValue;
+            context.Clear();
+            if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+            {
+                return true;
+            }
+
+            TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrownValue);
         }
 
         /// <summary>

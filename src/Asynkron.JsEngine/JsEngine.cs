@@ -51,7 +51,7 @@ public sealed class JsEngine : IAsyncDisposable
     private int _moduleBodyExecutionDepth; // Depth counter to suppress microtask draining during module body execution
 
     // Module loader function: allows custom module loading logic
-    private Func<string, string?, string>? _moduleLoader;
+    private ModuleLoader? _moduleLoader;
     private int _nextTimerId;
     private int _pendingTaskCount; // Track pending tasks in the event queue
 
@@ -1848,7 +1848,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Registers a host function that can be invoked from interpreted code.
     /// </summary>
-    public void SetGlobalFunction(string name, Func<IReadOnlyList<JsValue>, JsValue> handler)
+    public void SetGlobalFunction(string name, JsSimpleHandler handler)
     {
         SetGlobal(name, new HostFunction(handler) { Realm = GlobalObject }, registerBinding: true);
     }
@@ -1856,7 +1856,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// <summary>
     ///     Registers a host function that receives the <c>this</c> binding.
     /// </summary>
-    public void SetGlobalFunction(string name, Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
+    public void SetGlobalFunction(string name, JsHostHandler handler)
     {
         GlobalEnvironment.DefineJsValue(Symbol.Intern(name),
             (JsValue)new HostFunction(handler) { Realm = GlobalObject });
@@ -1868,7 +1868,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     /// <param name="name">The name of the global function.</param>
     /// <param name="handler">An async function that returns a Task&lt;JsValue&gt;.</param>
-    public void SetGlobalAsyncFunction(string name, Func<IReadOnlyList<JsValue>, Task<JsValue>> handler)
+    public void SetGlobalAsyncFunction(string name, JsAsyncSimpleHandler handler)
     {
         SetGlobal(name, new HostFunction(args => CreatePromiseFromTask(handler(args))) { Realm = GlobalObject },
             registerBinding: true);
@@ -1880,7 +1880,7 @@ public sealed class JsEngine : IAsyncDisposable
     /// </summary>
     /// <param name="name">The name of the global function.</param>
     /// <param name="handler">An async function that returns a Task&lt;JsValue&gt;.</param>
-    public void SetGlobalAsyncFunction(string name, Func<JsValue, IReadOnlyList<JsValue>, Task<JsValue>> handler)
+    public void SetGlobalAsyncFunction(string name, JsAsyncHostHandler handler)
     {
         GlobalEnvironment.DefineJsValue(Symbol.Intern(name),
             (JsValue)new HostFunction((thisValue, args) => CreatePromiseFromTask(handler(thisValue, args)))
@@ -2713,12 +2713,12 @@ public sealed class JsEngine : IAsyncDisposable
     ///     The function receives the module path and should return the module source code.
     ///     If not set, the engine will use File.ReadAllText to load modules from the file system.
     /// </summary>
-    public void SetModuleLoader(Func<string, string> loader)
+    public void SetModuleLoader(SimpleModuleLoader loader)
     {
         _moduleLoader = (path, _) => loader(path);
     }
 
-    public void SetModuleLoader(Func<string, string?, string> loader)
+    public void SetModuleLoader(ModuleLoader loader)
     {
         _moduleLoader = loader;
     }

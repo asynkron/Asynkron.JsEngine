@@ -13,7 +13,7 @@ public static class JsPropertyAccessorExtensions
 {
     // New JsValue-based signatures (preferred)
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<IReadOnlyList<JsValue>, JsValue> handler)
+        JsSimpleHandler handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
         accessor.SetProperty(name, (JsValue)fn);
@@ -22,12 +22,13 @@ public static class JsPropertyAccessorExtensions
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
-        var fn = new HostFunction(args => handler(args, realmState), realmState, false);
+        JsSimpleHandler wrappedHandler = args => handler(args, realmState);
+        var fn = new HostFunction(wrappedHandler, realmState, false);
         accessor.SetProperty(name, (JsValue)fn);
     }
 
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
-        Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
+        JsHostHandler handler)
     {
         var fn = new HostFunction(handler, isConstructor: false);
         accessor.SetProperty(name, (JsValue)fn);
@@ -36,7 +37,8 @@ public static class JsPropertyAccessorExtensions
     public static void SetHostedProperty(this IJsPropertyAccessor accessor, string name,
         Func<JsValue, IReadOnlyList<JsValue>, RealmState?, JsValue> handler, RealmState? realmState)
     {
-        var fn = new HostFunction((thisVal, args) => handler(thisVal, args, realmState), realmState, false);
+        JsHostHandler wrappedHandler = (thisVal, args) => handler(thisVal, args, realmState);
+        var fn = new HostFunction(wrappedHandler, realmState, false);
         accessor.SetProperty(name, (JsValue)fn);
     }
 

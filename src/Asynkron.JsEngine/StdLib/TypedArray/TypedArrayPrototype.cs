@@ -511,7 +511,7 @@ public sealed partial class TypedArrayPrototype
     private JsValue FindIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var result = FindCore(thisValue, args, "TypedArray.prototype.findIndex", reverse: false);
-        return result is { } r ? (double)r.Value.Index : -1d;
+        return result is { } r ? (double)r.Index : -1d;
     }
 
     private JsValue FindLastImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -523,7 +523,7 @@ public sealed partial class TypedArrayPrototype
     private JsValue FindLastIndexImpl(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var result = FindCore(thisValue, args, "TypedArray.prototype.findLastIndex", reverse: true);
-        return result is { } r ? (double)r.Value.Index : -1d;
+        return result is { } r ? (double)r.Index : -1d;
     }
 
     /// <summary>

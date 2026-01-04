@@ -21,7 +21,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     // Cached JsValue to avoid repeated struct creation
     private readonly JsValue _cachedJsValue;
 
-    public HostFunction(Func<IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
+    public HostFunction(JsSimpleHandler handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -34,7 +34,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         InitializePrototype();
     }
 
-    public HostFunction(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler, RealmState? realmState = null,
+    public HostFunction(JsHostHandler handler, RealmState? realmState = null,
         bool isConstructor = true)
     {
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
@@ -46,7 +46,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     }
 
     internal HostFunction(
-        Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler,
+        JsHostHandler handler,
         JsObject properties,
         RealmState? realmState,
         bool isConstructor,
@@ -134,7 +134,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     internal JsObject PropertiesObject => Properties;
 
-    internal Func<JsValue, IReadOnlyList<JsValue>, JsValue> HandlerForSnapshot { get; private set; }
+    internal JsHostHandler HandlerForSnapshot { get; private set; }
 
     internal Func<IReadOnlyList<JsValue>, JsValue, EvaluationContext?, JsValue, JsValue>? InvokeWithContextForSnapshot
     {
@@ -370,7 +370,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         InvokeWithContextForSnapshot = handler;
     }
 
-    internal void SetHandlerForSnapshot(Func<JsValue, IReadOnlyList<JsValue>, JsValue> handler)
+    internal void SetHandlerForSnapshot(JsHostHandler handler)
     {
         HandlerForSnapshot = handler ?? throw new ArgumentNullException(nameof(handler));
     }

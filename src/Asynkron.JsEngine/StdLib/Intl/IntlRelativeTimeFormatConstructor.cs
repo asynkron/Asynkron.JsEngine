@@ -31,28 +31,7 @@ public sealed partial class IntlRelativeTimeFormatConstructor(IJsObjectLike prot
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        var supportedLocalesOf = new HostFunction(
-            (_, args) =>
-                JsValue.FromJsArray(
-                    IntlHelper.ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm)),
-            isConstructor: false);
-
-        supportedLocalesOf.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        supportedLocalesOf.DefineProperty("name",
-            new PropertyDescriptor
-            {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
-            });
-
-        constructor.DefineProperty("supportedLocalesOf",
-            new PropertyDescriptor
-            {
-                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
-            });
-
-        supportedLocalesOf.SetPrototype(constructor.Prototype);
-        supportedLocalesOf.Delete("prototype");
+        IntlHelper.ConfigureSupportedLocalesOf(constructor, Realm);
     }
 
     private JsObject? NormalizeOptions(JsValue optionsArg)

@@ -156,6 +156,34 @@ public static class IntlHelper
         return CreateLocaleArray(supported, realm);
     }
 
+    /// <summary>
+    /// Configures the supportedLocalesOf static method on an Intl constructor.
+    /// </summary>
+    internal static void ConfigureSupportedLocalesOf(HostFunction constructor, RealmState realm)
+    {
+        var supportedLocalesOf = new HostFunction(
+            (_, args) => JsValue.FromJsArray(
+                ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), realm)),
+            isConstructor: false);
+
+        supportedLocalesOf.DefineProperty("length",
+            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+        supportedLocalesOf.DefineProperty("name",
+            new PropertyDescriptor
+            {
+                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+            });
+
+        constructor.DefineProperty("supportedLocalesOf",
+            new PropertyDescriptor
+            {
+                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
+            });
+
+        supportedLocalesOf.SetPrototype(constructor.Prototype);
+        supportedLocalesOf.Delete("prototype");
+    }
+
     public static JsObject CreateTemporalObject(RealmState realm)
     {
         var temporal = new JsObject();

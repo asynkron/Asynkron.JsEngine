@@ -27,28 +27,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
 
     protected override void ConfigureConstructor(HostFunction constructor)
     {
-        var supportedLocalesOf = new HostFunction(SupportedLocalesOf, isConstructor: false);
-        supportedLocalesOf.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        supportedLocalesOf.DefineProperty("name",
-            new PropertyDescriptor
-            {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
-            });
-
-        constructor.DefineProperty("supportedLocalesOf",
-            new PropertyDescriptor
-            {
-                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
-            });
-        supportedLocalesOf.SetPrototype(constructor.Prototype);
-        supportedLocalesOf.Delete("prototype");
-    }
-
-    private JsValue SupportedLocalesOf(IReadOnlyList<JsValue> args)
-    {
-        var result = ResolveSupportedLocales(args.GetArgument(0), args.GetArgument(1), Realm);
-        return JsValue.FromJsArray(result);
+        IntlHelper.ConfigureSupportedLocalesOf(constructor, Realm);
     }
 
     private IntlNumberFormatInternalSlots CreateInternalSlots(string locale, IJsPropertyAccessor? options)

@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -335,21 +336,7 @@ public static partial class TypedAstEvaluator
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                    StringComparison.Ordinal))
                     {
-                        var errorValue = new JsValue(ex.Message);
-
-                        if (sourceEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier,
-                                out var callable))
-                        {
-                            try
-                            {
-                                errorValue = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
-                            }
-                            catch (ThrowSignal signal)
-                            {
-                                errorValue = signal.ThrownValue;
-                            }
-                        }
-
+                        var errorValue = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
                         context.SetThrow(errorValue);
                         currentValue = errorValue;
                     }
@@ -434,21 +421,7 @@ public static partial class TypedAstEvaluator
                         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                        StringComparison.Ordinal))
                         {
-                            var errorValue = new JsValue(ex.Message);
-
-                            if (currentIterationEnvironment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier,
-                                    out var callable))
-                            {
-                                try
-                                {
-                                    errorValue = callable.Invoke([new JsValue(ex.Message)], JsValue.Undefined);
-                                }
-                                catch (ThrowSignal signal)
-                                {
-                                    errorValue = signal.ThrownValue;
-                                }
-                            }
-
+                            var errorValue = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
                             context.SetThrow(errorValue);
                             currentValue = errorValue;
                         }

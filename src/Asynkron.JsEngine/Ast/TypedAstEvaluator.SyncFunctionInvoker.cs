@@ -2011,22 +2011,23 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Ultra-fast core invocation - no try/catch to allow JIT inlining.
-        /// Only used when we can guarantee no ThrowSignal will escape (errors propagate via context).
+        /// Sets up the execution context and environment for ultra-fast function invocation.
+        /// Shared by InvokeSimpleFastCore, InvokeSimpleFastCore1, and InvokeSimpleFastCore2.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue,
-            EvaluationContext callingContext)
+        private void SetupFastFunctionContext(
+            JsValue thisValue,
+            EvaluationContext callingContext,
+            out EvaluationContext context,
+            out JsEnvironment functionEnvironment)
         {
-            // Rent context from pool
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
+            context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
-            // Rent environment from pool
-            var functionEnvironment =
+            functionEnvironment =
                 RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
             functionEnvironment.ScopeId = _function.ScopeId;
             functionEnvironment.SetSlotMap(_function.SlotMap);
@@ -2035,7 +2036,6 @@ public static partial class TypedAstEvaluator
                 functionEnvironment.InitializeSlots(_function.SlotCount);
             }
 
-            // Bind this - use lexical this for arrow functions, parameter for others
             JsValue boundThisValue;
             if (IsArrowFunction)
             {
@@ -2052,6 +2052,51 @@ public static partial class TypedAstEvaluator
 
             functionEnvironment._thisValue = boundThisValue;
             functionEnvironment._hasThisValue = true;
+        }
+
+        /// <summary>
+        /// Executes the function body, handles result/throw/return, and returns pooled resources.
+        /// Shared by InvokeSimpleFastCore, InvokeSimpleFastCore1, and InvokeSimpleFastCore2.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue ExecuteFunctionAndReturnResources(
+            JsEnvironment functionEnvironment,
+            EvaluationContext context,
+            EvaluationContext callingContext)
+        {
+            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
+
+            JsValue result;
+            if (context.IsThrow)
+            {
+                result = context.FlowValue;
+                context.Clear();
+                callingContext.SetThrow(result);
+            }
+            else if (context.IsReturn)
+            {
+                result = context.FlowValue;
+                context.ClearReturn();
+            }
+            else
+            {
+                result = JsValue.Undefined;
+            }
+
+            RealmState.ReturnContext(context);
+            RealmState.ReturnEnvironment(functionEnvironment);
+            return result;
+        }
+
+        /// <summary>
+        /// Ultra-fast core invocation - no try/catch to allow JIT inlining.
+        /// Only used when we can guarantee no ThrowSignal will escape (errors propagate via context).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private JsValue InvokeSimpleFastCore(IReadOnlyList<JsValue> arguments, JsValue thisValue,
+            EvaluationContext callingContext)
+        {
+            SetupFastFunctionContext(thisValue, callingContext, out var context, out var functionEnvironment);
 
             // Bind parameters to slots
             var slots = functionEnvironment._slots;
@@ -2080,32 +2125,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Execute body
-            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
-
-            // Get result
-            JsValue result;
-            if (context.IsThrow)
-            {
-                result = context.FlowValue;
-                context.Clear();
-                callingContext.SetThrow(result);
-            }
-            else if (context.IsReturn)
-            {
-                result = context.FlowValue;
-                context.ClearReturn();
-            }
-            else
-            {
-                result = JsValue.Undefined;
-            }
-
-            // Return pooled resources
-            RealmState.ReturnContext(context);
-            RealmState.ReturnEnvironment(functionEnvironment);
-
-            return result;
+            return ExecuteFunctionAndReturnResources(functionEnvironment, context, callingContext);
         }
 
         /// <summary>
@@ -2114,38 +2134,7 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private JsValue InvokeSimpleFastCore1(JsValue arg0, JsValue thisValue, EvaluationContext callingContext)
         {
-            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
-            context.AllowIdentifierCache = _allowIdentifierCache;
-            context.CallDepth = callingContext.CallDepth;
-            context.MaxCallDepth = callingContext.MaxCallDepth;
-
-            var functionEnvironment =
-                RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
-            functionEnvironment.ScopeId = _function.ScopeId;
-            functionEnvironment.SetSlotMap(_function.SlotMap);
-            if (_function.SlotCount > 0)
-            {
-                functionEnvironment.InitializeSlots(_function.SlotCount);
-            }
-
-            // Bind this
-            JsValue boundThisValue;
-            if (IsArrowFunction)
-            {
-                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
-            }
-            else if (_isStrict)
-            {
-                boundThisValue = thisValue;
-            }
-            else
-            {
-                boundThisValue = CoerceThisValueForNonStrict(thisValue);
-            }
-
-            functionEnvironment._thisValue = boundThisValue;
-            functionEnvironment._hasThisValue = true;
+            SetupFastFunctionContext(thisValue, callingContext, out var context, out var functionEnvironment);
 
             // Bind first parameter directly - no array allocation
             var slots = functionEnvironment._slots;
@@ -2178,28 +2167,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
-
-            JsValue result;
-            if (context.IsThrow)
-            {
-                result = context.FlowValue;
-                context.Clear();
-                callingContext.SetThrow(result);
-            }
-            else if (context.IsReturn)
-            {
-                result = context.FlowValue;
-                context.ClearReturn();
-            }
-            else
-            {
-                result = JsValue.Undefined;
-            }
-
-            RealmState.ReturnContext(context);
-            RealmState.ReturnEnvironment(functionEnvironment);
-            return result;
+            return ExecuteFunctionAndReturnResources(functionEnvironment, context, callingContext);
         }
 
         /// <summary>
@@ -2299,38 +2267,7 @@ public static partial class TypedAstEvaluator
         private JsValue InvokeSimpleFastCore2(JsValue arg0, JsValue arg1, JsValue thisValue,
             EvaluationContext callingContext)
         {
-            var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            var context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
-            context.AllowIdentifierCache = _allowIdentifierCache;
-            context.CallDepth = callingContext.CallDepth;
-            context.MaxCallDepth = callingContext.MaxCallDepth;
-
-            var functionEnvironment =
-                RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
-            functionEnvironment.ScopeId = _function.ScopeId;
-            functionEnvironment.SetSlotMap(_function.SlotMap);
-            if (_function.SlotCount > 0)
-            {
-                functionEnvironment.InitializeSlots(_function.SlotCount);
-            }
-
-            // Bind this
-            JsValue boundThisValue;
-            if (IsArrowFunction)
-            {
-                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
-            }
-            else if (_isStrict)
-            {
-                boundThisValue = thisValue;
-            }
-            else
-            {
-                boundThisValue = CoerceThisValueForNonStrict(thisValue);
-            }
-
-            functionEnvironment._thisValue = boundThisValue;
-            functionEnvironment._hasThisValue = true;
+            SetupFastFunctionContext(thisValue, callingContext, out var context, out var functionEnvironment);
 
             // Bind first two parameters directly - no array allocation
             var slots = functionEnvironment._slots;
@@ -2384,28 +2321,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            _ = _function.Body.EvaluateBlockJsValue(functionEnvironment, context);
-
-            JsValue result;
-            if (context.IsThrow)
-            {
-                result = context.FlowValue;
-                context.Clear();
-                callingContext.SetThrow(result);
-            }
-            else if (context.IsReturn)
-            {
-                result = context.FlowValue;
-                context.ClearReturn();
-            }
-            else
-            {
-                result = JsValue.Undefined;
-            }
-
-            RealmState.ReturnContext(context);
-            RealmState.ReturnEnvironment(functionEnvironment);
-            return result;
+            return ExecuteFunctionAndReturnResources(functionEnvironment, context, callingContext);
         }
 
         /// <summary>

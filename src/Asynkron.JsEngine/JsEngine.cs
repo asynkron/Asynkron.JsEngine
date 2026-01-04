@@ -4916,7 +4916,7 @@ public sealed class JsEngine : IAsyncDisposable
             // Handle await in the condition
             if (ifStatement.Condition is AwaitExpression awaitExpr)
             {
-                return TryAwaitExpressionWithContinuation(awaitExpr.Expression, resolved =>
+                return TryAwaitExpression(awaitExpr.Expression, resolved =>
                 {
                     // Evaluate the if branch based on the resolved condition
                     var condition = resolved.IsTruthy;
@@ -4983,7 +4983,7 @@ public sealed class JsEngine : IAsyncDisposable
             switch (expression)
             {
                 case AwaitExpression awaitExpression:
-                    return TryAwaitExpressionWithContinuation(awaitExpression.Expression, continuation, env);
+                    return TryAwaitExpression(awaitExpression.Expression, continuation, env);
 
                 case UnaryExpression unaryExpr when AstShapeAnalyzer.ContainsAwait(unaryExpr.Operand):
                     // e.g., void await x, !await x
@@ -5532,7 +5532,7 @@ public sealed class JsEngine : IAsyncDisposable
                     return TryEvaluateBlockStatementWithBreakSupport(blockStatement, env, isStrict);
 
                 case ExpressionStatement { Expression: AwaitExpression awaitExpression }:
-                    return TryAwaitExpressionWithContinuation(awaitExpression.Expression, _ => { }, env);
+                    return TryAwaitExpression(awaitExpression.Expression, _ => { }, env);
 
                 case ExpressionStatement exprStatement
                     when AstShapeAnalyzer.StatementContainsAwait(exprStatement):
@@ -5601,92 +5601,6 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             return true;
-        }
-
-        private bool TryAwaitExpressionWithContinuation(
-            ExpressionNode awaitedExpression,
-            Action<JsValue> onFulfilled,
-            JsEnvironment environment)
-        {
-            JsValue awaitedValue;
-            try
-            {
-                awaitedValue = JsValue.FromObjectUnsafe(
-                    _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict));
-            }
-            catch (ThrowSignal signal)
-            {
-                Fail(signal);
-                return false;
-            }
-
-            if (_completion.Task.IsCompleted)
-            {
-                return false;
-            }
-
-            var promiseObject = WrapAwaitedValue(awaitedValue);
-            if (promiseObject is null)
-            {
-                throw new NotSupportedException("Await expression did not produce a promise-like value.");
-            }
-
-            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
-            {
-                throw new NotSupportedException("Await expression produced a non-awaitable value.");
-            }
-
-            var onFulfilledFn = new HostFunction(args =>
-            {
-                if (_completion.Task.IsCompleted)
-                {
-                    return JsValue.Null;
-                }
-
-                try
-                {
-                    var resolved = args.GetArgument(0);
-                    onFulfilled(resolved);
-                    // After the continuation completes, continue with the next statement
-                    _statementIndex++;
-                    Run();
-                }
-                catch (ThrowSignal signal)
-                {
-                    Fail(signal);
-                }
-                catch (Exception ex)
-                {
-                    Fail(ex);
-                }
-
-                return JsValue.Null;
-            });
-
-            var onRejectedFn = new HostFunction(args =>
-            {
-                if (_completion.Task.IsCompleted)
-                {
-                    return JsValue.Null;
-                }
-
-                var reason = args.GetArgument(0);
-                Fail(new ThrowSignal(reason));
-                return JsValue.Null;
-            });
-
-            try
-            {
-                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], (JsValue)promiseObject);
-            }
-            catch (ThrowSignal signal)
-            {
-                Fail(signal);
-                return false;
-            }
-
-            return false;
         }
 
         private bool TryEvaluateForAwaitOfStatement(ForEachStatement statement, JsEnvironment env, bool isStrict)

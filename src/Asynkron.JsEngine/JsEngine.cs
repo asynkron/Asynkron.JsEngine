@@ -4747,35 +4747,6 @@ public sealed class JsEngine : IAsyncDisposable
         private bool TryAwaitExpression(ExpressionNode awaitedExpression, Action<JsValue> onFulfilled,
             JsEnvironment environment)
         {
-            JsValue awaitedValue;
-            try
-            {
-                awaitedValue = JsValue.FromObjectUnsafe(
-                    _engine.ExecuteTypedExpression(awaitedExpression, environment, _entry.Program.IsStrict));
-            }
-            catch (ThrowSignal signal)
-            {
-                Fail(signal);
-                return false;
-            }
-
-            if (_completion.Task.IsCompleted)
-            {
-                return false;
-            }
-
-            var promiseObject = WrapAwaitedValue(awaitedValue);
-            if (promiseObject is null)
-            {
-                throw new NotSupportedException("Await expression did not produce a promise-like value.");
-            }
-
-            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
-            {
-                throw new NotSupportedException("Await expression produced a non-awaitable value.");
-            }
-
             var onFulfilledFn = new HostFunction(args =>
             {
                 if (_completion.Task.IsCompleted)
@@ -4801,6 +4772,47 @@ public sealed class JsEngine : IAsyncDisposable
 
                 return JsValue.Null;
             });
+
+            return SetupAwaitHandler(awaitedExpression, environment, _entry.Program.IsStrict, onFulfilledFn);
+        }
+
+        /// <summary>
+        /// Common await infrastructure: evaluates expression, wraps as promise, sets up then handlers.
+        /// </summary>
+        private bool SetupAwaitHandler(
+            ExpressionNode awaitedExpression,
+            JsEnvironment environment,
+            bool isStrict,
+            HostFunction onFulfilledFn)
+        {
+            JsValue awaitedValue;
+            try
+            {
+                awaitedValue =
+                    JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(awaitedExpression, environment, isStrict));
+            }
+            catch (ThrowSignal signal)
+            {
+                Fail(signal);
+                return false;
+            }
+
+            if (_completion.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            var promiseObject = WrapAwaitedValue(awaitedValue);
+            if (promiseObject is null)
+            {
+                throw new NotSupportedException("Await expression did not produce a promise-like value.");
+            }
+
+            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
+                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
+            {
+                throw new NotSupportedException("Await expression produced a non-awaitable value.");
+            }
 
             var onRejectedFn = new HostFunction(args =>
             {
@@ -5339,35 +5351,6 @@ public sealed class JsEngine : IAsyncDisposable
             JsEnvironment env,
             bool isStrict)
         {
-            JsValue awaitedValue;
-            try
-            {
-                awaitedValue =
-                    JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(awaitedExpression, env, isStrict));
-            }
-            catch (ThrowSignal signal)
-            {
-                Fail(signal);
-                return false;
-            }
-
-            if (_completion.Task.IsCompleted)
-            {
-                return false;
-            }
-
-            var promiseObject = WrapAwaitedValue(awaitedValue);
-            if (promiseObject is null)
-            {
-                throw new NotSupportedException("Await expression did not produce a promise-like value.");
-            }
-
-            if (!promiseObject.TryGetProperty("then", out var thenValue) ||
-                !thenValue.TryGetObject<IJsCallable>(out var thenCallable))
-            {
-                throw new NotSupportedException("Await expression produced a non-awaitable value.");
-            }
-
             var onFulfilledFn = new HostFunction(args =>
             {
                 if (_completion.Task.IsCompleted)
@@ -5434,29 +5417,7 @@ public sealed class JsEngine : IAsyncDisposable
                 return JsValue.Null;
             });
 
-            var onRejectedFn = new HostFunction(args =>
-            {
-                if (_completion.Task.IsCompleted)
-                {
-                    return JsValue.Null;
-                }
-
-                var reason = args.GetArgument(0);
-                Fail(new ThrowSignal(reason));
-                return JsValue.Null;
-            });
-
-            try
-            {
-                thenCallable.Invoke([(JsValue)onFulfilledFn, (JsValue)onRejectedFn], (JsValue)promiseObject);
-            }
-            catch (ThrowSignal signal)
-            {
-                Fail(signal);
-                return false;
-            }
-
-            return false;
+            return SetupAwaitHandler(awaitedExpression, env, isStrict, onFulfilledFn);
         }
 
         private bool ExecuteStatementWithAwait(StatementNode statement, JsEnvironment env, bool isStrict)

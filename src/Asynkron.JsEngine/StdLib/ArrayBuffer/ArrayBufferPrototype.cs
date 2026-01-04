@@ -142,38 +142,22 @@ public sealed partial class ArrayBufferPrototype
     }
 
     [JsHostMethod("transfer", Length = 0d)]
-    public JsValue Transfer(JsValue thisValue, IReadOnlyList<JsValue> args)
-    {
-        var buffer = RequireArrayBuffer(thisValue, Realm);
-        EnsureNotShared(buffer);
-        EnsureNotDetached(buffer, "ArrayBuffer.prototype.transfer");
-
-        var newByteLength = args.Count > 0 && !args[0].IsUndefined
-            ? ToIndex(args[0], Realm)
-            : buffer.ByteLength;
-
-        if (buffer.Resizable && newByteLength > buffer.MaxByteLength)
-        {
-            throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
-        }
-
-        var target = new JsArrayBuffer(newByteLength, buffer.Resizable ? buffer.MaxByteLength : null, Realm);
-        var copyLength = Math.Min(buffer.ByteLength, newByteLength);
-        if (copyLength > 0)
-        {
-            Array.Copy(buffer.Buffer, 0, target.Buffer, 0, copyLength);
-        }
-
-        buffer.Detach();
-        return JsValue.FromObjectUnsafe(target);
-    }
+    public JsValue Transfer(JsValue thisValue, IReadOnlyList<JsValue> args) =>
+        TransferBuffer(thisValue, args, preserveResizability: true);
 
     [JsHostMethod("transferToFixedLength", Length = 0d)]
-    public JsValue TransferToFixedLength(JsValue thisValue, IReadOnlyList<JsValue> args)
+    public JsValue TransferToFixedLength(JsValue thisValue, IReadOnlyList<JsValue> args) =>
+        TransferBuffer(thisValue, args, preserveResizability: false);
+
+    private JsValue TransferBuffer(JsValue thisValue, IReadOnlyList<JsValue> args, bool preserveResizability)
     {
+        var methodName = preserveResizability
+            ? "ArrayBuffer.prototype.transfer"
+            : "ArrayBuffer.prototype.transferToFixedLength";
+
         var buffer = RequireArrayBuffer(thisValue, Realm);
         EnsureNotShared(buffer);
-        EnsureNotDetached(buffer, "ArrayBuffer.prototype.transferToFixedLength");
+        EnsureNotDetached(buffer, methodName);
 
         var newByteLength = args.Count > 0 && !args[0].IsUndefined
             ? ToIndex(args[0], Realm)
@@ -184,7 +168,8 @@ public sealed partial class ArrayBufferPrototype
             throw ThrowRangeError("Invalid ArrayBuffer length", realm: Realm);
         }
 
-        var target = new JsArrayBuffer(newByteLength, null, Realm);
+        var targetMaxByteLength = preserveResizability && buffer.Resizable ? (int?)buffer.MaxByteLength : null;
+        var target = new JsArrayBuffer(newByteLength, targetMaxByteLength, Realm);
         var copyLength = Math.Min(buffer.ByteLength, newByteLength);
         if (copyLength > 0)
         {

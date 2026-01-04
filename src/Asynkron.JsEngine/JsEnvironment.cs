@@ -963,57 +963,6 @@ public sealed class JsEnvironment : IRentable
         return false;
     }
 
-    internal bool TryAssignBlockedBindingJsValue(Symbol name, JsValue value)
-    {
-        var current = this;
-        var passedFunctionBoundary = false;
-        while (current is not null)
-        {
-            if (current.IsFunctionScope)
-            {
-                if (passedFunctionBoundary)
-                {
-                    break;
-                }
-
-                passedFunctionBoundary = true;
-            }
-
-            // ES2019: Skip catch parameters - var declarations should hoist to function scope
-            // Per ECMAScript, catch parameters should NOT block var declarations from reaching function scope
-            if (current.IsSimpleCatchParameter(name))
-            {
-                current = current.Enclosing;
-                continue;
-            }
-
-            ref var slot = ref current.TryGetSlotRef(name);
-            if (!Unsafe.IsNullRef(ref slot) && slot.BlocksFunctionScopeOverride)
-            {
-                slot.SetValueAndClearTdz(value);
-                current.NotifyBindingObservers(name, value);
-                if (!current.IsGlobalFunctionScope)
-                {
-                    return true;
-                }
-
-                var globalObject = current.GetRootGlobalObject();
-                globalObject?.SetProperty(name.Name, value);
-
-                return true;
-            }
-
-            if (current._withObject is not null && HasVisibleWithBinding(current._withObject, name))
-            {
-                break;
-            }
-
-            current = current.Enclosing;
-        }
-
-        return false;
-    }
-
     internal bool TryResolveWithBinding(
         Symbol name,
         EvaluationContext context,

@@ -73,7 +73,7 @@ public static partial class TypedAstEvaluator
 
                     var assignedBlockedBinding = skipBlockedBindingLookup
                         ? false
-                        : environment.TryAssignBlockedBindingJsValue(identifier.Name, value);
+                        : environment.TryAssignBlockedBinding(identifier.Name, value);
 
                     environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
 

@@ -1508,7 +1508,7 @@ public static partial class TypedAstEvaluator
                                     if (varDeclInstruction.Initializer is not null)
                                     {
                                         // Try to assign to a blocked binding first (shadowed let/const in same scope)
-                                        if (!environment.TryAssignBlockedBindingJsValue(varDeclInstruction.TargetSymbol,
+                                        if (!environment.TryAssignBlockedBinding(varDeclInstruction.TargetSymbol,
                                                 varValue))
                                         {
                                             if (varDeclInstruction.IsScriptLevel)

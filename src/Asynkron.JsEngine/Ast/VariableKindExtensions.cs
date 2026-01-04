@@ -97,7 +97,7 @@ public static partial class TypedAstEvaluator
 
             if (preResolvedVarReference is { } resolvedReference && targetIdentifier is not null)
             {
-                var assignedBlockedBinding = environment.TryAssignBlockedBindingJsValue(targetIdentifier.Name, valueJs);
+                var assignedBlockedBinding = environment.TryAssignBlockedBinding(targetIdentifier.Name, valueJs);
                 environment.EnsureFunctionScopedVarBinding(targetIdentifier.Name, context);
                 if (!assignedBlockedBinding)
                 {

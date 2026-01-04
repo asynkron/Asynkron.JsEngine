@@ -144,13 +144,7 @@ internal sealed class HoistPlan
                 {
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } letDecl:
-                    var isConstDecl =
-                        letDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                    foreach (var declarator in letDecl.Declarators)
-                    {
-                        CollectBindingSymbols(declarator.Target, names, lexicalKindMap, isConstDecl);
-                    }
-
+                    CollectLexicalVariableSymbols(letDecl, names, lexicalKindMap);
                     break;
 
                 case ClassDeclaration classDeclaration:
@@ -442,13 +436,7 @@ internal sealed class HoistPlan
                 {
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } letDecl:
-                    var isConstDecl =
-                        letDecl.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                    foreach (var declarator in letDecl.Declarators)
-                    {
-                        CollectBindingSymbols(declarator.Target, names, lexicalKindMap, isConstDecl);
-                    }
-
+                    CollectLexicalVariableSymbols(letDecl, names, lexicalKindMap);
                     break;
 
                 case ClassDeclaration classDeclaration:
@@ -509,6 +497,18 @@ internal sealed class HoistPlan
             }
 
             break;
+        }
+    }
+
+    private static void CollectLexicalVariableSymbols(
+        VariableDeclaration declaration,
+        HashSet<Symbol> names,
+        Dictionary<Symbol, bool> lexicalKindMap)
+    {
+        var isConstDecl = declaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+        foreach (var declarator in declaration.Declarators)
+        {
+            CollectBindingSymbols(declarator.Target, names, lexicalKindMap, isConstDecl);
         }
     }
 

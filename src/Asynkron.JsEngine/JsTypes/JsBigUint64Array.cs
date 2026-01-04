@@ -9,90 +9,41 @@ using Asynkron.JsEngine.StdLib;
 
 namespace Asynkron.JsEngine.JsTypes;
 
-/// <summary>
-///     Minimal BigUint64Array implementation backed by a shared ArrayBuffer.
-/// </summary>
 public sealed class JsBigUint64Array(JsArrayBuffer buffer, int byteOffset, int length, bool isLengthTracking = false)
-    : TypedArrayBase(buffer, byteOffset, length, BYTES_PER_ELEMENT, isLengthTracking)
+    : BigIntTypedArrayBase<JsBigUint64Array>(buffer, byteOffset, length, isLengthTracking)
 {
-    public const int BYTES_PER_ELEMENT = 8;
-    public override bool IsBigIntArray => true;
-
     public static JsBigUint64Array FromLength(int length, RealmState? realmState = null)
     {
-        var buffer = new JsArrayBuffer(length * BYTES_PER_ELEMENT, null, realmState);
-        return new JsBigUint64Array(buffer, 0, length);
+        return CreateFromLength(length, realmState, (buf, off, len) => new JsBigUint64Array(buf, off, len));
     }
 
     public static JsBigUint64Array FromArray(JsArray array, RealmState? realmState = null)
     {
-        var length = array.Items.Count;
-        var typedArray = FromLength(length, realmState);
-        typedArray.Set(array);
-        return typedArray;
+        return CreateFromArray(array, realmState, FromLength);
     }
 
-    public override double GetElement(int index)
+    protected override double ReadAsDouble(ReadOnlySpan<byte> span)
     {
-        CheckBounds(index);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        var value = BinaryPrimitives.ReadUInt64LittleEndian(span);
-        return value;
+        return BinaryPrimitives.ReadUInt64LittleEndian(span);
+    }
+
+    protected override BigInteger ReadAsBigInteger(ReadOnlySpan<byte> span)
+    {
+        return new BigInteger(BinaryPrimitives.ReadUInt64LittleEndian(span));
+    }
+
+    protected override void WriteCoercedBigInt(Span<byte> span, BigInteger value)
+    {
+        BinaryPrimitives.WriteUInt64LittleEndian(span, StandardLibrary.ToBigUint64(value));
+    }
+
+    protected override JsBigUint64Array CreateFromBuffer(JsArrayBuffer buffer, int byteOffset, int length)
+    {
+        return new JsBigUint64Array(buffer, byteOffset, length);
     }
 
     protected override TypedArrayBase CreateNewSameType(int length)
     {
         return FromLength(length);
-    }
-
-    public override void SetElement(int index, double value)
-    {
-        CheckBounds(index);
-        SetValue(index, value);
-    }
-
-    public void SetElement(int index, JsBigInt value)
-    {
-        CheckBounds(index);
-        var span = new Span<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        var coerced = StandardLibrary.ToBigUint64(value.Value);
-        BinaryPrimitives.WriteUInt64LittleEndian(span, coerced);
-    }
-
-    public override void SetValue(int index, JsValue value)
-    {
-        SetElement(index, StandardLibrary.ToBigInt(value, realmState: _buffer.RealmState));
-    }
-
-    public JsBigInt GetBigIntElement(int index)
-    {
-        CheckBounds(index);
-        var span = new ReadOnlySpan<byte>(_buffer.Buffer, GetByteIndex(index), BYTES_PER_ELEMENT);
-        var value = BinaryPrimitives.ReadUInt64LittleEndian(span);
-        return new JsBigInt(new BigInteger(value));
-    }
-
-    internal override JsValue GetValueForIndex(int index)
-    {
-        if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
-        {
-            return JsValue.Undefined;
-        }
-
-        var currentLength = Length;
-        if (index < 0 || index >= currentLength)
-        {
-            return JsValue.Undefined;
-        }
-
-        return new JsValue(GetBigIntElement(index));
-    }
-
-    public override TypedArrayBase Subarray(int begin, int end)
-    {
-        var (start, finalEnd) = NormalizeSliceIndices(begin, end);
-        var newLength = Math.Max(finalEnd - start, 0);
-        var newByteOffset = _byteOffset + start * BYTES_PER_ELEMENT;
-        return new JsBigUint64Array(_buffer, newByteOffset, newLength);
     }
 }

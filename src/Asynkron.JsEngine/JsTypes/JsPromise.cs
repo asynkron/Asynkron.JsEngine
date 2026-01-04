@@ -296,7 +296,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     {
         if (onFulfilled != null)
         {
-            var result = onFulfilled.Invoke([_value], JsValue.Undefined);
+            var result = onFulfilled.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
             ResolveWithPossibleThenable(result, nextPromise);
         }
         else
@@ -309,7 +309,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     {
         if (onRejected != null)
         {
-            var result = onRejected.Invoke([_value], JsValue.Undefined);
+            var result = onRejected.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
             ResolveWithPossibleThenable(result, nextPromise);
         }
         else

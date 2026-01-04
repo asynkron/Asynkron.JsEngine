@@ -651,7 +651,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         realm: ResolveRealmState(receiver));
                 }
 
-                desc.Set.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
+                desc.Set.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
 
                 return;
             }
@@ -688,7 +688,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                                 realm: ResolveRealmState(receiver));
                         }
 
-                        inheritedDesc.Set.Invoke([JsValue.FromObjectUnsafe(value)],
+                        inheritedDesc.Set.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)),
                             JsValue.FromObjectUnsafe(receiver ?? this));
                         return;
                     }
@@ -727,7 +727,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (descriptor!.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
+                descriptor.Set?.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
 
                 return;
             }
@@ -754,7 +754,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
+            setter.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
             return;
         }
 
@@ -767,7 +767,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             var foundSetter = FindSetterInPrototypeChain(PrototypeAccessor, name);
             if (foundSetter != null)
             {
-                foundSetter.Invoke([JsValue.FromObjectUnsafe(value)], JsValue.FromObjectUnsafe(receiver ?? this));
+                foundSetter.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(value)), JsValue.FromObjectUnsafe(receiver ?? this));
                 return;
             }
         }

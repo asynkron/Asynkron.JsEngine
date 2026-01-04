@@ -107,7 +107,7 @@ public sealed class SuperBinding(
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is { } setter)
             {
-                setter.Invoke([value], thisValue);
+                setter.Invoke(new SingleValueArgs(value), thisValue);
                 usedSetter = true;
                 return true;
             }
@@ -118,7 +118,7 @@ public sealed class SuperBinding(
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is { } setter)
             {
-                setter.Invoke([value], thisValue);
+                setter.Invoke(new SingleValueArgs(value), thisValue);
                 usedSetter = true;
                 return true;
             }

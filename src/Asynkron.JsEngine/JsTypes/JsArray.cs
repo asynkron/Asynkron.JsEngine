@@ -596,7 +596,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                         return;
                     }
 
-                    descriptor.Set.Invoke([value], JsValue.FromJsArray(this));
+                    descriptor.Set.Invoke(new SingleValueArgs(value), JsValue.FromJsArray(this));
                     return;
                 }
 

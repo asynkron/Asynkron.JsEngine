@@ -143,19 +143,7 @@ public static partial class TypedAstEvaluator
                     }
 
                     // SLOW PATH: Full iterator protocol for custom iterables
-                    var iteratorTarget = NormalizeIterableTarget(iterableJsValue, context);
-                    if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
-                    {
-                        return plan.ExecuteIteratorDriverJsValue(iterator,
-                            null,
-                            loopEnvironment,
-                            environment,
-                            context,
-                            loopLabel,
-                            useIterationSlots);
-                    }
-
-                    throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+                    return ExecuteIteratorSlowPath(iterableJsValue, plan, loopEnvironment, environment, context, loopLabel, useIterationSlots);
                 }
 
                 var values = statement.Kind switch
@@ -337,19 +325,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 // SLOW PATH: Full iterator protocol for custom async/sync iterables
-                var iteratorTarget = NormalizeIterableTarget(iterableJs, context);
-                if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
-                {
-                    return plan.ExecuteIteratorDriverJsValue(iterator,
-                        null,
-                        loopEnvironment,
-                        environment,
-                        context,
-                        loopLabel,
-                        useIterationSlots);
-                }
-
-                throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
+                return ExecuteIteratorSlowPath(iterableJs, plan, loopEnvironment, environment, context, loopLabel, useIterationSlots);
             }
             finally
             {
@@ -365,5 +341,29 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
+    }
+
+    private static JsValue ExecuteIteratorSlowPath(
+        JsValue iterableValue,
+        IteratorDriverPlan plan,
+        JsEnvironment loopEnvironment,
+        JsEnvironment environment,
+        EvaluationContext context,
+        Symbol? loopLabel,
+        bool useIterationSlots)
+    {
+        var iteratorTarget = NormalizeIterableTarget(iterableValue, context);
+        if (TryGetIteratorFromProtocols(iteratorTarget, context, out var iterator) && iterator is not null)
+        {
+            return plan.ExecuteIteratorDriverJsValue(iterator,
+                null,
+                loopEnvironment,
+                environment,
+                context,
+                loopLabel,
+                useIterationSlots);
+        }
+
+        throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
 }

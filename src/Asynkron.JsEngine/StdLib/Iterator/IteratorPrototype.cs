@@ -419,34 +419,86 @@ public sealed partial class IteratorPrototype : JsPrototype
 
     #endregion
 
+    #region Iterator State Helper
+
+    /// <summary>
+    /// Encapsulates common iterator state and behavior to reduce duplication
+    /// across iterator factory methods.
+    /// </summary>
+    private sealed class IteratorState(IJsObjectLike source, IteratorPrototype prototype)
+    {
+        public bool Done;
+        public bool IsExecuting;
+        public IJsObjectLike? InnerIterator;
+
+        public void EnsureNotExecuting()
+        {
+            if (IsExecuting)
+                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, prototype.Realm);
+        }
+
+        public bool TryGetDoneResult(out JsValue result)
+        {
+            if (Done)
+            {
+                result = CreateIterResult(JsValue.Undefined, true);
+                return true;
+            }
+
+            result = default;
+            return false;
+        }
+
+        public void MarkExhaustedAndClose()
+        {
+            Done = true;
+            IteratorClose(source);
+        }
+
+        public HostFunction CreateReturnFunc()
+        {
+            return new HostFunction((_, _) =>
+            {
+                EnsureNotExecuting();
+                IsExecuting = true;
+                try
+                {
+                    Done = true;
+                    if (InnerIterator is not null)
+                        IteratorClose(InnerIterator);
+                    IteratorClose(source);
+                    return CreateIterResult(JsValue.Undefined, true);
+                }
+                finally
+                {
+                    IsExecuting = false;
+                }
+            }, isConstructor: false);
+        }
+    }
+
+    #endregion
+
     #region Iterator Factory Methods
 
     private JsValue CreateMappedIterator(IJsObjectLike source, IJsCallable mapper)
     {
         var iterator = new JsObject { RealmState = Realm };
+        var state = new IteratorState(source, this);
         var counter = 0;
-        var done = false;
-        var isExecuting = false;
 
         var nextFunc = new HostFunction((_, _) =>
         {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
+            state.EnsureNotExecuting();
+            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
 
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
+            state.IsExecuting = true;
             try
             {
                 var next = IteratorStep(source);
                 if (next is null)
                 {
-                    done = true;
+                    state.Done = true;
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
@@ -461,39 +513,18 @@ public sealed partial class IteratorPrototype : JsPrototype
                 }
                 catch
                 {
-                    done = true;
-                    IteratorClose(source);
+                    state.MarkExhaustedAndClose();
                     throw;
                 }
             }
             finally
             {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
-
-        var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
-
-            isExecuting = true;
-            try
-            {
-                done = true;
-                IteratorClose(source);
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
+                state.IsExecuting = false;
             }
         }, isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
-        iterator.SetProperty("return", (JsValue)returnFunc);
+        iterator.SetProperty("return", (JsValue)state.CreateReturnFunc());
         SetupIteratorPrototype(iterator);
 
         return new JsValue(iterator);
@@ -502,23 +533,15 @@ public sealed partial class IteratorPrototype : JsPrototype
     private JsValue CreateFilteredIterator(IJsObjectLike source, IJsCallable predicate)
     {
         var iterator = new JsObject { RealmState = Realm };
+        var state = new IteratorState(source, this);
         var counter = 0;
-        var done = false;
-        var isExecuting = false;
 
         var nextFunc = new HostFunction((_, _) =>
         {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
+            state.EnsureNotExecuting();
+            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
 
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
+            state.IsExecuting = true;
             try
             {
                 while (true)
@@ -526,7 +549,7 @@ public sealed partial class IteratorPrototype : JsPrototype
                     var next = IteratorStep(source);
                     if (next is null)
                     {
-                        done = true;
+                        state.Done = true;
                         return CreateIterResult(JsValue.Undefined, true);
                     }
 
@@ -544,40 +567,19 @@ public sealed partial class IteratorPrototype : JsPrototype
                     }
                     catch
                     {
-                        done = true;
-                        IteratorClose(source);
+                        state.MarkExhaustedAndClose();
                         throw;
                     }
                 }
             }
             finally
             {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
-
-        var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
-
-            isExecuting = true;
-            try
-            {
-                done = true;
-                IteratorClose(source);
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
+                state.IsExecuting = false;
             }
         }, isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
-        iterator.SetProperty("return", (JsValue)returnFunc);
+        iterator.SetProperty("return", (JsValue)state.CreateReturnFunc());
         SetupIteratorPrototype(iterator);
 
         return new JsValue(iterator);
@@ -586,36 +588,27 @@ public sealed partial class IteratorPrototype : JsPrototype
     private JsValue CreateTakeIterator(IJsObjectLike source, double limit)
     {
         var iterator = new JsObject { RealmState = Realm };
+        var state = new IteratorState(source, this);
         var remaining = limit;
-        var done = false;
-        var isExecuting = false;
 
         var nextFunc = new HostFunction((_, _) =>
         {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
+            state.EnsureNotExecuting();
+            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
 
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
+            state.IsExecuting = true;
             try
             {
                 if (remaining <= 0)
                 {
-                    done = true;
-                    IteratorClose(source);
+                    state.MarkExhaustedAndClose();
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
                 var next = IteratorStep(source);
                 if (next is null)
                 {
-                    done = true;
+                    state.Done = true;
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
@@ -624,40 +617,19 @@ public sealed partial class IteratorPrototype : JsPrototype
 
                 if (remaining <= 0)
                 {
-                    done = true;
-                    IteratorClose(source);
+                    state.MarkExhaustedAndClose();
                 }
 
                 return CreateIterResult(value, false);
             }
             finally
             {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
-
-        var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
-
-            isExecuting = true;
-            try
-            {
-                done = true;
-                IteratorClose(source);
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
+                state.IsExecuting = false;
             }
         }, isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
-        iterator.SetProperty("return", (JsValue)returnFunc);
+        iterator.SetProperty("return", (JsValue)state.CreateReturnFunc());
         SetupIteratorPrototype(iterator);
 
         return new JsValue(iterator);
@@ -666,23 +638,15 @@ public sealed partial class IteratorPrototype : JsPrototype
     private JsValue CreateDropIterator(IJsObjectLike source, double limit)
     {
         var iterator = new JsObject { RealmState = Realm };
+        var state = new IteratorState(source, this);
         var remaining = limit;
-        var done = false;
-        var isExecuting = false;
 
         var nextFunc = new HostFunction((_, _) =>
         {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
+            state.EnsureNotExecuting();
+            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
 
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
+            state.IsExecuting = true;
             try
             {
                 // Skip the first 'remaining' items
@@ -691,7 +655,7 @@ public sealed partial class IteratorPrototype : JsPrototype
                     var skipped = IteratorStep(source);
                     if (skipped is null)
                     {
-                        done = true;
+                        state.Done = true;
                         return CreateIterResult(JsValue.Undefined, true);
                     }
 
@@ -701,7 +665,7 @@ public sealed partial class IteratorPrototype : JsPrototype
                 var next = IteratorStep(source);
                 if (next is null)
                 {
-                    done = true;
+                    state.Done = true;
                     return CreateIterResult(JsValue.Undefined, true);
                 }
 
@@ -710,32 +674,12 @@ public sealed partial class IteratorPrototype : JsPrototype
             }
             finally
             {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
-
-        var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
-
-            isExecuting = true;
-            try
-            {
-                done = true;
-                IteratorClose(source);
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
+                state.IsExecuting = false;
             }
         }, isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
-        iterator.SetProperty("return", (JsValue)returnFunc);
+        iterator.SetProperty("return", (JsValue)state.CreateReturnFunc());
         SetupIteratorPrototype(iterator);
 
         return new JsValue(iterator);
@@ -744,32 +688,23 @@ public sealed partial class IteratorPrototype : JsPrototype
     private JsValue CreateFlatMapIterator(IJsObjectLike source, IJsCallable mapper)
     {
         var iterator = new JsObject { RealmState = Realm };
+        var state = new IteratorState(source, this);
         var counter = 0;
-        var done = false;
-        var isExecuting = false;
-        IJsObjectLike? innerIterator = null;
 
         var nextFunc = new HostFunction((_, _) =>
         {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
+            state.EnsureNotExecuting();
+            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
 
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
+            state.IsExecuting = true;
             try
             {
                 while (true)
                 {
                     // If we have an inner iterator, try to get the next value from it
-                    if (innerIterator is not null)
+                    if (state.InnerIterator is not null)
                     {
-                        var innerNext = IteratorStep(innerIterator);
+                        var innerNext = IteratorStep(state.InnerIterator);
                         if (innerNext is not null)
                         {
                             var innerValue = IteratorValue(innerNext);
@@ -777,14 +712,14 @@ public sealed partial class IteratorPrototype : JsPrototype
                         }
 
                         // Inner iterator is exhausted
-                        innerIterator = null;
+                        state.InnerIterator = null;
                     }
 
                     // Get the next value from the source iterator
                     var next = IteratorStep(source);
                     if (next is null)
                     {
-                        done = true;
+                        state.Done = true;
                         return CreateIterResult(JsValue.Undefined, true);
                     }
 
@@ -807,7 +742,7 @@ public sealed partial class IteratorPrototype : JsPrototype
                                 var iterResult = iterCallable.Invoke([], mapped);
                                 if (iterResult.TryGetObject(out var iter) && iter is not null)
                                 {
-                                    innerIterator = iter;
+                                    state.InnerIterator = iter;
                                     continue; // Get first value from inner iterator
                                 }
                             }
@@ -818,45 +753,19 @@ public sealed partial class IteratorPrototype : JsPrototype
                     }
                     catch
                     {
-                        done = true;
-                        IteratorClose(source);
+                        state.MarkExhaustedAndClose();
                         throw;
                     }
                 }
             }
             finally
             {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
-
-        var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, Realm);
-            }
-
-            isExecuting = true;
-            try
-            {
-                done = true;
-                if (innerIterator is not null)
-                {
-                    IteratorClose(innerIterator);
-                }
-
-                IteratorClose(source);
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
+                state.IsExecuting = false;
             }
         }, isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
-        iterator.SetProperty("return", (JsValue)returnFunc);
+        iterator.SetProperty("return", (JsValue)state.CreateReturnFunc());
         SetupIteratorPrototype(iterator);
 
         return new JsValue(iterator);

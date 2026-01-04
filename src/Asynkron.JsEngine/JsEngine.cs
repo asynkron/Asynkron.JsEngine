@@ -3521,7 +3521,18 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private static void HoistLexicalBinding(BindingTarget target, JsEnvironment moduleEnv, bool isConst)
+    private static void HoistLexicalBinding(BindingTarget target, JsEnvironment moduleEnv, bool isConst) =>
+        HoistBinding(target, moduleEnv, JsValue.Uninitialized, isLexicalBinding: true, isConst);
+
+    /// <summary>
+    /// Recursively hoists bindings from destructuring patterns.
+    /// </summary>
+    private static void HoistBinding(
+        BindingTarget target,
+        JsEnvironment moduleEnv,
+        JsValue initialValue,
+        bool isLexicalBinding,
+        bool? isConst = null)
     {
         while (true)
         {
@@ -3530,8 +3541,8 @@ public sealed class JsEngine : IAsyncDisposable
                 case IdentifierBinding id:
                     if (!moduleEnv.HasBinding(id.Name))
                     {
-                        moduleEnv.DefineJsValue(id.Name, JsValue.Uninitialized, isLexicalBinding: true,
-                            blocksFunctionScopeOverride: false, isConst: isConst);
+                        moduleEnv.DefineJsValue(id.Name, initialValue, isConst: isConst ?? false,
+                            isLexicalBinding: isLexicalBinding, blocksFunctionScopeOverride: false);
                     }
 
                     break;
@@ -3540,7 +3551,7 @@ public sealed class JsEngine : IAsyncDisposable
                     {
                         if (element.Target is { } binding)
                         {
-                            HoistLexicalBinding(binding, moduleEnv, isConst);
+                            HoistBinding(binding, moduleEnv, initialValue, isLexicalBinding, isConst);
                         }
                     }
 
@@ -3554,7 +3565,7 @@ public sealed class JsEngine : IAsyncDisposable
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
                     {
-                        HoistLexicalBinding(prop.Target, moduleEnv, isConst);
+                        HoistBinding(prop.Target, moduleEnv, initialValue, isLexicalBinding, isConst);
                     }
 
                     if (objectBinding.RestElement is { } objRest)
@@ -3612,54 +3623,8 @@ public sealed class JsEngine : IAsyncDisposable
         }
     }
 
-    private static void HoistVarBinding(BindingTarget target, JsEnvironment moduleEnv)
-    {
-        while (true)
-        {
-            switch (target)
-            {
-                case IdentifierBinding id:
-                    if (!moduleEnv.HasBinding(id.Name))
-                    {
-                        moduleEnv.DefineJsValue(id.Name, JsValue.Undefined, isLexicalBinding: false,
-                            blocksFunctionScopeOverride: false);
-                    }
-
-                    break;
-                case ArrayBinding arrayBinding:
-                    foreach (var element in arrayBinding.Elements)
-                    {
-                        if (element.Target is { } binding)
-                        {
-                            HoistVarBinding(binding, moduleEnv);
-                        }
-                    }
-
-                    if (arrayBinding.RestElement is { } rest)
-                    {
-                        target = rest;
-                        continue;
-                    }
-
-                    break;
-                case ObjectBinding objectBinding:
-                    foreach (var prop in objectBinding.Properties)
-                    {
-                        HoistVarBinding(prop.Target, moduleEnv);
-                    }
-
-                    if (objectBinding.RestElement is { } objRest)
-                    {
-                        target = objRest;
-                        continue;
-                    }
-
-                    break;
-            }
-
-            break;
-        }
-    }
+    private static void HoistVarBinding(BindingTarget target, JsEnvironment moduleEnv) =>
+        HoistBinding(target, moduleEnv, JsValue.Undefined, isLexicalBinding: false);
 
     private void HoistFunctionDeclarations(ProgramNode program, JsEnvironment moduleEnv)
     {

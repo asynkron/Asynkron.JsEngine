@@ -20,29 +20,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
 {
     /* FLAKY */
     [JsHostMethod("add", Length = 3d)]
-    public JsValue Add(IReadOnlyList<JsValue> args)
-    {
-        // Atomically adds a value to an element and returns the old value.
-        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(Add), out var isBigInt);
-        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
-
-        var valueArg = args.GetArgument(2);
-        lock (typedArray.Buffer)
-        {
-            if (isBigInt)
-            {
-                var oldValue = ReadBigIntElement(typedArray, index);
-                var addend = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, oldValue + addend);
-                return oldValue;
-            }
-
-            var oldNumber = typedArray.GetElement(index);
-            var addNumber = JsOps.ToNumber(valueArg);
-            typedArray.SetElement(index, oldNumber + addNumber);
-            return oldNumber;
-        }
-    }
+    public JsValue Add(IReadOnlyList<JsValue> args) =>
+        AtomicArithmeticOperation(args, nameof(Add), (a, b) => a + b, (a, b) => a + b);
 
     /* FLAKY */
     [JsHostMethod("and", Length = 3d)]
@@ -88,29 +67,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
     /* FLAKY */
     [JsHostMethod("exchange", Length = 3d)]
-    public JsValue Exchange(IReadOnlyList<JsValue> args)
-    {
-        // Atomically replaces a value and returns the old value.
-        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(Exchange), out var isBigInt);
-        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
-
-        var valueArg = args.GetArgument(2);
-        lock (typedArray.Buffer)
-        {
-            if (isBigInt)
-            {
-                var oldValue = ReadBigIntElement(typedArray, index);
-                var replacement = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, replacement);
-                return oldValue;
-            }
-
-            var oldNumber = typedArray.GetElement(index);
-            var replacementNumber = JsOps.ToNumber(valueArg);
-            typedArray.SetElement(index, replacementNumber);
-            return oldNumber;
-        }
-    }
+    public JsValue Exchange(IReadOnlyList<JsValue> args) =>
+        AtomicArithmeticOperation(args, nameof(Exchange), (_, b) => b, (_, b) => b);
 
     /* FLAKY */
     [JsHostMethod("isLockFree", Length = 1d)]
@@ -174,29 +132,8 @@ public sealed partial class AtomicsPrototype : JsPrototype
 
     /* FLAKY */
     [JsHostMethod("sub", Length = 3d)]
-    public JsValue Sub(IReadOnlyList<JsValue> args)
-    {
-        // Atomically subtracts a value and returns the old value.
-        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), nameof(Sub), out var isBigInt);
-        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
-
-        var valueArg = args.GetArgument(2);
-        lock (typedArray.Buffer)
-        {
-            if (isBigInt)
-            {
-                var oldValue = ReadBigIntElement(typedArray, index);
-                var subtrahend = ToBigInt(valueArg, realmState: Realm);
-                WriteBigIntElement(typedArray, index, oldValue - subtrahend);
-                return oldValue;
-            }
-
-            var oldNumber = typedArray.GetElement(index);
-            var subNumber = JsOps.ToNumber(valueArg);
-            typedArray.SetElement(index, oldNumber - subNumber);
-            return oldNumber;
-        }
-    }
+    public JsValue Sub(IReadOnlyList<JsValue> args) =>
+        AtomicArithmeticOperation(args, nameof(Sub), (a, b) => a - b, (a, b) => a - b);
 
     /* FLAKY */
     [JsHostMethod("wait", Length = 4d)]
@@ -360,6 +297,36 @@ public sealed partial class AtomicsPrototype : JsPrototype
             var maskNumber = JsOps.ToNumber(valueArg);
             var result = intOp((int)oldNumber, (int)maskNumber);
             typedArray.SetElement(index, result);
+            return oldNumber;
+        }
+    }
+
+    /// <summary>
+    /// Helper for atomic arithmetic operations (Add, Sub, Exchange) that share the same pattern.
+    /// </summary>
+    private JsValue AtomicArithmeticOperation(
+        IReadOnlyList<JsValue> args,
+        string methodName,
+        Func<JsBigInt, JsBigInt, JsBigInt> bigIntOp,
+        Func<double, double, double> numberOp)
+    {
+        var typedArray = RequireAtomicTypedArray(args.GetArgument(0), methodName, out var isBigInt);
+        var index = RequireAtomicIndex(typedArray, args.GetArgument(1));
+        var valueArg = args.GetArgument(2);
+
+        lock (typedArray.Buffer)
+        {
+            if (isBigInt)
+            {
+                var oldValue = ReadBigIntElement(typedArray, index);
+                var operand = ToBigInt(valueArg, realmState: Realm);
+                WriteBigIntElement(typedArray, index, bigIntOp(oldValue, operand));
+                return oldValue;
+            }
+
+            var oldNumber = typedArray.GetElement(index);
+            var operandNumber = JsOps.ToNumber(valueArg);
+            typedArray.SetElement(index, numberOp(oldNumber, operandNumber));
             return oldNumber;
         }
     }

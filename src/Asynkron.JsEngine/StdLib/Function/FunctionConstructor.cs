@@ -63,7 +63,17 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         }
 
         var functionSource = $"(function anonymous({paramList}\n) {{\n{bodySource}\n}})";
+        return ParseAndExecuteDynamicFunction(functionSource, engine, evalContext, Realm, newTarget, _constructor!);
+    }
 
+    internal static JsValue ParseAndExecuteDynamicFunction(
+        string functionSource,
+        JsEngine engine,
+        EvaluationContext evalContext,
+        RealmState realm,
+        IJsCallable newTarget,
+        IJsCallable constructorFallback)
+    {
         var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
 
         ProgramNode program;
@@ -74,7 +84,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         catch (ParseException parseException)
         {
             var message = parseException.Message ?? "SyntaxError";
-            throw new ThrowSignal(CreateSyntaxError(message, evalContext, Realm));
+            throw new ThrowSignal(CreateSyntaxError(message, evalContext, realm));
         }
 
         var created = engine.ExecuteProgram(
@@ -87,7 +97,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             return JsValue.FromObjectUnsafe(created);
         }
 
-        var proto = ResolveConstructPrototype(newTarget, _constructor!, Realm);
+        var proto = ResolveConstructPrototype(newTarget, constructorFallback, realm);
         if (proto is not null)
         {
             objectLike.SetPrototype(proto);

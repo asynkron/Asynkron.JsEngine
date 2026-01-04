@@ -85,36 +85,7 @@ public sealed partial class AsyncFunctionConstructor(IJsObjectLike prototype, Re
         }
 
         var functionSource = $"(async function anonymous({paramList}\n) {{\n{bodySource}\n}})";
-
-        var scriptGoalOptions = new JsEngineOptions { AllowImportMeta = false };
-
-        ProgramNode program;
-        try
-        {
-            program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
-        }
-        catch (ParseException parseException)
-        {
-            var message = parseException.Message ?? "SyntaxError";
-            throw new ThrowSignal(CreateSyntaxError(message, evalContext, Realm));
-        }
-
-        var created = engine.ExecuteProgram(
-            program,
-            engine.GlobalEnvironment,
-            CancellationToken.None);
-
-        if (created is not IJsObjectLike objectLike)
-        {
-            return JsValue.FromObjectUnsafe(created);
-        }
-
-        var proto = ResolveConstructPrototype(newTarget, _constructor ?? newTarget, Realm);
-        if (proto is not null)
-        {
-            objectLike.SetPrototype(proto);
-        }
-
-        return JsValue.FromObjectUnsafe(created);
+        return FunctionConstructor.ParseAndExecuteDynamicFunction(
+            functionSource, engine, evalContext, Realm, newTarget, _constructor ?? newTarget);
     }
 }

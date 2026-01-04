@@ -57,6 +57,29 @@ public static partial class TypedAstEvaluator
                     description: "for-each-iteration");
         }
 
+        /// <summary>
+        /// Handles the first iteration assignment for let/const bindings with reusable environment.
+        /// Sets up the const flag and syncs iteration slots.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void HandleFirstIterationAssignment(
+            JsValue value,
+            JsEnvironment reusableIterationEnvironment,
+            JsEnvironment outerEnvironment,
+            EvaluationContext context,
+            ref bool letConstFirstIterationDone)
+        {
+            plan.Target.AssignLoopBinding(value, reusableIterationEnvironment, outerEnvironment, context,
+                plan.DeclarationKind);
+            if (context.IsThrow)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+
+            IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment, context);
+            letConstFirstIterationDone = true;
+        }
+
         private JsValue ExecuteIteratorDriverJsValue(IJsObjectLike? iterator,
             IEnumerator<JsValue>? enumerator,
             JsEnvironment loopEnvironment,
@@ -184,18 +207,8 @@ public static partial class TypedAstEvaluator
                         }
                         else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
                         {
-                            // First iteration for let/const with reusable environment:
-                            // Must call AssignLoopBinding to set up the const flag in the binding
-                            plan.Target.AssignLoopBinding(enumeratorValue, reusableIterationEnvironment!,
-                                outerEnvironment, context,
-                                plan.DeclarationKind);
-                            if (context.IsThrow)
-                            {
-                                throw new ThrowSignal(context.FlowValue);
-                            }
-
-                            IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
-                            letConstFirstIterationDone = true;
+                            plan.HandleFirstIterationAssignment(enumeratorValue, reusableIterationEnvironment!,
+                                outerEnvironment, context, ref letConstFirstIterationDone);
                         }
                         else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                         {
@@ -310,18 +323,8 @@ public static partial class TypedAstEvaluator
                             }
                             else if (cachedLetConstVariable.IsValid && !letConstFirstIterationDone)
                             {
-                                // First iteration for let/const with reusable environment:
-                                // Must call AssignLoopBinding to set up the const flag in the binding
-                                plan.Target.AssignLoopBinding(value, reusableIterationEnvironment!, outerEnvironment,
-                                    context,
-                                    plan.DeclarationKind);
-                                if (context.IsThrow)
-                                {
-                                    throw new ThrowSignal(context.FlowValue);
-                                }
-
-                                IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
-                                letConstFirstIterationDone = true;
+                                plan.HandleFirstIterationAssignment(value, reusableIterationEnvironment!,
+                                    outerEnvironment, context, ref letConstFirstIterationDone);
                             }
                             else if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                             {
@@ -406,21 +409,9 @@ public static partial class TypedAstEvaluator
                                     cachedLetConstVariable.Write(nextJsValue);
                                     break;
                                 case true when !letConstFirstIterationDone:
-                                {
-                                    // First iteration for let/const with reusable environment:
-                                    // Must call AssignLoopBinding to set up the const flag in the binding
-                                    plan.Target.AssignLoopBinding(nextJsValue, reusableIterationEnvironment!,
-                                        outerEnvironment, context,
-                                        plan.DeclarationKind);
-                                    if (context.IsThrow)
-                                    {
-                                        throw new ThrowSignal(context.FlowValue);
-                                    }
-
-                                    IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment!, context);
-                                    letConstFirstIterationDone = true;
+                                    plan.HandleFirstIterationAssignment(nextJsValue, reusableIterationEnvironment!,
+                                        outerEnvironment, context, ref letConstFirstIterationDone);
                                     break;
-                                }
                                 default:
                                 {
                                     if (canUseSlotFastPath && iterationEnvironment.HasSlots)

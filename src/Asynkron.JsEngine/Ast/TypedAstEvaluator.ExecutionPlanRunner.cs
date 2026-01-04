@@ -1194,42 +1194,8 @@ public static partial class TypedAstEvaluator
                                     }
                                 }
 
-                                // Apply the operator using fast-path methods
-                                var binResult = binaryOpInstruction.Operator switch
-                                {
-                                    BinaryOperator.Add => AddValue(binLeft, binRight, context),
-                                    BinaryOperator.Subtract => SubtractValue(binLeft, binRight, context),
-                                    BinaryOperator.Multiply => MultiplyValue(binLeft, binRight, context),
-                                    BinaryOperator.Divide => DivideValue(binLeft, binRight, context),
-                                    BinaryOperator.Modulo => ModuloValue(binLeft, binRight, context),
-                                    BinaryOperator.Power => PowerValue(binLeft, binRight, context),
-                                    BinaryOperator.LessThan => LessThanValue(binLeft, binRight, context),
-                                    BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(binLeft, binRight, context),
-                                    BinaryOperator.GreaterThan => GreaterThanValue(binLeft, binRight, context),
-                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(binLeft, binRight,
-                                        context),
-                                    BinaryOperator.StrictEqual => StrictEqualsValue(binLeft, binRight)
-                                        ? JsValue.True
-                                        : JsValue.False,
-                                    BinaryOperator.StrictNotEqual => StrictEqualsValue(binLeft, binRight)
-                                        ? JsValue.False
-                                        : JsValue.True,
-                                    BinaryOperator.Equal => LooseEqualsValue(binLeft, binRight, context)
-                                        ? JsValue.True
-                                        : JsValue.False,
-                                    BinaryOperator.NotEqual => LooseEqualsValue(binLeft, binRight, context)
-                                        ? JsValue.False
-                                        : JsValue.True,
-                                    BinaryOperator.BitwiseAnd => BitwiseAndValue(binLeft, binRight, context),
-                                    BinaryOperator.BitwiseOr => BitwiseOrValue(binLeft, binRight, context),
-                                    BinaryOperator.BitwiseXor => BitwiseXorValue(binLeft, binRight, context),
-                                    BinaryOperator.LeftShift => LeftShiftValue(binLeft, binRight, context),
-                                    BinaryOperator.RightShift => RightShiftValue(binLeft, binRight, context),
-                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(binLeft, binRight,
-                                        context),
-                                    _ => throw new NotSupportedException(
-                                        $"Binary operator '{binaryOpInstruction.Operator}' not supported in BinaryOpInstruction.")
-                                };
+                                // Apply the operator using shared helper
+                                var binResult = ApplyBinaryOperator(binaryOpInstruction.Operator, binLeft, binRight, context);
 
                                 // Store result in slot if specified
                                 if (binaryOpInstruction.ResultSlot is not null)
@@ -1402,28 +1368,8 @@ public static partial class TypedAstEvaluator
                                     }
                                 }
 
-                                // Apply the operator using fast-path methods
-                                var compResult = compoundInstruction.Operator switch
-                                {
-                                    BinaryOperator.Add => AddValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.Subtract => SubtractValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.Multiply => MultiplyValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.Divide => DivideValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.Modulo => ModuloValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.Power => PowerValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.BitwiseAnd => BitwiseAndValue(compCurrentValue, compRhsValue,
-                                        context),
-                                    BinaryOperator.BitwiseOr => BitwiseOrValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.BitwiseXor => BitwiseXorValue(compCurrentValue, compRhsValue,
-                                        context),
-                                    BinaryOperator.LeftShift => LeftShiftValue(compCurrentValue, compRhsValue, context),
-                                    BinaryOperator.RightShift => RightShiftValue(compCurrentValue, compRhsValue,
-                                        context),
-                                    BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(compCurrentValue,
-                                        compRhsValue, context),
-                                    _ => throw new NotSupportedException(
-                                        $"Compound assignment operator '{compoundInstruction.Operator}' not supported in CompoundAssignmentSlotInstruction.")
-                                };
+                                // Apply the operator using shared helper
+                                var compResult = ApplyBinaryOperator(compoundInstruction.Operator, compCurrentValue, compRhsValue, context);
 
                                 // Update the binding
                                 environment.AssignJsValue(compoundInstruction.TargetSymbol, compResult);

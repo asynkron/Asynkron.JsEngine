@@ -537,15 +537,9 @@ public sealed class JsEngine : IAsyncDisposable
         bool allowHtmlComments = true,
         IJsEngineOptions? options = null)
     {
-        try
-        {
-            return ParseProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options);
-        }
-        catch (ParseException parseException)
-        {
-            // Convert parser/lexer failures to JS SyntaxError for proper early error semantics.
-            throw new ThrowSignal(StandardLibrary.CreateSyntaxError(parseException.Message, realm: RealmState));
-        }
+        // Parse errors propagate as ParseException to the .NET caller.
+        // There's no JS code running yet that could catch the error.
+        return ParseProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options);
     }
 
     private CancellationToken CreateEvaluationCancellationToken(CancellationToken cancellationToken,
@@ -830,32 +824,7 @@ public sealed class JsEngine : IAsyncDisposable
                 return ExecuteProgram(program, GlobalEnvironment, combinedToken);
             }
 
-            string? moduleKey = null;
-            ModuleEntry entry;
-            if (!string.IsNullOrEmpty(sourcePath))
-            {
-                moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
-                if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
-                {
-                    entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        CreateModuleEnvironment(moduleKey),
-                        new JsObject(),
-                        moduleKey,
-                        program.HasTopLevelAwait);
-                    _moduleRegistry[moduleKey] = entry;
-                }
-            }
-            else
-            {
-                entry = CreateModuleEntry(EnsureStrictProgram(program),
-                    CreateModuleEnvironment(moduleKey),
-                    new JsObject(),
-                    string.Empty,
-                    program.HasTopLevelAwait);
-            }
-
-            entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                new HashSet<string>(StringComparer.Ordinal));
+            var entry = GetOrCreateModuleEntry(program, sourcePath);
 
             EnsureModuleInstantiated(entry);
             if (entry.IsAsync || entry.HasAsyncDependency)
@@ -905,34 +874,7 @@ public sealed class JsEngine : IAsyncDisposable
             var isModule = forceModule || HasModuleStatements(program);
             if (isModule)
             {
-                string? moduleKey = null;
-                ModuleEntry entry;
-                if (!string.IsNullOrEmpty(sourcePath))
-                {
-                    moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
-                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
-                    {
-                        entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            CreateModuleEnvironment(moduleKey),
-                            new JsObject(),
-                            moduleKey,
-                            program.HasTopLevelAwait);
-                        _moduleRegistry[moduleKey] = entry;
-                    }
-
-                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                        new HashSet<string>(StringComparer.Ordinal));
-                }
-                else
-                {
-                    entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        CreateModuleEnvironment(moduleKey),
-                        new JsObject(),
-                        string.Empty,
-                        program.HasTopLevelAwait);
-                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                        new HashSet<string>(StringComparer.Ordinal));
-                }
+                var entry = GetOrCreateModuleEntry(program, sourcePath);
 
                 EnsureModuleInstantiated(entry);
                 if (entry.IsAsync || entry.HasAsyncDependency)
@@ -1008,34 +950,7 @@ public sealed class JsEngine : IAsyncDisposable
             EnsureImportMetaAllowed(program, isModule);
             if (isModule)
             {
-                string? moduleKey = null;
-                ModuleEntry entry;
-                if (!string.IsNullOrEmpty(sourcePath))
-                {
-                    moduleKey = NormalizeModulePath(sourcePath!, null);
-                    if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
-                    {
-                        entry = CreateModuleEntry(EnsureStrictProgram(program),
-                            CreateModuleEnvironment(moduleKey),
-                            new JsObject(),
-                            moduleKey,
-                            program.HasTopLevelAwait);
-                        _moduleRegistry[moduleKey] = entry;
-                    }
-
-                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                        new HashSet<string>(StringComparer.Ordinal));
-                }
-                else
-                {
-                    entry = CreateModuleEntry(EnsureStrictProgram(program),
-                        CreateModuleEnvironment(moduleKey),
-                        new JsObject(),
-                        string.Empty,
-                        program.HasTopLevelAwait);
-                    entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
-                        new HashSet<string>(StringComparer.Ordinal));
-                }
+                var entry = GetOrCreateModuleEntry(program, sourcePath);
 
                 EnsureModuleInstantiated(entry);
                 if (entry.IsAsync || entry.HasAsyncDependency)
@@ -1537,6 +1452,41 @@ public sealed class JsEngine : IAsyncDisposable
         };
         environment.IsAsyncModule = entry.IsAsync;
         EnsureModuleImportMeta(entry);
+        return entry;
+    }
+
+    /// <summary>
+    /// Gets an existing module entry from the registry or creates a new one.
+    /// Also computes and sets HasAsyncDependency.
+    /// </summary>
+    private ModuleEntry GetOrCreateModuleEntry(ProgramNode program, string? sourcePath)
+    {
+        ModuleEntry entry;
+        if (!string.IsNullOrEmpty(sourcePath))
+        {
+            var moduleKey = NormalizeModulePath(sourcePath!, null, _moduleLoader is not null);
+            if (!_moduleRegistry.TryGetValue(moduleKey, out entry!))
+            {
+                entry = CreateModuleEntry(EnsureStrictProgram(program),
+                    CreateModuleEnvironment(moduleKey),
+                    new JsObject(),
+                    moduleKey,
+                    program.HasTopLevelAwait);
+                _moduleRegistry[moduleKey] = entry;
+            }
+        }
+        else
+        {
+            entry = CreateModuleEntry(EnsureStrictProgram(program),
+                CreateModuleEnvironment(null),
+                new JsObject(),
+                string.Empty,
+                program.HasTopLevelAwait);
+        }
+
+        entry.HasAsyncDependency = ModuleHasAsyncDependency(entry.Program, entry.Path,
+            new HashSet<string>(StringComparer.Ordinal));
+
         return entry;
     }
 

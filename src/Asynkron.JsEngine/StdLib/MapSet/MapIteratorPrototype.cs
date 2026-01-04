@@ -22,19 +22,6 @@ public sealed partial class MapIteratorPrototype : JsPrototype
         return iterator.Next();
     }
 
-    protected override void ConfigurePrototype()
-    {
-        if (Prototype is JsObject { RealmState: null } jsObj)
-        {
-            jsObj.RealmState = Realm;
-        }
-
-        var iteratorPrototype = Realm.IteratorPrototype ??= (JsObject)IteratorPrototype.CreatePrototype(Realm);
-        if (!ReferenceEquals(Prototype.Prototype, iteratorPrototype))
-        {
-            Prototype.SetPrototype(iteratorPrototype);
-        }
-
-        Realm.MapIteratorPrototype ??= Prototype as JsObject;
-    }
+    protected override void ConfigurePrototype() =>
+        ConfigureAsIteratorPrototype(p => Realm.MapIteratorPrototype ??= p);
 }

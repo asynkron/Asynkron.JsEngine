@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 
 #endregion
 
@@ -38,5 +39,26 @@ public abstract class JsPrototype
     /// </summary>
     protected virtual void ConfigurePrototype()
     {
+    }
+
+    /// <summary>
+    ///     Helper for iterator prototypes to set up the iterator prototype chain
+    ///     and assign to the appropriate Realm property.
+    /// </summary>
+    protected void ConfigureAsIteratorPrototype(Action<JsObject?> assignToRealm)
+    {
+        if (Prototype is JsObject { RealmState: null } jsObj)
+        {
+            jsObj.RealmState = Realm;
+        }
+
+        var iteratorPrototype = Realm.IteratorPrototype ??=
+            (JsObject)StdLib.IteratorPrototype.CreatePrototype(Realm);
+        if (!ReferenceEquals(Prototype.Prototype, iteratorPrototype))
+        {
+            Prototype.SetPrototype(iteratorPrototype);
+        }
+
+        assignToRealm(Prototype as JsObject);
     }
 }

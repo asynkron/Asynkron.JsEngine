@@ -1783,6 +1783,40 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return null;
     }
 
+    /// <summary>
+    /// Invokes a getter and handles ThrowSignal appropriately.
+    /// Returns true normally, or true with thrown value set in context if getter throws.
+    /// </summary>
+    private bool InvokeGetterWithThrowHandling(
+        IJsCallable getter,
+        object? receiver,
+        EvaluationContext? context,
+        out object? value)
+    {
+        try
+        {
+            var result = TypedAstEvaluator.InvokeCallableJsValue(
+                getter,
+                [],
+                JsValue.FromObjectUnsafe(receiver ?? this),
+                context,
+                ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
+            value = result.IsObject ? result.ObjectValue : result.ToObject();
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            if (context is not null)
+            {
+                context.SetThrow(signal.ThrownValue);
+                value = signal.ThrownValue;
+                return true;
+            }
+
+            throw;
+        }
+    }
+
     private static bool TryGetPropertyFromPrototypeChain(
         IJsPropertyAccessor? prototype,
         string name,
@@ -1838,29 +1872,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         {
                             if (desc.Get != null)
                             {
-                                try
-                                {
-                                    var result = TypedAstEvaluator.InvokeCallableJsValue(
-                                        desc.Get,
-                                        [],
-                                        JsValue.FromObjectUnsafe(receiver ?? this),
-                                        context,
-                                        ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
-                                    value = result.IsObject ? result.ObjectValue : result.ToObject();
-                                }
-                                catch (ThrowSignal signal)
-                                {
-                                    if (context is not null)
-                                    {
-                                        context.SetThrow(signal.ThrownValue);
-                                        value = signal.ThrownValue;
-                                        return true;
-                                    }
-
-                                    throw;
-                                }
-
-                                return true;
+                                return InvokeGetterWithThrowHandling(desc.Get, receiver, context, out value);
                             }
 
                             throw StandardLibrary.ThrowTypeError(
@@ -1952,27 +1964,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
             if (virtualDescriptor.Get != null)
             {
-                try
-                {
-                    var result = TypedAstEvaluator.InvokeCallableJsValue(
-                        virtualDescriptor.Get,
-                        [],
-                        JsValue.FromObjectUnsafe(receiver ?? this),
-                        context,
-                        ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
-                    value = result.IsObject ? result.ObjectValue : result.ToObject();
-                }
-                catch (ThrowSignal signal)
-                {
-                    if (context is not null)
-                    {
-                        context.SetThrow(signal.ThrownValue);
-                        value = signal.ThrownValue;
-                        return true;
-                    }
-
-                    throw;
-                }
+                InvokeGetterWithThrowHandling(virtualDescriptor.Get, receiver, context, out value);
             }
 
             return true;
@@ -1984,29 +1976,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 if (descriptor.Get != null)
                 {
-                    try
-                    {
-                        var result = TypedAstEvaluator.InvokeCallableJsValue(
-                            descriptor.Get,
-                            [],
-                            JsValue.FromObjectUnsafe(receiver ?? this),
-                            context,
-                            ResolveRealmState(receiver)?.Engine?.GlobalEnvironment);
-                        value = result.IsObject ? result.ObjectValue : result.ToObject();
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        if (context is not null)
-                        {
-                            context.SetThrow(signal.ThrownValue);
-                            value = signal.ThrownValue;
-                            return true;
-                        }
-
-                        throw;
-                    }
-
-                    return true;
+                    return InvokeGetterWithThrowHandling(descriptor.Get, receiver, context, out value);
                 }
 
                 value = Symbol.Undefined;

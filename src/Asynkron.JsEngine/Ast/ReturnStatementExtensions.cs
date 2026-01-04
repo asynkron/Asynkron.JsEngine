@@ -196,6 +196,8 @@ public static partial class TypedAstEvaluator
 
     /// <summary>
     /// Applies a binary operator to two JsValue operands.
+    /// For logical operators (&&, ||, ??), short-circuit evaluation must be done by the caller;
+    /// this method just returns the right operand for those cases.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static JsValue ApplyBinaryOperator(BinaryOperator op, JsValue left, JsValue right,
@@ -223,7 +225,11 @@ public static partial class TypedAstEvaluator
             BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
             BinaryOperator.RightShift => RightShiftValue(left, right, context),
             BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
-            _ => throw new NotSupportedException($"Operator '{op}' is not supported in pre-evaluated path.")
+            BinaryOperator.In => InOperatorJsValue(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.InstanceOf => InstanceofOperatorJsValue(left, right, context) ? JsValue.True : JsValue.False,
+            // Logical operators: short-circuit evaluation already done by caller, just return right
+            BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing => right,
+            _ => throw new NotSupportedException($"Operator '{op}' is not supported.")
         };
     }
 

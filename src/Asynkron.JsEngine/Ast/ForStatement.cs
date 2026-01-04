@@ -1,7 +1,6 @@
 #region
 
 using System.Collections.Immutable;
-using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
 
 #endregion
@@ -20,21 +19,8 @@ public sealed record ForStatement(
     int PerIterationScopeId = -1,
     int PerIterationParentScopeId = -1,
     int PerIterationSlotCount = -1,
-    ImmutableArray<int> PerIterationSlotIndices = default) : StatementNode(Source), IAstCacheable<LoopPlan>
+    ImmutableArray<int> PerIterationSlotIndices = default) : LoopStatementNode(Source)
 {
-    private LoopPlan? _cachedPlan;
-
-    LoopPlan IAstCacheable<LoopPlan>.GetOrCreateCache()
-    {
-        return AstCache.GetOrCreate(ref _cachedPlan, this, static self =>
-        {
-            var isStrict = self.Body is BlockStatement { IsStrict: true };
-            if (!LoopNormalizer.TryNormalize(self, isStrict, out var plan, out var failureReason))
-            {
-                throw new NotSupportedException(failureReason ?? "Failed to normalize for loop.");
-            }
-
-            return plan;
-        });
-    }
+    public override StatementNode Body { get; init; } = Body;
+    protected override string LoopTypeName => "for";
 }

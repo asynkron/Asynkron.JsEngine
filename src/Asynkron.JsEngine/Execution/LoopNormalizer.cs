@@ -100,6 +100,18 @@ internal static class LoopNormalizer
         return true;
     }
 
+    public static bool TryNormalize(LoopStatementNode statement, bool isStrict,
+        out LoopPlan plan, out string? failureReason)
+    {
+        return statement switch
+        {
+            WhileStatement whileStatement => TryNormalize(whileStatement, isStrict, out plan, out failureReason),
+            DoWhileStatement doWhileStatement => TryNormalize(doWhileStatement, isStrict, out plan, out failureReason),
+            ForStatement forStatement => TryNormalize(forStatement, isStrict, out plan, out failureReason),
+            _ => throw new NotSupportedException($"Unknown loop statement type: {statement.GetType().Name}")
+        };
+    }
+
     private static LoopPlan CreateSimplePlan(
         LoopKind kind,
         ImmutableArray<StatementNode> leading,

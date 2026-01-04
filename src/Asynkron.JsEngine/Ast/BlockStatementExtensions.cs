@@ -171,8 +171,9 @@ public static partial class TypedAstEvaluator
                     case ClassDeclaration classDecl:
                         if (!scope.HasBinding(classDecl.Name))
                         {
+                            // Class declarations create mutable bindings (like let), not const
                             scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexicalBinding: true,
-                                blocksFunctionScopeOverride: true, isConst: true);
+                                blocksFunctionScopeOverride: true, isConst: false);
                         }
 
                         break;

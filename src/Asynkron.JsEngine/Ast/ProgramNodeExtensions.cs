@@ -539,10 +539,11 @@ public static partial class TypedAstEvaluator
                         break;
                     case ClassDeclaration classDecl:
                         // Class declarations are also lexically scoped and need TDZ
+                        // Class declarations create mutable bindings (like let), not const
                         if (!executionEnvironment.HasBinding(classDecl.Name))
                         {
                             executionEnvironment.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexicalBinding: true,
-                                blocksFunctionScopeOverride: true, isConst: true);
+                                blocksFunctionScopeOverride: true, isConst: false);
                         }
 
                         break;

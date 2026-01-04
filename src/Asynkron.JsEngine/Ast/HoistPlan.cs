@@ -155,7 +155,8 @@ internal sealed class HoistPlan
 
                 case ClassDeclaration classDeclaration:
                     names.Add(classDeclaration.Name);
-                    lexicalKindMap[classDeclaration.Name] = true;
+                    // Class declarations create mutable bindings (like let), not const
+                    lexicalKindMap[classDeclaration.Name] = false;
                     break;
 
                 case FunctionDeclaration:
@@ -452,7 +453,8 @@ internal sealed class HoistPlan
 
                 case ClassDeclaration classDeclaration:
                     names.Add(classDeclaration.Name);
-                    lexicalKindMap[classDeclaration.Name] = true;
+                    // Class declarations create mutable bindings (like let), not const
+                    lexicalKindMap[classDeclaration.Name] = false;
                     break;
 
                 // NO recursion into other statement types - they have their own scopes

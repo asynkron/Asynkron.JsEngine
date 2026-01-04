@@ -2746,7 +2746,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     break;
                 }
                 case ClassDeclaration classDeclaration:
-                    declarations[classDeclaration.Name] = true;
+                    // Class declarations create mutable bindings (like let), not immutable (like const)
+                    declarations[classDeclaration.Name] = false;
                     break;
                 case IfStatement ifStatement:
                     CollectLexicalDeclarationsFromStatement(ifStatement.Then, declarations);

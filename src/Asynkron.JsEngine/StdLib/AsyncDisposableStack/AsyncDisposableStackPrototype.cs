@@ -179,20 +179,4 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
         EnsureFunctionMetadata(getterObj, "length", 0d);
         EnsureFunctionMetadata(getterObj, "name", "get disposed");
     }
-
-    private static void EnsureFunctionMetadata(IJsObjectLike target, string propertyName, object value)
-    {
-        if (target.GetOwnPropertyDescriptor(propertyName) is not null)
-        {
-            return;
-        }
-
-        target.DefineProperty(propertyName, new PropertyDescriptor
-        {
-            Value = value,
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-    }
 }

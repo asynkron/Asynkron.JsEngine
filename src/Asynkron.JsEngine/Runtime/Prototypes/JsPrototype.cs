@@ -61,4 +61,24 @@ public abstract class JsPrototype
 
         assignToRealm(Prototype as JsObject);
     }
+
+    /// <summary>
+    ///     Ensures that a function object has a specific metadata property (like "length" or "name")
+    ///     with the correct descriptor attributes.
+    /// </summary>
+    protected static void EnsureFunctionMetadata(IJsObjectLike target, string propertyName, object value)
+    {
+        if (target.GetOwnPropertyDescriptor(propertyName) is not null)
+        {
+            return;
+        }
+
+        target.DefineProperty(propertyName, new PropertyDescriptor
+        {
+            Value = value,
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+    }
 }

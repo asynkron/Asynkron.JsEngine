@@ -237,30 +237,7 @@ public sealed partial class StringPrototype
     {
         var value = ResolveString(thisValue);
         var len = value.Length;
-
-        var context = Realm?.CreateContext();
-
-        // ToIntegerOrInfinity on missing/undefined argument returns 0
-        var startArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var intStart = ToIntegerOrInfinity(startArg, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        double intEnd;
-        if (args.Count > 1 && !args[1].IsUndefined)
-        {
-            intEnd = ToIntegerOrInfinity(args[1], context);
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-        }
-        else
-        {
-            intEnd = len;
-        }
+        var (intStart, intEnd) = ParseStartEnd(args, len);
 
         // Clamp to [0, len]
         var finalStart = (int)Math.Max(0, Math.Min(double.IsPositiveInfinity(intStart) ? len : intStart, len));
@@ -280,30 +257,7 @@ public sealed partial class StringPrototype
     {
         var value = ResolveString(thisValue);
         var len = value.Length;
-
-        var context = Realm?.CreateContext();
-
-        // ToIntegerOrInfinity on missing/undefined argument returns 0
-        var startArg = args.Count > 0 ? args[0] : JsValue.Undefined;
-        var intStart = ToIntegerOrInfinity(startArg, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
-        double intEnd;
-        if (args.Count > 1 && !args[1].IsUndefined)
-        {
-            intEnd = ToIntegerOrInfinity(args[1], context);
-            if (context?.IsThrow == true)
-            {
-                throw new ThrowSignal(context.FlowValue);
-            }
-        }
-        else
-        {
-            intEnd = len;
-        }
+        var (intStart, intEnd) = ParseStartEnd(args, len);
 
         // Handle infinity cases
         int from, to;
@@ -339,6 +293,38 @@ public sealed partial class StringPrototype
         }
 
         return new JsValue(value.Substring(from, to - from));
+    }
+
+    /// <summary>
+    /// Parses start and end arguments for substring/slice methods.
+    /// </summary>
+    private (double Start, double End) ParseStartEnd(IReadOnlyList<JsValue> args, int defaultEnd)
+    {
+        var context = Realm?.CreateContext();
+
+        // ToIntegerOrInfinity on missing/undefined argument returns 0
+        var startArg = args.Count > 0 ? args[0] : JsValue.Undefined;
+        var intStart = ToIntegerOrInfinity(startArg, context);
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
+
+        double intEnd;
+        if (args.Count > 1 && !args[1].IsUndefined)
+        {
+            intEnd = ToIntegerOrInfinity(args[1], context);
+            if (context?.IsThrow == true)
+            {
+                throw new ThrowSignal(context.FlowValue);
+            }
+        }
+        else
+        {
+            intEnd = defaultEnd;
+        }
+
+        return (intStart, intEnd);
     }
 
     [JsHostMethod("substr", Length = 2d)]

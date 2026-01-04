@@ -1,6 +1,6 @@
 namespace Asynkron.JsEngine.Tests;
 
-[CollectionDefinition("GeneratorIrCollection", DisableParallelization = true)]
+[CollectionDefinition("GeneratorIrCollection")]
 public class GeneratorIrCollection
 {
 }

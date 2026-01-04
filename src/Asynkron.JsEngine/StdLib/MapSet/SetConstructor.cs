@@ -3,72 +3,39 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
-using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
 namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("Set", PrototypeType = typeof(SetPrototype), Length = 0d, DisplayName = "Set")]
-public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState realm) : JsConstructor(prototype, realm)
+public sealed partial class SetConstructor(IJsObjectLike prototype, RealmState realm)
+    : CollectionConstructorBase<JsSet>(prototype, realm, "Set")
 {
-    private HostFunction? _constructor;
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("Set constructor not initialized");
-
-    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    protected override JsSet CreateInstance()
     {
-        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true } constructing)
-        {
-            return JsValue.FromObjectUnsafe(ConstructSet(args, _constructor ?? ConstructFallback,
-                _constructor ?? ConstructFallback));
-        }
-
-        throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
+        return new JsSet();
     }
 
-    protected override void ConfigureConstructor(HostFunction constructor)
+    protected override void ConfigureRealmProperties(HostFunction constructor)
     {
-        _constructor = constructor;
         Realm.SetConstructor ??= constructor;
         Realm.SetPrototype ??= Prototype as JsObject;
-
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-        {
-            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
-            {
-                throw ThrowTypeError("Constructor Set requires 'new'", realm: Realm);
-            }
-
-            var target = _constructor ?? constructor;
-            return JsValue.FromObjectUnsafe(ConstructSet(args, callable, target));
-        });
     }
 
-    private object ConstructSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable targetCtor)
-    {
-        var proto = ResolveConstructPrototype(newTarget, targetCtor, Realm) ?? Prototype;
-        var instance = new JsSet();
-        instance.SetPrototype(proto);
-        PopulateSet(instance, args, Realm);
-        return instance;
-    }
-
-    [JsConstructorSymbolGetter("species")]
-    public static JsValue GetSpecies(JsValue thisValue)
-    {
-        return thisValue;
-    }
-
-    private static void PopulateSet(JsSet set, IReadOnlyList<JsValue> args, RealmState realm)
+    protected override void PopulateInstance(JsSet instance, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             return;
         }
 
-        MapSetIterationHelper.Iterate(args[0], realm, "Set constructor", value => set.Add(value));
+        MapSetIterationHelper.Iterate(args[0], Realm, "Set constructor", value => instance.Add(value));
+    }
+
+    [JsConstructorSymbolGetter("species")]
+    public static JsValue GetSpecies(JsValue thisValue)
+    {
+        return thisValue;
     }
 }

@@ -3,8 +3,6 @@
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
-using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -12,51 +10,20 @@ namespace Asynkron.JsEngine.StdLib;
 
 [JsConstructor("WeakSet", PrototypeType = typeof(WeakSetPrototype), Length = 0d, DisplayName = "WeakSet")]
 public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmState realm)
-    : JsConstructor(prototype, realm)
+    : CollectionConstructorBase<JsWeakSet>(prototype, realm, "WeakSet")
 {
-    private HostFunction? _constructor;
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("WeakSet constructor not initialized");
-
-    protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    protected override JsWeakSet CreateInstance()
     {
-        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true })
-        {
-            return JsValue.FromObjectUnsafe(ConstructWeakSet(args, _constructor ?? ConstructFallback));
-        }
-
-        throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
+        return new JsWeakSet();
     }
 
-    protected override void ConfigureConstructor(HostFunction constructor)
+    protected override void ConfigureRealmProperties(HostFunction constructor)
     {
-        _constructor = constructor;
         Realm.WeakSetConstructor ??= constructor;
         Realm.WeakSetPrototype ??= Prototype as JsObject;
-
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-        {
-            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
-            {
-                throw ThrowTypeError("Constructor WeakSet requires 'new'", realm: Realm);
-            }
-
-            var target = _constructor ?? constructor;
-            return JsValue.FromObjectUnsafe(ConstructWeakSet(args, callable, target));
-        });
     }
 
-    private object ConstructWeakSet(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
-    {
-        var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
-        var instance = new JsWeakSet();
-        instance.SetPrototype(proto);
-        PopulateWeakSet(instance, args);
-        return instance;
-    }
-
-    private static void PopulateWeakSet(JsWeakSet set, IReadOnlyList<JsValue> args)
+    protected override void PopulateInstance(JsWeakSet instance, IReadOnlyList<JsValue> args)
     {
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
@@ -72,8 +39,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         {
             try
             {
-                // Handle case where value is already a boxed JsValue
-                set.Add(value);
+                instance.Add(value);
             }
             catch (Exception ex)
             {

@@ -2769,50 +2769,13 @@ public static partial class TypedAstEvaluator
                                         : JsValue.Undefined;
                                     if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
                                     {
-                                        if (AsyncStateRef.AsyncStepMode &&
-                                            AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                                        if (TryHandleAwaitSuspension(driverState, iterVar,
+                                                iteratorMoveNextInstruction, ref environment, context,
+                                                iteratorIndex, out var suspendResult))
                                         {
-                                            driverState.AwaitingValue = true;
-                                            // Use JsVariable for scope-correct access
-                                            var iterState = driverState.AsJsValue;
-                                            if (iterVar.IsValid)
-                                            {
-                                                iterVar.Write(iterState);
-                                            }
-                                            else
-                                            {
-                                                StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                    iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
-                                            }
-
-                                            // Save environment before suspending so we restore it on resume
-                                            _executionEnvironment = environment;
-                                            _state = GeneratorState.Suspended;
-                                            _programCounter = iteratorIndex;
-                                            return CreateIteratorResult(JsValue.Undefined, false);
+                                            return suspendResult;
                                         }
 
-                                        if (context.IsThrow)
-                                        {
-                                            var thrownAwaitValue = context.FlowValue;
-                                            context.Clear();
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitValue, environment))
-                                            {
-                                                continue;
-                                            }
-
-                                            TryCatchStateRef.TryStack.Clear();
-                                            throw new ThrowSignal(thrownAwaitValue);
-                                        }
-
-                                        // Restore environment to enclosing scope
-                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv6)
-                                        {
-                                            environment = enclosingEnv6;
-                                        }
-
-                                        IteratorStateRef.CurrentDriverState = null;
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
 
@@ -2840,50 +2803,13 @@ public static partial class TypedAstEvaluator
                                     var enumerated = awaitEnumerator.Current;
                                     if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
                                     {
-                                        if (AsyncStateRef.AsyncStepMode &&
-                                            AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                                        if (TryHandleAwaitSuspension(driverState, iterVar,
+                                                iteratorMoveNextInstruction, ref environment, context,
+                                                iteratorIndex, out var suspendResult))
                                         {
-                                            driverState.AwaitingValue = true;
-                                            // Use JsVariable for scope-correct access
-                                            var iterState = driverState.AsJsValue;
-                                            if (iterVar.IsValid)
-                                            {
-                                                iterVar.Write(iterState);
-                                            }
-                                            else
-                                            {
-                                                StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                                    iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
-                                            }
-
-                                            // Save environment before suspending so we restore it on resume
-                                            _executionEnvironment = environment;
-                                            _state = GeneratorState.Suspended;
-                                            _programCounter = iteratorIndex;
-                                            return CreateIteratorResult(JsValue.Undefined, false);
+                                            return suspendResult;
                                         }
 
-                                        if (context.IsThrow)
-                                        {
-                                            var thrownAwaitEnum = context.FlowValue;
-                                            context.Clear();
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwaitEnum, environment))
-                                            {
-                                                continue;
-                                            }
-
-                                            TryCatchStateRef.TryStack.Clear();
-                                            throw new ThrowSignal(thrownAwaitEnum);
-                                        }
-
-                                        // Restore environment to enclosing scope
-                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv8)
-                                        {
-                                            environment = enclosingEnv8;
-                                        }
-
-                                        IteratorStateRef.CurrentDriverState = null;
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
                                         continue;
                                     }
 
@@ -3564,6 +3490,68 @@ public static partial class TypedAstEvaluator
                 ? JsValue.Undefined
                 : CreateIteratorResult(JsValue.Undefined, false);
             return true;
+        }
+
+        /// <summary>
+        /// Handles the common logic when TryResolvePromiseOrYield returns false for iterator values.
+        /// Manages async step mode suspension, throw handling, and environment restoration.
+        /// Returns true if the caller should return the suspension result; false if caller should continue loop.
+        /// </summary>
+        private bool TryHandleAwaitSuspension(
+            IteratorDriverState driverState,
+            JsVariable iterVar,
+            IteratorMoveNextInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            int iteratorIndex,
+            out JsValue suspendResult)
+        {
+            if (AsyncStateRef.AsyncStepMode &&
+                AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+            {
+                driverState.AwaitingValue = true;
+                var iterState = driverState.AsJsValue;
+                if (iterVar.IsValid)
+                {
+                    iterVar.Write(iterState);
+                }
+                else
+                {
+                    StoreValueBySlot(environment, instruction.IteratorSlot,
+                        instruction.IteratorSlotIndex, iterState);
+                }
+
+                _executionEnvironment = environment;
+                _state = GeneratorState.Suspended;
+                _programCounter = iteratorIndex;
+                suspendResult = CreateIteratorResult(JsValue.Undefined, false);
+                return true;
+            }
+
+            if (context.IsThrow)
+            {
+                var thrownValue = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+                {
+                    suspendResult = JsValue.Undefined;
+                    return false;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrownValue);
+            }
+
+            // Restore environment to enclosing scope
+            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv)
+            {
+                environment = enclosingEnv;
+            }
+
+            IteratorStateRef.CurrentDriverState = null;
+            _programCounter = instruction.BreakIndex;
+            suspendResult = JsValue.Undefined;
+            return false;
         }
     }
 }

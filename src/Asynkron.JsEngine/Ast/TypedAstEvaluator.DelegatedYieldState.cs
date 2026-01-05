@@ -114,7 +114,7 @@ public static partial class TypedAstEvaluator
                         ? throw new InvalidOperationException("Iterator result missing.")
                         : candidate;
                     JsValue awaitedCandidate;
-                    if (nextCandidate.TryGetObject<IJsObjectLike>(out var promiseCandidate) &&
+                    if (nextCandidate.TryGetObject<IJsObjectLike>(out _) &&
                         IsPromiseLike(nextCandidate))
                     {
                         awaitedPromise = true;

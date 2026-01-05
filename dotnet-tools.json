@@ -1,5 +1,13 @@
 {
   "version": 1,
   "isRoot": true,
-  "tools": {}
+  "tools": {
+    "asynkron-profiler": {
+      "version": "0.1.19",
+      "commands": [
+        "asynkron-profiler"
+      ],
+      "rollForward": false
+    }
+  }
 }

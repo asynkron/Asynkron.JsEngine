@@ -711,7 +711,7 @@ public static partial class TypedAstEvaluator
                 // value into the per-site await state so subsequent evaluations
                 // of the AwaitExpression see the fulfilled value instead of the
                 // original promise object.
-                if (AsyncStateRef.PendingAwaitKey is { } awaitKey)
+                if (_isAsync && AsyncStateRef.PendingAwaitKey is { } awaitKey)
                 {
                     var (kind, value) = ConsumeResumeValue();
                     var isThrow = kind == ResumePayloadKind.Throw;
@@ -775,8 +775,8 @@ public static partial class TypedAstEvaluator
                         }
 
                         _currentInstructionIndex = _programCounter;
-                        // Use Unsafe.Add to bypass bounds check - we already validated via the while condition
-                        var instruction = Unsafe.Add(ref instructionsRef, _programCounter);
+                        // Use profiling wrapper to measure instruction fetch cost
+                        var instruction = ProfileFetchInstruction(ref instructionsRef, _programCounter);
                         var instructionKind = instruction.Kind;
 
                         // Trace instruction execution when debug logging is enabled
@@ -811,89 +811,15 @@ public static partial class TypedAstEvaluator
                         // Jump is the simplest - just update program counter
                         if (instructionKind == InstructionKind.Jump)
                         {
-                            _programCounter = Unsafe.As<JumpInstruction>(instruction).TargetIndex;
+                            _programCounter = ProfileHandleJump(Unsafe.As<JumpInstruction>(instruction));
                             continue;
                         }
 
-                        // Branch is hot - inline the entire handler to avoid switch dispatch
+                        // Branch is hot - handle before switch dispatch
                         if (instructionKind == InstructionKind.Branch)
                         {
-                            var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
-
-                            // Fast path for simple binary comparisons (e.g., i < 1000000)
-                            JsValue testValue;
-                            if (branchInstruction.Condition is BinaryExpression
-                                {
-                                    Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
-                                    BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
-                                } binCond)
-                            {
-                                // Try to get left operand without AST evaluation
-                                JsValue leftVal;
-                                switch (binCond.Left)
-                                {
-                                    case LiteralExpression { Value: var lit }:
-                                        leftVal = lit;
-                                        break;
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } leftId:
-                                        if (!environment.TryReadIdentifierWithSlot(leftId, context, out leftVal))
-                                        {
-                                            goto slowPath;
-                                        }
-
-                                        break;
-                                    default:
-                                        goto slowPath;
-                                }
-
-                                // Try to get right operand without AST evaluation
-                                JsValue rightVal;
-                                switch (binCond.Right)
-                                {
-                                    case LiteralExpression { Value: var lit }:
-                                        rightVal = lit;
-                                        break;
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rightId:
-                                        if (!environment.TryReadIdentifierWithSlot(rightId, context, out rightVal))
-                                        {
-                                            goto slowPath;
-                                        }
-
-                                        break;
-                                    default:
-                                        goto slowPath;
-                                }
-
-                                // Apply comparison directly
-                                testValue = binCond.Operator switch
-                                {
-                                    BinaryOperator.LessThan => LessThanValue(leftVal, rightVal, context),
-                                    BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
-                                    BinaryOperator.GreaterThan => GreaterThanValue(leftVal, rightVal, context),
-                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftVal, rightVal,
-                                        context),
-                                    _ => throw new InvalidOperationException()
-                                };
-                                goto afterConditionEval;
-                            }
-
-                            slowPath:
-                            testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                            afterConditionEval:
-
-                            // Check for pending await (async code) - skip entirely for sync functions
-                            if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
-                            {
-                                return pendingBranchResult;
-                            }
-
-                            // Check for throw
-                            if (TryHandleContextThrow(context, environment)) continue;
-
-                            // Normal path: branch based on condition
-                            _programCounter = testValue.IsTruthy
-                                ? branchInstruction.ConsequentIndex
-                                : branchInstruction.AlternateIndex;
+                            var result = HandleBranchFastPath(Unsafe.As<BranchInstruction>(instruction), environment, context, out var returnValue);
+                            if (result == InstructionResult.Return) return returnValue;
                             continue;
                         }
 
@@ -901,2213 +827,211 @@ public static partial class TypedAstEvaluator
                         {
                             case InstructionKind.Statement:
                             {
-                                var statementInstruction = Unsafe.As<StatementInstruction>(instruction);
-                                var stmtResult =
-                                    statementInstruction.Statement.EvaluateStatementJsValue(environment, context);
-                                // In script mode, track the completion value (per ES spec, block completion is last statement value)
-                                // Per UpdateEmpty semantics:
-                                // - When a statement produces a value (non-Unit), capture it.
-                                // - For "completion-scoped" statements (if/try/switch/loops), an empty completion
-                                //   overrides the previous value with undefined.
-                                // - Plain blocks/empty statements still preserve the previous value.
-                                if (_isScriptMode)
-                                {
-                                    if (!stmtResult.IsUnit)
-                                    {
-                                        _scriptCompletionValue = stmtResult;
-                                    }
-                                    else if (ShouldResetScriptCompletion(statementInstruction.Statement))
-                                    {
-                                        _scriptCompletionValue = JsValue.Undefined;
-                                    }
-                                }
-
-                                var (signalAction, signalResult) = HandleContextSignals(context, environment, statementInstruction.Next);
-                                switch (signalAction)
-                                {
-                                    case SignalAction.Return:
-                                        return signalResult;
-                                    case SignalAction.Continue:
-                                        continue;
-                                }
-
-                                // Handle break/continue signals from AST-evaluated code inside loops
-                                if (context.IsBreak || context.IsContinue)
-                                {
-                                    if (_isScriptMode)
-                                    {
-                                        _scriptCompletionValue = JsValue.Undefined;
-                                    }
-
-                                    var isBreak = context.IsBreak;
-                                    var label = (context.CurrentSignal as BreakCompletionSignal)?.Label
-                                                ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
-                                    context.Clear();
-
-                                    var target = FindBreakableTarget(label, isBreak);
-                                    if (target >= 0)
-                                    {
-                                        _programCounter = target;
-                                        continue;
-                                    }
-
-                                    // If no target found, the signal should propagate (shouldn't happen if loop stack is correct)
-                                    throw new InvalidOperationException(
-                                        $"No loop target found for {(isBreak ? "break" : "continue")}{(label is not null ? $" {label.Name}" : "")}");
-                                }
-
-                                _programCounter = statementInstruction.Next;
+                                var result = HandleStatement(Unsafe.As<StatementInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.Throw:
                             {
-                                var throwInstruction = Unsafe.As<ThrowInstruction>(instruction);
-                                // Evaluate the throw expression and throw it
-                                var throwValue = throwInstruction.Expression.EvaluateExpression(environment, context);
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingThrowResult, environment))
-                                {
-                                    return pendingThrowResult;
-                                }
-
-                                // If evaluating the expression already threw, handle that
-                                if (context.IsThrow)
-                                {
-                                    var existingThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
-                                    {
-                                        // If PC changed (jumped to catch/finally), continue
-                                        if (_programCounter != _currentInstructionIndex)
-                                        {
-                                            continue;
-                                        }
-
-                                        // PC didn't change - we're inside a finally and updated pending.
-                                        // The finally ends abruptly, pop frame and re-propagate.
-                                        if (TryCatchStateRef.TryStack.Count > 0)
-                                        {
-                                            TryCatchStateRef.TryStack.Pop();
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
-                                            {
-                                                continue;
-                                            }
-                                        }
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(existingThrown);
-                                }
-
-                                // Now throw the evaluated value
-                                if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
-                                {
-                                    // If PC changed (jumped to catch/finally), continue
-                                    if (_programCounter != _currentInstructionIndex)
-                                    {
-                                        continue;
-                                    }
-
-                                    // PC didn't change - we're inside a finally and updated pending.
-                                    // The finally ends abruptly, pop frame and re-propagate.
-                                    if (TryCatchStateRef.TryStack.Count > 0)
-                                    {
-                                        TryCatchStateRef.TryStack.Pop();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
-                                        {
-                                            continue;
-                                        }
-                                    }
-                                }
-
-                                TryCatchStateRef.TryStack.Clear();
-                                throw new ThrowSignal(throwValue);
+                                var result = HandleThrow(Unsafe.As<ThrowInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
+                                continue;
                             }
 
                             case InstructionKind.EvaluateAndDiscard:
                             {
-                                var evaluateInstruction = Unsafe.As<EvaluateAndDiscardInstruction>(instruction);
-                                // Evaluate the expression
-                                var evaluatedValue =
-                                    evaluateInstruction.Expression.EvaluateExpression(environment, context);
-                                // In script mode, track the completion value (per ES spec, script completion is last expression value)
-                                // SuppressCompletionValue is true for loop update expressions (per ES spec, update expressions don't contribute)
-                                if (_isScriptMode && !evaluateInstruction.SuppressCompletionValue)
-                                {
-                                    _scriptCompletionValue = evaluatedValue;
-                                }
-
-                                var (evalSignalAction, evalSignalResult) = HandleContextSignals(context, environment, evaluateInstruction.Next);
-                                switch (evalSignalAction)
-                                {
-                                    case SignalAction.Return:
-                                        return evalSignalResult;
-                                    case SignalAction.Continue:
-                                        continue;
-                                }
-
-                                _programCounter = evaluateInstruction.Next;
+                                var result = HandleEvaluateAndDiscard(Unsafe.As<EvaluateAndDiscardInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.BinaryOp:
                             {
-                                var binaryOpInstruction = Unsafe.As<BinaryOpInstruction>(instruction);
-                                // Fast path for binary operations - evaluate left and right, apply operator
-                                var binLeft = binaryOpInstruction.Left.EvaluateExpression(environment, context);
-                                if (context.ShouldStopEvaluation)
-                                {
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinLeftResult,
-                                            environment))
-                                    {
-                                        return pendingBinLeftResult;
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var binThrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(binThrown);
-                                    }
-                                }
-
-                                var binRight = binaryOpInstruction.Right.EvaluateExpression(environment, context);
-                                if (context.ShouldStopEvaluation)
-                                {
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingBinRightResult,
-                                            environment))
-                                    {
-                                        return pendingBinRightResult;
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var binThrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(binThrown);
-                                    }
-                                }
-
-                                // Apply the operator using shared helper
-                                var binResult = ApplyBinaryOperator(binaryOpInstruction.Operator, binLeft, binRight, context);
-
-                                // Store result in slot if specified
-                                if (binaryOpInstruction.ResultSlot is not null)
-                                {
-                                    // Use AssignJsValue to walk up scope chain and find existing binding
-                                    environment.AssignJsValue(binaryOpInstruction.ResultSlot, binResult);
-                                }
-
-                                _programCounter = binaryOpInstruction.Next;
+                                var result = HandleBinaryOp(Unsafe.As<BinaryOpInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.IncrementSlot:
                             {
-                                var incrementInstruction = Unsafe.As<IncrementSlotInstruction>(instruction);
-                                // Fast path for ++/-- on identifiers
-                                var incCurrentValue =
-                                    environment.GetIdentifierJsValueDirect(incrementInstruction.TargetSymbol, context);
-                                if (context.IsThrow)
-                                {
-                                    var incThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, incThrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(incThrown);
-                                }
-
-                                JsValue incNewJsValue;
-                                JsValue incOldNumericValue; // For postfix: the numeric value before incrementing
-                                // Handle BigInt separately - cannot use ToNumber()
-                                if (incCurrentValue.IsBigInt)
-                                {
-                                    var bigInt = (JsBigInt)incCurrentValue.ObjectValue!;
-                                    incOldNumericValue = incCurrentValue; // BigInt is already numeric
-                                    var incNewBigInt = incrementInstruction.IsIncrement
-                                        ? bigInt.Value + 1
-                                        : bigInt.Value - 1;
-                                    incNewJsValue = new JsBigInt(incNewBigInt);
-                                }
-                                else
-                                {
-                                    // Convert to numeric using ToNumericValue which properly calls ToPrimitive
-                                    // for objects (invoking valueOf/toString methods as per ES spec)
-                                    var numericJsValue = ToNumericValue(incCurrentValue, context);
-                                    if (context.ShouldStopEvaluation)
-                                    {
-                                        var incFlowThrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(incFlowThrown);
-                                    }
-
-                                    // Check if we got a BigInt from ToNumericValue (e.g., valueOf returned a BigInt)
-                                    if (numericJsValue.IsBigInt)
-                                    {
-                                        var bigInt = (JsBigInt)numericJsValue.ObjectValue!;
-                                        incOldNumericValue = numericJsValue;
-                                        var incNewBigInt = incrementInstruction.IsIncrement
-                                            ? bigInt.Value + 1
-                                            : bigInt.Value - 1;
-                                        incNewJsValue = new JsBigInt(incNewBigInt);
-                                    }
-                                    else
-                                    {
-                                        var incNumValue = numericJsValue.NumberValue;
-                                        incOldNumericValue = JsValueCache.GetNumberJsValue(incNumValue);
-
-                                        // Apply increment or decrement
-                                        var incNewValue = incrementInstruction.IsIncrement
-                                            ? incNumValue + 1.0
-                                            : incNumValue - 1.0;
-                                        incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
-                                    }
-                                }
-
-                                // Update the binding - use AssignJsValue to walk up scope chain
-                                environment.AssignJsValue(incrementInstruction.TargetSymbol, incNewJsValue);
-
-                                // Track completion value for scripts (prefix returns new, postfix returns old numeric value)
-                                // SuppressCompletionValue is true for loop update expressions (per ES spec, update expressions don't contribute)
-                                if (_isScriptMode && !incrementInstruction.SuppressCompletionValue)
-                                {
-                                    _scriptCompletionValue = incrementInstruction.IsPrefix
-                                        ? incNewJsValue
-                                        : incOldNumericValue;
-                                }
-
-                                _programCounter = incrementInstruction.Next;
+                                var result = HandleIncrementSlot(Unsafe.As<IncrementSlotInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.CompoundAssignmentSlot:
                             {
-                                var compoundInstruction = Unsafe.As<CompoundAssignmentSlotInstruction>(instruction);
-                                // Fast path for compound assignment on identifiers (e.g., s += i)
-                                // Read current value from target
-                                var compCurrentValue =
-                                    environment.GetIdentifierJsValueDirect(compoundInstruction.TargetSymbol, context);
-                                if (context.IsThrow)
-                                {
-                                    var compThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, compThrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(compThrown);
-                                }
-
-                                // Evaluate RHS expression - inline fast path for simple cases
-                                JsValue compRhsValue;
-                                switch (compoundInstruction.RhsExpression)
-                                {
-                                    // Fast path: literal value (no evaluation needed)
-                                    case LiteralExpression { Value: var literalValue }:
-                                        compRhsValue = literalValue;
-                                        break;
-
-                                    // Fast path: identifier with slot info (direct slot read)
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
-                                        if (environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
-                                        {
-                                            // Got value from slot
-                                        }
-                                        else
-                                        {
-                                            // Slot miss - fall back to full resolution
-                                            compRhsValue = rhsIdent.EvaluateExpression(environment, context);
-                                        }
-
-                                        break;
-
-                                    // Slow path: complex expression
-                                    default:
-                                        compRhsValue =
-                                            compoundInstruction.RhsExpression.EvaluateExpression(environment, context);
-                                        break;
-                                }
-
-                                if (context.ShouldStopEvaluation)
-                                {
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingCompResult,
-                                            environment))
-                                    {
-                                        return pendingCompResult;
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var compRhsThrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(compRhsThrown);
-                                    }
-                                }
-
-                                // Apply the operator using shared helper
-                                var compResult = ApplyBinaryOperator(compoundInstruction.Operator, compCurrentValue, compRhsValue, context);
-
-                                // Update the binding
-                                environment.AssignJsValue(compoundInstruction.TargetSymbol, compResult);
-
-                                // Track completion value for scripts
-                                if (_isScriptMode && !compoundInstruction.SuppressCompletionValue)
-                                {
-                                    _scriptCompletionValue = compResult;
-                                }
-
-                                _programCounter = compoundInstruction.Next;
+                                var result = HandleCompoundAssignmentSlot(Unsafe.As<CompoundAssignmentSlotInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.FunctionDeclaration:
                             {
-                                var functionDeclInstruction = Unsafe.As<FunctionDeclarationInstruction>(instruction);
-                                // Function declarations are hoisted - this is a no-op at runtime
-                                _programCounter = functionDeclInstruction.Next;
+                                HandleFunctionDeclaration(Unsafe.As<FunctionDeclarationInstruction>(instruction), out _);
                                 continue;
                             }
 
                             case InstructionKind.ClassDeclaration:
                             {
-                                var classDeclInstruction = Unsafe.As<ClassDeclarationInstruction>(instruction);
-                                // Create the class value and bind it to the class name
-                                var classValue = classDeclInstruction.Declaration.Definition.CreateClassValue(
-                                    environment, context, classDeclInstruction.Declaration.Name);
-
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingClassResult, environment))
-                                {
-                                    return pendingClassResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var classThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, classThrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(classThrown);
-                                }
-
-                                // Bind the class name in the environment
-                                environment.DefineJsValue(classDeclInstruction.Declaration.Name, classValue,
-                                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
-
-                                _programCounter = classDeclInstruction.Next;
+                                var result = HandleClassDeclaration(Unsafe.As<ClassDeclarationInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.SimpleVariableDeclaration:
                             {
-                                var varDeclInstruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instruction);
-
-                                // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
-                                // then perform SetFunctionName(value, bindingId).
-                                var isAnonymousFunctionDefinition = varDeclInstruction.Initializer is not null &&
-                                                                    ExpressionNode.IsAnonymousFunctionDefinitionNode(
-                                                                        varDeclInstruction.Initializer);
-
-                                using var functionNameHint = isAnonymousFunctionDefinition
-                                    ? context.EnterFunctionNameHint(varDeclInstruction.TargetSymbol)
-                                    : null;
-
-                                // Evaluate initializer if present
-                                var varValue = varDeclInstruction.Initializer?.EvaluateExpression(environment, context)
-                                               ?? JsValue.Undefined;
-
-                                //TODO: why is this placed here!?
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingVarResult, environment))
-                                {
-                                    return pendingVarResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var varThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, varThrown, environment))
-                                    {
-                                        if (_programCounter == _currentInstructionIndex)
-                                        {
-                                            _programCounter = varDeclInstruction.Next;
-                                        }
-
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(varThrown);
-                                }
-
-                                if (context.IsReturn)
-                                {
-                                    var varReturnValue = context.FlowValue;
-                                    context.ClearReturn();
-                                    if (!HandleAbruptCompletion(AbruptKind.Return, varReturnValue, environment))
-                                    {
-                                        return CompleteReturn(varReturnValue);
-                                    }
-
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = varDeclInstruction.Next;
-                                    }
-
-                                    continue;
-                                }
-
-                                if (context.IsYield)
-                                {
-                                    var varYieldedValue = context.FlowValue;
-                                    var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)
-                                        ?.IteratorResultObject;
-                                    RecordYield(context, environment);
-                                    context.Clear();
-                                    _state = GeneratorState.Suspended;
-                                    return varIteratorResultObject is not null
-                                        ? JsValue.FromObjectUnsafe(varIteratorResultObject)
-                                        : CreateIteratorResult(varYieldedValue, false);
-                                }
-
-                                // For var declarations, ensure the binding exists in function scope
-                                // Only assign if there's an initializer - var without initializer preserves hoisted value
-                                if (varDeclInstruction.VarKind == VariableKind.Var)
-                                {
-                                    environment.EnsureFunctionScopedVarBinding(varDeclInstruction.TargetSymbol,
-                                        context);
-                                    // Only assign if there's an initializer
-                                    // Per ES spec, `var x;` should not override hoisted function declarations
-                                    if (varDeclInstruction.Initializer is not null)
-                                    {
-                                        // Try to assign to a blocked binding first (shadowed let/const in same scope)
-                                        if (!environment.TryAssignBlockedBinding(varDeclInstruction.TargetSymbol,
-                                                varValue))
-                                        {
-                                            if (varDeclInstruction.IsScriptLevel)
-                                            {
-                                                // Script-level var: use AssignJsValue to update global object too
-                                                environment.AssignJsValue(varDeclInstruction.TargetSymbol, varValue);
-                                            }
-                                            else
-                                            {
-                                                // Function-level var: local binding only
-                                                environment.DefineOrAssignJsValue(varDeclInstruction.TargetSymbol,
-                                                    varValue);
-                                            }
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    // let/const - define as lexical binding with blocksFunctionScopeOverride
-                                    // to match AST evaluator behavior (see IdentifierBindingExtensions.cs)
-                                    var isConst = varDeclInstruction.VarKind == VariableKind.Const;
-#pragma warning disable CS0162 // Unreachable code detected (TraceIrExecution is compile-time constant)
-                                    if (JsEngineConstants.TraceIrExecution && _realmState.Logger is not null)
-                                    {
-                                        ExecutionPlanPrinter.TraceDefine(
-                                            _realmState.Logger,
-                                            varDeclInstruction.VarKind.ToString(),
-                                            varDeclInstruction.TargetSymbol.Name,
-                                            varValue.ToString() ?? "?",
-                                            environment.Depth,
-                                            environment.ScopeId,
-                                            environment.GetHashCode());
-                                    }
-#pragma warning restore CS0162
-                                    environment.DefineJsValue(varDeclInstruction.TargetSymbol, varValue,
-                                        isConst, isLexicalBinding: true, blocksFunctionScopeOverride: true);
-                                }
-
-                                _programCounter = varDeclInstruction.Next;
+                                var result = HandleSimpleVariableDeclaration(Unsafe.As<SimpleVariableDeclarationInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.PushEnvironment:
                             {
-                                var pushEnvInstruction = Unsafe.As<PushEnvironmentInstruction>(instruction);
-                                // Stack-based environment model for per-iteration bindings:
-                                // - If current env has same ScopeId as instruction → we're in a previous iteration
-                                //   Parent is current.Enclosing (the loop scope), current is previous iter env
-                                // - Otherwise → first iteration, current IS the loop scope
-                                //
-                                // Per-iteration envs are SIBLINGS (same parent), values are COPIED between them.
-                                // This ensures closures capture separate values per iteration.
-
-                                // Detect if we're in a subsequent iteration:
-                                // 1. If ScopeId is valid, use ScopeId matching
-                                // 2. If ScopeId is -1 (scope analysis not run), check if:
-                                //    - This is a loop iteration scope (has PerIterationBindings), AND
-                                //    - Current environment is an iteration env we created (description="scope")
-                                // The PerIterationBindings check is CRITICAL: it distinguishes loop iteration
-                                // scopes from nested block scopes within the loop body. Without it, nested
-                                // blocks would incorrectly become siblings of their parent iteration scope.
-                                var hasIterationBindings = !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty;
-                                var isSubsequentIteration =
-                                    hasIterationBindings &&
-                                    ((pushEnvInstruction.ScopeId >= 0 &&
-                                      environment.ScopeId == pushEnvInstruction.ScopeId) ||
-                                     (pushEnvInstruction.ScopeId < 0 &&
-                                      environment.Description == "scope" && environment.Enclosing != null));
-
-                                // FAST PATH: For subsequent iterations with pooling enabled (no closures),
-                                // reuse the same environment in-place. The increment (i++) already updated
-                                // the binding values, so no copy or rent/return is needed.
-                                // This eliminates all pool overhead for simple loops without closures.
-                                //
-                                // Why this is safe:
-                                // 1. AllowPooling = true means no closures capture iteration variables
-                                // 2. Without closures, we don't need separate environments per iteration
-                                // 3. The loop update (i++) modifies the binding in-place
-                                // 4. The "new" iteration environment would have the same values anyway
-                                if (isSubsequentIteration &&
-                                    pushEnvInstruction.AllowPooling &&
-                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
-                                {
-                                    // Just continue using the same environment - bindings already have correct values
-                                    _programCounter = pushEnvInstruction.Next;
-                                    continue;
-                                }
-
-                                JsEnvironment loopScope;
-                                JsEnvironment? previousIterEnv = null;
-
-                                if (isSubsequentIteration)
-                                {
-                                    // In a previous iteration - parent is Enclosing, current is previous iter
-                                    previousIterEnv = environment;
-                                    loopScope = environment.Enclosing!;
-                                }
-                                else
-                                {
-                                    // First iteration - current IS the loop scope
-                                    loopScope = environment;
-                                }
-
-                                var allowPooling = pushEnvInstruction.AllowPooling;
-                                // Use different description for loop scope (empty bindings) vs per-iteration scope
-                                // This allows the subsequent iteration heuristic to correctly distinguish them
-                                var description = pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty
-                                    ? "loop-scope"
-                                    : "scope";
-                                var newIterationEnv = allowPooling
-                                    ? JsEnvironmentPool.Rent(loopScope, false, false, null, description,
-                                        logger: _realmState.Logger)
-                                    : new JsEnvironment(loopScope, false, false, null, description);
-
-                                // Initialize slots for O(1) identifier lookups
-                                if (pushEnvInstruction is { SlotCount: > 0, ScopeId: >= 0 })
-                                {
-                                    newIterationEnv.InitializeSlots(pushEnvInstruction.SlotCount,
-                                        pushEnvInstruction.ScopeId);
-                                    if (!pushEnvInstruction.SlotMap.IsEmpty)
-                                    {
-                                        newIterationEnv.SetSlotMap(pushEnvInstruction.SlotMap);
-                                    }
-
-                                    if (pushEnvInstruction.LexicalBindings is { Count: > 0 })
-                                    {
-                                        newIterationEnv.MarkSlotsLexicalUninitialized(
-                                            pushEnvInstruction.LexicalBindings);
-                                    }
-                                }
-
-                                // Copy per-iteration bindings from appropriate source (for loop iterations)
-                                if (previousIterEnv != null &&
-                                    !pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
-                                {
-                                    // Copy from previous iteration (fast slot path if available)
-                                    var useSlotCopy = newIterationEnv.HasSlots &&
-                                                      previousIterEnv.HasSlots &&
-                                                      !pushEnvInstruction.SlotMap.IsEmpty;
-
-                                    if (useSlotCopy)
-                                    {
-                                        foreach (var binding in pushEnvInstruction.PerIterationBindings)
-                                        {
-                                            if (pushEnvInstruction.SlotMap.TryGetValue(binding, out var slotIndex))
-                                            {
-                                                var value = previousIterEnv.GetSlotRef(slotIndex);
-                                                newIterationEnv.SetSlotDirect(slotIndex, value);
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Preserve const flag to ensure TypeError is thrown on reassignment
-                                        foreach (var binding in pushEnvInstruction.PerIterationBindings)
-                                        {
-                                            if (previousIterEnv.TryGetJsValueWithConst(binding, out var value,
-                                                    out var isConst))
-                                            {
-                                                newIterationEnv.DefineJsValue(binding, value, isConst, isLexicalBinding: true);
-                                            }
-                                        }
-                                    }
-
-                                    // Return previous iteration env to pool (if pooled and not resumed-with)
-                                    if (allowPooling && !ReferenceEquals(previousIterEnv,
-                                            IteratorStateRef.ResumedWithEnvironment))
-                                    {
-                                        JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
-                                    }
-                                }
-                                else if (!pushEnvInstruction.PerIterationBindings.IsDefaultOrEmpty)
-                                {
-                                    // First iteration - copy from loopScope where binding was defined
-                                    // Preserve const flag to ensure TypeError is thrown on reassignment
-                                    foreach (var binding in pushEnvInstruction.PerIterationBindings)
-                                    {
-                                        if (loopScope.TryGetJsValueWithConst(binding, out var value, out var isConst))
-                                        {
-                                            newIterationEnv.DefineJsValue(binding, value, isConst, isLexicalBinding: true);
-                                        }
-                                    }
-                                }
-
-                                IteratorStateRef.ResumedWithEnvironment = null;
-
-                                // Update environment to new env (push onto stack)
-                                _realmState.Logger?.LogInformation(
-                                    "PushEnv: old.ScopeId={OldScope} new.ScopeId={NewScope} loopScope.ScopeId={LoopScope} parent={Parent}",
-                                    environment.ScopeId,
-                                    newIterationEnv.ScopeId,
-                                    loopScope.ScopeId,
-                                    newIterationEnv.Enclosing?.ScopeId);
-                                environment = newIterationEnv;
-                                _programCounter = pushEnvInstruction.Next;
+                                HandlePushEnvironment(Unsafe.As<PushEnvironmentInstruction>(instruction), ref environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.PopEnvironment:
                             {
-                                var popEnvInstruction = Unsafe.As<PopEnvironmentInstruction>(instruction);
-                                // Pop the iteration environment when exiting a loop.
-                                // If current env matches ScopeId, pop (set to Enclosing).
-                                // If not (loop ran 0 times), this is a no-op.
-                                //
-                                // When ScopeId is -1 (scope analysis not run), use heuristic:
-                                // Pop if current env has Description="scope" or "loop-scope" and has Enclosing.
-                                // This matches environments created by PushEnvironment for loops.
-                                var shouldPop = popEnvInstruction.ScopeId >= 0
-                                    ? environment.ScopeId == popEnvInstruction.ScopeId
-                                    : environment.Description is "scope" or "loop-scope" &&
-                                      environment.Enclosing != null;
-
-                                if (shouldPop)
-                                {
-                                    var envToPop = environment;
-                                    environment = environment.Enclosing!;
-
-                                    // Return to pool if allowed
-                                    if (popEnvInstruction.AllowPooling)
-                                    {
-                                        JsEnvironmentPool.Return(envToPop, _realmState.Logger);
-                                    }
-                                }
-
-                                _programCounter = popEnvInstruction.Next;
+                                HandlePopEnvironment(Unsafe.As<PopEnvironmentInstruction>(instruction), ref environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.Yield:
                             {
-                                var yieldInstruction = Unsafe.As<YieldInstruction>(instruction);
-                                var yieldedValue = JsValue.Undefined;
-                                if (yieldInstruction.YieldExpression is not null)
-                                {
-                                    yieldedValue = yieldInstruction.YieldExpression.EvaluateExpression(environment,
-                                        context);
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldResult,
-                                            environment))
-                                    {
-                                        return pendingYieldResult;
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var thrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(thrown);
-                                    }
-
-                                    if (context.IsYield)
-                                    {
-                                        yieldedValue = context.FlowValue;
-                                        // Check if the yield signal includes an original iterator result object (from yield* in operand)
-                                        var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)
-                                            ?.IteratorResultObject;
-                                        context.Clear();
-                                        _programCounter = _currentInstructionIndex;
-                                        RecordYield(context, environment);
-                                        _state = GeneratorState.Suspended;
-                                        return nestedIteratorResult is not null
-                                            ? JsValue.FromObjectUnsafe(nestedIteratorResult)
-                                            : CreateIteratorResult(yieldedValue, false);
-                                    }
-                                }
-
-                                _programCounter = yieldInstruction.Next;
-                                RecordYield(context, environment);
-                                _state = GeneratorState.Suspended;
-                                return CreateIteratorResult(yieldedValue, false);
+                                var result = HandleYield(Unsafe.As<YieldInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
+                                continue;
                             }
 
                             case InstructionKind.YieldStar:
                             {
-                                var yieldStarInstruction = Unsafe.As<YieldStarInstruction>(instruction);
-                                var currentIndex = _programCounter;
-                                if (!TryGetSymbolValueJsValue(environment, yieldStarInstruction.StateSlotSymbol,
-                                        out var stateValue) ||
-                                    !stateValue.TryGetObject<YieldStarState>(out var yieldStarState))
-                                {
-                                    yieldStarState = new YieldStarState();
-                                    StoreSymbolValue(environment, yieldStarInstruction.StateSlotSymbol, yieldStarState);
-                                }
-
-                                if (yieldStarState.PendingAbrupt != AbruptKind.None &&
-                                    AsyncStateRef.PendingResumeKind is not ResumePayloadKind.Throw
-                                        and not ResumePayloadKind.Return)
-                                {
-                                    var pendingKind = yieldStarState.PendingAbrupt;
-                                    // PendingValue is now JsValue, no boxing/unboxing needed
-                                    var pendingValue = yieldStarState.PendingValue;
-                                    yieldStarState.PendingAbrupt = AbruptKind.None;
-                                    yieldStarState.PendingValue = JsValue.Undefined;
-                                    yieldStarState.State = null;
-                                    yieldStarState.AwaitingResume = false;
-                                    environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
-
-                                    switch (pendingKind)
-                                    {
-                                        case AbruptKind.Throw
-                                            when HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment):
-                                            continue;
-                                        case AbruptKind.Throw:
-                                            TryCatchStateRef.TryStack.Clear();
-                                            // pendingValue is already JsValue
-                                            throw new ThrowSignal(pendingValue);
-                                        case AbruptKind.Return when HandleAbruptCompletion(AbruptKind.Return,
-                                            pendingValue, environment):
-                                            continue;
-                                        // pendingValue is already JsValue
-                                        case AbruptKind.Return:
-                                            return CompleteReturn(pendingValue);
-                                    }
-                                }
-
-                                // Track if this is the first entry to this yield* (State is null means first entry)
-                                var isFirstYieldStarEntry = yieldStarState.State is null;
-
-                                if (yieldStarState.State is null)
-                                {
-                                    _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
-                                    var yieldStarIterableValue =
-                                        yieldStarInstruction.IterableExpression
-                                            .EvaluateExpression(environment, context);
-                                    if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldStarResult,
-                                            environment))
-                                    {
-                                        return pendingYieldStarResult;
-                                    }
-
-                                    if (context.IsThrow)
-                                    {
-                                        var thrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(thrown);
-                                    }
-
-                                    yieldStarState.State = CreateDelegatedState(yieldStarIterableValue, context);
-
-                                    // Check if CreateDelegatedState resulted in a throw (e.g., from calling @@iterator)
-                                    if (context.IsThrow)
-                                    {
-                                        var thrown = context.FlowValue;
-                                        context.Clear();
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(thrown);
-                                    }
-
-                                    yieldStarState.AwaitingResume = false;
-                                }
-                                else
-                                {
-                                    _realmState.Logger?.LogInformation(
-                                        "YieldStar: Reusing existing DelegatedState, AwaitingResume={Awaiting}",
-                                        yieldStarState.AwaitingResume);
-                                }
-
-                                while (true)
-                                {
-                                    var sendValue = JsValue.Undefined;
-                                    var propagateThrow = false;
-                                    var propagateReturn = false;
-
-                                    // Per ES spec (14.4.14): On first entry to yield*, call iteratorRecord.[[NextMethod]]
-                                    // with iteratorRecord.[[Iterator]] as this and no arguments (undefined).
-                                    // Node.js V8 confirms: args.length=1, args[0]=undefined
-                                    if (isFirstYieldStarEntry)
-                                    {
-                                        // On first entry to yield*, we pass undefined as the argument
-                                        // (the outer generator's first next() argument is ignored per spec)
-                                        sendValue = JsValue.Undefined;
-                                        // Mark that we're no longer on first entry for subsequent iterations
-                                        isFirstYieldStarEntry = false;
-                                    }
-                                    else if (yieldStarState.AwaitingResume)
-                                    {
-                                        var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
-                                        switch (delegatedResumeKind)
-                                        {
-                                            case ResumePayloadKind.Throw:
-                                                propagateThrow = true;
-                                                sendValue = delegatedResumePayload;
-                                                break;
-                                            case ResumePayloadKind.Return:
-                                                propagateReturn = true;
-                                                sendValue = delegatedResumePayload;
-                                                break;
-                                            default:
-                                                sendValue = delegatedResumePayload;
-                                                break;
-                                        }
-                                    }
-
-                                    var iteratorResult = yieldStarState.State!.MoveNext(
-                                        sendValue,
-                                        propagateThrow,
-                                        propagateReturn,
-                                        context,
-                                        out _);
-
-                                    // Check if MoveNext resulted in a throw (e.g., from calling iterator.next())
-                                    if (context.IsThrow)
-                                    {
-                                        var thrown = context.FlowValue;
-                                        context.Clear();
-                                        yieldStarState.State = null;
-                                        yieldStarState.AwaitingResume = false;
-                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
-                                        {
-                                            break;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(thrown);
-                                    }
-
-                                    if (iteratorResult.IsDelegatedCompletion)
-                                    {
-                                        // Check PropagateThrow from the result - this is true when MoveNext itself threw
-                                        // (e.g., iterator.next() returned non-object), not just when we called throw()
-                                        var isThrowCompletion = propagateThrow || iteratorResult.PropagateThrow;
-                                        var pendingKind = isThrowCompletion ? AbruptKind.Throw : AbruptKind.Return;
-                                        // The thrown/returned value is in iteratorResult.Value
-                                        var abruptValue = iteratorResult.Value;
-
-                                        if (!iteratorResult.Done)
-                                        {
-                                            yieldStarState.PendingAbrupt = pendingKind;
-                                            // sendValue is already JsValue, no boxing needed
-                                            yieldStarState.PendingValue = sendValue;
-                                            yieldStarState.AwaitingResume = true;
-                                            _programCounter = currentIndex;
-                                            RecordYield(context, environment);
-                                            _state = GeneratorState.Suspended;
-                                            // Use original iterator result object to preserve done/value properties
-                                            return iteratorResult.IteratorResultObject is not null
-                                                ? JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject)
-                                                : CreateIteratorResult(iteratorResult.Value, false);
-                                        }
-
-                                        yieldStarState.State = null;
-                                        yieldStarState.AwaitingResume = false;
-                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
-
-                                        if (pendingKind == AbruptKind.Throw)
-                                        {
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
-                                            {
-                                                break;
-                                            }
-
-                                            TryCatchStateRef.TryStack.Clear();
-                                            throw new ThrowSignal(abruptValue);
-                                        }
-
-                                        if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
-                                        {
-                                            break;
-                                        }
-
-                                        return CompleteReturn(abruptValue);
-                                    }
-
-                                    // If the delegated iterator's throw method completed (done=true),
-                                    // the yield* expression completes normally with that value (no further delegation).
-                                    if (propagateThrow && iteratorResult.Done)
-                                    {
-                                        yieldStarState.State = null;
-                                        yieldStarState.AwaitingResume = false;
-                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
-                                        if (yieldStarInstruction.ResultSlotSymbol is { } throwResultSlot)
-                                        {
-                                            StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
-                                        }
-
-                                        _programCounter = yieldStarInstruction.Next;
-                                        break;
-                                    }
-
-                                    if (iteratorResult.Done && !propagateThrow && !propagateReturn)
-                                    {
-                                        yieldStarState.State = null;
-                                        yieldStarState.AwaitingResume = false;
-                                        environment.AssignJsValue(yieldStarInstruction.StateSlotSymbol, JsValue.Null);
-                                        if (yieldStarInstruction.ResultSlotSymbol is { } resultSlot)
-                                        {
-                                            StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
-                                        }
-
-                                        _programCounter = yieldStarInstruction.Next;
-                                        break;
-                                    }
-
-                                    yieldStarState.AwaitingResume = true;
-                                    _programCounter = currentIndex;
-                                    RecordYield(context, environment);
-                                    _state = GeneratorState.Suspended;
-                                    // Use original iterator result object to preserve done/value properties
-                                    if (iteratorResult.IteratorResultObject is { } originalResult)
-                                    {
-                                        return JsValue.FromObjectUnsafe(originalResult);
-                                    }
-
-                                    var resultDone = propagateReturn && iteratorResult.Done;
-                                    return CreateIteratorResult(iteratorResult.Value, resultDone);
-                                }
-
+                                var result = HandleYieldStar(Unsafe.As<YieldStarInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.StoreResumeValue:
                             {
-                                var storeResumeValueInstruction = Unsafe.As<StoreResumeValueInstruction>(instruction);
-                                var (resumeKind, resumePayload) = ConsumeResumeValue();
-                                if (resumeKind == ResumePayloadKind.Throw)
-                                {
-                                    context.SetThrow(resumePayload);
-                                }
-                                else if (resumeKind == ResumePayloadKind.Return)
-                                {
-                                    context.SetReturn(resumePayload);
-                                }
-                                else if (storeResumeValueInstruction.TargetSymbol is { } resumeSymbol)
-                                {
-                                    StoreSymbolValueJsValue(environment, resumeSymbol, resumePayload);
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var thrownPayload = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
-                                    {
-                                        if (_programCounter == _currentInstructionIndex)
-                                        {
-                                            _programCounter = storeResumeValueInstruction.Next;
-                                        }
-
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(thrownPayload);
-                                }
-
-                                if (context.IsReturn)
-                                {
-                                    var resumeReturnValue = context.FlowValue;
-                                    context.ClearReturn();
-                                    if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
-                                    {
-                                        if (_programCounter == _currentInstructionIndex)
-                                        {
-                                            _programCounter = storeResumeValueInstruction.Next;
-                                        }
-
-                                        continue;
-                                    }
-
-                                    // resumeReturnValue is already a JsValue from context.FlowValue
-                                    return CompleteReturn(resumeReturnValue);
-                                }
-
-                                _programCounter = storeResumeValueInstruction.Next;
+                                var result = HandleStoreResumeValue(Unsafe.As<StoreResumeValueInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.EnterTry:
                             {
-                                var enterTryInstruction = Unsafe.As<EnterTryInstruction>(instruction);
-                                ResetCompletionValue();
-                                PushTryFrame(enterTryInstruction, environment);
-                                _programCounter = enterTryInstruction.Next;
+                                HandleEnterTry(Unsafe.As<EnterTryInstruction>(instruction), environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.EnterCatch:
                             {
-                                var enterCatch = Unsafe.As<EnterCatchInstruction>(instruction);
-                                ResetCompletionValue();
-
-                                // Read the thrown value from the try frame
-                                var thrownValue = JsValue.Undefined;
-                                if (TryCatchStateRef.TryStack.Count > 0)
-                                {
-                                    thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
-                                }
-
-                                // Create a new lexical environment for the catch block
-                                var catchEnv = new JsEnvironment(
-                                    environment,
-                                    false,
-                                    environment.IsStrict,
-                                    null,
-                                    "catch");
-
-                                // Initialize slots if needed
-                                if (enterCatch.SlotCount > 0)
-                                {
-                                    catchEnv.InitializeSlots(enterCatch.SlotCount, enterCatch.ScopeId);
-                                }
-
-                                // Bind the catch parameter directly to the thrown value
-                                if (enterCatch.CatchParameterSymbol is { } param)
-                                {
-                                    catchEnv.DefineJsValue(param, thrownValue, false, isLexicalBinding: true);
-                                }
-
-                                environment = catchEnv;
-                                _programCounter = enterCatch.Next;
+                                HandleEnterCatch(Unsafe.As<EnterCatchInstruction>(instruction), ref environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.EnterCatchWithDestructuring:
                             {
-                                var enterCatchDestructure =
-                                    Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction);
-                                ResetCompletionValue();
-
-                                // Read the thrown value from the try frame
-                                var thrownValue = JsValue.Undefined;
-                                if (TryCatchStateRef.TryStack.Count > 0)
-                                {
-                                    thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
-                                }
-
-                                // Create a new lexical environment for the catch block
-                                var catchEnv = new JsEnvironment(
-                                    environment,
-                                    false,
-                                    environment.IsStrict,
-                                    null,
-                                    "catch");
-
-                                // Initialize slots if needed
-                                if (enterCatchDestructure.SlotCount > 0)
-                                {
-                                    catchEnv.InitializeSlots(enterCatchDestructure.SlotCount,
-                                        enterCatchDestructure.ScopeId);
-                                }
-
-                                // Apply the destructuring pattern to bind the thrown value
-                                enterCatchDestructure.BindingPattern.DefineBindingTarget(
-                                    thrownValue, catchEnv, context, false);
-
-                                // Check for errors during destructuring (e.g., TypeError)
-                                if (context.ShouldStopEvaluation)
-                                {
-                                    if (context.IsThrow)
-                                    {
-                                        var exception = context.FlowValue;
-                                        context.Clear();
-                                        // Re-throw - the outer try/catch may handle it
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, exception, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(exception);
-                                    }
-                                    // Other stop conditions (return, break, continue) shouldn't happen here
-                                    // but handle gracefully by continuing execution
-                                }
-
-                                environment = catchEnv;
-                                _programCounter = enterCatchDestructure.Next;
+                                var result = HandleEnterCatchWithDestructuring(Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction), ref environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.LeaveTry:
                             {
-                                var leaveTryInstruction = Unsafe.As<LeaveTryInstruction>(instruction);
-                                CompleteTryNormally(leaveTryInstruction.Next);
+                                HandleLeaveTry(Unsafe.As<LeaveTryInstruction>(instruction), out _);
                                 continue;
                             }
 
                             case InstructionKind.BreakableEnter:
                             {
-                                var enterInstruction = Unsafe.As<BreakableEnterInstruction>(instruction);
-                                // ResetsCompletionValue: loops and labeled non-loops need runtime to reset
-                                // HandlesCompletionInternally: switch handles it with explicit undefined statement
-                                if (enterInstruction.ConstructKind == BreakableKind.ResetsCompletionValue)
-                                {
-                                    ResetCompletionValue();
-                                }
-
-                                BreakableStateRef.BreakableStack.Push(new BreakableFrame(
-                                    enterInstruction.Label,
-                                    enterInstruction.BreakTarget,
-                                    enterInstruction.ContinueTarget));
-                                _programCounter = enterInstruction.Next;
+                                HandleBreakableEnter(Unsafe.As<BreakableEnterInstruction>(instruction), out _);
                                 continue;
                             }
 
                             case InstructionKind.BreakableExit:
                             {
-                                var exitInstruction = Unsafe.As<BreakableExitInstruction>(instruction);
-                                if (BreakableStateRef.BreakableStack.Count > 0)
-                                {
-                                    BreakableStateRef.BreakableStack.Pop();
-                                }
-
-                                FinalizeCompletionValue();
-                                _programCounter = exitInstruction.Next;
+                                HandleBreakableExit(Unsafe.As<BreakableExitInstruction>(instruction), out _);
                                 continue;
                             }
 
                             case InstructionKind.EndFinally:
                             {
-                                var endFinallyInstruction = Unsafe.As<EndFinallyInstruction>(instruction);
-                                if (TryCatchStateRef.TryStack.Count == 0)
-                                {
-                                    _programCounter = endFinallyInstruction.Next;
-                                    continue;
-                                }
-
-                                var completedFrame = TryCatchStateRef.TryStack.Pop();
-                                var pending = completedFrame.PendingCompletion;
-
-                                // Normal completion - restore saved completion value (finally's value is discarded)
-                                if (pending.Kind == AbruptKind.None)
-                                {
-                                    RestoreCompletionValueFromFinally(completedFrame);
-                                    var target = pending.ResumeTarget >= 0
-                                        ? pending.ResumeTarget
-                                        : endFinallyInstruction.Next;
-                                    _programCounter = target;
-                                    continue;
-                                }
-
-                                if (pending.Kind == AbruptKind.Return)
-                                {
-                                    if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    // Handle case where pending.Value is already a boxed JsValue
-                                    var pendingJs = pending.Value is JsValue pjs
-                                        ? pjs
-                                        : JsValue.FromObjectUnsafe(pending.Value);
-                                    return CompleteReturn(pendingJs);
-                                }
-
-                                if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
-                                {
-                                    // Break/continue - restore saved completion value
-                                    RestoreCompletionValueFromFinally(completedFrame);
-                                    if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    _programCounter = pending.Value is int idx ? idx : endFinallyInstruction.Next;
-                                    continue;
-                                }
-
-                                if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
-                                {
-                                    continue;
-                                }
-
-                                TryCatchStateRef.TryStack.Clear();
-                                // Handle case where pending.Value is already a boxed JsValue
-                                var throwJs = pending.Value is JsValue tjs
-                                    ? tjs
-                                    : JsValue.FromObjectUnsafe(pending.Value);
-                                throw new ThrowSignal(throwJs);
+                                var result = HandleEndFinally(Unsafe.As<EndFinallyInstruction>(instruction), ref environment, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
+                                continue;
                             }
 
                             case InstructionKind.IteratorInit:
                             {
-                                var iteratorInitInstruction = Unsafe.As<IteratorInitInstruction>(instruction);
-                                // For let/const declarations, create TDZ environment before evaluating iterable.
-                                // This ensures `for (const x of [x])` throws ReferenceError for accessing x before initialization.
-                                var iterableEnv = environment;
-                                if (!iteratorInitInstruction.TdzBindings.IsDefaultOrEmpty)
-                                {
-                                    iterableEnv = new JsEnvironment(environment, false, false,
-                                        iteratorInitInstruction.IterableExpression.Source, "for-of-head-tdz");
-                                    foreach (var tdzSymbol in iteratorInitInstruction.TdzBindings)
-                                    {
-                                        iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
-                                            iteratorInitInstruction.TdzIsConst, isLexicalBinding: true,
-                                            blocksFunctionScopeOverride: true);
-                                    }
-                                }
-
-                                var iterableValue =
-                                    iteratorInitInstruction.IterableExpression.EvaluateExpression(iterableEnv, context);
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingIteratorResult,
-                                        environment))
-                                {
-                                    return pendingIteratorResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var initThrown = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(initThrown);
-                                }
-
-                                var iteratorState =
-                                    CreateIteratorDriverState(iterableValue, iteratorInitInstruction.IteratorKind,
-                                        context);
-
-                                // Find the correct environment for storing iterator state.
-                                // When a for-await-of loop is nested inside another loop with
-                                // per-iteration bindings, `environment` might be a child environment
-                                // with different slots. The iterator slot was allocated in the
-                                // function's root scope, so we need to walk up the chain to find it.
-                                var iteratorEnv = environment;
-                                var walkCount = 0;
-                                if (iteratorInitInstruction.IteratorSlotIndex >= 0)
-                                {
-                                    while (iteratorEnv is not null &&
-                                           (iteratorEnv.ScopeId != _plan.RootScopeId ||
-                                            !iteratorEnv.HasSlots ||
-                                            iteratorEnv._slots!.Length <= iteratorInitInstruction.IteratorSlotIndex))
-                                    {
-                                        iteratorEnv = iteratorEnv.Enclosing;
-                                        walkCount++;
-                                        if (walkCount > 1000)
-                                        {
-                                            break;
-                                        }
-                                    }
-
-                                    iteratorEnv ??= environment; // Fallback to current environment
-                                }
-
-                                // Store JsVariable directly on state object for O(1) access
-                                // This avoids dictionary lookups on every iteration
-                                if (iteratorInitInstruction.IteratorSlotIndex >= 0 && iteratorEnv.HasSlots)
-                                {
-                                    iteratorState.IteratorVariable = new JsVariable(iteratorEnv,
-                                        iteratorInitInstruction.IteratorSlotIndex);
-                                }
-
-                                // Save the loop scope environment for nested loop support.
-                                // When async resume resets environment to function scope, CreateIterationEnv
-                                // needs this to create properly parented iteration environments.
-                                iteratorState.LoopScopeEnvironment = environment;
-
-                                // Cache driver state for scope-correct access from child scopes
-                                IteratorStateRef.CurrentDriverState = iteratorState;
-
-                                // Use slot-based storage for O(1) access
-                                StoreValueBySlot(iteratorEnv, iteratorInitInstruction.IteratorSlot,
-                                    iteratorInitInstruction.IteratorSlotIndex,
-                                    JsValue.FromObjectUnsafe(iteratorState));
-
-                                _programCounter = iteratorInitInstruction.Next;
+                                var result = HandleIteratorInit(Unsafe.As<IteratorInitInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.IteratorMoveNext:
                             {
-                                var iteratorMoveNextInstruction = Unsafe.As<IteratorMoveNextInstruction>(instruction);
-                                var iteratorIndex = _programCounter;
-
-                                // Use cached driver state for scope-correct access from child scopes
-                                // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
-                                var driverState = IteratorStateRef.CurrentDriverState;
-
-                                if (driverState is null)
-                                {
-                                    // Fallback: try to get iterator state from the correct scope.
-                                    // The iterator slot is stored in function/module scope (not per-iteration envs),
-                                    // so we need to walk up the chain to find it, similar to IteratorInit.
-                                    var slotEnv = environment;
-                                    var slotIdx = iteratorMoveNextInstruction.IteratorSlotIndex;
-
-                                    // Walk up to find the scope with the right slots
-                                    // Skip per-iteration envs since iterator temps are stored
-                                    // in the function's root scope (RootScopeId), not per-iteration envs
-                                    if (slotIdx >= 0)
-                                    {
-                                        var slotWalkCount = 0;
-                                        while (slotEnv != null &&
-                                               (slotEnv.ScopeId != _plan.RootScopeId ||
-                                                !slotEnv.HasSlots ||
-                                                slotEnv._slots!.Length <= slotIdx))
-                                        {
-                                            slotEnv = slotEnv.Enclosing;
-                                            slotWalkCount++;
-                                            if (slotWalkCount > 100)
-                                            {
-                                                break;
-                                            }
-                                        }
-
-                                        slotEnv ??= environment;
-                                    }
-
-                                    if (slotEnv is null || !TryGetValueBySlot(slotEnv,
-                                            iteratorMoveNextInstruction.IteratorSlot,
-                                            slotIdx, out var iteratorStateValue))
-                                    {
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    if (!iteratorStateValue.TryGetObject(out driverState))
-                                    {
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    IteratorStateRef.CurrentDriverState = driverState;
-                                }
-
-                                // Get JsVariables directly from driverState (O(1) access, no dictionary lookup)
-                                var iterVar = driverState.IteratorVariable;
-                                var valueVar = driverState.ValueVariable;
-
-                                // Capture value JsVariable on first execution (while still in loop scope)
-                                // IMPORTANT: Use the loop scope environment (from iterVar) rather than the current
-                                // environment, which may be a stale per-iteration environment from a previous outer
-                                // loop iteration. The value slot is allocated in the same scope as the iterator.
-                                if (!valueVar.IsValid && iteratorMoveNextInstruction.ValueSlotIndex >= 0)
-                                {
-                                    // Use the iterator's environment since value slot is in the same scope
-                                    var loopScopeEnv = iterVar.IsValid ? iterVar.Environment : environment;
-                                    if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length >
-                                        iteratorMoveNextInstruction.ValueSlotIndex)
-                                    {
-                                        valueVar = new JsVariable(loopScopeEnv,
-                                            iteratorMoveNextInstruction.ValueSlotIndex);
-                                        driverState.ValueVariable = valueVar;
-                                    }
-                                }
-
-                                if (!driverState.IsAsyncIterator)
-                                {
-                                    // If we're resuming this iterator site with an abrupt completion (return/throw),
-                                    // propagate it immediately instead of calling iterator.next() again.
-                                    var pendingResumeKind = AsyncStateRef.PendingResumeKind;
-                                    if (pendingResumeKind is ResumePayloadKind.Throw or ResumePayloadKind.Return)
-                                    {
-                                        var (kind, payload) = ConsumeResumeValue();
-                                        var abruptKind = kind == ResumePayloadKind.Return
-                                            ? AbruptKind.Return
-                                            : AbruptKind.Throw;
-
-                                        if (HandleAbruptCompletion(abruptKind, payload, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        if (abruptKind == AbruptKind.Throw)
-                                        {
-                                            TryCatchStateRef.TryStack.Clear();
-                                            throw new ThrowSignal(payload);
-                                        }
-
-                                        return CompleteReturn(payload);
-                                    }
-
-                                    JsValue currentValue;
-                                    if (driverState.IteratorObject is { } iteratorObj)
-                                    {
-                                        driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
-                                        var nextResult = iteratorObj.InvokeIteratorNext(
-                                            driverState.NextMethod,
-                                            context: context,
-                                            callingEnvironment: environment);
-                                        // Handle case where nextResult is already a boxed JsValue
-                                        if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultObj))
-                                        {
-                                            // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                            var typeError = StandardLibrary.CreateTypeError(
-                                                "Iterator result is not an object",
-                                                context, context.RealmState);
-                                            if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
-                                            {
-                                                continue;
-                                            }
-
-                                            TryCatchStateRef.TryStack.Clear();
-                                            throw new ThrowSignal(typeError);
-                                        }
-
-                                        var done = resultObj.TryGetProperty("done", out var doneValue) &&
-                                                   JsOps.ToBoolean(doneValue);
-                                        if (done)
-                                        {
-                                            // When breaking out of iterator, restore environment to enclosing scope.
-                                            // This is critical for nested loops: after async resume, environment was
-                                            // reset to function scope, and we need to restore it to the loop scope
-                                            // so that variable lookups (like loop counter increments) work correctly.
-                                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv)
-                                            {
-                                                environment = enclosingEnv;
-                                            }
-
-                                            // Clear driver state to prevent outer loop's CreateIterationEnv from
-                                            // incorrectly updating this driver's CurrentIterationEnvironment.
-                                            IteratorStateRef.CurrentDriverState = null;
-                                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                            continue;
-                                        }
-
-                                        // yielded is already a JsValue from TryGetProperty
-                                        currentValue = resultObj.TryGetProperty("value", out var yielded)
-                                            ? yielded
-                                            : JsValue.Undefined;
-
-                                        // Mark that we've successfully entered the loop (next() succeeded).
-                                        // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
-                                        // if we've entered the loop body, not if next() itself throws.
-                                        driverState.HasEnteredLoop = true;
-                                    }
-                                    else if (driverState.Enumerator is { } enumerator)
-                                    {
-                                        if (!enumerator.MoveNext())
-                                        {
-                                            // Restore environment to enclosing scope when iterator exhausted
-                                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv2)
-                                            {
-                                                environment = enclosingEnv2;
-                                            }
-
-                                            IteratorStateRef.CurrentDriverState = null;
-                                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                            continue;
-                                        }
-
-                                        currentValue = enumerator.Current;
-
-                                        // Mark that we've successfully entered the loop (enumerator succeeded).
-                                        driverState.HasEnteredLoop = true;
-                                    }
-                                    else
-                                    {
-                                        // Restore environment to enclosing scope when no iterator
-                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv3)
-                                        {
-                                            environment = enclosingEnv3;
-                                        }
-
-                                        IteratorStateRef.CurrentDriverState = null;
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    // Use JsVariable for scope-correct access (value slot is in loop scope)
-                                    _realmState.Logger?.LogInformation(
-                                        "SyncIterator StoreValue: valueVar.IsValid={Valid} currentEnv.ScopeId={CurScope} slot={Slot} value={Value}",
-                                        valueVar.IsValid,
-                                        environment.ScopeId,
-                                        iteratorMoveNextInstruction.ValueSlot.Name,
-                                        currentValue.Kind);
-                                    if (valueVar.IsValid)
-                                    {
-                                        valueVar.Write(currentValue);
-                                        // Also create binding for symbol-based identifier lookup in loop body
-                                        valueVar.Environment.DefineOrAssignJsValue(
-                                            iteratorMoveNextInstruction.ValueSlot, currentValue);
-                                        _realmState.Logger?.LogInformation(
-                                            "SyncIterator StoreValue: wrote to valueVar.Environment.ScopeId={Scope}",
-                                            valueVar.Environment.ScopeId);
-                                    }
-                                    else
-                                    {
-                                        StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
-                                            iteratorMoveNextInstruction.ValueSlotIndex, currentValue);
-                                        _realmState.Logger?.LogInformation(
-                                            "SyncIterator StoreValue: wrote via StoreValueBySlot to env.ScopeId={Scope}",
-                                            environment.ScopeId);
-                                    }
-
-                                    _programCounter = iteratorMoveNextInstruction.Next;
-                                    continue;
-                                }
-
-                                var awaitedValue = JsValue.Undefined;
-                                var awaitedNextResult = JsValue.Undefined;
-                                var hasAwaitedNextResult = false;
-
-                                // If we're resuming after a pending await from this
-                                // iterator site, consume the resume payload and treat
-                                // it as the awaited result instead of calling into the
-                                // iterator again.
-                                if (driverState.AwaitingNextResult || driverState.AwaitingValue)
-                                {
-                                    var awaitingValue = driverState.AwaitingValue;
-                                    driverState.AwaitingNextResult = false;
-                                    driverState.AwaitingValue = false;
-                                    var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
-                                    // Use JsVariable for scope-correct access (iterator slot is in loop scope)
-                                    var iterStateValue = driverState.AsJsValue;
-                                    if (iterVar.IsValid)
-                                    {
-                                        iterVar.Write(iterStateValue);
-                                    }
-                                    else
-                                    {
-                                        StoreValueBySlot(environment, iteratorMoveNextInstruction.IteratorSlot,
-                                            iteratorMoveNextInstruction.IteratorSlotIndex, iterStateValue);
-                                    }
-
-                                    if (forAwaitResumeKind == ResumePayloadKind.Throw)
-                                    {
-                                        // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload,
-                                                environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(forAwaitResumePayload);
-                                    }
-
-                                    if (forAwaitResumeKind == ResumePayloadKind.Return)
-                                    {
-                                        // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
-                                        if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload,
-                                                environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        return CompleteReturn(forAwaitResumePayload);
-                                    }
-
-                                    if (awaitingValue)
-                                    {
-                                        awaitedValue = forAwaitResumePayload;
-                                        goto StoreIteratorValue;
-                                    }
-
-                                    awaitedNextResult = forAwaitResumePayload;
-                                    hasAwaitedNextResult = true;
-                                }
-
-                                if (driverState.IteratorObject is { } awaitIteratorObj)
-                                {
-                                    if (!hasAwaitedNextResult)
-                                    {
-                                        driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
-                                        var nextResult = awaitIteratorObj.InvokeIteratorNext(
-                                            driverState.NextMethod,
-                                            context: context,
-                                            callingEnvironment: environment);
-                                        if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
-                                        {
-                                            if (AsyncStateRef.AsyncStepMode &&
-                                                AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
-                                            {
-                                                driverState.AwaitingNextResult = true;
-                                                // Use JsVariable for scope-correct access
-                                                var iterState = driverState.AsJsValue;
-                                                if (iterVar.IsValid)
-                                                {
-                                                    iterVar.Write(iterState);
-                                                }
-                                                else
-                                                {
-                                                    StoreValueBySlot(environment,
-                                                        iteratorMoveNextInstruction.IteratorSlot,
-                                                        iteratorMoveNextInstruction.IteratorSlotIndex, iterState);
-                                                }
-
-                                                // Save environment before suspending so we restore it on resume
-                                                _executionEnvironment = environment;
-                                                _state = GeneratorState.Suspended;
-                                                _programCounter = iteratorIndex;
-                                                return CreateIteratorResult(JsValue.Undefined, false);
-                                            }
-
-                                            if (context.IsThrow)
-                                            {
-                                                var thrownAwait = context.FlowValue;
-                                                context.Clear();
-                                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
-                                                {
-                                                    continue;
-                                                }
-
-                                                TryCatchStateRef.TryStack.Clear();
-                                                throw new ThrowSignal(thrownAwait);
-                                            }
-
-                                            // Restore environment to enclosing scope when breaking
-                                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv4)
-                                            {
-                                                environment = enclosingEnv4;
-                                            }
-
-                                            IteratorStateRef.CurrentDriverState = null;
-                                            _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                            continue;
-                                        }
-
-                                        awaitedNextResult = awaitedNext;
-                                    }
-
-                                    if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var awaitResultObj))
-                                    {
-                                        // Per ES spec 7.4.2: if result is not an object, throw TypeError
-                                        var typeError = StandardLibrary.CreateTypeError(
-                                            "Iterator result is not an object", context,
-                                            context.RealmState);
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
-                                        {
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw new ThrowSignal(typeError);
-                                    }
-
-                                    var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
-                                                    JsOps.ToBoolean(awaitDoneValue);
-                                    if (doneAwait)
-                                    {
-                                        // Restore environment to enclosing scope when async iterator exhausted
-                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv5)
-                                        {
-                                            environment = enclosingEnv5;
-                                        }
-
-                                        IteratorStateRef.CurrentDriverState = null;
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
-                                        ? yieldedAwait
-                                        : JsValue.Undefined;
-                                    if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
-                                    {
-                                        if (TryHandleAwaitSuspension(driverState, iterVar,
-                                                iteratorMoveNextInstruction, ref environment, context,
-                                                iteratorIndex, out var suspendResult))
-                                        {
-                                            return suspendResult;
-                                        }
-
-                                        continue;
-                                    }
-
-                                    awaitedValue = fullyAwaitedValue;
-                                }
-                                else if (driverState.Enumerator is { } awaitEnumerator)
-                                {
-                                    if (!awaitEnumerator.MoveNext())
-                                    {
-                                        // Restore environment to enclosing scope when enumerator exhausted
-                                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv7)
-                                        {
-                                            environment = enclosingEnv7;
-                                        }
-
-                                        // Clear the driver state since this iterator loop is done.
-                                        // This prevents outer loop's CreateIterationEnv from incorrectly
-                                        // updating this driver's CurrentIterationEnvironment.
-                                        IteratorStateRef.CurrentDriverState = null;
-                                        _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                        continue;
-                                    }
-
-                                    // enumerated is already JsValue from IEnumerator<JsValue>.Current
-                                    var enumerated = awaitEnumerator.Current;
-                                    if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
-                                    {
-                                        if (TryHandleAwaitSuspension(driverState, iterVar,
-                                                iteratorMoveNextInstruction, ref environment, context,
-                                                iteratorIndex, out var suspendResult))
-                                        {
-                                            return suspendResult;
-                                        }
-
-                                        continue;
-                                    }
-
-                                    awaitedValue = awaitedEnumerated;
-                                }
-                                else
-                                {
-                                    // Restore environment to enclosing scope
-                                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv9)
-                                    {
-                                        environment = enclosingEnv9;
-                                    }
-
-                                    IteratorStateRef.CurrentDriverState = null;
-                                    _programCounter = iteratorMoveNextInstruction.BreakIndex;
-                                    continue;
-                                }
-
-                                StoreIteratorValue:
-                                // Mark that we've successfully entered the loop (next() succeeded for async iterator).
-                                // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
-                                // if we've entered the loop body, not if next() itself throws.
-                                driverState.HasEnteredLoop = true;
-
-                                // Use JsVariable for scope-correct access (value slot is in loop scope)
-                                _realmState.Logger?.LogInformation(
-                                    "StoreIteratorValue: valueVar.IsValid={Valid} slot={Slot} value={Value} envHash={Env}",
-                                    valueVar.IsValid,
-                                    iteratorMoveNextInstruction.ValueSlot.Name,
-                                    awaitedValue.Kind,
-                                    environment.GetHashCode());
-                                if (valueVar.IsValid)
-                                {
-                                    valueVar.Write(awaitedValue);
-                                    // Also create binding for symbol-based identifier lookup in loop body
-                                    valueVar.Environment.DefineOrAssignJsValue(
-                                        iteratorMoveNextInstruction.ValueSlot, awaitedValue);
-                                    _realmState.Logger?.LogInformation(
-                                        "StoreIteratorValue: wrote to valueVar.Environment={Env}",
-                                        valueVar.Environment.GetHashCode());
-                                }
-                                else
-                                {
-                                    StoreValueBySlot(environment, iteratorMoveNextInstruction.ValueSlot,
-                                        iteratorMoveNextInstruction.ValueSlotIndex, awaitedValue);
-                                    _realmState.Logger?.LogInformation(
-                                        "StoreIteratorValue: wrote via StoreValueBySlot to env={Env}",
-                                        environment.GetHashCode());
-                                }
-
-                                // For async iterators, clear any pending completion flags that would
-                                // prevent subsequent iterations after continue.
-                                if (_isAsync)
-                                {
-                                    TryCatchStateRef.TryStack.Clear();
-                                }
-
-                                _programCounter = iteratorMoveNextInstruction.Next;
+                                var result = HandleIteratorMoveNext(Unsafe.As<IteratorMoveNextInstruction>(instruction), ref environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.Jump:
                             {
-                                var jumpInstruction = Unsafe.As<JumpInstruction>(instruction);
-                                _programCounter = jumpInstruction.TargetIndex;
+                                HandleJumpSwitch(Unsafe.As<JumpInstruction>(instruction), out _);
                                 continue;
                             }
 
                             case InstructionKind.Branch:
                             {
-                                var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
-                                var testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                                if (_isAsync &&
-                                    TryHandlePendingAwait(context, out var pendingBranchResult, environment))
-                                {
-                                    return pendingBranchResult;
-                                }
-
-                                if (TryHandleContextThrow(context, environment)) continue;
-
-                                _programCounter = testValue.IsTruthy
-                                    ? branchInstruction.ConsequentIndex
-                                    : branchInstruction.AlternateIndex;
+                                var result = HandleBranchSwitch(Unsafe.As<BranchInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.Break:
                             {
-                                var breakInstruction = Unsafe.As<BreakInstruction>(instruction);
-
-                                if (HandleAbruptCompletion(AbruptKind.Break, breakInstruction.TargetIndex, environment))
-                                {
-                                    // If inside scheduled finally, HandleAbruptCompletion stored the pending
-                                    // completion but didn't advance _programCounter. We need to jump
-                                    // to EndFinally so it can process the pending break.
-                                    if (_programCounter == _currentInstructionIndex &&
-                                        TryCatchStateRef.TryStack.Count > 0)
-                                    {
-                                        var frame = TryCatchStateRef.TryStack.Peek();
-                                        if (frame.EndFinallyIndex >= 0)
-                                        {
-                                            _programCounter = frame.EndFinallyIndex;
-                                        }
-                                    }
-
-                                    continue;
-                                }
-
-                                // Pop environments until we reach the target scope
-                                if (breakInstruction.TargetScopeId >= 0)
-                                {
-                                    var targetScopeId = breakInstruction.TargetScopeId;
-                                    var walkEnv = environment;
-                                    while (walkEnv.ScopeId != targetScopeId &&
-                                           walkEnv.Enclosing != null)
-                                    {
-                                        walkEnv = walkEnv.Enclosing;
-                                        // Note: we don't return to pool here as we don't track pooling per-env
-                                    }
-
-                                    // Only update the environment if we actually found the target scope.
-                                    // This prevents popping past the loop scope when a stale scope id is present.
-                                    if (walkEnv.ScopeId == targetScopeId)
-                                    {
-                                        environment = walkEnv;
-                                    }
-                                }
-
-                                _programCounter = breakInstruction.TargetIndex;
+                                HandleBreak(Unsafe.As<BreakInstruction>(instruction), ref environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.Continue:
                             {
-                                var continueInstruction = Unsafe.As<ContinueInstruction>(instruction);
-
-                                if (HandleAbruptCompletion(AbruptKind.Continue, continueInstruction.TargetIndex,
-                                        environment))
-                                {
-                                    // If inside scheduled finally, HandleAbruptCompletion stored the pending
-                                    // completion but didn't advance _programCounter. We need to jump
-                                    // to EndFinally so it can process the pending continue.
-                                    if (_programCounter == _currentInstructionIndex &&
-                                        TryCatchStateRef.TryStack.Count > 0)
-                                    {
-                                        var frame = TryCatchStateRef.TryStack.Peek();
-                                        if (frame.EndFinallyIndex >= 0)
-                                        {
-                                            _programCounter = frame.EndFinallyIndex;
-                                        }
-                                    }
-
-                                    continue;
-                                }
-
-                                // Pop environments until we reach the target scope
-                                if (continueInstruction.TargetScopeId >= 0)
-                                {
-                                    var targetScopeId = continueInstruction.TargetScopeId;
-                                    var walkEnv = environment;
-                                    while (walkEnv.ScopeId != targetScopeId &&
-                                           walkEnv.Enclosing != null)
-                                    {
-                                        walkEnv = walkEnv.Enclosing;
-                                        // Note: we don't return to pool here as we don't track pooling per-env
-                                    }
-
-                                    // Only update the environment when the target scope exists on the chain.
-                                    // When scope ids drift (e.g., synthetic ids not stamped onto environments),
-                                    // avoid popping to an unrelated outer scope which disconnects iterator state.
-                                    if (walkEnv.ScopeId == targetScopeId)
-                                    {
-                                        environment = walkEnv;
-                                    }
-                                }
-
-                                _programCounter = continueInstruction.TargetIndex;
+                                HandleContinue(Unsafe.As<ContinueInstruction>(instruction), ref environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.Return:
                             {
-                                var returnInstruction = Unsafe.As<ReturnInstruction>(instruction);
-                                var returnValue =
-                                    returnInstruction.ReturnExpression?.EvaluateExpression(environment, context) ??
-                                    JsValue.Undefined;
-                                if (_isAsync &&
-                                    TryHandlePendingAwait(context, out var pendingReturnResult, environment))
-                                {
-                                    return pendingReturnResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var pendingThrow = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
-                                    {
-                                        if (_programCounter == _currentInstructionIndex)
-                                        {
-                                            _programCounter = returnInstruction.Next;
-                                        }
-
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(pendingThrow);
-                                }
-
-                                if (context.IsReturn)
-                                {
-                                    var pendingReturn = context.FlowValue;
-                                    context.ClearReturn();
-                                    returnValue = pendingReturn;
-                                }
-
-                                // Check if we're inside a scheduled finally BEFORE calling HandleAbruptCompletion.
-                                // If so, the return statement should terminate the finally block immediately,
-                                // not execute code after the return (which is unreachable code).
-                                var wasInsideScheduledFinally = IsInsideScheduledFinally();
-
-                                if (HandleAbruptCompletionJsValue(AbruptKind.Return, returnValue, environment))
-                                {
-                                    // If we were inside a scheduled finally, the pending completion was updated.
-                                    // Now complete the function with that value instead of advancing to unreachable code.
-                                    if (wasInsideScheduledFinally)
-                                    {
-                                        return CompleteReturn(returnValue);
-                                    }
-
-                                    if (_programCounter == _currentInstructionIndex)
-                                    {
-                                        _programCounter = returnInstruction.Next;
-                                    }
-
-                                    continue;
-                                }
-
-                                return CompleteReturn(returnValue);
+                                var result = HandleReturn(Unsafe.As<ReturnInstruction>(instruction), environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
+                                continue;
                             }
 
                             case InstructionKind.EnterWith:
                             {
-                                var enterWithInstruction = Unsafe.As<EnterWithInstruction>(instruction);
-                                var objValueJs =
-                                    enterWithInstruction.ObjectExpression.EvaluateExpression(environment, context);
-                                if (_isAsync && TryHandlePendingAwait(context, out var pendingWithResult, environment))
-                                {
-                                    return pendingWithResult;
-                                }
-
-                                if (context.IsThrow)
-                                {
-                                    var thrownWith = context.FlowValue;
-                                    context.Clear();
-                                    if (HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
-                                    {
-                                        continue;
-                                    }
-
-                                    TryCatchStateRef.TryStack.Clear();
-                                    throw new ThrowSignal(thrownWith);
-                                }
-
-                                // Create the with-environment and store it in the slot
-                                // TryConvertToWithBindingObject will handle wrapping primitives and throwing for null/undefined.
-                                if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
-                                {
-                                    var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
-                                        enterWithInstruction.ObjectExpression.Source, "with", withObject);
-                                    // Store the with-environment in the root environment slot so it persists across yields
-                                    StoreSymbolValue(_executionEnvironment!, enterWithInstruction.WithScopeSlot,
-                                        withEnv);
-                                    // Track this with-scope as active
-                                    WithStateRef.ActiveWithScopes.Push(enterWithInstruction.WithScopeSlot);
-                                    // Update the local environment reference to use the with-environment
-                                    environment = withEnv;
-                                }
-                                // If we couldn't create a with-environment, just continue with the same environment
-
-                                _programCounter = enterWithInstruction.Next;
+                                var result = HandleEnterWith(Unsafe.As<EnterWithInstruction>(instruction), ref environment, context, out var returnValue);
+                                if (result == InstructionResult.Return) return returnValue;
                                 continue;
                             }
 
                             case InstructionKind.LeaveWith:
                             {
-                                var leaveWithInstruction = Unsafe.As<LeaveWithInstruction>(instruction);
-                                // Remove this with-scope from active tracking
-                                if (WithStateRef.ActiveWithScopes.Count > 0 &&
-                                    ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(),
-                                        leaveWithInstruction.WithScopeSlot))
-                                {
-                                    WithStateRef.ActiveWithScopes.Pop();
-                                }
-
-                                // Restore the previous environment by getting it from the enclosing scope of the stored with-env
-                                if (TryGetSymbolValueJsValue(_executionEnvironment!, leaveWithInstruction.WithScopeSlot,
-                                        out var storedEnvValue) &&
-                                    storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
-                                {
-                                    // The with-environment's Enclosing is the original environment
-                                    environment = storedWithEnv.Enclosing ?? environment;
-                                }
-
-                                _programCounter = leaveWithInstruction.Next;
+                                HandleLeaveWith(Unsafe.As<LeaveWithInstruction>(instruction), ref environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.IteratorClose:
                             {
-                                var iteratorCloseInstruction = Unsafe.As<IteratorCloseInstruction>(instruction);
-                                // Get the iterator state from the slot
-                                if (TryGetSymbolValueJsValue(environment, iteratorCloseInstruction.IteratorSlot,
-                                        out var iterStateValue) &&
-                                    iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
-                                    iterState.IteratorObject is { } iteratorObj)
-                                {
-                                    // Per ES spec 13.6.4.13 step 5.d: If IteratorStep (calling next()) returns
-                                    // an abrupt completion, we return that completion WITHOUT calling IteratorClose.
-                                    // Only call IteratorClose if we've successfully entered the loop body
-                                    // (i.e., at least one successful next() call completed).
-                                    if (!iterState.HasEnteredLoop)
-                                    {
-                                        // Mark as closed anyway to prevent any future close attempts
-                                        iterState.MarkIteratorClosed();
-                                        _programCounter = iteratorCloseInstruction.Next;
-                                        continue;
-                                    }
-
-                                    // Mark as closed before attempting close to prevent double-close
-                                    iterState.MarkIteratorClosed();
-
-                                    // Check if we're closing due to a throw completion.
-                                    // Per ES spec 7.4.7 IteratorClose steps 6-7:
-                                    // - Step 6: If completion.[[Type]] is throw, return Completion(completion).
-                                    // - Step 7: If innerResult.[[Type]] is throw, return Completion(innerResult).
-                                    // This means if the original completion was a throw, we PRESERVE IT regardless
-                                    // of what happens during IteratorClose (GetMethod or Call errors are suppressed).
-                                    var hasPendingThrow = false;
-                                    if (TryCatchStateRef.TryStack.Count > 0)
-                                    {
-                                        var topFrame = TryCatchStateRef.TryStack.Peek();
-                                        hasPendingThrow = topFrame.PendingCompletion.Kind == AbruptKind.Throw;
-                                    }
-
-                                    try
-                                    {
-                                        // Call IteratorClose with preserveExistingThrow if we have a pending throw.
-                                        // This ensures the original throw is preserved per ES spec 7.4.7 step 6.
-                                        iteratorObj.IteratorClose(context, hasPendingThrow);
-                                    }
-                                    catch (ThrowSignal closeThrown)
-                                    {
-                                        // IteratorClose threw - per ES spec 7.4.7:
-                                        // If the original completion was a throw, we already returned it (step 6).
-                                        // If not, we return the IteratorClose throw (step 7).
-                                        if (hasPendingThrow)
-                                        {
-                                            // Original throw preserved - continue to EndFinally which will re-throw it
-                                            _programCounter = iteratorCloseInstruction.Next;
-                                            continue;
-                                        }
-
-                                        // No pending throw - propagate the IteratorClose error
-                                        if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue,
-                                                environment))
-                                        {
-                                            // HandleAbruptCompletion updated the pending completion in the try frame.
-                                            // Continue to the next instruction in the finally block.
-                                            _programCounter = iteratorCloseInstruction.Next;
-                                            continue;
-                                        }
-
-                                        TryCatchStateRef.TryStack.Clear();
-                                        throw;
-                                    }
-                                }
-
-                                _programCounter = iteratorCloseInstruction.Next;
+                                HandleIteratorClose(Unsafe.As<IteratorCloseInstruction>(instruction), environment, out _);
                                 continue;
                             }
 
                             case InstructionKind.SetCompletionValue:
                             {
-                                var setCompletionInstruction = Unsafe.As<SetCompletionValueInstruction>(instruction);
-                                if (_isScriptMode)
-                                {
-                                    _scriptCompletionValue = JsValue.Undefined;
-                                }
-
-                                _programCounter = setCompletionInstruction.Next;
+                                HandleSetCompletionValue(Unsafe.As<SetCompletionValueInstruction>(instruction), out _);
                                 continue;
                             }
 
@@ -3527,5 +1451,2443 @@ public static partial class TypedAstEvaluator
             suspendResult = JsValue.Undefined;
             return false;
         }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PROFILING DIAGNOSTICS: NoInlining methods to isolate hot path costs
+        // These show up separately in profiler output for analysis
+        // Change to AggressiveInlining after profiling is complete
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ProfileReadOperand(
+            JsEnvironment environment,
+            EvaluationContext context,
+            ExpressionNode expr,
+            out JsValue value)
+        {
+            if (expr is LiteralExpression lit)
+            {
+                value = lit.Value;
+                return true;
+            }
+
+            if (expr is IdentifierExpression id && id.SlotIndex >= 0 && id.ScopeId >= 0)
+            {
+                return environment.TryReadIdentifierWithSlot(id, context, out value);
+            }
+
+            value = default;
+            return false;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileBranchCompare(
+            BinaryOperator op,
+            JsValue leftVal,
+            JsValue rightVal,
+            EvaluationContext context)
+        {
+            return op switch
+            {
+                BinaryOperator.LessThan => LessThanValue(leftVal, rightVal, context),
+                BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
+                BinaryOperator.GreaterThan => GreaterThanValue(leftVal, rightVal, context),
+                _ => GreaterThanOrEqualValue(leftVal, rightVal, context)
+            };
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int ProfileHandleJump(JumpInstruction jumpInstruction)
+        {
+            return jumpInstruction.TargetIndex;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileEvaluateExpression(
+            ExpressionNode expression,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return expression.EvaluateExpression(environment, context);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileEvaluateStatement(
+            StatementNode statement,
+            JsEnvironment environment,
+            EvaluationContext context)
+        {
+            return statement.EvaluateStatementJsValue(environment, context);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileApplyBinaryOperator(
+            BinaryOperator op,
+            JsValue left,
+            JsValue right,
+            EvaluationContext context)
+        {
+            return ApplyBinaryOperator(op, left, right, context);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileGetIdentifier(
+            JsEnvironment environment,
+            Symbol symbol,
+            EvaluationContext context)
+        {
+            return environment.GetIdentifierJsValueDirect(symbol, context);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ProfileAssignJsValue(
+            JsEnvironment environment,
+            Symbol symbol,
+            JsValue value)
+        {
+            environment.AssignJsValue(symbol, value);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ExecutionInstruction ProfileFetchInstruction(
+            ref ExecutionInstruction instructionsRef,
+            int programCounter)
+        {
+            return Unsafe.Add(ref instructionsRef, programCounter);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int ProfileBranchDecision(bool isTruthy, int consequent, int alternate)
+        {
+            return isTruthy ? consequent : alternate;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileIncrementMath(JsValue currentValue, bool isIncrement)
+        {
+            // Fast path for numbers (most common case)
+            if (currentValue.Kind == JsValueKind.Number)
+            {
+                var numValue = currentValue.NumberValue;
+                var newValue = isIncrement ? numValue + 1.0 : numValue - 1.0;
+                return JsValueCache.GetNumberJsValue(newValue);
+            }
+            // BigInt and other cases - return sentinel to indicate slow path needed
+            return JsValue.Undefined;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static JsValue ProfileCompoundAdd(JsValue left, JsValue right)
+        {
+            // Fast path for number + number (most common in loops)
+            if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+            {
+                return JsValueCache.GetNumberJsValue(left.NumberValue + right.NumberValue);
+            }
+            // Return sentinel to indicate slow path needed
+            return JsValue.Undefined;
+        }
+
+        /// <summary>
+        /// Result of an instruction handler for control flow.
+        /// </summary>
+        private enum InstructionResult
+        {
+            /// <summary>Continue to next instruction (normal flow).</summary>
+            Continue,
+            /// <summary>Return from ExecutePlan with a value.</summary>
+            Return,
+            /// <summary>An exception was thrown (already handled).</summary>
+            Throw
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════
+        // INSTRUCTION HANDLERS: NoInlining methods for profiling visibility
+        // Each handler processes one instruction kind and returns control flow action
+        // Change to AggressiveInlining after profiling is complete
+        // ═══════════════════════════════════════════════════════════════════════════
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleStatement(
+            StatementInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var stmtResult = ProfileEvaluateStatement(instruction.Statement, environment, context);
+
+            if (_isScriptMode)
+            {
+                if (!stmtResult.IsUnit)
+                {
+                    _scriptCompletionValue = stmtResult;
+                }
+                else if (ShouldResetScriptCompletion(instruction.Statement))
+                {
+                    _scriptCompletionValue = JsValue.Undefined;
+                }
+            }
+
+            var (signalAction, signalResult) = HandleContextSignals(context, environment, instruction.Next);
+            switch (signalAction)
+            {
+                case SignalAction.Return:
+                    returnValue = signalResult;
+                    return InstructionResult.Return;
+                case SignalAction.Continue:
+                    returnValue = default;
+                    return InstructionResult.Continue;
+            }
+
+            if (context.IsBreak || context.IsContinue)
+            {
+                if (_isScriptMode)
+                {
+                    _scriptCompletionValue = JsValue.Undefined;
+                }
+
+                var isBreak = context.IsBreak;
+                var label = (context.CurrentSignal as BreakCompletionSignal)?.Label
+                            ?? (context.CurrentSignal as ContinueCompletionSignal)?.Label;
+                context.Clear();
+
+                var target = FindBreakableTarget(label, isBreak);
+                if (target >= 0)
+                {
+                    _programCounter = target;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                throw new InvalidOperationException(
+                    $"No loop target found for {(isBreak ? "break" : "continue")}{(label is not null ? $" {label.Name}" : "")}");
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleThrow(
+            ThrowInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var throwValue = instruction.Expression.EvaluateExpression(environment, context);
+
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingThrowResult, environment))
+            {
+                returnValue = pendingThrowResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var existingThrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
+                {
+                    if (_programCounter != _currentInstructionIndex)
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    if (TryCatchStateRef.TryStack.Count > 0)
+                    {
+                        TryCatchStateRef.TryStack.Pop();
+                        if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
+                        {
+                            returnValue = default;
+                            return InstructionResult.Continue;
+                        }
+                    }
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(existingThrown);
+            }
+
+            if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
+            {
+                if (_programCounter != _currentInstructionIndex)
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                if (TryCatchStateRef.TryStack.Count > 0)
+                {
+                    TryCatchStateRef.TryStack.Pop();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+                }
+            }
+
+            TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(throwValue);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleEvaluateAndDiscard(
+            EvaluateAndDiscardInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var evaluatedValue = ProfileEvaluateExpression(instruction.Expression, environment, context);
+
+            if (_isScriptMode && !instruction.SuppressCompletionValue)
+            {
+                _scriptCompletionValue = evaluatedValue;
+            }
+
+            var (evalSignalAction, evalSignalResult) = HandleContextSignals(context, environment, instruction.Next);
+            switch (evalSignalAction)
+            {
+                case SignalAction.Return:
+                    returnValue = evalSignalResult;
+                    return InstructionResult.Return;
+                case SignalAction.Continue:
+                    returnValue = default;
+                    return InstructionResult.Continue;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleBinaryOp(
+            BinaryOpInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var binLeft = instruction.Left.EvaluateExpression(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                if (_isAsync && TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
+                {
+                    returnValue = pendingBinLeftResult;
+                    return InstructionResult.Return;
+                }
+
+                if (context.IsThrow)
+                {
+                    var binThrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(binThrown);
+                }
+            }
+
+            var binRight = instruction.Right.EvaluateExpression(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                if (_isAsync && TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
+                {
+                    returnValue = pendingBinRightResult;
+                    return InstructionResult.Return;
+                }
+
+                if (context.IsThrow)
+                {
+                    var binThrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(binThrown);
+                }
+            }
+
+            var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);
+
+            if (instruction.ResultSlot is not null)
+            {
+                environment.AssignJsValue(instruction.ResultSlot, binResult);
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleIncrementSlot(
+            IncrementSlotInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var incCurrentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            if (context.IsThrow)
+            {
+                var incThrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, incThrown, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(incThrown);
+            }
+
+            JsValue incNewJsValue;
+            JsValue incOldNumericValue;
+
+            var fastResult = ProfileIncrementMath(incCurrentValue, instruction.IsIncrement);
+            if (!fastResult.IsUndefined)
+            {
+                incNewJsValue = fastResult;
+                incOldNumericValue = incCurrentValue;
+            }
+            else if (incCurrentValue.IsBigInt)
+            {
+                var bigInt = (JsBigInt)incCurrentValue.ObjectValue!;
+                incOldNumericValue = incCurrentValue;
+                var incNewBigInt = instruction.IsIncrement
+                    ? bigInt.Value + 1
+                    : bigInt.Value - 1;
+                incNewJsValue = new JsBigInt(incNewBigInt);
+            }
+            else
+            {
+                var numericJsValue = ToNumericValue(incCurrentValue, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    var incFlowThrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(incFlowThrown);
+                }
+
+                if (numericJsValue.IsBigInt)
+                {
+                    var bigInt = (JsBigInt)numericJsValue.ObjectValue!;
+                    incOldNumericValue = numericJsValue;
+                    var incNewBigInt = instruction.IsIncrement
+                        ? bigInt.Value + 1
+                        : bigInt.Value - 1;
+                    incNewJsValue = new JsBigInt(incNewBigInt);
+                }
+                else
+                {
+                    var incNumValue = numericJsValue.NumberValue;
+                    incOldNumericValue = JsValueCache.GetNumberJsValue(incNumValue);
+                    var incNewValue = instruction.IsIncrement
+                        ? incNumValue + 1.0
+                        : incNumValue - 1.0;
+                    incNewJsValue = JsValueCache.GetNumberJsValue(incNewValue);
+                }
+            }
+
+            ProfileAssignJsValue(environment, instruction.TargetSymbol, incNewJsValue);
+
+            if (_isScriptMode && !instruction.SuppressCompletionValue)
+            {
+                _scriptCompletionValue = instruction.IsPrefix ? incNewJsValue : incOldNumericValue;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleCompoundAssignmentSlot(
+            CompoundAssignmentSlotInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var compCurrentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            if (context.IsThrow)
+            {
+                var compThrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, compThrown, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(compThrown);
+            }
+
+            JsValue compRhsValue;
+            switch (instruction.RhsExpression)
+            {
+                case LiteralExpression { Value: var literalValue }:
+                    compRhsValue = literalValue;
+                    break;
+                case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
+                    if (environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
+                    {
+                    }
+                    else
+                    {
+                        compRhsValue = rhsIdent.EvaluateExpression(environment, context);
+                    }
+                    break;
+                default:
+                    compRhsValue = instruction.RhsExpression.EvaluateExpression(environment, context);
+                    break;
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                if (_isAsync && TryHandlePendingAwait(context, out var pendingCompResult, environment))
+                {
+                    returnValue = pendingCompResult;
+                    return InstructionResult.Return;
+                }
+
+                if (context.IsThrow)
+                {
+                    var compRhsThrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(compRhsThrown);
+                }
+            }
+
+            JsValue compResult;
+            if (instruction.Operator == BinaryOperator.Add)
+            {
+                var fastAdd = ProfileCompoundAdd(compCurrentValue, compRhsValue);
+                compResult = !fastAdd.IsUndefined
+                    ? fastAdd
+                    : ProfileApplyBinaryOperator(instruction.Operator, compCurrentValue, compRhsValue, context);
+            }
+            else
+            {
+                compResult = ProfileApplyBinaryOperator(instruction.Operator, compCurrentValue, compRhsValue, context);
+            }
+
+            ProfileAssignJsValue(environment, instruction.TargetSymbol, compResult);
+
+            if (_isScriptMode && !instruction.SuppressCompletionValue)
+            {
+                _scriptCompletionValue = compResult;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleFunctionDeclaration(
+            FunctionDeclarationInstruction instruction,
+            out JsValue returnValue)
+        {
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleClassDeclaration(
+            ClassDeclarationInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var classValue = instruction.Declaration.Definition.CreateClassValue(
+                environment, context, instruction.Declaration.Name);
+
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingClassResult, environment))
+            {
+                returnValue = pendingClassResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var classThrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, classThrown, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(classThrown);
+            }
+
+            environment.DefineJsValue(instruction.Declaration.Name, classValue,
+                isLexicalBinding: true, blocksFunctionScopeOverride: true);
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleSimpleVariableDeclaration(
+            SimpleVariableDeclarationInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var isAnonymousFunctionDefinition = instruction.Initializer is not null &&
+                ExpressionNode.IsAnonymousFunctionDefinitionNode(instruction.Initializer);
+
+            using var functionNameHint = isAnonymousFunctionDefinition
+                ? context.EnterFunctionNameHint(instruction.TargetSymbol)
+                : null;
+
+            var varValue = instruction.Initializer?.EvaluateExpression(environment, context)
+                           ?? JsValue.Undefined;
+
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingVarResult, environment))
+            {
+                returnValue = pendingVarResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var varThrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, varThrown, environment))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = instruction.Next;
+                    }
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(varThrown);
+            }
+
+            if (context.IsReturn)
+            {
+                var varReturnValue = context.FlowValue;
+                context.ClearReturn();
+                if (!HandleAbruptCompletion(AbruptKind.Return, varReturnValue, environment))
+                {
+                    returnValue = CompleteReturn(varReturnValue);
+                    return InstructionResult.Return;
+                }
+
+                if (_programCounter == _currentInstructionIndex)
+                {
+                    _programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (context.IsYield)
+            {
+                var varYieldedValue = context.FlowValue;
+                var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+                RecordYield(context, environment);
+                context.Clear();
+                _state = GeneratorState.Suspended;
+                returnValue = varIteratorResultObject is not null
+                    ? JsValue.FromObjectUnsafe(varIteratorResultObject)
+                    : CreateIteratorResult(varYieldedValue, false);
+                return InstructionResult.Return;
+            }
+
+            if (instruction.VarKind == VariableKind.Var)
+            {
+                environment.EnsureFunctionScopedVarBinding(instruction.TargetSymbol, context);
+                if (instruction.Initializer is not null)
+                {
+                    if (!environment.TryAssignBlockedBinding(instruction.TargetSymbol, varValue))
+                    {
+                        if (instruction.IsScriptLevel)
+                        {
+                            environment.AssignJsValue(instruction.TargetSymbol, varValue);
+                        }
+                        else
+                        {
+                            environment.DefineOrAssignJsValue(instruction.TargetSymbol, varValue);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var isConst = instruction.VarKind == VariableKind.Const;
+#pragma warning disable CS0162
+                if (JsEngineConstants.TraceIrExecution && _realmState.Logger is not null)
+                {
+                    ExecutionPlanPrinter.TraceDefine(
+                        _realmState.Logger,
+                        instruction.VarKind.ToString(),
+                        instruction.TargetSymbol.Name,
+                        varValue.ToString() ?? "?",
+                        environment.Depth,
+                        environment.ScopeId,
+                        environment.GetHashCode());
+                }
+#pragma warning restore CS0162
+                environment.DefineJsValue(instruction.TargetSymbol, varValue,
+                    isConst, isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleBreakableEnter(
+            BreakableEnterInstruction instruction,
+            out JsValue returnValue)
+        {
+            if (instruction.ConstructKind == BreakableKind.ResetsCompletionValue)
+            {
+                ResetCompletionValue();
+            }
+
+            BreakableStateRef.BreakableStack.Push(new BreakableFrame(
+                instruction.Label,
+                instruction.BreakTarget,
+                instruction.ContinueTarget));
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleBreakableExit(
+            BreakableExitInstruction instruction,
+            out JsValue returnValue)
+        {
+            if (BreakableStateRef.BreakableStack.Count > 0)
+            {
+                BreakableStateRef.BreakableStack.Pop();
+            }
+
+            FinalizeCompletionValue();
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleEnterTry(
+            EnterTryInstruction instruction,
+            JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            ResetCompletionValue();
+            PushTryFrame(instruction, environment);
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleLeaveTry(
+            LeaveTryInstruction instruction,
+            out JsValue returnValue)
+        {
+            CompleteTryNormally(instruction.Next);
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleSetCompletionValue(
+            SetCompletionValueInstruction instruction,
+            out JsValue returnValue)
+        {
+            if (_isScriptMode)
+            {
+                _scriptCompletionValue = JsValue.Undefined;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleBreak(
+            BreakInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            if (HandleAbruptCompletion(AbruptKind.Break, instruction.TargetIndex, environment))
+            {
+                if (_programCounter == _currentInstructionIndex && TryCatchStateRef.TryStack.Count > 0)
+                {
+                    var frame = TryCatchStateRef.TryStack.Peek();
+                    if (frame.EndFinallyIndex >= 0)
+                    {
+                        _programCounter = frame.EndFinallyIndex;
+                    }
+                }
+
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (instruction.TargetScopeId >= 0)
+            {
+                var targetScopeId = instruction.TargetScopeId;
+                var walkEnv = environment;
+                while (walkEnv.ScopeId != targetScopeId && walkEnv.Enclosing != null)
+                {
+                    walkEnv = walkEnv.Enclosing;
+                }
+
+                if (walkEnv.ScopeId == targetScopeId)
+                {
+                    environment = walkEnv;
+                }
+            }
+
+            _programCounter = instruction.TargetIndex;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleContinue(
+            ContinueInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            if (HandleAbruptCompletion(AbruptKind.Continue, instruction.TargetIndex, environment))
+            {
+                if (_programCounter == _currentInstructionIndex && TryCatchStateRef.TryStack.Count > 0)
+                {
+                    var frame = TryCatchStateRef.TryStack.Peek();
+                    if (frame.EndFinallyIndex >= 0)
+                    {
+                        _programCounter = frame.EndFinallyIndex;
+                    }
+                }
+
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (instruction.TargetScopeId >= 0)
+            {
+                var targetScopeId = instruction.TargetScopeId;
+                var walkEnv = environment;
+                while (walkEnv.ScopeId != targetScopeId && walkEnv.Enclosing != null)
+                {
+                    walkEnv = walkEnv.Enclosing;
+                }
+
+                if (walkEnv.ScopeId == targetScopeId)
+                {
+                    environment = walkEnv;
+                }
+            }
+
+            _programCounter = instruction.TargetIndex;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleReturn(
+            ReturnInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var returnVal = instruction.ReturnExpression?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
+
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingReturnResult, environment))
+            {
+                returnValue = pendingReturnResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var pendingThrow = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = instruction.Next;
+                    }
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(pendingThrow);
+            }
+
+            if (context.IsReturn)
+            {
+                var pendingReturn = context.FlowValue;
+                context.ClearReturn();
+                returnVal = pendingReturn;
+            }
+
+            var wasInsideScheduledFinally = IsInsideScheduledFinally();
+
+            if (HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal, environment))
+            {
+                if (wasInsideScheduledFinally)
+                {
+                    returnValue = CompleteReturn(returnVal);
+                    return InstructionResult.Return;
+                }
+
+                if (_programCounter == _currentInstructionIndex)
+                {
+                    _programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            returnValue = CompleteReturn(returnVal);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleJumpSwitch(
+            JumpInstruction instruction,
+            out JsValue returnValue)
+        {
+            _programCounter = instruction.TargetIndex;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleBranchSwitch(
+            BranchInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var testValue = instruction.Condition.EvaluateExpression(environment, context);
+
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+            {
+                returnValue = pendingBranchResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var thrownValue = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrownValue);
+            }
+
+            _programCounter = testValue.IsTruthy ? instruction.ConsequentIndex : instruction.AlternateIndex;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleBranchFastPath(
+            BranchInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            // Fast path for simple binary comparisons (e.g., i < 1000000)
+            JsValue testValue;
+            var usedFastPath = false;
+
+            if (instruction.Condition is BinaryExpression
+                {
+                    Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
+                    BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
+                } binCond)
+            {
+                // Profiling wrappers - NoInlining so they show up in profiler
+                if (ProfileReadOperand(environment, context, binCond.Left, out var leftVal) &&
+                    ProfileReadOperand(environment, context, binCond.Right, out var rightVal))
+                {
+                    // Comparison via profiling wrapper
+                    testValue = ProfileBranchCompare(binCond.Operator, leftVal, rightVal, context);
+                    usedFastPath = true;
+                }
+                else
+                {
+                    testValue = default;
+                }
+            }
+            else
+            {
+                testValue = default;
+            }
+
+            if (!usedFastPath)
+            {
+                testValue = ProfileEvaluateExpression(instruction.Condition, environment, context);
+            }
+
+            // Check for pending await (async code) - skip entirely for sync functions
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+            {
+                returnValue = pendingBranchResult;
+                return InstructionResult.Return;
+            }
+
+            // Check for throw
+            if (TryHandleContextThrow(context, environment))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            // Normal path: branch based on condition (with profiling)
+            _programCounter = ProfileBranchDecision(
+                testValue.IsTruthy,
+                instruction.ConsequentIndex,
+                instruction.AlternateIndex);
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleEnterCatch(
+            EnterCatchInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            ResetCompletionValue();
+
+            var thrownValue = JsValue.Undefined;
+            if (TryCatchStateRef.TryStack.Count > 0)
+            {
+                thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
+            }
+
+            var catchEnv = new JsEnvironment(
+                environment,
+                false,
+                environment.IsStrict,
+                null,
+                "catch");
+
+            if (instruction.SlotCount > 0)
+            {
+                catchEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
+            }
+
+            if (instruction.CatchParameterSymbol is { } param)
+            {
+                catchEnv.DefineJsValue(param, thrownValue, false, isLexicalBinding: true);
+            }
+
+            environment = catchEnv;
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleEnterCatchWithDestructuring(
+            EnterCatchWithDestructuringInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            ResetCompletionValue();
+
+            var thrownValue = JsValue.Undefined;
+            if (TryCatchStateRef.TryStack.Count > 0)
+            {
+                thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
+            }
+
+            var catchEnv = new JsEnvironment(
+                environment,
+                false,
+                environment.IsStrict,
+                null,
+                "catch");
+
+            if (instruction.SlotCount > 0)
+            {
+                catchEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
+            }
+
+            instruction.BindingPattern.DefineBindingTarget(thrownValue, catchEnv, context, false);
+
+            if (context.ShouldStopEvaluation)
+            {
+                if (context.IsThrow)
+                {
+                    var exception = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, exception, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(exception);
+                }
+            }
+
+            environment = catchEnv;
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleEndFinally(
+            EndFinallyInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            if (TryCatchStateRef.TryStack.Count == 0)
+            {
+                _programCounter = instruction.Next;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            var completedFrame = TryCatchStateRef.TryStack.Pop();
+            var pending = completedFrame.PendingCompletion;
+
+            if (pending.Kind == AbruptKind.None)
+            {
+                RestoreCompletionValueFromFinally(completedFrame);
+                var target = pending.ResumeTarget >= 0 ? pending.ResumeTarget : instruction.Next;
+                _programCounter = target;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (pending.Kind == AbruptKind.Return)
+            {
+                if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
+                returnValue = CompleteReturn(pendingJs);
+                return InstructionResult.Return;
+            }
+
+            if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
+            {
+                RestoreCompletionValueFromFinally(completedFrame);
+                if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                _programCounter = pending.Value is int idx ? idx : instruction.Next;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            TryCatchStateRef.TryStack.Clear();
+            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
+            throw new ThrowSignal(throwJs);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleEnterWith(
+            EnterWithInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var objValueJs = instruction.ObjectExpression.EvaluateExpression(environment, context);
+
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingWithResult, environment))
+            {
+                returnValue = pendingWithResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var thrownWith = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrownWith);
+            }
+
+            if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
+            {
+                var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
+                    instruction.ObjectExpression.Source, "with", withObject);
+                StoreSymbolValue(_executionEnvironment!, instruction.WithScopeSlot, withEnv);
+                WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
+                environment = withEnv;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleLeaveWith(
+            LeaveWithInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            if (WithStateRef.ActiveWithScopes.Count > 0 &&
+                ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(), instruction.WithScopeSlot))
+            {
+                WithStateRef.ActiveWithScopes.Pop();
+            }
+
+            if (TryGetSymbolValueJsValue(_executionEnvironment!, instruction.WithScopeSlot, out var storedEnvValue) &&
+                storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
+            {
+                environment = storedWithEnv.Enclosing ?? environment;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleIteratorClose(
+            IteratorCloseInstruction instruction,
+            JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            if (TryGetSymbolValueJsValue(environment, instruction.IteratorSlot, out var iterStateValue) &&
+                iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
+                iterState.IteratorObject is { } iteratorObj)
+            {
+                if (!iterState.HasEnteredLoop)
+                {
+                    iterState.MarkIteratorClosed();
+                    _programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                iterState.MarkIteratorClosed();
+
+                var hasPendingThrow = false;
+                if (TryCatchStateRef.TryStack.Count > 0)
+                {
+                    var topFrame = TryCatchStateRef.TryStack.Peek();
+                    hasPendingThrow = topFrame.PendingCompletion.Kind == AbruptKind.Throw;
+                }
+
+                try
+                {
+                    iteratorObj.IteratorClose(EnsureEvaluationContext(), hasPendingThrow);
+                }
+                catch (ThrowSignal closeThrown)
+                {
+                    if (hasPendingThrow)
+                    {
+                        _programCounter = instruction.Next;
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                    {
+                        _programCounter = instruction.Next;
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw;
+                }
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleYield(
+            YieldInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var yieldedValue = JsValue.Undefined;
+            if (instruction.YieldExpression is not null)
+            {
+                yieldedValue = instruction.YieldExpression.EvaluateExpression(environment, context);
+
+                if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldResult, environment))
+                {
+                    returnValue = pendingYieldResult;
+                    return InstructionResult.Return;
+                }
+
+                if (context.IsThrow)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                if (context.IsYield)
+                {
+                    yieldedValue = context.FlowValue;
+                    var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+                    context.Clear();
+                    _programCounter = _currentInstructionIndex;
+                    RecordYield(context, environment);
+                    _state = GeneratorState.Suspended;
+                    returnValue = nestedIteratorResult is not null
+                        ? JsValue.FromObjectUnsafe(nestedIteratorResult)
+                        : CreateIteratorResult(yieldedValue, false);
+                    return InstructionResult.Return;
+                }
+            }
+
+            _programCounter = instruction.Next;
+            RecordYield(context, environment);
+            _state = GeneratorState.Suspended;
+            returnValue = CreateIteratorResult(yieldedValue, false);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleStoreResumeValue(
+            StoreResumeValueInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var (resumeKind, resumePayload) = ConsumeResumeValue();
+            if (resumeKind == ResumePayloadKind.Throw)
+            {
+                context.SetThrow(resumePayload);
+            }
+            else if (resumeKind == ResumePayloadKind.Return)
+            {
+                context.SetReturn(resumePayload);
+            }
+            else if (instruction.TargetSymbol is { } resumeSymbol)
+            {
+                StoreSymbolValueJsValue(environment, resumeSymbol, resumePayload);
+            }
+
+            if (context.IsThrow)
+            {
+                var thrownPayload = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = instruction.Next;
+                    }
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrownPayload);
+            }
+
+            if (context.IsReturn)
+            {
+                var resumeReturnValue = context.FlowValue;
+                context.ClearReturn();
+                if (HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
+                {
+                    if (_programCounter == _currentInstructionIndex)
+                    {
+                        _programCounter = instruction.Next;
+                    }
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                returnValue = CompleteReturn(resumeReturnValue);
+                return InstructionResult.Return;
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandlePushEnvironment(
+            PushEnvironmentInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            var hasIterationBindings = !instruction.PerIterationBindings.IsDefaultOrEmpty;
+            var isSubsequentIteration =
+                hasIterationBindings &&
+                ((instruction.ScopeId >= 0 && environment.ScopeId == instruction.ScopeId) ||
+                 (instruction.ScopeId < 0 && environment.Description == "scope" && environment.Enclosing != null));
+
+            if (isSubsequentIteration &&
+                instruction.AllowPooling &&
+                !instruction.PerIterationBindings.IsDefaultOrEmpty)
+            {
+                _programCounter = instruction.Next;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            JsEnvironment loopScope;
+            JsEnvironment? previousIterEnv = null;
+
+            if (isSubsequentIteration)
+            {
+                previousIterEnv = environment;
+                loopScope = environment.Enclosing!;
+            }
+            else
+            {
+                loopScope = environment;
+            }
+
+            var allowPooling = instruction.AllowPooling;
+            var description = instruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
+            var newIterationEnv = allowPooling
+                ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
+                : new JsEnvironment(loopScope, false, false, null, description);
+
+            if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
+            {
+                newIterationEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
+                if (!instruction.SlotMap.IsEmpty)
+                {
+                    newIterationEnv.SetSlotMap(instruction.SlotMap);
+                }
+
+                if (instruction.LexicalBindings is { Count: > 0 })
+                {
+                    newIterationEnv.MarkSlotsLexicalUninitialized(instruction.LexicalBindings);
+                }
+            }
+
+            if (previousIterEnv != null && !instruction.PerIterationBindings.IsDefaultOrEmpty)
+            {
+                var useSlotCopy = newIterationEnv.HasSlots &&
+                                  previousIterEnv.HasSlots &&
+                                  !instruction.SlotMap.IsEmpty;
+
+                if (useSlotCopy)
+                {
+                    foreach (var binding in instruction.PerIterationBindings)
+                    {
+                        if (instruction.SlotMap.TryGetValue(binding, out var slotIndex))
+                        {
+                            var value = previousIterEnv.GetSlotRef(slotIndex);
+                            newIterationEnv.SetSlotDirect(slotIndex, value);
+                        }
+                    }
+                }
+                else
+                {
+                    foreach (var binding in instruction.PerIterationBindings)
+                    {
+                        if (previousIterEnv.TryGetJsValueWithConst(binding, out var value, out var isConst))
+                        {
+                            newIterationEnv.DefineJsValue(binding, value, isConst, isLexicalBinding: true);
+                        }
+                    }
+                }
+
+                if (allowPooling && !ReferenceEquals(previousIterEnv, IteratorStateRef.ResumedWithEnvironment))
+                {
+                    JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
+                }
+            }
+            else if (!instruction.PerIterationBindings.IsDefaultOrEmpty)
+            {
+                foreach (var binding in instruction.PerIterationBindings)
+                {
+                    if (loopScope.TryGetJsValueWithConst(binding, out var value, out var isConst))
+                    {
+                        newIterationEnv.DefineJsValue(binding, value, isConst, isLexicalBinding: true);
+                    }
+                }
+            }
+
+            IteratorStateRef.ResumedWithEnvironment = null;
+
+            _realmState.Logger?.LogInformation(
+                "PushEnv: old.ScopeId={OldScope} new.ScopeId={NewScope} loopScope.ScopeId={LoopScope} parent={Parent}",
+                environment.ScopeId,
+                newIterationEnv.ScopeId,
+                loopScope.ScopeId,
+                newIterationEnv.Enclosing?.ScopeId);
+
+            environment = newIterationEnv;
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandlePopEnvironment(
+            PopEnvironmentInstruction instruction,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            var shouldPop = instruction.ScopeId >= 0
+                ? environment.ScopeId == instruction.ScopeId
+                : environment.Description is "scope" or "loop-scope" && environment.Enclosing != null;
+
+            if (shouldPop)
+            {
+                var envToPop = environment;
+                environment = environment.Enclosing!;
+
+                if (instruction.AllowPooling)
+                {
+                    JsEnvironmentPool.Return(envToPop, _realmState.Logger);
+                }
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleYieldStar(
+            YieldStarInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var currentIndex = _programCounter;
+            if (!TryGetSymbolValueJsValue(environment, instruction.StateSlotSymbol,
+                    out var stateValue) ||
+                !stateValue.TryGetObject<YieldStarState>(out var yieldStarState))
+            {
+                yieldStarState = new YieldStarState();
+                StoreSymbolValue(environment, instruction.StateSlotSymbol, yieldStarState);
+            }
+
+            if (yieldStarState.PendingAbrupt != AbruptKind.None &&
+                AsyncStateRef.PendingResumeKind is not ResumePayloadKind.Throw
+                    and not ResumePayloadKind.Return)
+            {
+                var pendingKind = yieldStarState.PendingAbrupt;
+                var pendingValue = yieldStarState.PendingValue;
+                yieldStarState.PendingAbrupt = AbruptKind.None;
+                yieldStarState.PendingValue = JsValue.Undefined;
+                yieldStarState.State = null;
+                yieldStarState.AwaitingResume = false;
+                environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+
+                switch (pendingKind)
+                {
+                    case AbruptKind.Throw
+                        when HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment):
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    case AbruptKind.Throw:
+                        TryCatchStateRef.TryStack.Clear();
+                        throw new ThrowSignal(pendingValue);
+                    case AbruptKind.Return when HandleAbruptCompletion(AbruptKind.Return,
+                        pendingValue, environment):
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    case AbruptKind.Return:
+                        returnValue = CompleteReturn(pendingValue);
+                        return InstructionResult.Return;
+                }
+            }
+
+            var isFirstYieldStarEntry = yieldStarState.State is null;
+
+            if (yieldStarState.State is null)
+            {
+                _realmState.Logger?.LogInformation("YieldStar: Creating new DelegatedState");
+                var yieldStarIterableValue =
+                    instruction.IterableExpression.EvaluateExpression(environment, context);
+                if (_isAsync && TryHandlePendingAwait(context, out var pendingYieldStarResult, environment))
+                {
+                    returnValue = pendingYieldStarResult;
+                    return InstructionResult.Return;
+                }
+
+                if (context.IsThrow)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                yieldStarState.State = CreateDelegatedState(yieldStarIterableValue, context);
+
+                if (context.IsThrow)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                yieldStarState.AwaitingResume = false;
+            }
+            else
+            {
+                _realmState.Logger?.LogInformation(
+                    "YieldStar: Reusing existing DelegatedState, AwaitingResume={Awaiting}",
+                    yieldStarState.AwaitingResume);
+            }
+
+            while (true)
+            {
+                var sendValue = JsValue.Undefined;
+                var propagateThrow = false;
+                var propagateReturn = false;
+
+                if (isFirstYieldStarEntry)
+                {
+                    sendValue = JsValue.Undefined;
+                    isFirstYieldStarEntry = false;
+                }
+                else if (yieldStarState.AwaitingResume)
+                {
+                    var (delegatedResumeKind, delegatedResumePayload) = ConsumeResumeValue();
+                    switch (delegatedResumeKind)
+                    {
+                        case ResumePayloadKind.Throw:
+                            propagateThrow = true;
+                            sendValue = delegatedResumePayload;
+                            break;
+                        case ResumePayloadKind.Return:
+                            propagateReturn = true;
+                            sendValue = delegatedResumePayload;
+                            break;
+                        default:
+                            sendValue = delegatedResumePayload;
+                            break;
+                    }
+                }
+
+                var iteratorResult = yieldStarState.State!.MoveNext(
+                    sendValue,
+                    propagateThrow,
+                    propagateReturn,
+                    context,
+                    out _);
+
+                if (context.IsThrow)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    yieldStarState.State = null;
+                    yieldStarState.AwaitingResume = false;
+                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    {
+                        break;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
+
+                if (iteratorResult.IsDelegatedCompletion)
+                {
+                    var isThrowCompletion = propagateThrow || iteratorResult.PropagateThrow;
+                    var pendingKind = isThrowCompletion ? AbruptKind.Throw : AbruptKind.Return;
+                    var abruptValue = iteratorResult.Value;
+
+                    if (!iteratorResult.Done)
+                    {
+                        yieldStarState.PendingAbrupt = pendingKind;
+                        yieldStarState.PendingValue = sendValue;
+                        yieldStarState.AwaitingResume = true;
+                        _programCounter = currentIndex;
+                        RecordYield(context, environment);
+                        _state = GeneratorState.Suspended;
+                        returnValue = iteratorResult.IteratorResultObject is not null
+                            ? JsValue.FromObjectUnsafe(iteratorResult.IteratorResultObject)
+                            : CreateIteratorResult(iteratorResult.Value, false);
+                        return InstructionResult.Return;
+                    }
+
+                    yieldStarState.State = null;
+                    yieldStarState.AwaitingResume = false;
+                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+
+                    if (pendingKind == AbruptKind.Throw)
+                    {
+                        if (HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                        {
+                            break;
+                        }
+
+                        TryCatchStateRef.TryStack.Clear();
+                        throw new ThrowSignal(abruptValue);
+                    }
+
+                    if (HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
+                    {
+                        break;
+                    }
+
+                    returnValue = CompleteReturn(abruptValue);
+                    return InstructionResult.Return;
+                }
+
+                if (propagateThrow && iteratorResult.Done)
+                {
+                    yieldStarState.State = null;
+                    yieldStarState.AwaitingResume = false;
+                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    if (instruction.ResultSlotSymbol is { } throwResultSlot)
+                    {
+                        StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
+                    }
+
+                    _programCounter = instruction.Next;
+                    break;
+                }
+
+                if (iteratorResult.Done && !propagateThrow && !propagateReturn)
+                {
+                    yieldStarState.State = null;
+                    yieldStarState.AwaitingResume = false;
+                    environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
+                    if (instruction.ResultSlotSymbol is { } resultSlot)
+                    {
+                        StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                    }
+
+                    _programCounter = instruction.Next;
+                    break;
+                }
+
+                yieldStarState.AwaitingResume = true;
+                _programCounter = currentIndex;
+                RecordYield(context, environment);
+                _state = GeneratorState.Suspended;
+                if (iteratorResult.IteratorResultObject is { } originalResult)
+                {
+                    returnValue = JsValue.FromObjectUnsafe(originalResult);
+                    return InstructionResult.Return;
+                }
+
+                var resultDone = propagateReturn && iteratorResult.Done;
+                returnValue = CreateIteratorResult(iteratorResult.Value, resultDone);
+                return InstructionResult.Return;
+            }
+
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleIteratorInit(
+            IteratorInitInstruction instruction,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var iterableEnv = environment;
+            if (!instruction.TdzBindings.IsDefaultOrEmpty)
+            {
+                iterableEnv = new JsEnvironment(environment, false, false,
+                    instruction.IterableExpression.Source, "for-of-head-tdz");
+                foreach (var tdzSymbol in instruction.TdzBindings)
+                {
+                    iterableEnv.DefineJsValue(tdzSymbol, JsValue.Uninitialized,
+                        instruction.TdzIsConst, isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+                }
+            }
+
+            var iterableValue = instruction.IterableExpression.EvaluateExpression(iterableEnv, context);
+            if (_isAsync && TryHandlePendingAwait(context, out var pendingIteratorResult, environment))
+            {
+                returnValue = pendingIteratorResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var initThrown = context.FlowValue;
+                context.Clear();
+                if (HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(initThrown);
+            }
+
+            var iteratorState = CreateIteratorDriverState(iterableValue, instruction.IteratorKind, context);
+
+            var iteratorEnv = environment;
+            var walkCount = 0;
+            if (instruction.IteratorSlotIndex >= 0)
+            {
+                while (iteratorEnv is not null &&
+                       (iteratorEnv.ScopeId != _plan.RootScopeId ||
+                        !iteratorEnv.HasSlots ||
+                        iteratorEnv._slots!.Length <= instruction.IteratorSlotIndex))
+                {
+                    iteratorEnv = iteratorEnv.Enclosing;
+                    walkCount++;
+                    if (walkCount > 1000)
+                    {
+                        break;
+                    }
+                }
+
+                iteratorEnv ??= environment;
+            }
+
+            if (instruction.IteratorSlotIndex >= 0 && iteratorEnv.HasSlots)
+            {
+                iteratorState.IteratorVariable = new JsVariable(iteratorEnv, instruction.IteratorSlotIndex);
+            }
+
+            iteratorState.LoopScopeEnvironment = environment;
+            IteratorStateRef.CurrentDriverState = iteratorState;
+
+            StoreValueBySlot(iteratorEnv, instruction.IteratorSlot,
+                instruction.IteratorSlotIndex,
+                JsValue.FromObjectUnsafe(iteratorState));
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleIteratorMoveNext(
+            IteratorMoveNextInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var iteratorIndex = _programCounter;
+
+            // Use cached driver state for scope-correct access from child scopes
+            // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
+            var driverState = IteratorStateRef.CurrentDriverState;
+
+            if (driverState is null)
+            {
+                // Fallback: try to get iterator state from the correct scope.
+                // The iterator slot is stored in function/module scope (not per-iteration envs),
+                // so we need to walk up the chain to find it, similar to IteratorInit.
+                var slotEnv = environment;
+                var slotIdx = instruction.IteratorSlotIndex;
+
+                // Walk up to find the scope with the right slots
+                // Skip per-iteration envs since iterator temps are stored
+                // in the function's root scope (RootScopeId), not per-iteration envs
+                if (slotIdx >= 0)
+                {
+                    var slotWalkCount = 0;
+                    while (slotEnv != null &&
+                           (slotEnv.ScopeId != _plan.RootScopeId ||
+                            !slotEnv.HasSlots ||
+                            slotEnv._slots!.Length <= slotIdx))
+                    {
+                        slotEnv = slotEnv.Enclosing;
+                        slotWalkCount++;
+                        if (slotWalkCount > 100)
+                        {
+                            break;
+                        }
+                    }
+
+                    slotEnv ??= environment;
+                }
+
+                if (slotEnv is null || !TryGetValueBySlot(slotEnv,
+                        instruction.IteratorSlot,
+                        slotIdx, out var iteratorStateValue))
+                {
+                    _programCounter = instruction.BreakIndex;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                if (!iteratorStateValue.TryGetObject(out driverState))
+                {
+                    _programCounter = instruction.BreakIndex;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                IteratorStateRef.CurrentDriverState = driverState;
+            }
+
+            // Get JsVariables directly from driverState (O(1) access, no dictionary lookup)
+            var iterVar = driverState.IteratorVariable;
+            var valueVar = driverState.ValueVariable;
+
+            // Capture value JsVariable on first execution (while still in loop scope)
+            // IMPORTANT: Use the loop scope environment (from iterVar) rather than the current
+            // environment, which may be a stale per-iteration environment from a previous outer
+            // loop iteration. The value slot is allocated in the same scope as the iterator.
+            if (!valueVar.IsValid && instruction.ValueSlotIndex >= 0)
+            {
+                // Use the iterator's environment since value slot is in the same scope
+                var loopScopeEnv = iterVar.IsValid ? iterVar.Environment : environment;
+                if (loopScopeEnv.HasSlots && loopScopeEnv._slots!.Length > instruction.ValueSlotIndex)
+                {
+                    valueVar = new JsVariable(loopScopeEnv, instruction.ValueSlotIndex);
+                    driverState.ValueVariable = valueVar;
+                }
+            }
+
+            if (!driverState.IsAsyncIterator)
+            {
+                return HandleSyncIteratorMoveNext(instruction, ref environment, context, driverState, iterVar, valueVar, out returnValue);
+            }
+
+            return HandleAsyncIteratorMoveNext(instruction, ref environment, context, driverState, iterVar, valueVar, iteratorIndex, out returnValue);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleSyncIteratorMoveNext(
+            IteratorMoveNextInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            IteratorDriverState driverState,
+            JsVariable iterVar,
+            JsVariable valueVar,
+            out JsValue returnValue)
+        {
+            // If we're resuming this iterator site with an abrupt completion (return/throw),
+            // propagate it immediately instead of calling iterator.next() again.
+            var pendingResumeKind = AsyncStateRef.PendingResumeKind;
+            if (pendingResumeKind is ResumePayloadKind.Throw or ResumePayloadKind.Return)
+            {
+                var (kind, payload) = ConsumeResumeValue();
+                var abruptKind = kind == ResumePayloadKind.Return
+                    ? AbruptKind.Return
+                    : AbruptKind.Throw;
+
+                if (HandleAbruptCompletion(abruptKind, payload, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                if (abruptKind == AbruptKind.Throw)
+                {
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(payload);
+                }
+
+                returnValue = CompleteReturn(payload);
+                return InstructionResult.Return;
+            }
+
+            JsValue currentValue;
+            if (driverState.IteratorObject is { } iteratorObj)
+            {
+                driverState.NextMethod ??= iteratorObj.GetIteratorNextCallable(context);
+                var nextResult = iteratorObj.InvokeIteratorNext(
+                    driverState.NextMethod,
+                    context: context,
+                    callingEnvironment: environment);
+                // Handle case where nextResult is already a boxed JsValue
+                if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultObj))
+                {
+                    // Per ES spec 7.4.2: if result is not an object, throw TypeError
+                    var typeError = StandardLibrary.CreateTypeError(
+                        "Iterator result is not an object",
+                        context, context.RealmState);
+                    if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(typeError);
+                }
+
+                var done = resultObj.TryGetProperty("done", out var doneValue) &&
+                           JsOps.ToBoolean(doneValue);
+                if (done)
+                {
+                    // When breaking out of iterator, restore environment to enclosing scope.
+                    // This is critical for nested loops: after async resume, environment was
+                    // reset to function scope, and we need to restore it to the loop scope
+                    // so that variable lookups (like loop counter increments) work correctly.
+                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv)
+                    {
+                        environment = enclosingEnv;
+                    }
+
+                    // Clear driver state to prevent outer loop's CreateIterationEnv from
+                    // incorrectly updating this driver's CurrentIterationEnvironment.
+                    IteratorStateRef.CurrentDriverState = null;
+                    _programCounter = instruction.BreakIndex;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                // yielded is already a JsValue from TryGetProperty
+                currentValue = resultObj.TryGetProperty("value", out var yielded)
+                    ? yielded
+                    : JsValue.Undefined;
+
+                // Mark that we've successfully entered the loop (next() succeeded).
+                // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
+                // if we've entered the loop body, not if next() itself throws.
+                driverState.HasEnteredLoop = true;
+            }
+            else if (driverState.Enumerator is { } enumerator)
+            {
+                if (!enumerator.MoveNext())
+                {
+                    // Restore environment to enclosing scope when iterator exhausted
+                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv2)
+                    {
+                        environment = enclosingEnv2;
+                    }
+
+                    IteratorStateRef.CurrentDriverState = null;
+                    _programCounter = instruction.BreakIndex;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                currentValue = enumerator.Current;
+
+                // Mark that we've successfully entered the loop (enumerator succeeded).
+                driverState.HasEnteredLoop = true;
+            }
+            else
+            {
+                // Restore environment to enclosing scope when no iterator
+                if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv3)
+                {
+                    environment = enclosingEnv3;
+                }
+
+                IteratorStateRef.CurrentDriverState = null;
+                _programCounter = instruction.BreakIndex;
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            // Use JsVariable for scope-correct access (value slot is in loop scope)
+            _realmState.Logger?.LogInformation(
+                "SyncIterator StoreValue: valueVar.IsValid={Valid} currentEnv.ScopeId={CurScope} slot={Slot} value={Value}",
+                valueVar.IsValid,
+                environment.ScopeId,
+                instruction.ValueSlot.Name,
+                currentValue.Kind);
+            if (valueVar.IsValid)
+            {
+                valueVar.Write(currentValue);
+                // Also create binding for symbol-based identifier lookup in loop body
+                valueVar.Environment.DefineOrAssignJsValue(
+                    instruction.ValueSlot, currentValue);
+                _realmState.Logger?.LogInformation(
+                    "SyncIterator StoreValue: wrote to valueVar.Environment.ScopeId={Scope}",
+                    valueVar.Environment.ScopeId);
+            }
+            else
+            {
+                StoreValueBySlot(environment, instruction.ValueSlot,
+                    instruction.ValueSlotIndex, currentValue);
+                _realmState.Logger?.LogInformation(
+                    "SyncIterator StoreValue: wrote via StoreValueBySlot to env.ScopeId={Scope}",
+                    environment.ScopeId);
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult HandleAsyncIteratorMoveNext(
+            IteratorMoveNextInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            IteratorDriverState driverState,
+            JsVariable iterVar,
+            JsVariable valueVar,
+            int iteratorIndex,
+            out JsValue returnValue)
+        {
+            var awaitedValue = JsValue.Undefined;
+            var awaitedNextResult = JsValue.Undefined;
+            var hasAwaitedNextResult = false;
+            var skipToStoreValue = false;
+
+            // If we're resuming after a pending await from this
+            // iterator site, consume the resume payload and treat
+            // it as the awaited result instead of calling into the
+            // iterator again.
+            if (driverState.AwaitingNextResult || driverState.AwaitingValue)
+            {
+                var awaitingValue = driverState.AwaitingValue;
+                driverState.AwaitingNextResult = false;
+                driverState.AwaitingValue = false;
+                var (forAwaitResumeKind, forAwaitResumePayload) = ConsumeResumeValue();
+                // Use JsVariable for scope-correct access (iterator slot is in loop scope)
+                var iterStateValue = driverState.AsJsValue;
+                if (iterVar.IsValid)
+                {
+                    iterVar.Write(iterStateValue);
+                }
+                else
+                {
+                    StoreValueBySlot(environment, instruction.IteratorSlot,
+                        instruction.IteratorSlotIndex, iterStateValue);
+                }
+
+                if (forAwaitResumeKind == ResumePayloadKind.Throw)
+                {
+                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
+                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload,
+                            environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(forAwaitResumePayload);
+                }
+
+                if (forAwaitResumeKind == ResumePayloadKind.Return)
+                {
+                    // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
+                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload,
+                            environment))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    returnValue = CompleteReturn(forAwaitResumePayload);
+                    return InstructionResult.Return;
+                }
+
+                if (awaitingValue)
+                {
+                    awaitedValue = forAwaitResumePayload;
+                    skipToStoreValue = true;
+                }
+                else
+                {
+                    awaitedNextResult = forAwaitResumePayload;
+                    hasAwaitedNextResult = true;
+                }
+            }
+
+            if (!skipToStoreValue)
+            {
+                if (driverState.IteratorObject is { } awaitIteratorObj)
+                {
+                    if (!hasAwaitedNextResult)
+                    {
+                        driverState.NextMethod ??= awaitIteratorObj.GetIteratorNextCallable(context);
+                        var nextResult = awaitIteratorObj.InvokeIteratorNext(
+                            driverState.NextMethod,
+                            context: context,
+                            callingEnvironment: environment);
+                        if (!TryResolvePromiseOrYield(nextResult, context, out var awaitedNext))
+                        {
+                            if (AsyncStateRef.AsyncStepMode &&
+                                AsyncStateRef.PendingPromise.TryGetPropertyAccessor(out _))
+                            {
+                                driverState.AwaitingNextResult = true;
+                                // Use JsVariable for scope-correct access
+                                var iterState = driverState.AsJsValue;
+                                if (iterVar.IsValid)
+                                {
+                                    iterVar.Write(iterState);
+                                }
+                                else
+                                {
+                                    StoreValueBySlot(environment,
+                                        instruction.IteratorSlot,
+                                        instruction.IteratorSlotIndex, iterState);
+                                }
+
+                                // Save environment before suspending so we restore it on resume
+                                _executionEnvironment = environment;
+                                _state = GeneratorState.Suspended;
+                                _programCounter = iteratorIndex;
+                                returnValue = CreateIteratorResult(JsValue.Undefined, false);
+                                return InstructionResult.Return;
+                            }
+
+                            if (context.IsThrow)
+                            {
+                                var thrownAwait = context.FlowValue;
+                                context.Clear();
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                {
+                                    returnValue = default;
+                                    return InstructionResult.Continue;
+                                }
+
+                                TryCatchStateRef.TryStack.Clear();
+                                throw new ThrowSignal(thrownAwait);
+                            }
+
+                            // Restore environment to enclosing scope when breaking
+                            if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv4)
+                            {
+                                environment = enclosingEnv4;
+                            }
+
+                            IteratorStateRef.CurrentDriverState = null;
+                            _programCounter = instruction.BreakIndex;
+                            returnValue = default;
+                            return InstructionResult.Continue;
+                        }
+
+                        awaitedNextResult = awaitedNext;
+                    }
+
+                    if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var awaitResultObj))
+                    {
+                        // Per ES spec 7.4.2: if result is not an object, throw TypeError
+                        var typeError = StandardLibrary.CreateTypeError(
+                            "Iterator result is not an object", context,
+                            context.RealmState);
+                        if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                        {
+                            returnValue = default;
+                            return InstructionResult.Continue;
+                        }
+
+                        TryCatchStateRef.TryStack.Clear();
+                        throw new ThrowSignal(typeError);
+                    }
+
+                    var doneAwait = awaitResultObj.TryGetProperty("done", out var awaitDoneValue) &&
+                                    JsOps.ToBoolean(awaitDoneValue);
+                    if (doneAwait)
+                    {
+                        // Restore environment to enclosing scope when async iterator exhausted
+                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv5)
+                        {
+                            environment = enclosingEnv5;
+                        }
+
+                        IteratorStateRef.CurrentDriverState = null;
+                        _programCounter = instruction.BreakIndex;
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
+                        ? yieldedAwait
+                        : JsValue.Undefined;
+                    if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
+                    {
+                        if (TryHandleAwaitSuspension(driverState, iterVar,
+                                instruction, ref environment, context,
+                                iteratorIndex, out var suspendResult))
+                        {
+                            returnValue = suspendResult;
+                            return InstructionResult.Return;
+                        }
+
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    awaitedValue = fullyAwaitedValue;
+                }
+                else if (driverState.Enumerator is { } awaitEnumerator)
+                {
+                    if (!awaitEnumerator.MoveNext())
+                    {
+                        // Restore environment to enclosing scope when enumerator exhausted
+                        if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv7)
+                        {
+                            environment = enclosingEnv7;
+                        }
+
+                        // Clear the driver state since this iterator loop is done.
+                        // This prevents outer loop's CreateIterationEnv from incorrectly
+                        // updating this driver's CurrentIterationEnvironment.
+                        IteratorStateRef.CurrentDriverState = null;
+                        _programCounter = instruction.BreakIndex;
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    // enumerated is already JsValue from IEnumerator<JsValue>.Current
+                    var enumerated = awaitEnumerator.Current;
+                    if (!TryResolvePromiseOrYield(enumerated, context, out var awaitedEnumerated))
+                    {
+                        if (TryHandleAwaitSuspension(driverState, iterVar,
+                                instruction, ref environment, context,
+                                iteratorIndex, out var suspendResult))
+                        {
+                            returnValue = suspendResult;
+                            return InstructionResult.Return;
+                        }
+
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    awaitedValue = awaitedEnumerated;
+                }
+                else
+                {
+                    // Restore environment to enclosing scope
+                    if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv9)
+                    {
+                        environment = enclosingEnv9;
+                    }
+
+                    IteratorStateRef.CurrentDriverState = null;
+                    _programCounter = instruction.BreakIndex;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+            }
+
+            // StoreIteratorValue:
+            // Mark that we've successfully entered the loop (next() succeeded for async iterator).
+            // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
+            // if we've entered the loop body, not if next() itself throws.
+            driverState.HasEnteredLoop = true;
+
+            // Use JsVariable for scope-correct access (value slot is in loop scope)
+            _realmState.Logger?.LogInformation(
+                "StoreIteratorValue: valueVar.IsValid={Valid} slot={Slot} value={Value} envHash={Env}",
+                valueVar.IsValid,
+                instruction.ValueSlot.Name,
+                awaitedValue.Kind,
+                environment.GetHashCode());
+            if (valueVar.IsValid)
+            {
+                valueVar.Write(awaitedValue);
+                // Also create binding for symbol-based identifier lookup in loop body
+                valueVar.Environment.DefineOrAssignJsValue(
+                    instruction.ValueSlot, awaitedValue);
+                _realmState.Logger?.LogInformation(
+                    "StoreIteratorValue: wrote to valueVar.Environment={Env}",
+                    valueVar.Environment.GetHashCode());
+            }
+            else
+            {
+                StoreValueBySlot(environment, instruction.ValueSlot,
+                    instruction.ValueSlotIndex, awaitedValue);
+                _realmState.Logger?.LogInformation(
+                    "StoreIteratorValue: wrote via StoreValueBySlot to env={Env}",
+                    environment.GetHashCode());
+            }
+
+            // For async iterators, clear any pending completion flags that would
+            // prevent subsequent iterations after continue.
+            if (_isAsync)
+            {
+                TryCatchStateRef.TryStack.Clear();
+            }
+
+            _programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
     }
 }

@@ -4,37 +4,12 @@ using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 
 #endregion
 
 namespace Asynkron.JsEngine.Ast;
-
-/// <summary>
-/// Represents a resolved reference to a JavaScript variable within its lexical scope.
-/// Provides fast read/write access by holding the environment and slot index.
-/// </summary>
-internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
-{
-    public readonly JsEnvironment Environment = environment;
-    public readonly int SlotIndex = slotIndex;
-
-    public bool IsValid => Environment is not null && SlotIndex >= 0;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public JsValue Read()
-    {
-        return Environment.GetSlotRef(SlotIndex);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Write(JsValue value)
-    {
-        Environment.SetSlotDirect(SlotIndex, value);
-    }
-}
 
 /// <summary>
 /// Comparison type for fast loop conditions.

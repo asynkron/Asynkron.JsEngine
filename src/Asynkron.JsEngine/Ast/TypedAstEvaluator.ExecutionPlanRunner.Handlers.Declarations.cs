@@ -181,5 +181,78 @@ public static partial class TypedAstEvaluator
             returnValue = default;
             return InstructionResult.Continue;
         }
+
+        private static InstructionResult HandleComplexVariableDeclaration(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<ComplexVariableDeclarationInstruction>(instr);
+
+            // Evaluate the variable declaration using the standard AST evaluator
+            // which handles destructuring patterns, rest elements, default values, etc.
+            instruction.Declaration.EvaluateStatementJsValue(environment, context);
+
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))
+            {
+                returnValue = pendingResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var thrown = context.FlowValue;
+                context.Clear();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                {
+                    if (runner._programCounter == runner._currentInstructionIndex)
+                    {
+                        runner._programCounter = instruction.Next;
+                    }
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrown);
+            }
+
+            if (context.IsReturn)
+            {
+                var returnVal = context.FlowValue;
+                context.ClearReturn();
+                if (!runner.HandleAbruptCompletion(AbruptKind.Return, returnVal, environment))
+                {
+                    returnValue = runner.CompleteReturn(returnVal);
+                    return InstructionResult.Return;
+                }
+
+                if (runner._programCounter == runner._currentInstructionIndex)
+                {
+                    runner._programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (context.IsYield)
+            {
+                var yieldedValue = context.FlowValue;
+                var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+                runner.RecordYield(context, environment);
+                context.Clear();
+                runner._state = GeneratorState.Suspended;
+                returnValue = iteratorResultObject is not null
+                    ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                    : CreateIteratorResult(yieldedValue, false);
+                return InstructionResult.Return;
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
     }
 }

@@ -15,6 +15,7 @@ internal enum InstructionKind : byte
     FunctionDeclaration,
     ClassDeclaration,
     SimpleVariableDeclaration,
+    ComplexVariableDeclaration,
     PushEnvironment,
     PopEnvironment,
     Yield,

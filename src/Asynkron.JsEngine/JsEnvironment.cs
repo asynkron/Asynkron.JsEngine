@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
@@ -3399,6 +3400,7 @@ public sealed class JsEnvironment : IRentable
     /// <summary>
     /// Finds the slot index for a given symbol name using linear scan.
     /// Returns -1 if not found. Fast for typical JS scopes (1-10 bindings).
+    /// Uses bounds-check-free access via Unsafe.Add for hot path performance.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal int FindSlotIndex(Symbol name)
@@ -3410,9 +3412,10 @@ public sealed class JsEnvironment : IRentable
         }
 
         var count = _slotCount;
+        ref var slotsRef = ref MemoryMarshal.GetArrayDataReference(slots);
         for (var i = 0; i < count; i++)
         {
-            if (ReferenceEquals(slots[i].Name, name))
+            if (ReferenceEquals(Unsafe.Add(ref slotsRef, i).Name, name))
             {
                 return i;
             }
@@ -3434,11 +3437,12 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     /// Gets a reference to a slot by index. Caller must ensure index is valid.
+    /// Uses Unsafe.Add to bypass bounds check since caller guarantees validity.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref JsSlot GetSlotByIndex(int index)
     {
-        return ref _slots![index];
+        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
     }
 
     /// <summary>
@@ -3504,7 +3508,8 @@ public sealed class JsEnvironment : IRentable
         var index = FindSlotIndex(name);
         if (index >= 0)
         {
-            ref var slot = ref _slots![index];
+            // Use Unsafe.Add to bypass bounds check - FindSlotIndex already validated the index
+            ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
             var realmState = RealmState;
             if (realmState?.Options.DebugMode == true)
             {
@@ -3748,7 +3753,8 @@ public sealed class JsEnvironment : IRentable
             return false;
         }
 
-        ref var slot = ref resolvedSlots[slotIndex];
+        // Use Unsafe.Add to bypass bounds check - we already validated slotIndex < _slotCount above
+        ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(resolvedSlots), slotIndex);
         if (!ReferenceEquals(slot.Name, name))
         {
             if (shouldLogSlots)

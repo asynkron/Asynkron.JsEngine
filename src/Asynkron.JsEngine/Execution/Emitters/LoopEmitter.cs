@@ -76,6 +76,7 @@ internal static class LoopEmitter
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
         {
             var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
+            var slotNames = EmitContext.BuildSlotNames(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 
             // CreateEnv flows to PostIteration (increment)
             createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
@@ -85,7 +86,8 @@ internal static class LoopEmitter
                 plan.IterationSlotCount,
                 slotMap,
                 plan.AllowIterationEnvironmentPooling,
-                lexicalBindings));
+                lexicalBindings,
+                SlotNames: slotNames));
 
             // Continue should go through CreateEnv before increment
             continueTarget = createEnvIndex;
@@ -141,6 +143,7 @@ internal static class LoopEmitter
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind != LoopKind.For)
         {
             var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
+            var slotNames = EmitContext.BuildSlotNames(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 
             var createEnvBeforeBody = ctx.Append(new PushEnvironmentInstruction(
                 bodyEntry,
@@ -149,7 +152,8 @@ internal static class LoopEmitter
                 plan.IterationSlotCount,
                 slotMap,
                 plan.AllowIterationEnvironmentPooling,
-                lexicalBindings));
+                lexicalBindings,
+                SlotNames: slotNames));
             iterationBodyEntry = createEnvBeforeBody;
         }
 
@@ -179,6 +183,7 @@ internal static class LoopEmitter
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
         {
             var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
+            var slotNames = EmitContext.BuildSlotNames(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 
             // Initial PushEnv flows to loopEntry (condition)
             // This is the FIRST per-iteration environment, created before the first test
@@ -189,7 +194,8 @@ internal static class LoopEmitter
                 plan.IterationSlotCount,
                 slotMap,
                 plan.AllowIterationEnvironmentPooling,
-                lexicalBindings));
+                lexicalBindings,
+                SlotNames: slotNames));
         }
 
         if (!plan.LeadingStatements.IsDefaultOrEmpty)
@@ -216,6 +222,7 @@ internal static class LoopEmitter
         if (!plan.PerIterationBindings.IsDefaultOrEmpty && plan.Kind == LoopKind.For)
         {
             var slotMap = EmitContext.BuildSlotMap(plan.PerIterationBindings, plan.PerIterationSlotIndices);
+            var slotNames = EmitContext.BuildSlotNames(plan.PerIterationBindings, plan.PerIterationSlotIndices);
 
             // Use IterationParentScopeId if available, otherwise synthesize from IterationScopeId
             var loopScopeId = plan.IterationParentScopeId >= 0
@@ -233,7 +240,8 @@ internal static class LoopEmitter
                 plan.IterationSlotCount,
                 slotMap,
                 plan.AllowIterationEnvironmentPooling,
-                lexicalBindings));
+                lexicalBindings,
+                SlotNames: slotNames));
         }
 
         // Wrap entry with BreakableEnterInstruction to push context at runtime.

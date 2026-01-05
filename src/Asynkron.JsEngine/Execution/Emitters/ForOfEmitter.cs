@@ -154,6 +154,8 @@ internal static class ForOfEmitter
         {
             var slotMap =
                 EmitContext.BuildSlotMap(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
+            var slotNames =
+                EmitContext.BuildSlotNames(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
 
             var createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
                 iterationEntry,
@@ -162,7 +164,8 @@ internal static class ForOfEmitter
                 iteratorPlan.IterationSlotCount,
                 slotMap,
                 iteratorPlan.CanReuseIterationEnvironment,
-                lexicalBindings));
+                lexicalBindings,
+                SlotNames: slotNames));
             loopEntry = createEnvIndex;
         }
 

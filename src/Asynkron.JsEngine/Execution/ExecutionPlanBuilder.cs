@@ -132,15 +132,21 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        // After building all instructions, assign slots to user variables and update AST nodes
+        // After building all instructions, assign slots to user variables and update AST nodes.
+        //
         // NOTE: For scripts (IsScriptLevel=true), we do NOT assign slots to user variables because:
         // 1. Script hoisting already created dictionary-based bindings for var/let/const declarations
         // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
-        // For functions, slot assignment is fine because scope analysis happens at parse time.
+        //
+        // NOTE: For functions that contain dynamic scope features (with/direct eval), we also skip slot assignment
+        // because:
+        // 1. Direct eval can introduce new bindings at runtime (invalidating fixed slot layouts)
+        // 2. Slot/flat-slot reads bypass object-environment resolution needed for with semantics
+        // These functions run via dictionary lookups (AllowIdentifierCache=false).
         ScopeSlotAnalysis? analysis = null;
         SlotAssignmentRewriter? rewriter = null;
-        if (!IsScriptLevel)
+        if (!IsScriptLevel && TypedAstEvaluator.AllowsIdentifierCaching(function))
         {
             analysis = AssignSlotsToUserVariables(entryIndex, function, _rootScopeId, analysisRootScopeId,
                 out rewriter);
@@ -158,6 +164,21 @@ internal sealed partial class ExecutionPlanBuilder
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
+        var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
+        var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
+
+        // Post-process: stamp FlatSlotMappings on PushEnvironmentInstructions for O(1) access at runtime
+        if (flatSlotMappings is { Count: > 0 })
+        {
+            for (var i = 0; i < Instructions.Count; i++)
+            {
+                if (Instructions[i] is PushEnvironmentInstruction push &&
+                    flatSlotMappings.TryGetValue(push.ScopeId, out var scopeMappings))
+                {
+                    Instructions[i] = push with { FlatSlotMappings = scopeMappings };
+                }
+            }
+        }
 
         plan = new ExecutionPlan(
             [..Instructions],
@@ -170,7 +191,9 @@ internal sealed partial class ExecutionPlanBuilder
             _lexicalBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
                 EqualityComparer<int>.Default),
             RootScopeId: mappedRootScopeId,
-            layoutId);
+            layoutId,
+            flatSlotCount,
+            flatSlotMappings);
         return true;
     }
 
@@ -360,7 +383,9 @@ internal sealed partial class ExecutionPlanBuilder
             plan.RootLexicalBindings,
             plan.ScopeLexicalBindings,
             plan.RootScopeId,
-            plan.LayoutId);
+            plan.LayoutId,
+            plan.FlatSlotCount,
+            plan.FlatSlotMappings);
 
         // Update the cached plan on the FunctionExpression
         UpdateCachedExecutionPlan(funcExpr, stampedPlan);

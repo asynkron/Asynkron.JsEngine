@@ -13,6 +13,15 @@ internal readonly struct JsVariable(JsEnvironment environment, int slotIndex)
 
     public bool IsValid => Environment is not null && SlotIndex >= 0;
 
+    /// <summary>
+    /// Returns true if this variable is a const binding.
+    /// </summary>
+    public bool IsConst
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Environment.IsSlotConst(SlotIndex);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public JsValue Read()
     {

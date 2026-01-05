@@ -156,6 +156,32 @@ public sealed class JsEnvironment : IRentable
     internal bool IsFunctionScope { get; private set; }
 
     /// <summary>
+    ///     When true, indicates this environment has been captured by a closure
+    ///     and cannot be returned to the pool. The pool will ignore it on Return().
+    /// </summary>
+    internal bool IsCaptured { get; private set; }
+
+    /// <summary>
+    ///     Marks this environment and all parent environments as captured by a closure.
+    ///     Once captured, environments will not be returned to the pool.
+    ///     We must capture the entire scope chain because closures can reference
+    ///     variables from any ancestor environment.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void Capture()
+    {
+        // Fast path: if already captured, ancestors are too
+        if (IsCaptured) return;
+
+        var current = this;
+        while (current is not null && !current.IsCaptured)
+        {
+            current.IsCaptured = true;
+            current = current.Enclosing;
+        }
+    }
+
+    /// <summary>
     ///     When true, indicates this environment belongs to a default derived constructor
     ///     where argument spreading should bypass the iterator protocol per ES spec 15.7.14.
     ///     Walks up the enclosing chain to find the flag if not set locally.
@@ -212,6 +238,7 @@ public sealed class JsEnvironment : IRentable
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
         IsArrowFunctionEnvironment = false;
+        IsCaptured = false;
         // Reset slot-based state - return slots array to pool
         JsSlotArrayPool.Return(_slots);
         _slots = null;
@@ -3655,20 +3682,17 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref JsValue GetSlotRef(int slotIndex)
     {
-        ref var slot = ref _slots![slotIndex];
-        var realmState = RealmState;
-        if (realmState?.Options.DebugMode == true)
-        {
-            realmState.Logger?.LogTrace(
-                "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
-                GetHashCode(),
-                slot.Name.Name,
-                ScopeId,
-                slotIndex,
-                slot.Value.Kind);
-        }
+        return ref _slots![slotIndex].Value;
+    }
 
-        return ref slot.Value;
+    /// <summary>
+    /// Checks if a slot is a const binding.
+    /// Used by fast path handlers to throw TypeError on const reassignment.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool IsSlotConst(int slotIndex)
+    {
+        return _slots![slotIndex].IsConst;
     }
 
     /// <summary>

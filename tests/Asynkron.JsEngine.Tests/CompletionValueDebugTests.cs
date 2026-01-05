@@ -183,7 +183,7 @@ public sealed class CompletionValueDebugTests(ITestOutputHelper output)
             $"Expected undefined, got: {result}");
     }
 
-    [Fact(Timeout = 10000, Skip = "Blocked by separate bug: for (let ... of ...) inside eval() doesn't create binding")]
+    [Fact(Timeout = 10000)]
     public async Task ForOfDecl_Break_ReturnsUndefined()
     {
         var logger = new TestLogger(output, "Test9", minLogLevel: LogLevel.Debug);

@@ -29,6 +29,37 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private readonly int _targetRootScopeId;
     private readonly int _mappedRootScopeId;
 
+    /// <summary>
+    /// Maps (scopeId, slotIndex) pairs to flat slot IDs for O(1) variable access.
+    /// </summary>
+    private readonly Dictionary<(int scopeId, int slotIndex), int> _flatSlotMap = new();
+
+    /// <summary>
+    /// Total number of flat slots allocated during rewriting.
+    /// </summary>
+    public int FlatSlotCount => _flatSlotMap.Count;
+
+    /// <summary>
+    /// Builds the flat slot mappings grouped by scope ID for eager initialization.
+    /// Returns a dictionary mapping scopeId to array of (slotIndex, flatSlotId) pairs.
+    /// </summary>
+    public ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> BuildFlatSlotMappings()
+    {
+        if (_flatSlotMap.Count == 0)
+        {
+            return ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
+        }
+
+        // Group by scopeId
+        var grouped = _flatSlotMap
+            .GroupBy(kv => kv.Key.scopeId)
+            .ToImmutableDictionary(
+                g => g.Key,
+                g => g.Select(kv => (kv.Key.slotIndex, kv.Value)).ToImmutableArray());
+
+        return grouped;
+    }
+
     public SlotAssignmentRewriter(ScopeSlotAnalysis analysis, int targetRootScopeId, int analysisRootScopeId = 0)
     {
         _analysisRootScopeId = analysisRootScopeId;
@@ -249,7 +280,45 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return yieldStar with { IterableExpression = Rewrite(yieldStar.IterableExpression) };
 
             case CompoundAssignmentSlotInstruction compoundAssign:
-                return compoundAssign with { RhsExpression = Rewrite(compoundAssign.RhsExpression) };
+            {
+                // Rewrite the RHS expression first to resolve any identifiers
+                var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
+                // Extract RhsFlatSlotId if RHS is an identifier with a flat slot
+                var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
+                    ? rhsIdent.FlatSlotId
+                    : -1;
+
+                // Resolve the target symbol to get scope/slot/flatSlot metadata
+                if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
+                {
+                    var compoundFlatSlotId = GetOrCreateFlatSlotId(compoundResolution.scopeId, compoundResolution.slotIndex);
+                    return compoundAssign with
+                    {
+                        RhsExpression = rewrittenRhs,
+                        ScopeId = compoundResolution.scopeId,
+                        SlotIndex = compoundResolution.slotIndex,
+                        FlatSlotId = compoundFlatSlotId,
+                        RhsFlatSlotId = rhsFlatSlotId
+                    };
+                }
+                return compoundAssign with { RhsExpression = rewrittenRhs, RhsFlatSlotId = rhsFlatSlotId };
+            }
+
+            case IncrementSlotInstruction increment:
+            {
+                // Resolve the target symbol to get scope/slot/flatSlot metadata
+                if (TryResolve(increment.TargetSymbol, out var incrementResolution))
+                {
+                    var incrementFlatSlotId = GetOrCreateFlatSlotId(incrementResolution.scopeId, incrementResolution.slotIndex);
+                    return increment with
+                    {
+                        ScopeId = incrementResolution.scopeId,
+                        SlotIndex = incrementResolution.slotIndex,
+                        FlatSlotId = incrementFlatSlotId
+                    };
+                }
+                return increment;
+            }
 
             default:
                 return instruction;
@@ -317,21 +386,46 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         if (TryResolve(node.Name, out var resolution))
         {
-            return node with { ScopeId = resolution.scopeId, SlotIndex = resolution.slotIndex };
+            var flatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex);
+            return node with
+            {
+                ScopeId = resolution.scopeId,
+                SlotIndex = resolution.slotIndex,
+                FlatSlotId = flatSlotId
+            };
         }
 
         return node;
+    }
+
+    /// <summary>
+    /// Gets or creates a flat slot ID for the given (scopeId, slotIndex) pair.
+    /// Flat slot IDs are assigned in order of first encounter during rewriting.
+    /// </summary>
+    private int GetOrCreateFlatSlotId(int scopeId, int slotIndex)
+    {
+        var key = (scopeId, slotIndex);
+        if (_flatSlotMap.TryGetValue(key, out var flatSlotId))
+        {
+            return flatSlotId;
+        }
+
+        flatSlotId = _flatSlotMap.Count;
+        _flatSlotMap[key] = flatSlotId;
+        return flatSlotId;
     }
 
     protected override AssignmentExpression RewriteAssignment(AssignmentExpression node)
     {
         if (TryResolve(node.Target, out var resolution))
         {
+            var flatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex);
             return node with
             {
                 ScopeDepth = 0,
                 ScopeId = resolution.scopeId,
                 SlotIndex = resolution.slotIndex,
+                FlatSlotId = flatSlotId,
                 Value = RewriteExpression(node.Value)
             };
         }

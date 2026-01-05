@@ -68,25 +68,8 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             EvaluationContext context)
         {
-            // Check if we can safely pool the environment (no closures or dynamic scope that would capture it)
-            var canPoolEnvironment = !DynamicScopeDetector.ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
-            var logger = context.RealmState.Logger;
-
-            var scope = canPoolEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, block.IsStrict, logger: logger)
-                : new JsEnvironment(environment, false, block.IsStrict);
-
-            try
-            {
-                return block.EvaluateBlockSlowCore(scope, context);
-            }
-            finally
-            {
-                if (canPoolEnvironment)
-                {
-                    JsEnvironmentPool.Return(scope, logger);
-                }
-            }
+            using var scope = JsEnvironmentPool.Rent(environment, false, block.IsStrict, logger: context.RealmState.Logger);
+            return block.EvaluateBlockSlowCore(scope, context);
         }
 
         /// <summary>

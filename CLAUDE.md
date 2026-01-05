@@ -7,6 +7,7 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 - [Architecture overview](agents/how-to-architecture.md)
 
 ## Build, Tests, and Profiling
+- Use `/test` to run the internal test suite (not ECMAScript 262 tests)
 - [Build/test commands and demos](agents/how-to-build-and-test.md)
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
 

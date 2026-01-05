@@ -20,33 +20,20 @@ public static partial class TypedAstEvaluator
                 return statement.EvaluateForAwaitOfJsValue(environment, context, loopLabel);
             }
 
-            // Use cached analysis to check if loop environment can be pooled
-            // (no closures in target or iterable that would capture it)
-            var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
             var logger = context.RealmState.Logger;
-
             var cachedPlan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
 
-            var iterableEnvironment = environment;
-            var pooledTdzEnvironment = false;
             var hasLexicalDeclaration = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
                 or VariableKind.Using or VariableKind.AwaitUsing;
+
+            // Conditionally rent TDZ environment for lexical declarations
+            using var pooledTdzEnv = hasLexicalDeclaration
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
+                : default;
+            var iterableEnvironment = hasLexicalDeclaration ? pooledTdzEnv.Value! : environment;
+
             if (hasLexicalDeclaration)
             {
-                // Create TDZ environment for the for-of head bindings.
-                // Pool this environment when there are no closures in target/iterable that could capture it.
-                if (canPoolLoopEnvironment)
-                {
-                    iterableEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
-                        "for-each-head-tdz", logger: logger);
-                    pooledTdzEnvironment = true;
-                }
-                else
-                {
-                    iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
-                        "for-each-head-tdz");
-                }
-
                 InitializeIterationEnvironmentLayout(cachedPlan, iterableEnvironment);
 
                 var isConstDeclaration = statement.DeclarationKind is VariableKind.Const or VariableKind.Using
@@ -104,139 +91,110 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Use pooled environment for loop scope only if no closures will capture the chain
-            var loopEnvironment = canPoolLoopEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop", logger: logger)
-                : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
-            var lastValueJs = JsValue.Undefined;
+            // Pool handles captured environments (closures mark them, pool ignores on return)
+            using var pooledLoopEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop", logger: logger);
+            JsEnvironment loopEnvironment = pooledLoopEnv;
 
-            try
+            if (statement.Kind == ForEachKind.Of)
             {
-                if (statement.Kind == ForEachKind.Of)
+                return ExecuteIteratorWithFastPath(statement, iterableJsValue, loopEnvironment, environment, context, loopLabel);
+            }
+
+            var values = statement.Kind switch
+            {
+                ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            // OPTIMIZATION: Compute bool instead of allocating Func<JsEnvironment> lambda
+            var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
+                                         statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                                             or VariableKind.Using
+                                             or VariableKind.AwaitUsing;
+
+            var lastValueJs = JsValue.Undefined;
+            foreach (var value in values)
+            {
+                if (context.ShouldStopEvaluation)
                 {
-                    return ExecuteIteratorWithFastPath(statement, iterableJsValue, loopEnvironment, environment, context, loopLabel);
+                    break;
                 }
 
-                var values = statement.Kind switch
+                // OPTIMIZATION: Inline environment creation to avoid lambda allocation
+                JsEnvironment iterationEnvironment;
+                if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                    or VariableKind.Using or VariableKind.AwaitUsing)
                 {
-                    ForEachKind.In => EnumeratePropertyKeys(iterableJsValue),
-                    _ => throw new ArgumentOutOfRangeException()
-                };
-
-                // OPTIMIZATION: Compute bool instead of allocating Func<JsEnvironment> lambda
-                var useIterationSlotsForIn = cachedPlan is { IterationSlotCount: >= 0, IterationScopeId: >= 0 } &&
-                                             statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                                                 or VariableKind.Using
-                                                 or VariableKind.AwaitUsing;
-
-                foreach (var value in values)
-                {
-                    if (context.ShouldStopEvaluation)
+                    if (useIterationSlotsForIn)
                     {
-                        break;
-                    }
-
-                    // OPTIMIZATION: Inline environment creation to avoid lambda allocation
-                    JsEnvironment iterationEnvironment;
-                    if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const
-                        or VariableKind.Using or VariableKind.AwaitUsing)
-                    {
-                        if (useIterationSlotsForIn)
-                        {
-                            iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                                description: "for-each-iteration");
-                            InitializeIterationEnvironmentLayout(cachedPlan, iterationEnvironment);
-                        }
-                        else
-                        {
-                            iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
-                                description: "for-each-iteration");
-                        }
+                        iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                            description: "for-each-iteration");
+                        InitializeIterationEnvironmentLayout(cachedPlan, iterationEnvironment);
                     }
                     else
                     {
-                        iterationEnvironment = loopEnvironment;
-                    }
-
-                    statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
-                        statement.DeclarationKind);
-
-                    // Check if yield/await happened during binding (e.g., yield in destructuring default)
-                    if (context.ShouldStopEvaluation)
-                    {
-                        break;
-                    }
-
-                    IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
-
-                    // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
-                    // Only update V (completion value) if result.[[Value]] is not empty
-                    var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
-                    if (!bodyResult.IsUnit)
-                    {
-                        lastValueJs = bodyResult;
-                    }
-
-                    if (context.IsReturn || context.IsThrow)
-                    {
-                        break;
-                    }
-
-                    if (context.TryClearContinue(loopLabel))
-                    {
-                        continue;
-                    }
-
-                    if (context.TryClearBreak(loopLabel))
-                    {
-                        break;
+                        iterationEnvironment = new JsEnvironment(loopEnvironment, creatingSource: statement.Source,
+                            description: "for-each-iteration");
                     }
                 }
-
-                return lastValueJs;
-            }
-            finally
-            {
-                // Return pooled environments
-                if (pooledTdzEnvironment)
+                else
                 {
-                    JsEnvironmentPool.Return(iterableEnvironment, logger);
+                    iterationEnvironment = loopEnvironment;
                 }
 
-                if (canPoolLoopEnvironment)
+                statement.Target.AssignLoopBinding(value, iterationEnvironment, environment, context,
+                    statement.DeclarationKind);
+
+                // Check if yield/await happened during binding (e.g., yield in destructuring default)
+                if (context.ShouldStopEvaluation)
                 {
-                    JsEnvironmentPool.Return(loopEnvironment, logger);
+                    break;
+                }
+
+                IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
+
+                // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
+                // Only update V (completion value) if result.[[Value]] is not empty
+                var bodyResult = statement.Body.EvaluateStatementJsValue(iterationEnvironment, context);
+                if (!bodyResult.IsUnit)
+                {
+                    lastValueJs = bodyResult;
+                }
+
+                if (context.IsReturn || context.IsThrow)
+                {
+                    break;
+                }
+
+                if (context.TryClearContinue(loopLabel))
+                {
+                    continue;
+                }
+
+                if (context.TryClearBreak(loopLabel))
+                {
+                    break;
                 }
             }
+
+            return lastValueJs;
         }
 
         private JsValue EvaluateForAwaitOfJsValue(JsEnvironment environment,
             EvaluationContext context, Symbol? loopLabel)
         {
-            // Use cached analysis to check if loop environment can be pooled
-            // (no closures in target or iterable that would capture it)
-            var canPoolLoopEnvironment = statement.CanPoolLoopEnvironment;
             var logger = context.RealmState.Logger;
+            var hasLexicalDeclaration = statement.DeclarationKind is VariableKind.Let or VariableKind.Const
+                or VariableKind.Using or VariableKind.AwaitUsing;
 
-            var iterableEnvironment = environment;
-            var pooledTdzEnvironment = false;
-            if (statement.DeclarationKind is VariableKind.Let or VariableKind.Const or VariableKind.Using
-                or VariableKind.AwaitUsing)
+            // Conditionally rent TDZ environment for lexical declarations
+            using var pooledTdzEnv = hasLexicalDeclaration
+                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
+                : default;
+            var iterableEnvironment = hasLexicalDeclaration ? pooledTdzEnv.Value! : environment;
+
+            if (hasLexicalDeclaration)
             {
-                // Create TDZ environment for the for-await-of head bindings.
-                // Pool this environment when there are no closures in target/iterable that could capture it.
-                if (canPoolLoopEnvironment)
-                {
-                    iterableEnvironment = JsEnvironmentPool.Rent(environment, false, false, statement.Source,
-                        "for-each-head-tdz", logger: logger);
-                    pooledTdzEnvironment = true;
-                }
-                else
-                {
-                    iterableEnvironment = new JsEnvironment(environment, false, false, statement.Source,
-                        "for-each-head-tdz");
-                }
-
                 var plan = ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
                 InitializeIterationEnvironmentLayout(plan, iterableEnvironment);
 
@@ -259,29 +217,11 @@ public static partial class TypedAstEvaluator
                     context.RealmState);
             }
 
-            // Use pooled environment for loop scope only if no closures will capture the chain
-            var loopEnvironment = canPoolLoopEnvironment
-                ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop",
-                    logger: logger)
-                : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
+            // Pool handles captured environments (closures mark them, pool ignores on return)
+            using var pooledLoopEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop",
+                logger: logger);
 
-            try
-            {
-                return ExecuteIteratorWithFastPath(statement, iterableJs, loopEnvironment, environment, context, loopLabel);
-            }
-            finally
-            {
-                // Return pooled environments
-                if (pooledTdzEnvironment)
-                {
-                    JsEnvironmentPool.Return(iterableEnvironment, logger);
-                }
-
-                if (canPoolLoopEnvironment)
-                {
-                    JsEnvironmentPool.Return(loopEnvironment, logger);
-                }
-            }
+            return ExecuteIteratorWithFastPath(statement, iterableJs, pooledLoopEnv, environment, context, loopLabel);
         }
     }
 

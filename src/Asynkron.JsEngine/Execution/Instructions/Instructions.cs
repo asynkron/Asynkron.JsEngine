@@ -67,12 +67,18 @@ internal sealed record BinaryOpInstruction(
 ///     When true, the completion value is NOT updated (used for loop update expressions).
 ///     Per ES spec, for-loop update expressions don't contribute to the loop's completion value.
 /// </param>
+/// <param name="ScopeId">Scope ID where the variable is declared. -1 means unresolved.</param>
+/// <param name="SlotIndex">Slot index within the scope. -1 means unresolved.</param>
+/// <param name="FlatSlotId">Index into flat slots array for O(1) access. -1 means unresolved.</param>
 internal sealed record IncrementSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     bool IsIncrement,
     bool IsPrefix,
-    bool SuppressCompletionValue = false)
+    bool SuppressCompletionValue = false,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1)
     : ExecutionInstruction(InstructionKind.IncrementSlot, Next);
 
 /// <summary>
@@ -90,12 +96,20 @@ internal sealed record IncrementSlotInstruction(
 /// <param name="Operator">The compound assignment operator (Add, Subtract, etc.).</param>
 /// <param name="RhsExpression">The right-hand side expression.</param>
 /// <param name="SuppressCompletionValue">When true, the completion value is NOT updated.</param>
+/// <param name="ScopeId">Scope ID where the variable is declared. -1 means unresolved.</param>
+/// <param name="SlotIndex">Slot index within the scope. -1 means unresolved.</param>
+/// <param name="FlatSlotId">Index into flat slots array for O(1) access. -1 means unresolved.</param>
+/// <param name="RhsFlatSlotId">Flat slot ID for RHS when it's an identifier. -1 means not applicable.</param>
 internal sealed record CompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
     BinaryOperator Operator,
     ExpressionNode RhsExpression,
-    bool SuppressCompletionValue = false)
+    bool SuppressCompletionValue = false,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1,
+    int RhsFlatSlotId = -1)
     : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next);
 
 /// <summary>
@@ -152,7 +166,8 @@ internal sealed record PushEnvironmentInstruction(
     int SlotCount,
     ImmutableDictionary<Symbol, int> SlotMap,
     bool AllowPooling = false,
-    ImmutableHashSet<Symbol>? LexicalBindings = null)
+    ImmutableHashSet<Symbol>? LexicalBindings = null,
+    ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings = default)
     : ExecutionInstruction(InstructionKind.PushEnvironment, Next);
 
 /// <summary>

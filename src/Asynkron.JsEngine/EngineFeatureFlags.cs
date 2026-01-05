@@ -12,6 +12,10 @@ internal static class EngineFeatureFlags
         Environment.GetEnvironmentVariable("JSENGINE_ENABLE_NESTED_SLOT_STAMPING");
     private static readonly string? ThrowOnZeroScopeEnv =
         Environment.GetEnvironmentVariable("JSENGINE_THROW_ON_SCOPEID_ZERO");
+    private static readonly string? PreferSyncIrEnv =
+        Environment.GetEnvironmentVariable("JSENGINE_PREFER_SYNC_IR");
+    private static readonly string? ForceSyncIrEnv =
+        Environment.GetEnvironmentVariable("JSENGINE_FORCE_SYNC_IR");
 
     /// <summary>
     /// Controls whether nested function bodies are stamped with slot metadata.
@@ -26,4 +30,19 @@ internal static class EngineFeatureFlags
     /// </summary>
     internal static bool ThrowOnZeroScopeId =>
         string.Equals(ThrowOnZeroScopeEnv, "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// When true, synchronous functions attempt IR execution first and fall back to the AST evaluator
+    /// if plan generation fails. Default: false. Set JSENGINE_PREFER_SYNC_IR=true to enable at runtime.
+    /// NOTE: Currently breaks private field support - private name scopes not propagated correctly in IR path.
+    /// </summary>
+    internal static bool PreferSyncIr =>
+        ForceSyncIr || string.Equals(PreferSyncIrEnv, "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// When true, synchronous functions MUST execute via IR. Plan generation failures surface as
+    /// NotSupportedException (no AST fallback). Set JSENGINE_FORCE_SYNC_IR=true to enable at runtime.
+    /// </summary>
+    internal static bool ForceSyncIr =>
+        string.Equals(ForceSyncIrEnv, "true", StringComparison.OrdinalIgnoreCase);
 }

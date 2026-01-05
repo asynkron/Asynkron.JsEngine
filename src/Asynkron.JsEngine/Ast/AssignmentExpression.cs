@@ -18,6 +18,7 @@ namespace Asynkron.JsEngine.Ast;
 /// <param name="ScopeId">Unique ID of the scope where this variable is declared. -1 means unresolved.</param>
 /// <param name="IsImmutableTarget">True if the target is an immutable binding (e.g., named function expression name).
 /// In strict mode, assignment throws TypeError. In non-strict mode, assignment is silently ignored.</param>
+/// <param name="FlatSlotId">Index into the flat slots array for O(1) access. -1 means unresolved or requires scope chain lookup.</param>
 public sealed record AssignmentExpression(
     SourceReference? Source,
     Symbol Target,
@@ -26,7 +27,8 @@ public sealed record AssignmentExpression(
     int ScopeDepth = -1,
     int SlotIndex = -1,
     int ScopeId = -1,
-    bool IsImmutableTarget = false)
+    bool IsImmutableTarget = false,
+    int FlatSlotId = -1)
     : ExpressionNode(Source)
 {
     /// <summary>

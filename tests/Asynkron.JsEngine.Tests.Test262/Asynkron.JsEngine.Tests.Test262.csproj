@@ -32,7 +32,8 @@
   </ItemGroup>
 
   <!-- Based on the idea presented at https://mhut.ch/journal/2015/06/30/build-time-code-generation-in-msbuild -->
-  <Target Name="GenerateTestSuite" DependsOnTargets="_GenerateTestSuite" BeforeTargets="BeforeBuild" Condition="!Exists($([System.IO.Path]::Combine($(MSBuildThisFileDirectory), $(GeneratedTestSuiteDir))))">
+  <!-- Note: check for a known output file (not just the directory) so existing clones with an empty Generated/ still regenerate. -->
+  <Target Name="GenerateTestSuite" DependsOnTargets="_GenerateTestSuite" BeforeTargets="BeforeBuild" Condition="!Exists($([System.IO.Path]::Combine($(MSBuildThisFileDirectory), $(GeneratedTestSuiteDir), 'Tests262Harness.Test262Test.generated.cs'))) Or !Exists($([System.IO.Path]::Combine($(MSBuildThisFileDirectory), $(GeneratedTestSuiteDir), 'Tests262Harness.Tests.annexB.generated.cs'))) Or !Exists($([System.IO.Path]::Combine($(MSBuildThisFileDirectory), $(GeneratedTestSuiteDir), 'Tests262Harness.Tests.built-ins.generated.cs'))) Or !Exists($([System.IO.Path]::Combine($(MSBuildThisFileDirectory), $(GeneratedTestSuiteDir), 'Tests262Harness.Tests.intl402.generated.cs'))) Or !Exists($([System.IO.Path]::Combine($(MSBuildThisFileDirectory), $(GeneratedTestSuiteDir), 'Tests262Harness.Tests.language.generated.cs')))">
     <ItemGroup>
       <Compile Include="$(GeneratedTestSuiteDir)\**\*.cs" />
     </ItemGroup>

@@ -100,6 +100,107 @@ public static partial class TypedAstEvaluator
         // Each JsVariable holds a reference to the environment and slot, providing direct read/write.
         private JsVariable[]? _flatSlots;
 
+        // Delegate type for instruction handlers - enables O(1) dispatch via array lookup
+        private delegate InstructionResult InstructionHandler(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instruction,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue);
+
+        // Static handler array indexed by InstructionKind for O(1) dispatch
+        private static readonly InstructionHandler[] InstructionHandlers = InitializeHandlers();
+
+        private static InstructionHandler[] InitializeHandlers()
+        {
+            var handlers = new InstructionHandler[33];
+            handlers[(int)InstructionKind.Statement] = DispatchStatement;
+            handlers[(int)InstructionKind.Throw] = HandleThrow;
+            handlers[(int)InstructionKind.EvaluateAndDiscard] = DispatchEvaluateAndDiscard;
+            handlers[(int)InstructionKind.BinaryOp] = DispatchBinaryOp;
+            handlers[(int)InstructionKind.IncrementSlot] = HandleIncrementSlot;
+            handlers[(int)InstructionKind.CompoundAssignmentSlot] = HandleCompoundAssignmentSlot;
+            handlers[(int)InstructionKind.FunctionDeclaration] = DispatchFunctionDeclaration;
+            handlers[(int)InstructionKind.ClassDeclaration] = DispatchClassDeclaration;
+            handlers[(int)InstructionKind.SimpleVariableDeclaration] = DispatchSimpleVariableDeclaration;
+            handlers[(int)InstructionKind.PushEnvironment] = HandlePushEnvironment;
+            handlers[(int)InstructionKind.PopEnvironment] = HandlePopEnvironment;
+            handlers[(int)InstructionKind.Yield] = DispatchYield;
+            handlers[(int)InstructionKind.YieldStar] = DispatchYieldStar;
+            handlers[(int)InstructionKind.StoreResumeValue] = DispatchStoreResumeValue;
+            handlers[(int)InstructionKind.EnterTry] = HandleEnterTry;
+            handlers[(int)InstructionKind.EnterCatch] = HandleEnterCatch;
+            handlers[(int)InstructionKind.EnterCatchWithDestructuring] = HandleEnterCatchWithDestructuring;
+            handlers[(int)InstructionKind.LeaveTry] = HandleLeaveTry;
+            handlers[(int)InstructionKind.BreakableEnter] = HandleBreakableEnter;
+            handlers[(int)InstructionKind.BreakableExit] = HandleBreakableExit;
+            handlers[(int)InstructionKind.EndFinally] = HandleEndFinally;
+            handlers[(int)InstructionKind.IteratorInit] = DispatchIteratorInit;
+            handlers[(int)InstructionKind.IteratorMoveNext] = DispatchIteratorMoveNext;
+            handlers[(int)InstructionKind.Jump] = HandleJump;
+            handlers[(int)InstructionKind.Branch] = HandleBranch;
+            handlers[(int)InstructionKind.Break] = HandleBreak;
+            handlers[(int)InstructionKind.Continue] = HandleContinue;
+            handlers[(int)InstructionKind.Return] = HandleReturn;
+            handlers[(int)InstructionKind.EnterWith] = HandleEnterWith;
+            handlers[(int)InstructionKind.LeaveWith] = HandleLeaveWith;
+            handlers[(int)InstructionKind.IteratorClose] = HandleIteratorClose;
+            handlers[(int)InstructionKind.SetCompletionValue] = HandleSetCompletionValue;
+            handlers[(int)InstructionKind.Expression] = DispatchExpression;
+            return handlers;
+        }
+
+        // Static dispatch methods for each instruction kind
+        private static InstructionResult DispatchStatement(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleStatement(Unsafe.As<StatementInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchEvaluateAndDiscard(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleEvaluateAndDiscard(Unsafe.As<EvaluateAndDiscardInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchBinaryOp(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleBinaryOp(Unsafe.As<BinaryOpInstruction>(instr), env, ctx, out ret);
+
+
+
+        private static InstructionResult DispatchFunctionDeclaration(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+        {
+            runner.HandleFunctionDeclaration(Unsafe.As<FunctionDeclarationInstruction>(instr), out _);
+            ret = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult DispatchClassDeclaration(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleClassDeclaration(Unsafe.As<ClassDeclarationInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchSimpleVariableDeclaration(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleSimpleVariableDeclaration(Unsafe.As<SimpleVariableDeclarationInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchYield(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleYield(Unsafe.As<YieldInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchYieldStar(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleYieldStar(Unsafe.As<YieldStarInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchStoreResumeValue(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+        {
+            runner.HandleStoreResumeValue(Unsafe.As<StoreResumeValueInstruction>(instr), env, ctx, out _);
+            ret = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult DispatchIteratorInit(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleIteratorInit(Unsafe.As<IteratorInitInstruction>(instr), env, ctx, out ret);
+
+        private static InstructionResult DispatchIteratorMoveNext(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => runner.HandleIteratorMoveNext(Unsafe.As<IteratorMoveNextInstruction>(instr), ref env, ctx, out ret);
+
+
+
+
+
+        private static InstructionResult DispatchExpression(ExecutionPlanRunner runner, ExecutionInstruction instr, ref JsEnvironment env, EvaluationContext ctx, out JsValue ret)
+            => throw new InvalidOperationException("Expression instruction should not be dispatched via handler table");
+
         public ExecutionPlanRunner(
             FunctionExpression function,
             JsEnvironment closure,
@@ -914,259 +1015,34 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
-            switch (instructionKind)
-            {
-                case InstructionKind.Statement:
-                {
-                    var result = HandleStatement(Unsafe.As<StatementInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Throw:
-                {
-                    var result = HandleThrow(Unsafe.As<ThrowInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.EvaluateAndDiscard:
-                {
-                    var result = HandleEvaluateAndDiscard(Unsafe.As<EvaluateAndDiscardInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.BinaryOp:
-                {
-                    var result = HandleBinaryOp(Unsafe.As<BinaryOpInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.IncrementSlot:
-                {
-                    var result = HandleIncrementSlot(Unsafe.As<IncrementSlotInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.CompoundAssignmentSlot:
-                {
-                    var result = HandleCompoundAssignmentSlot(Unsafe.As<CompoundAssignmentSlotInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.FunctionDeclaration:
-                {
-                    HandleFunctionDeclaration(Unsafe.As<FunctionDeclarationInstruction>(instruction), out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.ClassDeclaration:
-                {
-                    var result = HandleClassDeclaration(Unsafe.As<ClassDeclarationInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.SimpleVariableDeclaration:
-                {
-                    var result = HandleSimpleVariableDeclaration(Unsafe.As<SimpleVariableDeclarationInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.PushEnvironment:
-                {
-                    HandlePushEnvironment(Unsafe.As<PushEnvironmentInstruction>(instruction), ref environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.PopEnvironment:
-                {
-                    HandlePopEnvironment(Unsafe.As<PopEnvironmentInstruction>(instruction), ref environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Yield:
-                {
-                    var result = HandleYield(Unsafe.As<YieldInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.YieldStar:
-                {
-                    var result = HandleYieldStar(Unsafe.As<YieldStarInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.StoreResumeValue:
-                {
-                    HandleStoreResumeValue(Unsafe.As<StoreResumeValueInstruction>(instruction), environment, context, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.EnterTry:
-                {
-                    HandleEnterTry(Unsafe.As<EnterTryInstruction>(instruction), environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.EnterCatch:
-                {
-                    HandleEnterCatch(Unsafe.As<EnterCatchInstruction>(instruction), ref environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.EnterCatchWithDestructuring:
-                {
-                    var result = HandleEnterCatchWithDestructuring(Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction), ref environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.LeaveTry:
-                {
-                    HandleLeaveTry(Unsafe.As<LeaveTryInstruction>(instruction), out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.BreakableEnter:
-                {
-                    HandleBreakableEnter(Unsafe.As<BreakableEnterInstruction>(instruction), out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.BreakableExit:
-                {
-                    HandleBreakableExit(Unsafe.As<BreakableExitInstruction>(instruction), out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.EndFinally:
-                {
-                    var result = HandleEndFinally(Unsafe.As<EndFinallyInstruction>(instruction), ref environment, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.IteratorInit:
-                {
-                    var result = HandleIteratorInit(Unsafe.As<IteratorInitInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.IteratorMoveNext:
-                {
-                    var result = HandleIteratorMoveNext(Unsafe.As<IteratorMoveNextInstruction>(instruction), ref environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Jump:
-                {
-                    HandleJumpSwitch(Unsafe.As<JumpInstruction>(instruction), out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Branch:
-                {
-                    var result = HandleBranchSwitch(Unsafe.As<BranchInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Break:
-                {
-                    HandleBreak(Unsafe.As<BreakInstruction>(instruction), ref environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Continue:
-                {
-                    HandleContinue(Unsafe.As<ContinueInstruction>(instruction), ref environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.Return:
-                {
-                    var result = HandleReturn(Unsafe.As<ReturnInstruction>(instruction), environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.EnterWith:
-                {
-                    var result = HandleEnterWith(Unsafe.As<EnterWithInstruction>(instruction), ref environment, context, out returnValue);
-                    if (result == InstructionResult.Return) return result;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.LeaveWith:
-                {
-                    HandleLeaveWith(Unsafe.As<LeaveWithInstruction>(instruction), ref environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.IteratorClose:
-                {
-                    HandleIteratorClose(Unsafe.As<IteratorCloseInstruction>(instruction), environment, out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                case InstructionKind.SetCompletionValue:
-                {
-                    HandleSetCompletionValue(Unsafe.As<SetCompletionValueInstruction>(instruction), out _);
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                default:
-                    throw new InvalidOperationException(
-                        $"Unsupported generator instruction kind {instruction.Kind}");
-            }
+            return InstructionHandlers[(int)instructionKind](this, instruction, ref environment, context, out returnValue);
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
         {
-            if (_executionEnvironment is null)
+            if (_executionEnvironment is not null)
             {
-                _executionEnvironment = CreateExecutionEnvironment();
-                LogRootScopeIdOnce();
+                return _executionEnvironment;
+            }
 
-                // Initialize and populate flat slots for the root scope and closure chain
-                if (_plan is not null && _plan.FlatSlotCount > 0 && _flatSlots is null)
-                {
-                    _flatSlots = new JsVariable[_plan.FlatSlotCount];
-                    PopulateFlatSlotsForScope(_plan.RootScopeId, _executionEnvironment);
+            _executionEnvironment = CreateExecutionEnvironment();
+            LogRootScopeIdOnce();
 
-                    // Walk closure chain to populate flat slots for captured variables
-                    var closureEnv = _executionEnvironment.Enclosing;
-                    while (closureEnv is not null)
-                    {
-                        PopulateFlatSlotsForScope(closureEnv.ScopeId, closureEnv);
-                        closureEnv = closureEnv.Enclosing;
-                    }
-                }
+            // Initialize and populate flat slots for the root scope and closure chain
+            if (_plan is null || _plan.FlatSlotCount <= 0 || _flatSlots is not null)
+            {
+                return _executionEnvironment;
+            }
+
+            _flatSlots = new JsVariable[_plan.FlatSlotCount];
+            PopulateFlatSlotsForScope(_plan.RootScopeId, _executionEnvironment);
+
+            // Walk closure chain to populate flat slots for captured variables
+            var closureEnv = _executionEnvironment.Enclosing;
+            while (closureEnv is not null)
+            {
+                PopulateFlatSlotsForScope(closureEnv.ScopeId, closureEnv);
+                closureEnv = closureEnv.Enclosing;
             }
 
             return _executionEnvironment;
@@ -1878,20 +1754,17 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleThrow(
-            ThrowInstruction instruction,
-            JsEnvironment environment,
+        private static InstructionResult HandleThrow(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<ThrowInstruction>(instr);
             var throwValue = instruction.Expression.EvaluateExpression(environment, context);
 
-            if (_isAsync && TryHandlePendingAwait(context, out var pendingThrowResult, environment))
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingThrowResult, environment))
             {
                 returnValue = pendingThrowResult;
                 return InstructionResult.Return;
@@ -1901,18 +1774,18 @@ public static partial class TypedAstEvaluator
             {
                 var existingThrown = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
                 {
-                    if (_programCounter != _currentInstructionIndex)
+                    if (runner._programCounter != runner._currentInstructionIndex)
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
 
-                    if (TryCatchStateRef.TryStack.Count > 0)
+                    if (runner.TryCatchStateRef.TryStack.Count > 0)
                     {
-                        TryCatchStateRef.TryStack.Pop();
-                        if (HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
+                        runner.TryCatchStateRef.TryStack.Pop();
+                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, existingThrown, environment))
                         {
                             returnValue = default;
                             return InstructionResult.Continue;
@@ -1920,22 +1793,22 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                TryCatchStateRef.TryStack.Clear();
+                runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(existingThrown);
             }
 
-            if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
             {
-                if (_programCounter != _currentInstructionIndex)
+                if (runner._programCounter != runner._currentInstructionIndex)
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                if (TryCatchStateRef.TryStack.Count > 0)
+                if (runner.TryCatchStateRef.TryStack.Count > 0)
                 {
-                    TryCatchStateRef.TryStack.Pop();
-                    if (HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
+                    runner.TryCatchStateRef.TryStack.Pop();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, throwValue, environment))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -1943,7 +1816,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            TryCatchStateRef.TryStack.Clear();
+            runner.TryCatchStateRef.TryStack.Clear();
             throw new ThrowSignal(throwValue);
         }
 
@@ -2052,23 +1925,20 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleIncrementSlot(
-            IncrementSlotInstruction instruction,
-            JsEnvironment environment,
+        private static InstructionResult HandleIncrementSlot(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<IncrementSlotInstruction>(instr);
             // Fast path: use flat slot for O(1) access when available
             // Cache the variable reference once to avoid double array access
             JsValue incCurrentValue;
             var flatSlotId = instruction.FlatSlotId;
-            ref var variable = ref (flatSlotId >= 0 && _flatSlots is not null
-                ? ref _flatSlots[flatSlotId]
+            ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
+                ? ref runner._flatSlots[flatSlotId]
                 : ref Unsafe.NullRef<JsVariable>());
             var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
 
@@ -2085,13 +1955,13 @@ public static partial class TypedAstEvaluator
             {
                 var incThrown = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, incThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, incThrown, environment))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                TryCatchStateRef.TryStack.Clear();
+                runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(incThrown);
             }
 
@@ -2120,13 +1990,13 @@ public static partial class TypedAstEvaluator
                 {
                     var incFlowThrown = context.FlowValue;
                     context.Clear();
-                    if (HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown, environment))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
 
-                    TryCatchStateRef.TryStack.Clear();
+                    runner.TryCatchStateRef.TryStack.Clear();
                     throw new ThrowSignal(incFlowThrown);
                 }
 
@@ -2160,33 +2030,30 @@ public static partial class TypedAstEvaluator
                 ProfileAssignJsValue(environment, instruction.TargetSymbol, incNewJsValue);
             }
 
-            if (_isScriptMode && !instruction.SuppressCompletionValue)
+            if (runner._isScriptMode && !instruction.SuppressCompletionValue)
             {
-                _scriptCompletionValue = instruction.IsPrefix ? incNewJsValue : incOldNumericValue;
+                runner._scriptCompletionValue = instruction.IsPrefix ? incNewJsValue : incOldNumericValue;
             }
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleCompoundAssignmentSlot(
-            CompoundAssignmentSlotInstruction instruction,
-            JsEnvironment environment,
+        private static InstructionResult HandleCompoundAssignmentSlot(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<CompoundAssignmentSlotInstruction>(instr);
             // Fast path: use flat slot for O(1) access when available
             // Cache the variable reference once to avoid double array access
             JsValue compCurrentValue;
             var flatSlotId = instruction.FlatSlotId;
-            ref var variable = ref (flatSlotId >= 0 && _flatSlots is not null
-                ? ref _flatSlots[flatSlotId]
+            ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
+                ? ref runner._flatSlots[flatSlotId]
                 : ref Unsafe.NullRef<JsVariable>());
             var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
 
@@ -2203,13 +2070,13 @@ public static partial class TypedAstEvaluator
             {
                 var compThrown = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, compThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, compThrown, environment))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                TryCatchStateRef.TryStack.Clear();
+                runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(compThrown);
             }
 
@@ -2219,9 +2086,9 @@ public static partial class TypedAstEvaluator
                 case LiteralExpression { Value: var literalValue }:
                     compRhsValue = literalValue;
                     break;
-                case IdentifierExpression { FlatSlotId: >= 0 } rhsIdent when _flatSlots is not null:
+                case IdentifierExpression { FlatSlotId: >= 0 } rhsIdent when runner._flatSlots is not null:
                     // Fast path: use flat slot for O(1) RHS read
-                    compRhsValue = _flatSlots[rhsIdent.FlatSlotId].Read();
+                    compRhsValue = runner._flatSlots[rhsIdent.FlatSlotId].Read();
                     break;
                 case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
                     if (environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
@@ -2239,7 +2106,7 @@ public static partial class TypedAstEvaluator
 
             if (context.ShouldStopEvaluation)
             {
-                if (_isAsync && TryHandlePendingAwait(context, out var pendingCompResult, environment))
+                if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingCompResult, environment))
                 {
                     returnValue = pendingCompResult;
                     return InstructionResult.Return;
@@ -2249,13 +2116,13 @@ public static partial class TypedAstEvaluator
                 {
                     var compRhsThrown = context.FlowValue;
                     context.Clear();
-                    if (HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown, environment))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
 
-                    TryCatchStateRef.TryStack.Clear();
+                    runner.TryCatchStateRef.TryStack.Clear();
                     throw new ThrowSignal(compRhsThrown);
                 }
             }
@@ -2283,12 +2150,12 @@ public static partial class TypedAstEvaluator
                 ProfileAssignJsValue(environment, instruction.TargetSymbol, compResult);
             }
 
-            if (_isScriptMode && !instruction.SuppressCompletionValue)
+            if (runner._isScriptMode && !instruction.SuppressCompletionValue)
             {
-                _scriptCompletionValue = compResult;
+                runner._scriptCompletionValue = compResult;
             }
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
@@ -2468,118 +2335,115 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleBreakableEnter(
-            BreakableEnterInstruction instruction,
+        private static InstructionResult HandleBreakableEnter(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<BreakableEnterInstruction>(instr);
             if (instruction.ConstructKind == BreakableKind.ResetsCompletionValue)
             {
-                ResetCompletionValue();
+                runner.ResetCompletionValue();
             }
 
-            BreakableStateRef.BreakableStack.Push(new BreakableFrame(
+            runner.BreakableStateRef.BreakableStack.Push(new BreakableFrame(
                 instruction.Label,
                 instruction.BreakTarget,
                 instruction.ContinueTarget));
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleBreakableExit(
-            BreakableExitInstruction instruction,
-            out JsValue returnValue)
-        {
-            if (BreakableStateRef.BreakableStack.Count > 0)
-            {
-                BreakableStateRef.BreakableStack.Pop();
-            }
-
-            FinalizeCompletionValue();
-            _programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleEnterTry(
-            EnterTryInstruction instruction,
-            JsEnvironment environment,
-            out JsValue returnValue)
-        {
-            ResetCompletionValue();
-            PushTryFrame(instruction, environment);
-            _programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleLeaveTry(
-            LeaveTryInstruction instruction,
-            out JsValue returnValue)
-        {
-            CompleteTryNormally(instruction.Next);
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleSetCompletionValue(
-            SetCompletionValueInstruction instruction,
-            out JsValue returnValue)
-        {
-            if (_isScriptMode)
-            {
-                _scriptCompletionValue = JsValue.Undefined;
-            }
-
-            _programCounter = instruction.Next;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleBreak(
-            BreakInstruction instruction,
+        private static InstructionResult HandleBreakableExit(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
-            if (HandleAbruptCompletion(AbruptKind.Break, instruction.TargetIndex, environment))
+            var instruction = Unsafe.As<BreakableExitInstruction>(instr);
+            if (runner.BreakableStateRef.BreakableStack.Count > 0)
             {
-                if (_programCounter == _currentInstructionIndex && TryCatchStateRef.TryStack.Count > 0)
+                runner.BreakableStateRef.BreakableStack.Pop();
+            }
+
+            runner.FinalizeCompletionValue();
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult HandleEnterTry(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<EnterTryInstruction>(instr);
+            runner.ResetCompletionValue();
+            runner.PushTryFrame(instruction, environment);
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult HandleLeaveTry(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<LeaveTryInstruction>(instr);
+            runner.CompleteTryNormally(instruction.Next);
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult HandleSetCompletionValue(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<SetCompletionValueInstruction>(instr);
+            if (runner._isScriptMode)
+            {
+                runner._scriptCompletionValue = JsValue.Undefined;
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+#if NO_INLINING
+        [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private static InstructionResult HandleBreak(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<BreakInstruction>(instr);
+            if (runner.HandleAbruptCompletion(AbruptKind.Break, instruction.TargetIndex, environment))
+            {
+                if (runner._programCounter == runner._currentInstructionIndex && runner.TryCatchStateRef.TryStack.Count > 0)
                 {
-                    var frame = TryCatchStateRef.TryStack.Peek();
+                    var frame = runner.TryCatchStateRef.TryStack.Peek();
                     if (frame.EndFinallyIndex >= 0)
                     {
-                        _programCounter = frame.EndFinallyIndex;
+                        runner._programCounter = frame.EndFinallyIndex;
                     }
                 }
 
@@ -2602,29 +2466,27 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            _programCounter = instruction.TargetIndex;
+            runner._programCounter = instruction.TargetIndex;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleContinue(
-            ContinueInstruction instruction,
+        private static InstructionResult HandleContinue(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
-            if (HandleAbruptCompletion(AbruptKind.Continue, instruction.TargetIndex, environment))
+            var instruction = Unsafe.As<ContinueInstruction>(instr);
+            if (runner.HandleAbruptCompletion(AbruptKind.Continue, instruction.TargetIndex, environment))
             {
-                if (_programCounter == _currentInstructionIndex && TryCatchStateRef.TryStack.Count > 0)
+                if (runner._programCounter == runner._currentInstructionIndex && runner.TryCatchStateRef.TryStack.Count > 0)
                 {
-                    var frame = TryCatchStateRef.TryStack.Peek();
+                    var frame = runner.TryCatchStateRef.TryStack.Peek();
                     if (frame.EndFinallyIndex >= 0)
                     {
-                        _programCounter = frame.EndFinallyIndex;
+                        runner._programCounter = frame.EndFinallyIndex;
                     }
                 }
 
@@ -2647,25 +2509,22 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            _programCounter = instruction.TargetIndex;
+            runner._programCounter = instruction.TargetIndex;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleReturn(
-            ReturnInstruction instruction,
-            JsEnvironment environment,
+        private static InstructionResult HandleReturn(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<ReturnInstruction>(instr);
             var returnVal = instruction.ReturnExpression?.EvaluateExpression(environment, context) ?? JsValue.Undefined;
 
-            if (_isAsync && TryHandlePendingAwait(context, out var pendingReturnResult, environment))
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingReturnResult, environment))
             {
                 returnValue = pendingReturnResult;
                 return InstructionResult.Return;
@@ -2675,17 +2534,17 @@ public static partial class TypedAstEvaluator
             {
                 var pendingThrow = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
                 {
-                    if (_programCounter == _currentInstructionIndex)
+                    if (runner._programCounter == runner._currentInstructionIndex)
                     {
-                        _programCounter = instruction.Next;
+                        runner._programCounter = instruction.Next;
                     }
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                TryCatchStateRef.TryStack.Clear();
+                runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(pendingThrow);
             }
 
@@ -2696,25 +2555,25 @@ public static partial class TypedAstEvaluator
                 returnVal = pendingReturn;
             }
 
-            var wasInsideScheduledFinally = IsInsideScheduledFinally();
+            var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
 
-            if (HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal, environment))
+            if (runner.HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal, environment))
             {
                 if (wasInsideScheduledFinally)
                 {
-                    returnValue = CompleteReturn(returnVal);
+                    returnValue = runner.CompleteReturn(returnVal);
                     return InstructionResult.Return;
                 }
 
-                if (_programCounter == _currentInstructionIndex)
+                if (runner._programCounter == runner._currentInstructionIndex)
                 {
-                    _programCounter = instruction.Next;
+                    runner._programCounter = instruction.Next;
                 }
                 returnValue = default;
                 return InstructionResult.Continue;
             }
 
-            returnValue = CompleteReturn(returnVal);
+            returnValue = runner.CompleteReturn(returnVal);
             return InstructionResult.Return;
         }
 
@@ -2723,29 +2582,29 @@ public static partial class TypedAstEvaluator
 #else
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private InstructionResult HandleJumpSwitch(
-            JumpInstruction instruction,
+        private static InstructionResult HandleJump(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
-            _programCounter = instruction.TargetIndex;
+            runner._programCounter = Unsafe.As<JumpInstruction>(instr).TargetIndex;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleBranchSwitch(
-            BranchInstruction instruction,
-            JsEnvironment environment,
+        private static InstructionResult HandleBranch(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<BranchInstruction>(instr);
             var testValue = instruction.Condition.EvaluateExpression(environment, context);
 
-            if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBranchResult, environment))
             {
                 returnValue = pendingBranchResult;
                 return InstructionResult.Return;
@@ -2755,17 +2614,17 @@ public static partial class TypedAstEvaluator
             {
                 var thrownValue = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                TryCatchStateRef.TryStack.Clear();
+                runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(thrownValue);
             }
 
-            _programCounter = testValue.IsTruthy ? instruction.ConsequentIndex : instruction.AlternateIndex;
+            runner._programCounter = testValue.IsTruthy ? instruction.ConsequentIndex : instruction.AlternateIndex;
             returnValue = default;
             return InstructionResult.Continue;
         }
@@ -2837,22 +2696,20 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleEnterCatch(
-            EnterCatchInstruction instruction,
+        private static InstructionResult HandleEnterCatch(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
-            ResetCompletionValue();
+            var instruction = Unsafe.As<EnterCatchInstruction>(instr);
+            runner.ResetCompletionValue();
 
             var thrownValue = JsValue.Undefined;
-            if (TryCatchStateRef.TryStack.Count > 0)
+            if (runner.TryCatchStateRef.TryStack.Count > 0)
             {
-                thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
+                thrownValue = runner.TryCatchStateRef.TryStack.Peek().ThrownValue;
             }
 
             var catchEnv = new JsEnvironment(
@@ -2873,28 +2730,25 @@ public static partial class TypedAstEvaluator
             }
 
             environment = catchEnv;
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleEnterCatchWithDestructuring(
-            EnterCatchWithDestructuringInstruction instruction,
+        private static InstructionResult HandleEnterCatchWithDestructuring(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
-            ResetCompletionValue();
+            var instruction = Unsafe.As<EnterCatchWithDestructuringInstruction>(instr);
+            runner.ResetCompletionValue();
 
             var thrownValue = JsValue.Undefined;
-            if (TryCatchStateRef.TryStack.Count > 0)
+            if (runner.TryCatchStateRef.TryStack.Count > 0)
             {
-                thrownValue = TryCatchStateRef.TryStack.Peek().ThrownValue;
+                thrownValue = runner.TryCatchStateRef.TryStack.Peek().ThrownValue;
             }
 
             var catchEnv = new JsEnvironment(
@@ -2917,104 +2771,99 @@ public static partial class TypedAstEvaluator
                 {
                     var exception = context.FlowValue;
                     context.Clear();
-                    if (HandleAbruptCompletion(AbruptKind.Throw, exception, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, exception, environment))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
 
-                    TryCatchStateRef.TryStack.Clear();
+                    runner.TryCatchStateRef.TryStack.Clear();
                     throw new ThrowSignal(exception);
                 }
             }
 
             environment = catchEnv;
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleEndFinally(
-            EndFinallyInstruction instruction,
+        private static InstructionResult HandleEndFinally(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
-            if (TryCatchStateRef.TryStack.Count == 0)
+            var instruction = Unsafe.As<EndFinallyInstruction>(instr);
+            if (runner.TryCatchStateRef.TryStack.Count == 0)
             {
-                _programCounter = instruction.Next;
+                runner._programCounter = instruction.Next;
                 returnValue = default;
                 return InstructionResult.Continue;
             }
 
-            var completedFrame = TryCatchStateRef.TryStack.Pop();
+            var completedFrame = runner.TryCatchStateRef.TryStack.Pop();
             var pending = completedFrame.PendingCompletion;
 
             if (pending.Kind == AbruptKind.None)
             {
-                RestoreCompletionValueFromFinally(completedFrame);
+                runner.RestoreCompletionValueFromFinally(completedFrame);
                 var target = pending.ResumeTarget >= 0 ? pending.ResumeTarget : instruction.Next;
-                _programCounter = target;
+                runner._programCounter = target;
                 returnValue = default;
                 return InstructionResult.Continue;
             }
 
             if (pending.Kind == AbruptKind.Return)
             {
-                if (HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Return, pending.Value, environment))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
                 var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
-                returnValue = CompleteReturn(pendingJs);
+                returnValue = runner.CompleteReturn(pendingJs);
                 return InstructionResult.Return;
             }
 
             if (pending.Kind == AbruptKind.Break || pending.Kind == AbruptKind.Continue)
             {
-                RestoreCompletionValueFromFinally(completedFrame);
-                if (HandleAbruptCompletion(pending.Kind, pending.Value, environment))
+                runner.RestoreCompletionValueFromFinally(completedFrame);
+                if (runner.HandleAbruptCompletion(pending.Kind, pending.Value, environment))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                _programCounter = pending.Value is int idx ? idx : instruction.Next;
+                runner._programCounter = pending.Value is int idx ? idx : instruction.Next;
                 returnValue = default;
                 return InstructionResult.Continue;
             }
 
-            if (HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, pending.Value, environment))
             {
                 returnValue = default;
                 return InstructionResult.Continue;
             }
 
-            TryCatchStateRef.TryStack.Clear();
+            runner.TryCatchStateRef.TryStack.Clear();
             var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
             throw new ThrowSignal(throwJs);
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleEnterWith(
-            EnterWithInstruction instruction,
+        private static InstructionResult HandleEnterWith(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
             EvaluationContext context,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<EnterWithInstruction>(instr);
             var objValueJs = instruction.ObjectExpression.EvaluateExpression(environment, context);
 
-            if (_isAsync && TryHandlePendingAwait(context, out var pendingWithResult, environment))
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingWithResult, environment))
             {
                 returnValue = pendingWithResult;
                 return InstructionResult.Return;
@@ -3024,13 +2873,13 @@ public static partial class TypedAstEvaluator
             {
                 var thrownWith = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                TryCatchStateRef.TryStack.Clear();
+                runner.TryCatchStateRef.TryStack.Clear();
                 throw new ThrowSignal(thrownWith);
             }
 
@@ -3038,53 +2887,49 @@ public static partial class TypedAstEvaluator
             {
                 var withEnv = new JsEnvironment(environment, false, context.CurrentScope.IsStrict,
                     instruction.ObjectExpression.Source, "with", withObject);
-                StoreSymbolValue(_executionEnvironment!, instruction.WithScopeSlot, withEnv);
-                WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
+                StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
+                runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
                 environment = withEnv;
             }
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleLeaveWith(
-            LeaveWithInstruction instruction,
+        private static InstructionResult HandleLeaveWith(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
-            if (WithStateRef.ActiveWithScopes.Count > 0 &&
-                ReferenceEquals(WithStateRef.ActiveWithScopes.Peek(), instruction.WithScopeSlot))
+            var instruction = Unsafe.As<LeaveWithInstruction>(instr);
+            if (runner.WithStateRef.ActiveWithScopes.Count > 0 &&
+                ReferenceEquals(runner.WithStateRef.ActiveWithScopes.Peek(), instruction.WithScopeSlot))
             {
-                WithStateRef.ActiveWithScopes.Pop();
+                runner.WithStateRef.ActiveWithScopes.Pop();
             }
 
-            if (TryGetSymbolValueJsValue(_executionEnvironment!, instruction.WithScopeSlot, out var storedEnvValue) &&
+            if (TryGetSymbolValueJsValue(runner._executionEnvironment!, instruction.WithScopeSlot, out var storedEnvValue) &&
                 storedEnvValue.TryGetObject<JsEnvironment>(out var storedWithEnv))
             {
                 environment = storedWithEnv.Enclosing ?? environment;
             }
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandleIteratorClose(
-            IteratorCloseInstruction instruction,
-            JsEnvironment environment,
+        private static InstructionResult HandleIteratorClose(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<IteratorCloseInstruction>(instr);
             if (TryGetSymbolValueJsValue(environment, instruction.IteratorSlot, out var iterStateValue) &&
                 iterStateValue.TryGetObject<IteratorDriverState>(out var iterState) &&
                 iterState.IteratorObject is { } iteratorObj)
@@ -3092,7 +2937,7 @@ public static partial class TypedAstEvaluator
                 if (!iterState.HasEnteredLoop)
                 {
                     iterState.MarkIteratorClosed();
-                    _programCounter = instruction.Next;
+                    runner._programCounter = instruction.Next;
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
@@ -3100,38 +2945,38 @@ public static partial class TypedAstEvaluator
                 iterState.MarkIteratorClosed();
 
                 var hasPendingThrow = false;
-                if (TryCatchStateRef.TryStack.Count > 0)
+                if (runner.TryCatchStateRef.TryStack.Count > 0)
                 {
-                    var topFrame = TryCatchStateRef.TryStack.Peek();
+                    var topFrame = runner.TryCatchStateRef.TryStack.Peek();
                     hasPendingThrow = topFrame.PendingCompletion.Kind == AbruptKind.Throw;
                 }
 
                 try
                 {
-                    iteratorObj.IteratorClose(EnsureEvaluationContext(), hasPendingThrow);
+                    iteratorObj.IteratorClose(runner.EnsureEvaluationContext(), hasPendingThrow);
                 }
                 catch (ThrowSignal closeThrown)
                 {
                     if (hasPendingThrow)
                     {
-                        _programCounter = instruction.Next;
+                        runner._programCounter = instruction.Next;
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
 
-                    if (HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
                     {
-                        _programCounter = instruction.Next;
+                        runner._programCounter = instruction.Next;
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
 
-                    TryCatchStateRef.TryStack.Clear();
+                    runner.TryCatchStateRef.TryStack.Clear();
                     throw;
                 }
             }
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
@@ -3260,16 +3105,14 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandlePushEnvironment(
-            PushEnvironmentInstruction instruction,
+        private static InstructionResult HandlePushEnvironment(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<PushEnvironmentInstruction>(instr);
             var hasIterationBindings = !instruction.PerIterationBindings.IsDefaultOrEmpty;
             var isSubsequentIteration =
                 hasIterationBindings &&
@@ -3280,7 +3123,7 @@ public static partial class TypedAstEvaluator
                 instruction.AllowPooling &&
                 !instruction.PerIterationBindings.IsDefaultOrEmpty)
             {
-                _programCounter = instruction.Next;
+                runner._programCounter = instruction.Next;
                 returnValue = default;
                 return InstructionResult.Continue;
             }
@@ -3301,7 +3144,7 @@ public static partial class TypedAstEvaluator
             var allowPooling = instruction.AllowPooling;
             var description = instruction.PerIterationBindings.IsDefaultOrEmpty ? "loop-scope" : "scope";
             var newIterationEnv = allowPooling
-                ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: _realmState.Logger)
+                ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: runner._realmState.Logger)
                 : new JsEnvironment(loopScope, false, false, null, description);
 
             if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
@@ -3346,9 +3189,9 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                if (allowPooling && !ReferenceEquals(previousIterEnv, IteratorStateRef.ResumedWithEnvironment))
+                if (allowPooling && !ReferenceEquals(previousIterEnv, runner.IteratorStateRef.ResumedWithEnvironment))
                 {
-                    JsEnvironmentPool.Return(previousIterEnv, _realmState.Logger);
+                    JsEnvironmentPool.Return(previousIterEnv, runner._realmState.Logger);
                 }
             }
             else if (!instruction.PerIterationBindings.IsDefaultOrEmpty)
@@ -3362,18 +3205,18 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            IteratorStateRef.ResumedWithEnvironment = null;
+            runner.IteratorStateRef.ResumedWithEnvironment = null;
 
             // Eagerly populate flat slots for this scope (no dictionary lookup - mappings are on instruction)
-            if (_flatSlots is not null && !instruction.FlatSlotMappings.IsDefaultOrEmpty)
+            if (runner._flatSlots is not null && !instruction.FlatSlotMappings.IsDefaultOrEmpty)
             {
                 foreach (var (slotIndex, flatSlotId) in instruction.FlatSlotMappings)
                 {
-                    _flatSlots[flatSlotId] = new JsVariable(newIterationEnv, slotIndex);
+                    runner._flatSlots[flatSlotId] = new JsVariable(newIterationEnv, slotIndex);
                 }
             }
 
-            _realmState.Logger?.LogInformation(
+            runner._realmState.Logger?.LogInformation(
                 "PushEnv: old.ScopeId={OldScope} new.ScopeId={NewScope} loopScope.ScopeId={LoopScope} parent={Parent}",
                 environment.ScopeId,
                 newIterationEnv.ScopeId,
@@ -3381,21 +3224,19 @@ public static partial class TypedAstEvaluator
                 newIterationEnv.Enclosing?.ScopeId);
 
             environment = newIterationEnv;
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }
 
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private InstructionResult HandlePopEnvironment(
-            PopEnvironmentInstruction instruction,
+        private static InstructionResult HandlePopEnvironment(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
             ref JsEnvironment environment,
+            EvaluationContext ctx,
             out JsValue returnValue)
         {
+            var instruction = Unsafe.As<PopEnvironmentInstruction>(instr);
             var shouldPop = instruction.ScopeId >= 0
                 ? environment.ScopeId == instruction.ScopeId
                 : environment.Description is "scope" or "loop-scope" && environment.Enclosing != null;
@@ -3407,11 +3248,11 @@ public static partial class TypedAstEvaluator
 
                 if (instruction.AllowPooling)
                 {
-                    JsEnvironmentPool.Return(envToPop, _realmState.Logger);
+                    JsEnvironmentPool.Return(envToPop, runner._realmState.Logger);
                 }
             }
 
-            _programCounter = instruction.Next;
+            runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
         }

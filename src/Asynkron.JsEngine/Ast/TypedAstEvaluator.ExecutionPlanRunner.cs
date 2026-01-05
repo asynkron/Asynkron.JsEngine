@@ -95,6 +95,11 @@ public static partial class TypedAstEvaluator
         // TryCatchState needs explicit backing field for hot-path null check without allocation
         private TryCatchState? _tryCatchState;
 
+        // Flat slots array for O(1) variable access within this execution plan.
+        // Indexed by FlatSlotId stamped on IdentifierExpression nodes.
+        // Each JsVariable holds a reference to the environment and slot, providing direct read/write.
+        private JsVariable[]? _flatSlots;
+
         public ExecutionPlanRunner(
             FunctionExpression function,
             JsEnvironment closure,
@@ -745,10 +750,24 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            return ExecuteInstructionLoop(ref environment, context);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private JsValue ExecuteInstructionLoop(ref JsEnvironment environment, EvaluationContext context)
+        {
             // Cache debug mode check outside the hot loop - avoid virtual property access per iteration
             var debugMode = _realmState.Options.DebugMode;
-            var instructions = _plan.Instructions;
+            var instructions = _plan!.Instructions;
             var instructionsLength = instructions.Length;
+
+            // Allocate flat slots array for O(1) variable access if this plan uses flat slots.
+            // Each JsVariable will be populated when its scope is entered via PushEnvironment.
+            var flatSlotCount = _plan.FlatSlotCount;
+            if (flatSlotCount > 0 && _flatSlots is null)
+            {
+                _flatSlots = new JsVariable[flatSlotCount];
+            }
 
             // Get underlying array from ImmutableArray and reference to start - enables bounds-check-free access
             var instructionsArray = ImmutableCollectionsMarshal.AsArray(instructions)!;
@@ -804,7 +823,7 @@ public static partial class TypedAstEvaluator
 #pragma warning restore CS0162
 
                         // ═══════════════════════════════════════════════════════════════════════════
-                        // FAST PATH: Inline the hottest instructions to avoid switch dispatch overhead
+                        // FAST PATH: Handle the hottest instructions before switch dispatch
                         // For a 1M iteration loop, this saves millions of switch table lookups
                         // ═══════════════════════════════════════════════════════════════════════════
 
@@ -823,222 +842,8 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
-                        switch (instructionKind)
-                        {
-                            case InstructionKind.Statement:
-                            {
-                                var result = HandleStatement(Unsafe.As<StatementInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.Throw:
-                            {
-                                var result = HandleThrow(Unsafe.As<ThrowInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.EvaluateAndDiscard:
-                            {
-                                var result = HandleEvaluateAndDiscard(Unsafe.As<EvaluateAndDiscardInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.BinaryOp:
-                            {
-                                var result = HandleBinaryOp(Unsafe.As<BinaryOpInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.IncrementSlot:
-                            {
-                                var result = HandleIncrementSlot(Unsafe.As<IncrementSlotInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.CompoundAssignmentSlot:
-                            {
-                                var result = HandleCompoundAssignmentSlot(Unsafe.As<CompoundAssignmentSlotInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.FunctionDeclaration:
-                            {
-                                HandleFunctionDeclaration(Unsafe.As<FunctionDeclarationInstruction>(instruction), out _);
-                                continue;
-                            }
-
-                            case InstructionKind.ClassDeclaration:
-                            {
-                                var result = HandleClassDeclaration(Unsafe.As<ClassDeclarationInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.SimpleVariableDeclaration:
-                            {
-                                var result = HandleSimpleVariableDeclaration(Unsafe.As<SimpleVariableDeclarationInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.PushEnvironment:
-                            {
-                                HandlePushEnvironment(Unsafe.As<PushEnvironmentInstruction>(instruction), ref environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.PopEnvironment:
-                            {
-                                HandlePopEnvironment(Unsafe.As<PopEnvironmentInstruction>(instruction), ref environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.Yield:
-                            {
-                                var result = HandleYield(Unsafe.As<YieldInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.YieldStar:
-                            {
-                                var result = HandleYieldStar(Unsafe.As<YieldStarInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.StoreResumeValue:
-                            {
-                                var result = HandleStoreResumeValue(Unsafe.As<StoreResumeValueInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.EnterTry:
-                            {
-                                HandleEnterTry(Unsafe.As<EnterTryInstruction>(instruction), environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.EnterCatch:
-                            {
-                                HandleEnterCatch(Unsafe.As<EnterCatchInstruction>(instruction), ref environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.EnterCatchWithDestructuring:
-                            {
-                                var result = HandleEnterCatchWithDestructuring(Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction), ref environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.LeaveTry:
-                            {
-                                HandleLeaveTry(Unsafe.As<LeaveTryInstruction>(instruction), out _);
-                                continue;
-                            }
-
-                            case InstructionKind.BreakableEnter:
-                            {
-                                HandleBreakableEnter(Unsafe.As<BreakableEnterInstruction>(instruction), out _);
-                                continue;
-                            }
-
-                            case InstructionKind.BreakableExit:
-                            {
-                                HandleBreakableExit(Unsafe.As<BreakableExitInstruction>(instruction), out _);
-                                continue;
-                            }
-
-                            case InstructionKind.EndFinally:
-                            {
-                                var result = HandleEndFinally(Unsafe.As<EndFinallyInstruction>(instruction), ref environment, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.IteratorInit:
-                            {
-                                var result = HandleIteratorInit(Unsafe.As<IteratorInitInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.IteratorMoveNext:
-                            {
-                                var result = HandleIteratorMoveNext(Unsafe.As<IteratorMoveNextInstruction>(instruction), ref environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.Jump:
-                            {
-                                HandleJumpSwitch(Unsafe.As<JumpInstruction>(instruction), out _);
-                                continue;
-                            }
-
-                            case InstructionKind.Branch:
-                            {
-                                var result = HandleBranchSwitch(Unsafe.As<BranchInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.Break:
-                            {
-                                HandleBreak(Unsafe.As<BreakInstruction>(instruction), ref environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.Continue:
-                            {
-                                HandleContinue(Unsafe.As<ContinueInstruction>(instruction), ref environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.Return:
-                            {
-                                var result = HandleReturn(Unsafe.As<ReturnInstruction>(instruction), environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.EnterWith:
-                            {
-                                var result = HandleEnterWith(Unsafe.As<EnterWithInstruction>(instruction), ref environment, context, out var returnValue);
-                                if (result == InstructionResult.Return) return returnValue;
-                                continue;
-                            }
-
-                            case InstructionKind.LeaveWith:
-                            {
-                                HandleLeaveWith(Unsafe.As<LeaveWithInstruction>(instruction), ref environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.IteratorClose:
-                            {
-                                HandleIteratorClose(Unsafe.As<IteratorCloseInstruction>(instruction), environment, out _);
-                                continue;
-                            }
-
-                            case InstructionKind.SetCompletionValue:
-                            {
-                                HandleSetCompletionValue(Unsafe.As<SetCompletionValueInstruction>(instruction), out _);
-                                continue;
-                            }
-
-                            default:
-                                throw new InvalidOperationException(
-                                    $"Unsupported generator instruction kind {instruction.Kind}");
-                        }
+                        var loopResult = DispatchInstruction(instruction, instructionKind, ref environment, context, out var loopReturnValue);
+                        if (loopResult == InstructionResult.Return) return loopReturnValue;
                     }
                 }
                 catch (ThrowSignal signal)
@@ -1091,6 +896,246 @@ public static partial class TypedAstEvaluator
             _done = true;
             TryCatchStateRef.TryStack.Clear();
             return CreateIteratorResult(JsValue.Undefined, true);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private InstructionResult DispatchInstruction(
+            ExecutionInstruction instruction,
+            InstructionKind instructionKind,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            switch (instructionKind)
+            {
+                case InstructionKind.Statement:
+                {
+                    var result = HandleStatement(Unsafe.As<StatementInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Throw:
+                {
+                    var result = HandleThrow(Unsafe.As<ThrowInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.EvaluateAndDiscard:
+                {
+                    var result = HandleEvaluateAndDiscard(Unsafe.As<EvaluateAndDiscardInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.BinaryOp:
+                {
+                    var result = HandleBinaryOp(Unsafe.As<BinaryOpInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.IncrementSlot:
+                {
+                    var result = HandleIncrementSlot(Unsafe.As<IncrementSlotInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.CompoundAssignmentSlot:
+                {
+                    var result = HandleCompoundAssignmentSlot(Unsafe.As<CompoundAssignmentSlotInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.FunctionDeclaration:
+                {
+                    HandleFunctionDeclaration(Unsafe.As<FunctionDeclarationInstruction>(instruction), out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.ClassDeclaration:
+                {
+                    var result = HandleClassDeclaration(Unsafe.As<ClassDeclarationInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.SimpleVariableDeclaration:
+                {
+                    var result = HandleSimpleVariableDeclaration(Unsafe.As<SimpleVariableDeclarationInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.PushEnvironment:
+                {
+                    HandlePushEnvironment(Unsafe.As<PushEnvironmentInstruction>(instruction), ref environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.PopEnvironment:
+                {
+                    HandlePopEnvironment(Unsafe.As<PopEnvironmentInstruction>(instruction), ref environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Yield:
+                {
+                    var result = HandleYield(Unsafe.As<YieldInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.YieldStar:
+                {
+                    var result = HandleYieldStar(Unsafe.As<YieldStarInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.StoreResumeValue:
+                {
+                    HandleStoreResumeValue(Unsafe.As<StoreResumeValueInstruction>(instruction), environment, context, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.EnterTry:
+                {
+                    HandleEnterTry(Unsafe.As<EnterTryInstruction>(instruction), environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.EnterCatch:
+                {
+                    HandleEnterCatch(Unsafe.As<EnterCatchInstruction>(instruction), ref environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.EnterCatchWithDestructuring:
+                {
+                    var result = HandleEnterCatchWithDestructuring(Unsafe.As<EnterCatchWithDestructuringInstruction>(instruction), ref environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.LeaveTry:
+                {
+                    HandleLeaveTry(Unsafe.As<LeaveTryInstruction>(instruction), out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.BreakableEnter:
+                {
+                    HandleBreakableEnter(Unsafe.As<BreakableEnterInstruction>(instruction), out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.BreakableExit:
+                {
+                    HandleBreakableExit(Unsafe.As<BreakableExitInstruction>(instruction), out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.EndFinally:
+                {
+                    var result = HandleEndFinally(Unsafe.As<EndFinallyInstruction>(instruction), ref environment, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.IteratorInit:
+                {
+                    var result = HandleIteratorInit(Unsafe.As<IteratorInitInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.IteratorMoveNext:
+                {
+                    var result = HandleIteratorMoveNext(Unsafe.As<IteratorMoveNextInstruction>(instruction), ref environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Jump:
+                {
+                    HandleJumpSwitch(Unsafe.As<JumpInstruction>(instruction), out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Branch:
+                {
+                    var result = HandleBranchSwitch(Unsafe.As<BranchInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Break:
+                {
+                    HandleBreak(Unsafe.As<BreakInstruction>(instruction), ref environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Continue:
+                {
+                    HandleContinue(Unsafe.As<ContinueInstruction>(instruction), ref environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.Return:
+                {
+                    var result = HandleReturn(Unsafe.As<ReturnInstruction>(instruction), environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.EnterWith:
+                {
+                    var result = HandleEnterWith(Unsafe.As<EnterWithInstruction>(instruction), ref environment, context, out returnValue);
+                    if (result == InstructionResult.Return) return result;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.LeaveWith:
+                {
+                    HandleLeaveWith(Unsafe.As<LeaveWithInstruction>(instruction), ref environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.IteratorClose:
+                {
+                    HandleIteratorClose(Unsafe.As<IteratorCloseInstruction>(instruction), environment, out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                case InstructionKind.SetCompletionValue:
+                {
+                    HandleSetCompletionValue(Unsafe.As<SetCompletionValueInstruction>(instruction), out _);
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported generator instruction kind {instruction.Kind}");
+            }
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
@@ -1586,6 +1631,67 @@ public static partial class TypedAstEvaluator
             }
             // Return sentinel to indicate slow path needed
             return JsValue.Undefined;
+        }
+
+        /// <summary>
+        /// Reads a value using flat slot access for O(1) lookup.
+        /// If the flat slot hasn't been populated yet, resolves via scope chain and caches.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool TryReadFlatSlot(int flatSlotId, JsEnvironment environment, EvaluationContext context, out JsValue value)
+        {
+            if (_flatSlots is null || flatSlotId < 0 || flatSlotId >= _flatSlots.Length)
+            {
+                value = default;
+                return false;
+            }
+
+            ref var slot = ref _flatSlots[flatSlotId];
+            if (slot.IsValid)
+            {
+                // Fast path: slot already resolved
+                value = slot.Read();
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Writes a value using flat slot access for O(1) lookup.
+        /// If the flat slot hasn't been populated yet, resolves via scope chain and caches.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool TryWriteFlatSlot(int flatSlotId, JsValue value)
+        {
+            if (_flatSlots is null || flatSlotId < 0 || flatSlotId >= _flatSlots.Length)
+            {
+                return false;
+            }
+
+            ref var slot = ref _flatSlots[flatSlotId];
+            if (slot.IsValid)
+            {
+                // Fast path: slot already resolved
+                slot.Write(value);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Populates a flat slot with a JsVariable pointing to the resolved environment and slot.
+        /// Called when first accessing a variable to enable O(1) access on subsequent reads/writes.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void PopulateFlatSlot(int flatSlotId, JsEnvironment environment, int slotIndex)
+        {
+            if (_flatSlots is not null && flatSlotId >= 0 && flatSlotId < _flatSlots.Length)
+            {
+                _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
+            }
         }
 
         /// <summary>

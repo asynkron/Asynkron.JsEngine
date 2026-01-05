@@ -25,6 +25,7 @@ namespace Asynkron.JsEngine.Execution;
 /// <param name="ScopeLexicalBindings">Lexical bindings per scope id.</param>
 /// <param name="RootScopeId">Explicit root scope id for this plan (default 0 for compatibility).</param>
 /// <param name="LayoutId">Stable identity for the expected slot layout, used to validate pooled environments.</param>
+/// <param name="FlatSlotCount">Total number of flat slots needed for O(1) variable access across all scopes.</param>
 internal sealed record ExecutionPlan(
     ImmutableArray<ExecutionInstruction> Instructions,
     int EntryPoint,
@@ -35,7 +36,8 @@ internal sealed record ExecutionPlan(
     ImmutableHashSet<Symbol>? RootLexicalBindings = null,
     ImmutableDictionary<int, ImmutableHashSet<Symbol>>? ScopeLexicalBindings = null,
     int RootScopeId = 0,
-    int LayoutId = 0)
+    int LayoutId = 0,
+    int FlatSlotCount = 0)
 {
     public ImmutableDictionary<Symbol, int> SafeRootSlotMap =>
         RootSlotMap ?? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);

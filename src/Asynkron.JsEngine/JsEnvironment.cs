@@ -885,11 +885,18 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     /// Gets all binding symbols defined in this environment (not including parent environments).
+    /// Uses a simple loop to avoid LINQ delegate allocations.
     /// </summary>
     internal IEnumerable<Symbol> GetBindingSymbols()
     {
-        if (_slots is null || _slotCount == 0) return [];
-        return _slots.Take(_slotCount).Select(s => s.Name);
+        if (_slots is null || _slotCount == 0) yield break;
+
+        var slots = _slots;
+        var count = _slotCount;
+        for (var i = 0; i < count; i++)
+        {
+            yield return slots[i].Name;
+        }
     }
 
     internal bool TryAssignBlockedBinding(Symbol name, JsValue value)
@@ -3400,6 +3407,27 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Fast slot name initialization using a pre-computed array.
+    /// Avoids ImmutableDictionary iteration which is slow.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlotNames(ImmutableArray<(Symbol Name, int SlotIndex)> slotNames)
+    {
+        if (slotNames.IsDefaultOrEmpty || _slots is null)
+        {
+            return;
+        }
+
+        foreach (var (name, index) in slotNames)
+        {
+            if (index >= 0 && index < _slots.Length && _slots[index].Name is null)
+            {
+                _slots[index] = new JsSlot(name, JsValue.Undefined, SlotFlags.None);
+            }
+        }
+    }
+
+    /// <summary>
     /// Marks the provided symbols as lexical/uninitialized in the current slots (TDZ).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -3470,6 +3498,17 @@ public sealed class JsEnvironment : IRentable
     internal ref JsSlot GetSlotByIndex(int index)
     {
         return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
+    }
+
+    /// <summary>
+    /// Marks a slot as lexical/uninitialized by index for TDZ enforcement.
+    /// Caller must ensure index is valid.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlotLexicalUninitialized(int index)
+    {
+        ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
+        slot.Flags |= SlotFlags.Lexical | SlotFlags.Uninitialized | SlotFlags.BlocksFunctionScopeOverride;
     }
 
     /// <summary>

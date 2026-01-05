@@ -74,7 +74,7 @@ internal sealed class JsArrayIterator : IJsObjectLike, IAsJsValue, IPrototypeAcc
         {
             var valueJs = ProjectIteratorValue();
             _index++;
-            return new IteratorResultObject(valueJs, false).AsJsValue;
+            return IteratorResultObjectPool.Rent(valueJs, false).AsJsValue;
         }
 
         _done = true;

@@ -185,9 +185,11 @@ public class OperationBenchmarks
             sum;
             """;
 
+        // Note: Array construction is included in the benchmark (unavoidable overhead)
+        // Both loops iterate 100k times for fair comparison
         _forOfLoop = """
             let arr = [];
-            for (let i = 0; i < 10000; i++) arr.push(i);
+            for (let i = 0; i < 100000; i++) arr.push(i);
             let sum = 0;
             for (const x of arr) {
                 sum += x;

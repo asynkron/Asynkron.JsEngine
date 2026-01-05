@@ -265,6 +265,33 @@ internal sealed class EmitContext(
         return slotMapBuilder.ToImmutable();
     }
 
+    /// <summary>
+    /// Build a pre-computed slot names array for fast slot initialization.
+    /// This avoids ImmutableDictionary iteration which is slow.
+    /// </summary>
+    public static ImmutableArray<(Symbol Name, int SlotIndex)> BuildSlotNames(
+        ImmutableArray<Symbol> bindings,
+        ImmutableArray<int> slotIndices)
+    {
+        if (bindings.IsDefaultOrEmpty || slotIndices.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<(Symbol, int)>.Empty;
+        }
+
+        var count = Math.Min(bindings.Length, slotIndices.Length);
+        var builder = ImmutableArray.CreateBuilder<(Symbol, int)>(count);
+
+        for (var i = 0; i < count; i++)
+        {
+            if (slotIndices[i] >= 0)
+            {
+                builder.Add((bindings[i], slotIndices[i]));
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Shared Yield Detection Helpers
     // ─────────────────────────────────────────────────────────────────────────

@@ -159,6 +159,8 @@ internal sealed record SimpleVariableDeclarationInstruction(
 /// <param name="SlotCount">Number of slots in the environment.</param>
 /// <param name="SlotMap">Mapping from symbols to slot indices.</param>
 /// <param name="AllowPooling">Whether environment pooling is allowed (no closures capture this env).</param>
+/// <param name="SlotNames">Pre-computed array of (Symbol, SlotIndex) for fast slot name initialization.
+///     When non-empty, this is used instead of iterating SlotMap (which is slow for ImmutableDictionary).</param>
 internal sealed record PushEnvironmentInstruction(
     int Next,
     ImmutableArray<Symbol> PerIterationBindings,
@@ -167,7 +169,8 @@ internal sealed record PushEnvironmentInstruction(
     ImmutableDictionary<Symbol, int> SlotMap,
     bool AllowPooling = false,
     ImmutableHashSet<Symbol>? LexicalBindings = null,
-    ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings = default)
+    ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings = default,
+    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames = default)
     : ExecutionInstruction(InstructionKind.PushEnvironment, Next);
 
 /// <summary>

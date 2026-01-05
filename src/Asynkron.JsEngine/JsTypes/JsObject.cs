@@ -548,24 +548,74 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// <summary>
     /// Returns true if any descriptor key is a numeric array index.
     /// Used by JsArray to detect custom property descriptors (getters/setters) on numeric indices.
+    /// Uses cached flag for O(1) lookup instead of iterating descriptor keys.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool HasNumericDescriptorKeys()
     {
-        var state = _state;
-        if (state is null)
+        return _state?.HasNumericDescriptorKey ?? false;
+    }
+
+    /// <summary>
+    /// Checks if a property name is a valid array index (non-negative integer string).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsArrayIndex(string name)
+    {
+        // Fast path: empty or single char check
+        if (name.Length == 0) return false;
+
+        // Check first char is digit
+        var firstChar = name[0];
+        if (firstChar < '0' || firstChar > '9') return false;
+
+        // Single digit is always valid
+        if (name.Length == 1) return true;
+
+        // Leading zero is only valid for "0" itself
+        if (firstChar == '0') return false;
+
+        // Check remaining chars are all digits
+        for (var i = 1; i < name.Length; i++)
         {
-            return false;
+            var c = name[i];
+            if (c < '0' || c > '9') return false;
         }
 
-        foreach (var key in state.Descriptors.Keys)
+        // Validate it's within uint range (2^32 - 1)
+        return uint.TryParse(name, out _);
+    }
+
+    /// <summary>
+    /// Updates the cached HasNumericDescriptorKey flag when a descriptor is added.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void TrackNumericDescriptorAdd(JsObjectState state, string name)
+    {
+        if (!state.HasNumericDescriptorKey && IsArrayIndex(name))
         {
-            if (uint.TryParse(key, out _))
+            state.HasNumericDescriptorKey = true;
+        }
+    }
+
+    /// <summary>
+    /// Updates the cached HasNumericDescriptorKey flag when a descriptor is removed.
+    /// </summary>
+    private void TrackNumericDescriptorRemove(JsObjectState state, string name)
+    {
+        if (state.HasNumericDescriptorKey && IsArrayIndex(name))
+        {
+            // Need to recalculate - check if any other numeric keys remain
+            state.HasNumericDescriptorKey = false;
+            foreach (var key in state.Descriptors.Keys)
             {
-                return true;
+                if (IsArrayIndex(key))
+                {
+                    state.HasNumericDescriptorKey = true;
+                    break;
+                }
             }
         }
-
-        return false;
     }
 
     // Fast path for JsValue that avoids boxing entirely
@@ -985,6 +1035,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             var newDescriptor = descriptor.Clone();
             CompleteDescriptorForNewProperty(newDescriptor);
             descriptors[name] = newDescriptor;
+            TrackNumericDescriptorAdd(state, name);
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, newDescriptor);
             TrackArrayLengthChange(name, newDescriptor);
@@ -1002,6 +1053,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         if (!hadStoredDescriptor)
         {
             descriptors[name] = currentDescriptor;
+            TrackNumericDescriptorAdd(state, name);
             if (!hadDataSlot)
             {
                 TrackPropertyInsertion(name);
@@ -1063,6 +1115,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             // Take ownership directly without cloning
             CompleteDescriptorForNewProperty(descriptor);
             descriptors[name] = descriptor;
+            TrackNumericDescriptorAdd(state, name);
             TrackPropertyInsertion(name);
             AssignDescriptorStorage(name, descriptor);
             TrackArrayLengthChange(name, descriptor);
@@ -1080,6 +1133,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         if (!hadStoredDescriptor)
         {
             descriptors[name] = currentDescriptor;
+            TrackNumericDescriptorAdd(state, name);
             if (!hadDataSlot)
             {
                 TrackPropertyInsertion(name);
@@ -1503,7 +1557,12 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     internal bool ForceDeleteOwnProperty(string name)
     {
-        var deletedDescriptor = _state?.Descriptors.Remove(name) ?? false;
+        var state = _state;
+        var deletedDescriptor = state?.Descriptors.Remove(name) ?? false;
+        if (deletedDescriptor && state is not null)
+        {
+            TrackNumericDescriptorRemove(state, name);
+        }
         Remove(GetterPrefix + name);
         Remove(SetterPrefix + name);
         var deletedValue = Remove(name);
@@ -1529,6 +1588,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
 
             state.Descriptors.Remove(name);
+            TrackNumericDescriptorRemove(state, name);
             Remove(GetterPrefix + name);
             Remove(SetterPrefix + name);
             Remove(name);
@@ -2198,5 +2258,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         internal readonly LinkedList<string> PropertyInsertionOrder = [];
         internal readonly HybridDictionary<JsValue> Storage = new();
+
+        /// <summary>
+        /// Cached flag indicating whether any descriptor key is a numeric array index.
+        /// Updated when descriptors are added/removed, avoiding iteration on every check.
+        /// </summary>
+        internal bool HasNumericDescriptorKey;
     }
 }

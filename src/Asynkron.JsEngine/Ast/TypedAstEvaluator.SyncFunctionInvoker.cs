@@ -808,20 +808,13 @@ public static partial class TypedAstEvaluator
                         // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
                         if (instanceToInit is not null)
                         {
-                            var tempContext = RealmState.CreateContext(ScopeKind.Function, ScopeMode.Strict);
-                            var tempEnv = new JsEnvironment(_closure, isStrict: _isStrict);
-                            try
+                            var initContext = runner.EnsureEvaluationContext();
+                            var initEnv = new JsEnvironment(_closure, isStrict: _isStrict);
+                            InitializeInstance(instanceToInit, initEnv, initContext);
+                            if (initContext.IsThrow)
                             {
-                                InitializeInstance(instanceToInit, tempEnv, tempContext);
-                                if (tempContext.IsThrow)
-                                {
-                                    callingContext?.SetThrow(tempContext.FlowValue);
-                                    return tempContext.FlowValue;
-                                }
-                            }
-                            finally
-                            {
-                                RealmState.ReturnContext(tempContext);
+                                callingContext?.SetThrow(initContext.FlowValue);
+                                return initContext.FlowValue;
                             }
                         }
                         

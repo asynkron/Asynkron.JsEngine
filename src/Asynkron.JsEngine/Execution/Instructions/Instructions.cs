@@ -146,6 +146,21 @@ internal sealed record SimpleVariableDeclarationInstruction(
     : ExecutionInstruction(InstructionKind.SimpleVariableDeclaration, Next);
 
 /// <summary>
+///     Represents a complex variable declaration with destructuring patterns.
+///     Handles declarations like: let {a, b} = obj; const [x, y] = arr;
+/// </summary>
+/// <remarks>
+///     This instruction handles variable declarations that cannot use the simple
+///     identifier-only path. It evaluates the declaration using the standard
+///     AST evaluator, which properly handles destructuring patterns, rest elements,
+///     default values, and computed property names.
+/// </remarks>
+internal sealed record ComplexVariableDeclarationInstruction(
+    int Next,
+    VariableDeclaration Declaration)
+    : ExecutionInstruction(InstructionKind.ComplexVariableDeclaration, Next);
+
+/// <summary>
 ///     Pushes a new environment onto the scope stack.
 ///     Used for block scopes, loop iterations, and other lexical scopes.
 ///     For loop iterations, this ensures closures capture separate values per iteration.

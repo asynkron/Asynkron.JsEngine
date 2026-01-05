@@ -113,7 +113,7 @@ public static partial class TypedAstEvaluator
 
         private static InstructionHandler[] InitializeHandlers()
         {
-            var handlers = new InstructionHandler[33];
+            var handlers = new InstructionHandler[34];
             handlers[(int)InstructionKind.Statement] = HandleStatement;
             handlers[(int)InstructionKind.Throw] = HandleThrow;
             handlers[(int)InstructionKind.EvaluateAndDiscard] = HandleEvaluateAndDiscard;
@@ -123,6 +123,7 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.FunctionDeclaration] = HandleFunctionDeclaration;
             handlers[(int)InstructionKind.ClassDeclaration] = HandleClassDeclaration;
             handlers[(int)InstructionKind.SimpleVariableDeclaration] = HandleSimpleVariableDeclaration;
+            handlers[(int)InstructionKind.ComplexVariableDeclaration] = HandleComplexVariableDeclaration;
             handlers[(int)InstructionKind.PushEnvironment] = HandlePushEnvironment;
             handlers[(int)InstructionKind.PopEnvironment] = HandlePopEnvironment;
             handlers[(int)InstructionKind.Yield] = HandleYield;

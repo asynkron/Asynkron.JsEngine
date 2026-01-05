@@ -87,8 +87,8 @@ internal static class DeclarationEmitter
             return true;
         }
 
-        // Fall back to StatementInstruction for complex declarations
-        entryIndex = ctx.Append(new StatementInstruction(nextIndex, declaration));
+        // Use ComplexVariableDeclarationInstruction for declarations with destructuring
+        entryIndex = ctx.Append(new ComplexVariableDeclarationInstruction(nextIndex, declaration));
         return true;
     }
 

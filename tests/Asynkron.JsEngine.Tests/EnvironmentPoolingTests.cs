@@ -536,8 +536,9 @@ public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : Internal
         Output.WriteLine($"Activate count: {activateCount}");
         Output.WriteLine($"Reset count: {resetCount}");
 
-        // Nested closures capture environments, no pooling
-        Assert.Equal(0, activateCount);
+        // With IsCaptured pattern: we always rent from pool (activateCount > 0),
+        // but captured environments are never returned (resetCount == 0)
+        Assert.True(activateCount > 0, "Expected environments to be rented from pool");
         Assert.Equal(0, resetCount);
     }
 

@@ -162,11 +162,24 @@ public sealed class JsEnvironment : IRentable
     internal bool IsCaptured { get; private set; }
 
     /// <summary>
-    ///     Marks this environment as captured by a closure.
-    ///     Once captured, this environment will not be returned to the pool.
+    ///     Marks this environment and all parent environments as captured by a closure.
+    ///     Once captured, environments will not be returned to the pool.
+    ///     We must capture the entire scope chain because closures can reference
+    ///     variables from any ancestor environment.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Capture() => IsCaptured = true;
+    internal void Capture()
+    {
+        // Fast path: if already captured, ancestors are too
+        if (IsCaptured) return;
+
+        var current = this;
+        while (current is not null && !current.IsCaptured)
+        {
+            current.IsCaptured = true;
+            current = current.Enclosing;
+        }
+    }
 
     /// <summary>
     ///     When true, indicates this environment belongs to a default derived constructor

@@ -39,6 +39,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     /// </summary>
     public int FlatSlotCount => _flatSlotMap.Count;
 
+    /// <summary>
+    /// Builds the flat slot mappings grouped by scope ID for eager initialization.
+    /// Returns a dictionary mapping scopeId to array of (slotIndex, flatSlotId) pairs.
+    /// </summary>
+    public ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> BuildFlatSlotMappings()
+    {
+        if (_flatSlotMap.Count == 0)
+        {
+            return ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
+        }
+
+        // Group by scopeId
+        var grouped = _flatSlotMap
+            .GroupBy(kv => kv.Key.scopeId)
+            .ToImmutableDictionary(
+                g => g.Key,
+                g => g.Select(kv => (kv.Key.slotIndex, kv.Value)).ToImmutableArray());
+
+        return grouped;
+    }
+
     public SlotAssignmentRewriter(ScopeSlotAnalysis analysis, int targetRootScopeId, int analysisRootScopeId = 0)
     {
         _analysisRootScopeId = analysisRootScopeId;

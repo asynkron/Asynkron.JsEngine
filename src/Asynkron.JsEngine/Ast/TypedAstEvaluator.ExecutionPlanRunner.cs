@@ -1144,6 +1144,12 @@ public static partial class TypedAstEvaluator
             {
                 _executionEnvironment = CreateExecutionEnvironment();
                 LogRootScopeIdOnce();
+
+                // Eagerly populate flat slots for the root scope
+                if (_plan is not null)
+                {
+                    PopulateFlatSlotsForScope(_plan.RootScopeId, _executionEnvironment);
+                }
             }
 
             return _executionEnvironment;
@@ -1695,6 +1701,27 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
+        /// Eagerly populates flat slots for all variables in the given scope.
+        /// Called when entering a new scope via PushEnvironment.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void PopulateFlatSlotsForScope(int scopeId, JsEnvironment environment)
+        {
+            if (_flatSlots is null || _plan?.FlatSlotMappings is null)
+            {
+                return;
+            }
+
+            if (_plan.FlatSlotMappings.TryGetValue(scopeId, out var mappings))
+            {
+                foreach (var (slotIndex, flatSlotId) in mappings)
+                {
+                    _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
+                }
+            }
+        }
+
+        /// <summary>
         /// Result of an instruction handler for control flow.
         /// </summary>
         private enum InstructionResult
@@ -1943,7 +1970,20 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
-            var incCurrentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            // Fast path: use flat slot for O(1) access when available
+            JsValue incCurrentValue;
+            var flatSlotId = instruction.FlatSlotId;
+            var useFlatSlot = flatSlotId >= 0 && _flatSlots is not null && _flatSlots[flatSlotId].IsValid;
+
+            if (useFlatSlot)
+            {
+                incCurrentValue = _flatSlots![flatSlotId].Read();
+            }
+            else
+            {
+                incCurrentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            }
+
             if (context.IsThrow)
             {
                 var incThrown = context.FlowValue;
@@ -2013,7 +2053,15 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            ProfileAssignJsValue(environment, instruction.TargetSymbol, incNewJsValue);
+            // Fast path: use flat slot for O(1) write when available
+            if (useFlatSlot)
+            {
+                _flatSlots![flatSlotId].Write(incNewJsValue);
+            }
+            else
+            {
+                ProfileAssignJsValue(environment, instruction.TargetSymbol, incNewJsValue);
+            }
 
             if (_isScriptMode && !instruction.SuppressCompletionValue)
             {
@@ -2032,7 +2080,20 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             out JsValue returnValue)
         {
-            var compCurrentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            // Fast path: use flat slot for O(1) access when available
+            JsValue compCurrentValue;
+            var flatSlotId = instruction.FlatSlotId;
+            var useFlatSlot = flatSlotId >= 0 && _flatSlots is not null && _flatSlots[flatSlotId].IsValid;
+
+            if (useFlatSlot)
+            {
+                compCurrentValue = _flatSlots![flatSlotId].Read();
+            }
+            else
+            {
+                compCurrentValue = ProfileGetIdentifier(environment, instruction.TargetSymbol, context);
+            }
+
             if (context.IsThrow)
             {
                 var compThrown = context.FlowValue;
@@ -2103,7 +2164,15 @@ public static partial class TypedAstEvaluator
                 compResult = ProfileApplyBinaryOperator(instruction.Operator, compCurrentValue, compRhsValue, context);
             }
 
-            ProfileAssignJsValue(environment, instruction.TargetSymbol, compResult);
+            // Fast path: use flat slot for O(1) write when available
+            if (useFlatSlot)
+            {
+                _flatSlots![flatSlotId].Write(compResult);
+            }
+            else
+            {
+                ProfileAssignJsValue(environment, instruction.TargetSymbol, compResult);
+            }
 
             if (_isScriptMode && !instruction.SuppressCompletionValue)
             {
@@ -3093,6 +3162,9 @@ public static partial class TypedAstEvaluator
             }
 
             IteratorStateRef.ResumedWithEnvironment = null;
+
+            // Eagerly populate flat slots for this scope
+            PopulateFlatSlotsForScope(instruction.ScopeId, newIterationEnv);
 
             _realmState.Logger?.LogInformation(
                 "PushEnv: old.ScopeId={OldScope} new.ScopeId={NewScope} loopScope.ScopeId={LoopScope} parent={Parent}",

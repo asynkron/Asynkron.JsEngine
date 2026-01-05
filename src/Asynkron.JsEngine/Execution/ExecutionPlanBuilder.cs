@@ -159,6 +159,7 @@ internal sealed partial class ExecutionPlanBuilder
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
+        var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
         plan = new ExecutionPlan(
             [..Instructions],
@@ -172,7 +173,8 @@ internal sealed partial class ExecutionPlanBuilder
                 EqualityComparer<int>.Default),
             RootScopeId: mappedRootScopeId,
             layoutId,
-            flatSlotCount);
+            flatSlotCount,
+            flatSlotMappings);
         return true;
     }
 
@@ -363,7 +365,8 @@ internal sealed partial class ExecutionPlanBuilder
             plan.ScopeLexicalBindings,
             plan.RootScopeId,
             plan.LayoutId,
-            plan.FlatSlotCount);
+            plan.FlatSlotCount,
+            plan.FlatSlotMappings);
 
         // Update the cached plan on the FunctionExpression
         UpdateCachedExecutionPlan(funcExpr, stampedPlan);

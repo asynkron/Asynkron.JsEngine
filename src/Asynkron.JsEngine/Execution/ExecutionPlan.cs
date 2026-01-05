@@ -26,6 +26,7 @@ namespace Asynkron.JsEngine.Execution;
 /// <param name="RootScopeId">Explicit root scope id for this plan (default 0 for compatibility).</param>
 /// <param name="LayoutId">Stable identity for the expected slot layout, used to validate pooled environments.</param>
 /// <param name="FlatSlotCount">Total number of flat slots needed for O(1) variable access across all scopes.</param>
+/// <param name="FlatSlotMappings">Maps scopeId to array of (slotIndex, flatSlotId) for eager flat slot initialization.</param>
 internal sealed record ExecutionPlan(
     ImmutableArray<ExecutionInstruction> Instructions,
     int EntryPoint,
@@ -37,7 +38,8 @@ internal sealed record ExecutionPlan(
     ImmutableDictionary<int, ImmutableHashSet<Symbol>>? ScopeLexicalBindings = null,
     int RootScopeId = 0,
     int LayoutId = 0,
-    int FlatSlotCount = 0)
+    int FlatSlotCount = 0,
+    ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? FlatSlotMappings = null)
 {
     public ImmutableDictionary<Symbol, int> SafeRootSlotMap =>
         RootSlotMap ?? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);

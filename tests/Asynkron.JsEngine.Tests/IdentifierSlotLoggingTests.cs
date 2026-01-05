@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Diagnostics)]
 public sealed class IdentifierSlotLoggingTests(ITestOutputHelper output) : InternalTestBase(output)
 {
-    [Fact(Skip = "Slot initialization in IR path needs investigation after environment changes")]
+    [Fact(Timeout = 5000)]
     public async Task ForLoop_UsesSlotFastPathWithoutMisses()
     {
         var logger = new TestLogger();
@@ -47,7 +47,7 @@ public sealed class IdentifierSlotLoggingTests(ITestOutputHelper output) : Inter
         // and there are no slot misses.
     }
 
-    [Fact(Skip = "Slot initialization in IR path needs investigation after environment changes")]
+    [Fact(Timeout = 5000)]
     public async Task WhileLoop_UsesSlotFastPathWithoutMisses()
     {
         var logger = new TestLogger();
@@ -84,7 +84,7 @@ public sealed class IdentifierSlotLoggingTests(ITestOutputHelper output) : Inter
         Assert.DoesNotContain(writeMisses, m => m.Contains("name=i", StringComparison.Ordinal));
     }
 
-    [Fact(Skip = "Slot-based fast paths require ScopeAnalyzer which has been removed")]
+    [Fact(Timeout = 5000)]
     public async Task CommonjsModule_ParametersStayInSlots()
     {
         var logger = new TestLogger();

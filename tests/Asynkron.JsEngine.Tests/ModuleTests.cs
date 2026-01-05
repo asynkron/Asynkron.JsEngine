@@ -888,7 +888,7 @@ export default function() { return 23; };
         Assert.Equal(3.0, result);
     }
 
-    [Fact(Timeout = 5000, Skip = "for await...of with async generators needs further investigation")]
+    [Fact(Timeout = 5000, Skip = "Hangs - for-await-of with async generator")]
     public async Task TopLevelAwait_ForAwaitOf()
     {
         // for await...of loop with async generator

@@ -331,7 +331,7 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
         Assert.Equal(10d, result);
     }
 
-    [Fact(Timeout = 2000, Skip = "Class field initializers with eval and super need special handling after IR changes")]
+    [Fact(Skip = "Bug #363: Class field initializers with eval and super need special handling")]
     public async Task ClassFieldInitializerCanAccessSuper()
     {
         await using var engine = CreateEngine();

@@ -566,7 +566,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("42", result);
     }
 
-    [Fact(Timeout = 2000, Skip = "Flaky")]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange
@@ -658,8 +658,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("16", result);
     }
 
-    // Known to be flaky - timing-dependent test that sometimes fails due to race conditions
-    [Fact(Timeout = 2000, Skip = "Flaky: timing-dependent test")]
+    [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithParallelDelays()
     {
         // Arrange

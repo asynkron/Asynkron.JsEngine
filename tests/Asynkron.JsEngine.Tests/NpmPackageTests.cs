@@ -859,7 +859,7 @@ public sealed class NpmPackageTests(ITestOutputHelper output) : InternalTestBase
     // unique: Remove duplicates from array
     // ========================================
 
-    [Fact(Timeout = 2000, Skip="Hangs")]
+    [Fact(Timeout = 5000, Skip = "Hangs")]
     public async Task Unique_RemovesDuplicates()
     {
         await using var engine = CreateEngine();

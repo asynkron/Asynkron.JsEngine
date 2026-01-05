@@ -3213,10 +3213,8 @@ public static partial class TypedAstEvaluator
                 var envToPop = environment;
                 environment = environment.Enclosing!;
 
-                if (instruction.AllowPooling)
-                {
-                    JsEnvironmentPool.Return(envToPop, runner._realmState.Logger);
-                }
+                // Always return to pool - pool ignores captured environments
+                JsEnvironmentPool.Return(envToPop, runner._realmState.Logger);
             }
 
             runner._programCounter = instruction.Next;
@@ -3648,7 +3646,7 @@ public static partial class TypedAstEvaluator
 
             if (!driverState.IsAsyncIterator)
             {
-                return runner.HandleSyncIteratorMoveNext(instruction, ref environment, context, driverState, iterVar, valueVar, out returnValue);
+                return runner.HandleSyncIteratorMoveNext(instruction, ref environment, context, driverState, valueVar, out returnValue);
             }
 
             return runner.HandleAsyncIteratorMoveNext(instruction, ref environment, context, driverState, iterVar, valueVar, iteratorIndex, out returnValue);
@@ -3664,7 +3662,6 @@ public static partial class TypedAstEvaluator
             ref JsEnvironment environment,
             EvaluationContext context,
             IteratorDriverState driverState,
-            JsVariable iterVar,
             JsVariable valueVar,
             out JsValue returnValue)
         {

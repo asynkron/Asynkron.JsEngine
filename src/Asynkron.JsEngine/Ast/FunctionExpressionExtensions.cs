@@ -382,6 +382,10 @@ public static partial class TypedAstEvaluator
             // the scope stack may not accurately reflect the lexical strictness during function creation.
             var isLexicallyStrict = closureEnvironment.IsStrict;
 
+            // Mark the closure environment as captured - it cannot be returned to the pool
+            // since this function holds a reference to it
+            closureEnvironment.Capture();
+
             IJsCallable callable = functionExpression.IsGenerator switch
             {
                 true when functionExpression.IsAsync => new AsyncGeneratorFunctionInvoker(functionExpression,

@@ -9,6 +9,37 @@ using Microsoft.Extensions.Logging;
 namespace Asynkron.JsEngine;
 
 /// <summary>
+/// A generic disposable handle to a pooled object. Returns the object to the pool on dispose.
+/// This is a struct to avoid allocation - use with 'using' statement.
+/// Use 'default' for a no-op handle when pooling is conditional.
+/// </summary>
+/// <typeparam name="T">The type of pooled object</typeparam>
+internal readonly struct Pooled<T> : IDisposable where T : class
+{
+    public readonly T? Value;
+    private readonly Action<T>? _returnAction;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Pooled(T value, Action<T> returnAction)
+    {
+        Value = value;
+        _returnAction = returnAction;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Dispose()
+    {
+        // No-op for default struct (Value is null)
+        if (Value is not null)
+            _returnAction?.Invoke(Value);
+    }
+
+    // Implicit conversion for convenience when passing to methods expecting T
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static implicit operator T(Pooled<T> pooled) => pooled.Value!;
+}
+
+/// <summary>
 /// Pool for JsEnvironment instances to reduce per-iteration allocations in hot loops.
 /// </summary>
 internal static class JsEnvironmentPool
@@ -16,8 +47,15 @@ internal static class JsEnvironmentPool
     private static readonly ObjectPool<JsEnvironment> Pool = new(32,
         static () => new JsEnvironment(null, false, false));
 
+    // Cached delegate for common case (no logger) - avoids closure allocation
+    private static readonly Action<JsEnvironment> ReturnWithoutLogger = static e => Return(e, null);
+
+    /// <summary>
+    /// Rents a pooled environment wrapped in a disposable handle.
+    /// Use with 'using' for automatic return: using var scope = JsEnvironmentPool.Rent(...);
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static JsEnvironment Rent(
+    public static Pooled<JsEnvironment> Rent(
         JsEnvironment? enclosing,
         bool isFunctionScope,
         bool isStrict,
@@ -30,9 +68,25 @@ internal static class JsEnvironmentPool
         var env = Pool.Rent(logger);
         env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description,
             isParameterEnvironment, isBodyEnvironment);
-        return env;
+
+        // Use cached delegate when no logger to avoid closure allocation
+        var returnAction = logger is null
+            ? ReturnWithoutLogger
+            : e => Return(e, logger);
+
+        return new Pooled<JsEnvironment>(env, returnAction);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Return(JsEnvironment environment, ILogger? logger = null) => Pool.Return(environment, logger);
+    public static void Return(JsEnvironment environment, ILogger? logger = null)
+    {
+        // Captured environments cannot be pooled - they're held by closures
+        if (environment.IsCaptured)
+        {
+            logger?.LogDebug("JsEnvironment.Return skipped - environment is captured");
+            return;
+        }
+
+        Pool.Return(environment, logger);
+    }
 }

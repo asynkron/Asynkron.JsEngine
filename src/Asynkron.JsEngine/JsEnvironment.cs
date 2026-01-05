@@ -156,6 +156,19 @@ public sealed class JsEnvironment : IRentable
     internal bool IsFunctionScope { get; private set; }
 
     /// <summary>
+    ///     When true, indicates this environment has been captured by a closure
+    ///     and cannot be returned to the pool. The pool will ignore it on Return().
+    /// </summary>
+    internal bool IsCaptured { get; private set; }
+
+    /// <summary>
+    ///     Marks this environment as captured by a closure.
+    ///     Once captured, this environment will not be returned to the pool.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void Capture() => IsCaptured = true;
+
+    /// <summary>
     ///     When true, indicates this environment belongs to a default derived constructor
     ///     where argument spreading should bypass the iterator protocol per ES spec 15.7.14.
     ///     Walks up the enclosing chain to find the flag if not set locally.
@@ -212,6 +225,7 @@ public sealed class JsEnvironment : IRentable
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
         IsArrowFunctionEnvironment = false;
+        IsCaptured = false;
         // Reset slot-based state - return slots array to pool
         JsSlotArrayPool.Return(_slots);
         _slots = null;

@@ -3655,20 +3655,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref JsValue GetSlotRef(int slotIndex)
     {
-        ref var slot = ref _slots![slotIndex];
-        var realmState = RealmState;
-        if (realmState?.Options.DebugMode == true)
-        {
-            realmState.Logger?.LogTrace(
-                "Identifier slot read hit env={Env} name={Name} slotScope={ScopeId} slot={Slot} valueKind={Kind}",
-                GetHashCode(),
-                slot.Name.Name,
-                ScopeId,
-                slotIndex,
-                slot.Value.Kind);
-        }
-
-        return ref slot.Value;
+        return ref _slots![slotIndex].Value;
     }
 
     /// <summary>

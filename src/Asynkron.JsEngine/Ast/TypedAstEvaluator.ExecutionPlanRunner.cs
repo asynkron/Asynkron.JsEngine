@@ -1527,29 +1527,6 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Eagerly populates flat slots for all variables in the given scope.
-        /// Called when entering a new scope via PushEnvironment.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void PopulateFlatSlotsForScope(int scopeId, JsEnvironment environment)
-        {
-            if (_flatSlots is null || _plan?.FlatSlotMappings is null)
-            {
-                return;
-            }
-
-            if (!_plan.FlatSlotMappings.TryGetValue(scopeId, out var mappings))
-            {
-                return;
-            }
-
-            foreach (var (slotIndex, flatSlotId) in mappings)
-            {
-                _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
-            }
-        }
-
-        /// <summary>
         /// Result of an instruction handler for control flow.
         /// </summary>
         private enum InstructionResult

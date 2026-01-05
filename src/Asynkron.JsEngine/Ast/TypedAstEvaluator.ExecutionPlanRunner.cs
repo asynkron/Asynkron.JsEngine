@@ -901,7 +901,7 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
-                        var loopResult = DispatchInstruction(this, instruction, instructionKind, ref environment, context, out var loopReturnValue);
+                        var loopResult = InstructionHandlers[(int)instructionKind](this, instruction, ref environment, context, out var loopReturnValue);
                         if (loopResult == InstructionResult.Return) return loopReturnValue;
                     }
                 }
@@ -955,22 +955,6 @@ public static partial class TypedAstEvaluator
             _done = true;
             TryCatchStateRef.TryStack.Clear();
             return CreateIteratorResult(JsValue.Undefined, true);
-
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-            static InstructionResult DispatchInstruction(
-                ExecutionPlanRunner runner,
-                ExecutionInstruction instruction,
-                InstructionKind instructionKind,
-                ref JsEnvironment environment,
-                EvaluationContext context,
-                out JsValue returnValue)
-            {
-                return InstructionHandlers[(int)instructionKind](runner, instruction, ref environment, context, out returnValue);
-            }
         }
 
         private JsEnvironment EnsureExecutionEnvironment()

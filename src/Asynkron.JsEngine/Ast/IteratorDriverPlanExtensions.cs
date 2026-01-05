@@ -694,40 +694,19 @@ public static partial class TypedAstEvaluator
 
     /// <summary>
     /// Initializes an iteration environment so slot-based lookups hit the correct bindings.
-    /// Ensures slot layout and names align with the iterator driver plan metadata.
+    /// Uses cached slot map from the plan to avoid rebuilding it every iteration.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void InitializeIterationEnvironmentLayout(IteratorDriverPlan plan, JsEnvironment environment)
     {
-        if (plan.IterationScopeId < 0 || plan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            return;
-        }
-
-        var slotIndices = plan.PerIterationSlotIndices;
-        var bindings = plan.PerIterationBindings;
-        var slotMapBuilder = ImmutableDictionary.CreateBuilder<Symbol, int>();
-        var maxSlotIndex = -1;
-        for (var i = 0; i < bindings.Length; i++)
-        {
-            var slotIndex = !slotIndices.IsDefaultOrEmpty && slotIndices.Length > i && slotIndices[i] >= 0
-                ? slotIndices[i]
-                : i;
-            slotMapBuilder[bindings[i]] = slotIndex;
-            if (slotIndex > maxSlotIndex)
-            {
-                maxSlotIndex = slotIndex;
-            }
-        }
-
-        var requiredSlots = Math.Max(plan.IterationSlotCount, maxSlotIndex + 1);
+        var requiredSlots = plan.GetRequiredSlots();
         if (requiredSlots < 0)
-        {
-            requiredSlots = maxSlotIndex + 1;
-        }
+            return;
 
         environment.InitializeSlots(requiredSlots, plan.IterationScopeId);
-        var slotMap = slotMapBuilder.ToImmutable();
-        if (!slotMap.IsEmpty)
+
+        var slotMap = plan.GetOrCreateSlotMap();
+        if (slotMap is not null && !slotMap.IsEmpty)
         {
             environment.SetSlotMap(slotMap);
         }

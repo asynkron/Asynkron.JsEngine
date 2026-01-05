@@ -33,7 +33,8 @@ internal static class EngineFeatureFlags
 
     /// <summary>
     /// When true, synchronous functions attempt IR execution first and fall back to the AST evaluator
-    /// if plan generation fails. Set JSENGINE_PREFER_SYNC_IR=true to enable at runtime.
+    /// if plan generation fails. Default: false. Set JSENGINE_PREFER_SYNC_IR=true to enable at runtime.
+    /// NOTE: Currently breaks private field support - private name scopes not propagated correctly in IR path.
     /// </summary>
     internal static bool PreferSyncIr =>
         ForceSyncIr || string.Equals(PreferSyncIrEnv, "true", StringComparison.OrdinalIgnoreCase);

@@ -50,10 +50,12 @@ internal static class IteratorDriverFactory
                 ? perIterationBindings.Length
                 : -1;
 
+        // Use sequential slot indices (0, 1, 2...) when not pre-stamped by execution plan.
+        // This enables the fast path in ExecuteIteratorDriverJsValue even without IR compilation.
         var perIterationSlotIndices = !statement.PerIterationSlotIndices.IsDefaultOrEmpty
             ? statement.PerIterationSlotIndices
             : !perIterationBindings.IsDefaultOrEmpty
-                ? [..Enumerable.Repeat(-1, perIterationBindings.Length)]
+                ? [..Enumerable.Range(0, perIterationBindings.Length)]
                 : ImmutableArray<int>.Empty;
 
         return new IteratorDriverPlan(

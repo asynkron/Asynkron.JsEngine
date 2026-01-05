@@ -754,11 +754,47 @@ public static partial class TypedAstEvaluator
 
                     try
                     {
+                        // For base class constructors, we need to initialize the instance before running
+                        // the constructor body. This includes adding the private brand and initializing
+                        // instance fields. For derived classes, initialization happens in the AST path
+                        // when super() is called.
+                        var needsInstanceInit = IsClassConstructor && !_isDerivedClassConstructor;
+                        IJsObjectLike? instanceToInit = null;
+                        JsValue constructorThisValue = effectiveThisValue;
+                        
+                        if (needsInstanceInit)
+                        {
+                            // For base class constructors called with `new`, create a new instance
+                            // if thisValue is undefined (same logic as in the AST execution path)
+                            if (!newTarget.IsUndefined && effectiveThisValue.IsUndefined)
+                            {
+                                var constructedThis = new JsObject { RealmState = RealmState };
+                                if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
+                                    JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype",
+                                        out var protoVal) &&
+                                    protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+                                {
+                                    constructedThis.SetPrototype(protoAccessor);
+                                }
+                                else if (RealmState.ObjectPrototype is { } defaultProto)
+                                {
+                                    constructedThis.SetPrototype(defaultProto);
+                                }
+                                
+                                constructorThisValue = JsValue.FromObjectUnsafe(constructedThis);
+                                instanceToInit = constructedThis;
+                            }
+                            else if (effectiveThisValue.TryGetObject<IJsObjectLike>(out var existingInstance))
+                            {
+                                instanceToInit = existingInstance;
+                            }
+                        }
+
                         var runner = new ExecutionPlanRunner(
                             _function,
                             _closure,
                             arguments,
-                            effectiveThisValue,
+                            constructorThisValue,
                             this,
                             RealmState,
                             _isStrict,
@@ -768,6 +804,20 @@ public static partial class TypedAstEvaluator
                             _capturedPrivateNameScopes,
                             newTarget,
                             _lexicalThisEnvironment);
+                        
+                        // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
+                        if (instanceToInit is not null)
+                        {
+                            var initContext = runner.EnsureEvaluationContext();
+                            var initEnv = new JsEnvironment(_closure, isStrict: _isStrict);
+                            InitializeInstance(instanceToInit, initEnv, initContext);
+                            if (initContext.IsThrow)
+                            {
+                                callingContext?.SetThrow(initContext.FlowValue);
+                                return initContext.FlowValue;
+                            }
+                        }
+                        
                         return runner.RunSync();
                     }
                     catch (ThrowSignal signal) when (callingContext is not null)

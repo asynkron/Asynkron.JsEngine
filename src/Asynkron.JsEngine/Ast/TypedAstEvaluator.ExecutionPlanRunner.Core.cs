@@ -178,20 +178,44 @@ public static partial class TypedAstEvaluator
             // ExecutePlan returns an iterator result {value, done} for generators.
             // For sync execution, extract the raw value.
             // Handle both IteratorResultObject (lightweight) and JsObject (full) cases.
+            JsValue returnValue;
             if (result.TryGetObject<IteratorResultObject>(out var iteratorResult))
             {
-                iteratorResult.TryGetProperty("value", out var value);
-                return value;
+                iteratorResult.TryGetProperty("value", out returnValue);
             }
-
-            if (result.TryGetObject<JsObject>(out var jsObject) &&
-                jsObject.TryGetProperty("value", out var jsValue))
+            else if (result.TryGetObject<JsObject>(out var jsObject) &&
+                     jsObject.TryGetProperty("value", out var jsValue))
             {
-                return jsValue;
+                returnValue = jsValue;
+            }
+            else
+            {
+                // If no iterator result (shouldn't happen), return as-is
+                returnValue = result;
             }
 
-            // If no iterator result (shouldn't happen), return as-is
-            return result;
+            // For class constructors, apply ES spec [[Construct]] semantics:
+            // If the return value is not an object, return `this` instead.
+            if (_callable is SyncFunctionInvoker syncInvoker && syncInvoker.IsClassConstructor)
+            {
+                if (returnValue.IsObject)
+                {
+                    return returnValue;
+                }
+
+                // Otherwise, return `this` from the execution environment.
+                // The execution environment was set up with the correct `this` value by the caller.
+                if (_executionEnvironment is not null &&
+                    _executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
+                {
+                    return thisValue;
+                }
+
+                // Fallback: return the raw value (should not happen for well-formed constructors).
+                return returnValue;
+            }
+
+            return returnValue;
         }
 
         private JsValue Next(JsValue value)

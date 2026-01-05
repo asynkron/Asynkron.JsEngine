@@ -300,7 +300,7 @@ public static partial class TypedAstEvaluator
             _rootScopeLogged = true;
         }
 
-        private EvaluationContext EnsureEvaluationContext()
+        internal EvaluationContext EnsureEvaluationContext()
         {
             if (_context is null)
             {

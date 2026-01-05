@@ -13,58 +13,6 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-#if NO_INLINING
-        [MethodImpl(MethodImplOptions.NoInlining)]
-#else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
-        private static InstructionResult HandleJump(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
-            out JsValue returnValue)
-        {
-            runner._programCounter = Unsafe.As<JumpInstruction>(instr).TargetIndex;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
-        private static InstructionResult HandleBranch(
-            ExecutionPlanRunner runner,
-            ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            var instruction = Unsafe.As<BranchInstruction>(instr);
-            var testValue = instruction.Condition.EvaluateExpression(environment, context);
-
-            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBranchResult, environment))
-            {
-                returnValue = pendingBranchResult;
-                return InstructionResult.Return;
-            }
-
-            if (context.IsThrow)
-            {
-                var thrownValue = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(thrownValue);
-            }
-
-            runner._programCounter = testValue.IsTruthy ? instruction.ConsequentIndex : instruction.AlternateIndex;
-            returnValue = default;
-            return InstructionResult.Continue;
-        }
-
         private static InstructionResult HandleBreakableEnter(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -259,6 +207,58 @@ public static partial class TypedAstEvaluator
 
             returnValue = runner.CompleteReturn(returnVal);
             return InstructionResult.Return;
+        }
+
+#if NO_INLINING
+        [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private static InstructionResult HandleJump(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext ctx,
+            out JsValue returnValue)
+        {
+            runner._programCounter = Unsafe.As<JumpInstruction>(instr).TargetIndex;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        private static InstructionResult HandleBranch(
+            ExecutionPlanRunner runner,
+            ExecutionInstruction instr,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var instruction = Unsafe.As<BranchInstruction>(instr);
+            var testValue = instruction.Condition.EvaluateExpression(environment, context);
+
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBranchResult, environment))
+            {
+                returnValue = pendingBranchResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var thrownValue = context.FlowValue;
+                context.Clear();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrownValue);
+            }
+
+            runner._programCounter = testValue.IsTruthy ? instruction.ConsequentIndex : instruction.AlternateIndex;
+            returnValue = default;
+            return InstructionResult.Continue;
         }
     }
 }

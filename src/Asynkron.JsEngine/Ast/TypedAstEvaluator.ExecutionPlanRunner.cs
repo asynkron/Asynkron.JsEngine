@@ -343,7 +343,7 @@ public static partial class TypedAstEvaluator
 
             // For class constructors, apply ES spec [[Construct]] semantics:
             // If the return value is not an object, return `this` instead.
-            if (_callable is SyncFunctionInvoker { IsClassConstructor: true } invoker)
+            if (_callable is SyncFunctionInvoker syncInvoker && syncInvoker.IsClassConstructor)
             {
                 // If constructor explicitly returned an object, use that
                 if (returnValue.IsObject)

@@ -765,7 +765,7 @@ public static partial class TypedAstEvaluator
                         if (needsInstanceInit)
                         {
                             // For base class constructors called with `new`, create a new instance
-                            // if thisValue is undefined (same logic as AST path around line 957-982)
+                            // if thisValue is undefined (same logic as in the AST execution path)
                             if (!newTarget.IsUndefined && effectiveThisValue.IsUndefined)
                             {
                                 var constructedThis = new JsObject { RealmState = RealmState };

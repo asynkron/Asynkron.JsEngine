@@ -2800,9 +2800,17 @@ public static partial class TypedAstEvaluator
                     newIterationEnv.SetSlotMap(instruction.SlotMap);
                 }
 
-                if (instruction.LexicalBindings is { Count: > 0 })
+                // Mark lexical bindings as uninitialized (TDZ) using SlotMap for O(log n) lookup
+                // instead of O(n) linear search via FindSlotIndex
+                if (instruction.LexicalBindings is { Count: > 0 } && !instruction.SlotMap.IsEmpty)
                 {
-                    newIterationEnv.MarkSlotsLexicalUninitialized(instruction.LexicalBindings);
+                    foreach (var binding in instruction.LexicalBindings)
+                    {
+                        if (instruction.SlotMap.TryGetValue(binding, out var slotIndex))
+                        {
+                            newIterationEnv.SetSlotLexicalUninitialized(slotIndex);
+                        }
+                    }
                 }
             }
 

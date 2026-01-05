@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -749,25 +750,33 @@ public static partial class TypedAstEvaluator
             var instructions = _plan.Instructions;
             var instructionsLength = instructions.Length;
 
+            // Get underlying array from ImmutableArray and reference to start - enables bounds-check-free access
+            var instructionsArray = ImmutableCollectionsMarshal.AsArray(instructions)!;
+            ref var instructionsRef = ref MemoryMarshal.GetArrayDataReference(instructionsArray);
+
+            // Cache try-catch state check - avoid repeated null checks in hot loop
+            var hasTryCatchState = _tryCatchState is not null;
+
             bool continueAfterCatch;
             do
             {
                 continueAfterCatch = false;
                 try
                 {
-                    while (_programCounter >= 0 && _programCounter < instructionsLength)
+                    while ((uint)_programCounter < (uint)instructionsLength)
                     {
                         // Check if HandleAbruptCompletion restored the environment (e.g., jumping to catch handler)
                         // This ensures block-scoped bindings from inside the try are no longer visible.
-                        // Only check when TryCatchState has been allocated (_tryCatchState is not null).
-                        if (_tryCatchState is { RestoredEnvironmentFromTry: { } restored })
+                        // Only check when TryCatchState has been allocated.
+                        if (hasTryCatchState && _tryCatchState!.RestoredEnvironmentFromTry is { } restored)
                         {
                             environment = restored;
                             _tryCatchState.RestoredEnvironmentFromTry = null;
                         }
 
                         _currentInstructionIndex = _programCounter;
-                        var instruction = instructions[_programCounter];
+                        // Use Unsafe.Add to bypass bounds check - we already validated via the while condition
+                        var instruction = Unsafe.Add(ref instructionsRef, _programCounter);
                         var instructionKind = instruction.Kind;
 
                         // Trace instruction execution when debug logging is enabled

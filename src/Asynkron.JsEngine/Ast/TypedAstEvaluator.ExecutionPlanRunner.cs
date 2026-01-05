@@ -603,7 +603,7 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private JsValue ExecutePlan(ResumeMode mode, JsValue resumeValue)
         {
             if (_plan is null)

@@ -1527,67 +1527,6 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Reads a value using flat slot access for O(1) lookup.
-        /// If the flat slot hasn't been populated yet, resolves via scope chain and caches.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryReadFlatSlot(int flatSlotId, JsEnvironment environment, EvaluationContext context, out JsValue value)
-        {
-            if (_flatSlots is null || flatSlotId < 0 || flatSlotId >= _flatSlots.Length)
-            {
-                value = default;
-                return false;
-            }
-
-            ref var slot = ref _flatSlots[flatSlotId];
-            if (slot.IsValid)
-            {
-                // Fast path: slot already resolved
-                value = slot.Read();
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        /// <summary>
-        /// Writes a value using flat slot access for O(1) lookup.
-        /// If the flat slot hasn't been populated yet, resolves via scope chain and caches.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryWriteFlatSlot(int flatSlotId, JsValue value)
-        {
-            if (_flatSlots is null || flatSlotId < 0 || flatSlotId >= _flatSlots.Length)
-            {
-                return false;
-            }
-
-            ref var slot = ref _flatSlots[flatSlotId];
-            if (slot.IsValid)
-            {
-                // Fast path: slot already resolved
-                slot.Write(value);
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Populates a flat slot with a JsVariable pointing to the resolved environment and slot.
-        /// Called when first accessing a variable to enable O(1) access on subsequent reads/writes.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void PopulateFlatSlot(int flatSlotId, JsEnvironment environment, int slotIndex)
-        {
-            if (_flatSlots is not null && flatSlotId >= 0 && flatSlotId < _flatSlots.Length)
-            {
-                _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
-            }
-        }
-
-        /// <summary>
         /// Eagerly populates flat slots for all variables in the given scope.
         /// Called when entering a new scope via PushEnvironment.
         /// </summary>
@@ -1599,12 +1538,14 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (_plan.FlatSlotMappings.TryGetValue(scopeId, out var mappings))
+            if (!_plan.FlatSlotMappings.TryGetValue(scopeId, out var mappings))
             {
-                foreach (var (slotIndex, flatSlotId) in mappings)
-                {
-                    _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
-                }
+                return;
+            }
+
+            foreach (var (slotIndex, flatSlotId) in mappings)
+            {
+                _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
             }
         }
 
@@ -1618,7 +1559,7 @@ public static partial class TypedAstEvaluator
             /// <summary>Return from ExecutePlan with a value.</summary>
             Return,
             /// <summary>An exception was thrown (already handled).</summary>
-            Throw
+            //Throw
         }
 
         // ═══════════════════════════════════════════════════════════════════════════

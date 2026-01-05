@@ -804,96 +804,15 @@ public static partial class TypedAstEvaluator
 #pragma warning restore CS0162
 
                         // ═══════════════════════════════════════════════════════════════════════════
-                        // FAST PATH: Inline the hottest instructions to avoid switch dispatch overhead
-                        // For a 1M iteration loop, this saves millions of switch table lookups
+                        // FAST PATH: Use handler table dispatch for hot instructions
+                        // Direct array lookup eliminates switch dispatch bounds check overhead
                         // ═══════════════════════════════════════════════════════════════════════════
 
-                        // Jump is the simplest - just update program counter
-                        if (instructionKind == InstructionKind.Jump)
+                        // Jump and Branch are the hottest - use handler table lookup for these
+                        if (instructionKind is InstructionKind.Jump or InstructionKind.Branch)
                         {
-                            _programCounter = Unsafe.As<JumpInstruction>(instruction).TargetIndex;
-                            continue;
-                        }
-
-                        // Branch is hot - inline the entire handler to avoid switch dispatch
-                        if (instructionKind == InstructionKind.Branch)
-                        {
-                            var branchInstruction = Unsafe.As<BranchInstruction>(instruction);
-
-                            // Fast path for simple binary comparisons (e.g., i < 1000000)
-                            JsValue testValue;
-                            if (branchInstruction.Condition is BinaryExpression
-                                {
-                                    Operator: BinaryOperator.LessThan or BinaryOperator.LessThanOrEqual or
-                                    BinaryOperator.GreaterThan or BinaryOperator.GreaterThanOrEqual
-                                } binCond)
-                            {
-                                // Try to get left operand without AST evaluation
-                                JsValue leftVal;
-                                switch (binCond.Left)
-                                {
-                                    case LiteralExpression { Value: var lit }:
-                                        leftVal = lit;
-                                        break;
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } leftId:
-                                        if (!environment.TryReadIdentifierWithSlot(leftId, context, out leftVal))
-                                        {
-                                            goto slowPath;
-                                        }
-
-                                        break;
-                                    default:
-                                        goto slowPath;
-                                }
-
-                                // Try to get right operand without AST evaluation
-                                JsValue rightVal;
-                                switch (binCond.Right)
-                                {
-                                    case LiteralExpression { Value: var lit }:
-                                        rightVal = lit;
-                                        break;
-                                    case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rightId:
-                                        if (!environment.TryReadIdentifierWithSlot(rightId, context, out rightVal))
-                                        {
-                                            goto slowPath;
-                                        }
-
-                                        break;
-                                    default:
-                                        goto slowPath;
-                                }
-
-                                // Apply comparison directly
-                                testValue = binCond.Operator switch
-                                {
-                                    BinaryOperator.LessThan => LessThanValue(leftVal, rightVal, context),
-                                    BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
-                                    BinaryOperator.GreaterThan => GreaterThanValue(leftVal, rightVal, context),
-                                    BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(leftVal, rightVal,
-                                        context),
-                                    _ => throw new InvalidOperationException()
-                                };
-                                goto afterConditionEval;
-                            }
-
-                            slowPath:
-                            testValue = branchInstruction.Condition.EvaluateExpression(environment, context);
-                            afterConditionEval:
-
-                            // Check for pending await (async code) - skip entirely for sync functions
-                            if (_isAsync && TryHandlePendingAwait(context, out var pendingBranchResult, environment))
-                            {
-                                return pendingBranchResult;
-                            }
-
-                            // Check for throw
-                            if (TryHandleContextThrow(context, environment)) continue;
-
-                            // Normal path: branch based on condition
-                            _programCounter = testValue.IsTruthy
-                                ? branchInstruction.ConsequentIndex
-                                : branchInstruction.AlternateIndex;
+                            if (!s_handlers[(int)instructionKind](this, instruction, ref environment, context))
+                                return _handlerReturnValue;
                             continue;
                         }
 

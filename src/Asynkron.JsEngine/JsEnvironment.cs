@@ -3400,6 +3400,27 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Fast slot name initialization using a pre-computed array.
+    /// Avoids ImmutableDictionary iteration which is slow.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSlotNames(ImmutableArray<(Symbol Name, int SlotIndex)> slotNames)
+    {
+        if (slotNames.IsDefaultOrEmpty || _slots is null)
+        {
+            return;
+        }
+
+        foreach (var (name, index) in slotNames)
+        {
+            if (index >= 0 && index < _slots.Length && _slots[index].Name is null)
+            {
+                _slots[index] = new JsSlot(name, JsValue.Undefined, SlotFlags.None);
+            }
+        }
+    }
+
+    /// <summary>
     /// Marks the provided symbols as lexical/uninitialized in the current slots (TDZ).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

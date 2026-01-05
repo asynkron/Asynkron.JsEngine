@@ -93,7 +93,7 @@ public static partial class StandardLibrary
                 // Projector now returns JsValue directly - no boxing
                 var valueJs = projector(index);
                 index++;
-                return new IteratorResultObject(valueJs, false).AsJsValue;
+                return IteratorResultObjectPool.Rent(valueJs, false).AsJsValue;
             }
 
             exhausted = true;

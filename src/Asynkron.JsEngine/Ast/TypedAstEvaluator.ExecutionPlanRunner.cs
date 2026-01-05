@@ -3117,7 +3117,13 @@ public static partial class TypedAstEvaluator
             if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
             {
                 newIterationEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
-                if (!instruction.SlotMap.IsEmpty)
+
+                // Fast path: use pre-computed SlotNames array if available (avoids ImmutableDictionary iteration)
+                if (!instruction.SlotNames.IsDefaultOrEmpty)
+                {
+                    newIterationEnv.SetSlotNames(instruction.SlotNames);
+                }
+                else if (!instruction.SlotMap.IsEmpty)
                 {
                     newIterationEnv.SetSlotMap(instruction.SlotMap);
                 }
@@ -3720,6 +3726,12 @@ public static partial class TypedAstEvaluator
                            JsOps.ToBoolean(doneValue);
                 if (done)
                 {
+                    // Return pooled iterator result object
+                    if (resultObj is IteratorResultObject poolableResult)
+                    {
+                        IteratorResultObjectPool.Return(poolableResult);
+                    }
+
                     // When breaking out of iterator, restore environment to enclosing scope.
                     // This is critical for nested loops: after async resume, environment was
                     // reset to function scope, and we need to restore it to the loop scope
@@ -3741,6 +3753,12 @@ public static partial class TypedAstEvaluator
                 currentValue = resultObj.TryGetProperty("value", out var yielded)
                     ? yielded
                     : JsValue.Undefined;
+
+                // Return pooled iterator result object - we've extracted value/done, it's safe to recycle
+                if (resultObj is IteratorResultObject poolableResult2)
+                {
+                    IteratorResultObjectPool.Return(poolableResult2);
+                }
 
                 // Mark that we've successfully entered the loop (next() succeeded).
                 // Per ES spec 13.6.4.13 step 5.d, IteratorClose should only be called
@@ -3982,6 +4000,12 @@ public static partial class TypedAstEvaluator
                                     JsOps.ToBoolean(awaitDoneValue);
                     if (doneAwait)
                     {
+                        // Return pooled iterator result object
+                        if (awaitResultObj is IteratorResultObject asyncPoolableResult)
+                        {
+                            IteratorResultObjectPool.Return(asyncPoolableResult);
+                        }
+
                         // Restore environment to enclosing scope when async iterator exhausted
                         if (driverState.CurrentIterationEnvironment?.Enclosing is { } enclosingEnv5)
                         {
@@ -3997,6 +4021,13 @@ public static partial class TypedAstEvaluator
                     var rawValue = awaitResultObj.TryGetProperty("value", out var yieldedAwait)
                         ? yieldedAwait
                         : JsValue.Undefined;
+
+                    // Return pooled iterator result object - we've extracted value/done
+                    if (awaitResultObj is IteratorResultObject asyncPoolableResult2)
+                    {
+                        IteratorResultObjectPool.Return(asyncPoolableResult2);
+                    }
+
                     if (!TryResolvePromiseOrYield(rawValue, context, out var fullyAwaitedValue))
                     {
                         if (TryHandleAwaitSuspension(driverState, iterVar,

@@ -173,12 +173,6 @@ public readonly struct PropertyHandle
         var hasBrand = targetObj is IPrivateBrandHolder brandHolder &&
                        brandHolder.HasPrivateBrand(_privateScope.BrandToken);
 
-        _context.RealmState.Logger?.LogInformation(
-            "Private member access targetType={TargetType} prop={PropertyName} hasBrand={HasBrand}",
-            targetObj?.GetType().Name ?? "null",
-            _propertyName,
-            hasBrand);
-
         if (!hasBrand)
         {
             throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);

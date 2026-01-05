@@ -15,6 +15,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
+
         private static InstructionResult HandleBinaryOp(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -417,5 +418,6 @@ public static partial class TypedAstEvaluator
             returnValue = default;
             return InstructionResult.Continue;
         }
+
     }
 }

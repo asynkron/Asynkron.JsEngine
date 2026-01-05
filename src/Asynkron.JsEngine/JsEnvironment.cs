@@ -3659,6 +3659,16 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
+    /// Checks if a slot is a const binding.
+    /// Used by fast path handlers to throw TypeError on const reassignment.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool IsSlotConst(int slotIndex)
+    {
+        return _slots![slotIndex].IsConst;
+    }
+
+    /// <summary>
     /// Sets a slot value directly without any lookups.
     /// Used for fast per-iteration binding copies in generators.
     /// WARNING: Caller must ensure slotIndex is valid and _slots is initialized.

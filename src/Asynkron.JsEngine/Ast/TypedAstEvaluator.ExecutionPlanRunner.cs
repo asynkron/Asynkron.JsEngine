@@ -185,13 +185,13 @@ public static partial class TypedAstEvaluator
             _isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
             _isAsync = function.IsAsync;
             _isGenerator = function.IsGenerator;
-            _allowIdentifierCache = AllowsIdentifierCaching(function);
+            _allowIdentifierCache = AllowsIdentifierCaching(function) && !closure.HasWithObjectInChain();
 
             var planCache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
             if (!planCache.Succeeded || planCache.Plan is null)
             {
                 var reason = planCache.FailureReason ?? "Generator contains unsupported construct for IR.";
-                throw new NotSupportedException($"Generator IR not implemented for this function: {reason}");
+                throw new NotSupportedException($"IR plan generation failed for function: {reason}");
             }
 
             _plan = planCache.Plan;
@@ -1810,6 +1810,15 @@ public static partial class TypedAstEvaluator
             if (flatSlotId >= 0)
             {
                 ref var targetVar = ref runner._flatSlots![flatSlotId];
+
+                // Check for const assignment - must throw TypeError
+                if (targetVar.IsConst)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
+                        realm: runner._realmState));
+                }
+
                 var currentValue = targetVar.Read();
 
                 if (currentValue.Kind == JsValueKind.Number)
@@ -1842,6 +1851,14 @@ public static partial class TypedAstEvaluator
                 ? ref runner._flatSlots[flatSlotId]
                 : ref Unsafe.NullRef<JsVariable>());
             var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
+
+            // Check for const assignment - must throw TypeError
+            if (useFlatSlot && variable.IsConst)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
+                    realm: runner._realmState));
+            }
 
             if (useFlatSlot)
             {
@@ -1960,6 +1977,15 @@ public static partial class TypedAstEvaluator
                 instruction.Operator == BinaryOperator.Add)
             {
                 ref var targetVar = ref runner._flatSlots![flatSlotId];
+
+                // Check for const assignment - must throw TypeError
+                if (targetVar.IsConst)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
+                        realm: runner._realmState));
+                }
+
                 var leftValue = targetVar.Read();
                 var rightValue = runner._flatSlots[rhsFlatSlotId].Read();
 
@@ -1992,6 +2018,14 @@ public static partial class TypedAstEvaluator
                 ? ref runner._flatSlots[flatSlotId]
                 : ref Unsafe.NullRef<JsVariable>());
             var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
+
+            // Check for const assignment - must throw TypeError
+            if (useFlatSlot && variable.IsConst)
+            {
+                throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                    $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
+                    realm: runner._realmState));
+            }
 
             if (useFlatSlot)
             {
@@ -3493,7 +3527,7 @@ public static partial class TypedAstEvaluator
             if (instruction.IteratorSlotIndex >= 0)
             {
                 while (iteratorEnv is not null &&
-                       (iteratorEnv.ScopeId != runner._plan.RootScopeId ||
+                       (iteratorEnv.ScopeId != runner._plan!.RootScopeId ||
                         !iteratorEnv.HasSlots ||
                         iteratorEnv._slots!.Length <= instruction.IteratorSlotIndex))
                 {
@@ -3559,7 +3593,7 @@ public static partial class TypedAstEvaluator
                 {
                     var slotWalkCount = 0;
                     while (slotEnv != null &&
-                           (slotEnv.ScopeId != runner._plan.RootScopeId ||
+                           (slotEnv.ScopeId != runner._plan!.RootScopeId ||
                             !slotEnv.HasSlots ||
                             slotEnv._slots!.Length <= slotIdx))
                     {

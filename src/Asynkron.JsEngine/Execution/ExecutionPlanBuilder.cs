@@ -132,15 +132,21 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
-        // After building all instructions, assign slots to user variables and update AST nodes
+        // After building all instructions, assign slots to user variables and update AST nodes.
+        //
         // NOTE: For scripts (IsScriptLevel=true), we do NOT assign slots to user variables because:
         // 1. Script hoisting already created dictionary-based bindings for var/let/const declarations
         // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
         // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
-        // For functions, slot assignment is fine because scope analysis happens at parse time.
+        //
+        // NOTE: For functions that contain dynamic scope features (with/direct eval), we also skip slot assignment
+        // because:
+        // 1. Direct eval can introduce new bindings at runtime (invalidating fixed slot layouts)
+        // 2. Slot/flat-slot reads bypass object-environment resolution needed for with semantics
+        // These functions run via dictionary lookups (AllowIdentifierCache=false).
         ScopeSlotAnalysis? analysis = null;
         SlotAssignmentRewriter? rewriter = null;
-        if (!IsScriptLevel)
+        if (!IsScriptLevel && TypedAstEvaluator.AllowsIdentifierCaching(function))
         {
             analysis = AssignSlotsToUserVariables(entryIndex, function, _rootScopeId, analysisRootScopeId,
                 out rewriter);

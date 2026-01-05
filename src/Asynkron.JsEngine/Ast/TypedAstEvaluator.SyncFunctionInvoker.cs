@@ -4,6 +4,7 @@ using System;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -557,7 +558,7 @@ public static partial class TypedAstEvaluator
         {
             // Fast-path for simple functions - uses precomputed _canUseFastPathBase
             // Only check newTarget at runtime (everything else is fixed after construction)
-            if (_canUseFastPathBase && newTarget.IsUndefined)
+            if (_canUseFastPathBase && newTarget.IsUndefined && !EngineFeatureFlags.PreferSyncIr)
             {
                 return InvokeSimpleFast(arguments, thisValue, callingContext);
             }
@@ -574,7 +575,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (_canUseFastPathBase)
+            if (_canUseFastPathBase && !EngineFeatureFlags.PreferSyncIr)
             {
                 return InvokeSimpleFast1(arg0, thisValue, callingContext);
             }
@@ -593,7 +594,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext callingContext,
             JsEnvironment reuseEnvironment)
         {
-            if (_canUseFastPathBase)
+            if (_canUseFastPathBase && !EngineFeatureFlags.PreferSyncIr)
             {
                 return InvokeSimpleFast1Reuse(arg0, thisValue, callingContext, reuseEnvironment);
             }
@@ -611,7 +612,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (_canUseFastPathBase)
+            if (_canUseFastPathBase && !EngineFeatureFlags.PreferSyncIr)
             {
                 return InvokeSimpleFast2(arg0, arg1, thisValue, callingContext);
             }
@@ -718,11 +719,14 @@ public static partial class TypedAstEvaluator
                 _allowIdentifierCache,
                 _function.Name?.Name ?? "<anonymous>");
 
-            // Skip IR for:
-            // - Functions with homeObject (class methods/field initializers) - need special super handling
-            // - Functions with direct eval - AST path handles eval scope correctly
-            if (!_function.IsGenerator && !IsClassConstructor && _homeObject is null &&
-                _allowIdentifierCache)
+            var forceSyncIr = EngineFeatureFlags.ForceSyncIr;
+            var preferSyncIr = EngineFeatureFlags.PreferSyncIr;
+            var allowDefaultIr = !_function.IsGenerator && !IsClassConstructor && _homeObject is null && _allowIdentifierCache;
+
+            // IR execution (ExecutionPlanRunner) for sync functions.
+            // Default mode uses IR only for the safe/optimized subset (allowDefaultIr) and throws if plan generation fails.
+            // Prefer/Force modes widen IR eligibility to all sync functions, optionally allowing AST fallback.
+            if (!_function.IsGenerator && !IsAsyncFunction && (preferSyncIr || allowDefaultIr))
             {
                 var planCache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
                 RealmState.Logger?.LogInformation(
@@ -773,10 +777,13 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                // IR plan generation failed - throw to surface the limitation clearly
-                RealmState.ReturnContext(context);
-                throw new NotSupportedException(
-                    $"IR plan generation failed for function: {planCache.FailureReason}");
+                if (forceSyncIr || !preferSyncIr)
+                {
+                    // IR plan generation failed - throw to surface the limitation clearly
+                    RealmState.ReturnContext(context);
+                    throw new NotSupportedException(
+                        $"IR plan generation failed for function: {planCache.FailureReason}");
+                }
             }
 
             var lexicalNames = RentSymbolSet(_lexicalTemplate);

@@ -754,11 +754,47 @@ public static partial class TypedAstEvaluator
 
                     try
                     {
+                        // For base class constructors, we need to initialize the instance before running
+                        // the constructor body. This includes adding the private brand and initializing
+                        // instance fields. For derived classes, initialization happens in the AST path
+                        // when super() is called.
+                        var needsInstanceInit = IsClassConstructor && !_isDerivedClassConstructor;
+                        IJsObjectLike? instanceToInit = null;
+                        JsValue constructorThisValue = effectiveThisValue;
+                        
+                        if (needsInstanceInit)
+                        {
+                            // For base class constructors called with `new`, create a new instance
+                            // if thisValue is undefined (same logic as AST path around line 957-982)
+                            if (!newTarget.IsUndefined && effectiveThisValue.IsUndefined)
+                            {
+                                var constructedThis = new JsObject { RealmState = RealmState };
+                                if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
+                                    JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype",
+                                        out var protoVal) &&
+                                    protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+                                {
+                                    constructedThis.SetPrototype(protoAccessor);
+                                }
+                                else if (RealmState.ObjectPrototype is { } defaultProto)
+                                {
+                                    constructedThis.SetPrototype(defaultProto);
+                                }
+                                
+                                constructorThisValue = JsValue.FromObjectUnsafe(constructedThis);
+                                instanceToInit = constructedThis;
+                            }
+                            else if (effectiveThisValue.TryGetObject<IJsObjectLike>(out var existingInstance))
+                            {
+                                instanceToInit = existingInstance;
+                            }
+                        }
+
                         var runner = new ExecutionPlanRunner(
                             _function,
                             _closure,
                             arguments,
-                            effectiveThisValue,
+                            constructorThisValue,
                             this,
                             RealmState,
                             _isStrict,
@@ -768,6 +804,27 @@ public static partial class TypedAstEvaluator
                             _capturedPrivateNameScopes,
                             newTarget,
                             _lexicalThisEnvironment);
+                        
+                        // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
+                        if (instanceToInit is not null)
+                        {
+                            var tempContext = RealmState.CreateContext(ScopeKind.Function, ScopeMode.Strict);
+                            var tempEnv = new JsEnvironment(_closure, isStrict: _isStrict);
+                            try
+                            {
+                                InitializeInstance(instanceToInit, tempEnv, tempContext);
+                                if (tempContext.IsThrow)
+                                {
+                                    callingContext?.SetThrow(tempContext.FlowValue);
+                                    return tempContext.FlowValue;
+                                }
+                            }
+                            finally
+                            {
+                                RealmState.ReturnContext(tempContext);
+                            }
+                        }
+                        
                         return runner.RunSync();
                     }
                     catch (ThrowSignal signal) when (callingContext is not null)
@@ -1564,12 +1621,6 @@ public static partial class TypedAstEvaluator
 
         public void InitializeInstance(IJsObjectLike instance, JsEnvironment environment, EvaluationContext context)
         {
-            RealmState.Logger?.LogInformation(
-                "InitializeInstance: instance={InstanceType} PrivateNameScope={HasScope} IsBrandHolder={IsBrandHolder}",
-                instance.GetType().Name,
-                PrivateNameScope is not null,
-                instance is IPrivateBrandHolder);
-
             if (PrivateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
             {
                 // Per ES spec 7.3.28 PrivateMethodOrAccessorAdd, throw TypeError if private elements
@@ -1582,7 +1633,6 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
-                RealmState.Logger?.LogInformation("Adding private brand to instance");
                 brandHolder.AddPrivateBrand(PrivateNameScope.BrandToken);
             }
 

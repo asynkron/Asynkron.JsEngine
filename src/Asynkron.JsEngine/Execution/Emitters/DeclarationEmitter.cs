@@ -40,14 +40,11 @@ internal static class DeclarationEmitter
             return false;
         }
 
-        // For async generators, awaits need proper handling via StatementInstruction
-        if (ClassDefinitionContainsAwait(classDeclaration.Definition))
-        {
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, classDeclaration));
-            return true;
-        }
+        // NOTE: Await expressions in class definitions (extends clause, computed property names)
+        // are handled by ClassDeclarationInstruction via normal expression evaluation.
+        // The IR runner's TryHandlePendingAwait handles async suspension/resumption.
 
-        // Use native ClassDeclarationInstruction for clean cases
+        // Use native ClassDeclarationInstruction - handles both sync and async cases
         entryIndex = ctx.Append(new ClassDeclarationInstruction(nextIndex, classDeclaration));
         return true;
     }

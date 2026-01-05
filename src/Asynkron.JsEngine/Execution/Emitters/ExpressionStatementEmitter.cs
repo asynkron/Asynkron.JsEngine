@@ -67,13 +67,9 @@ internal static class ExpressionStatementEmitter
             return false;
         }
 
-        // For async generators, await expressions are lowered to yield points.
-        // Don't use native instruction if there are awaits - fall back to StatementInstruction.
-        if (AstShapeAnalyzer.ContainsAwait(expressionStatement.Expression))
-        {
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, expressionStatement));
-            return true;
-        }
+        // NOTE: Await expressions are handled by EvaluateAndDiscardInstruction via
+        // normal expression evaluation - no fallback to StatementInstruction needed.
+        // The IR runner's TryHandlePendingAwait handles async suspension/resumption.
 
         // Combine context and statement-level suppression flags
         var suppressCompletion = ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;

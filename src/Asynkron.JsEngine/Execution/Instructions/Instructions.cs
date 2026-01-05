@@ -99,6 +99,7 @@ internal sealed record IncrementSlotInstruction(
 /// <param name="ScopeId">Scope ID where the variable is declared. -1 means unresolved.</param>
 /// <param name="SlotIndex">Slot index within the scope. -1 means unresolved.</param>
 /// <param name="FlatSlotId">Index into flat slots array for O(1) access. -1 means unresolved.</param>
+/// <param name="RhsFlatSlotId">Flat slot ID for RHS when it's an identifier. -1 means not applicable.</param>
 internal sealed record CompoundAssignmentSlotInstruction(
     int Next,
     Symbol TargetSymbol,
@@ -107,7 +108,8 @@ internal sealed record CompoundAssignmentSlotInstruction(
     bool SuppressCompletionValue = false,
     int ScopeId = -1,
     int SlotIndex = -1,
-    int FlatSlotId = -1)
+    int FlatSlotId = -1,
+    int RhsFlatSlotId = -1)
     : ExecutionInstruction(InstructionKind.CompoundAssignmentSlot, Next);
 
 /// <summary>

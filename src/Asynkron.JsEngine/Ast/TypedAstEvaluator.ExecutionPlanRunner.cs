@@ -1519,8 +1519,7 @@ public static partial class TypedAstEvaluator
             if (currentValue.Kind == JsValueKind.Number)
             {
                 var numValue = currentValue.NumberValue;
-                var newValue = isIncrement ? numValue + 1.0 : numValue - 1.0;
-                return JsValueCache.GetNumberJsValue(newValue);
+                return isIncrement ? numValue + 1.0 : numValue - 1.0;
             }
             // BigInt and other cases - return sentinel to indicate slow path needed
             return JsValue.Undefined;
@@ -1536,7 +1535,7 @@ public static partial class TypedAstEvaluator
             // Fast path for number + number (most common in loops)
             if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
             {
-                return JsValueCache.GetNumberJsValue(left.NumberValue + right.NumberValue);
+                return left.NumberValue + right.NumberValue;
             }
             // Return sentinel to indicate slow path needed
             return JsValue.Undefined;
@@ -1878,10 +1877,27 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<IncrementSlotInstruction>(instr);
-            // Fast path: use flat slot for O(1) access when available
-            // Cache the variable reference once to avoid double array access
-            JsValue incCurrentValue;
             var flatSlotId = instruction.FlatSlotId;
+
+            // Super-fast path: flat slot with number value (covers most loop counters)
+            if (flatSlotId >= 0)
+            {
+                ref var targetVar = ref runner._flatSlots![flatSlotId];
+                var currentValue = targetVar.Read();
+
+                if (currentValue.Kind == JsValueKind.Number)
+                {
+                    var numValue = currentValue.NumberValue;
+                    var newValue = instruction.IsIncrement ? numValue + 1.0 : numValue - 1.0;
+                    targetVar.Write(newValue);
+                    runner._programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+            }
+
+            // Regular path: use ref ternary for variable access
+            JsValue incCurrentValue;
             ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
                 ? ref runner._flatSlots[flatSlotId]
                 : ref Unsafe.NullRef<JsVariable>());
@@ -1993,10 +2009,32 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<CompoundAssignmentSlotInstruction>(instr);
-            // Fast path: use flat slot for O(1) access when available
-            // Cache the variable reference once to avoid double array access
-            JsValue compCurrentValue;
             var flatSlotId = instruction.FlatSlotId;
+
+            // Super-fast path: both operands use flat slots, operator is Add, both are numbers
+            // This covers the common loop case like: sum = sum + prev
+            // Use direct type check instead of pattern matching for speed
+            var rhsFlatSlotId = instruction.RhsFlatSlotId;
+            if (flatSlotId >= 0 &&
+                rhsFlatSlotId >= 0 &&
+                instruction.Operator == BinaryOperator.Add)
+            {
+                ref var targetVar = ref runner._flatSlots![flatSlotId];
+                var leftValue = targetVar.Read();
+                var rightValue = runner._flatSlots[rhsFlatSlotId].Read();
+
+                if (leftValue.Kind == JsValueKind.Number && rightValue.Kind == JsValueKind.Number)
+                {
+                    var result = leftValue.NumberValue + rightValue.NumberValue;
+                    targetVar.Write(result);
+                    runner._programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+            }
+
+            // Fast path: flat slot for target variable
+            JsValue compCurrentValue;
             ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
                 ? ref runner._flatSlots[flatSlotId]
                 : ref Unsafe.NullRef<JsVariable>());

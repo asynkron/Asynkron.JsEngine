@@ -281,19 +281,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case CompoundAssignmentSlotInstruction compoundAssign:
             {
+                // Rewrite the RHS expression first to resolve any identifiers
+                var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
+                // Extract RhsFlatSlotId if RHS is an identifier with a flat slot
+                var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
+                    ? rhsIdent.FlatSlotId
+                    : -1;
+
                 // Resolve the target symbol to get scope/slot/flatSlot metadata
                 if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
                 {
                     var compoundFlatSlotId = GetOrCreateFlatSlotId(compoundResolution.scopeId, compoundResolution.slotIndex);
                     return compoundAssign with
                     {
-                        RhsExpression = Rewrite(compoundAssign.RhsExpression),
+                        RhsExpression = rewrittenRhs,
                         ScopeId = compoundResolution.scopeId,
                         SlotIndex = compoundResolution.slotIndex,
-                        FlatSlotId = compoundFlatSlotId
+                        FlatSlotId = compoundFlatSlotId,
+                        RhsFlatSlotId = rhsFlatSlotId
                     };
                 }
-                return compoundAssign with { RhsExpression = Rewrite(compoundAssign.RhsExpression) };
+                return compoundAssign with { RhsExpression = rewrittenRhs, RhsFlatSlotId = rhsFlatSlotId };
             }
 
             case IncrementSlotInstruction increment:

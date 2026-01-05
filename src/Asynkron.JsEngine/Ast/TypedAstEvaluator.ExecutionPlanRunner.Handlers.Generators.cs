@@ -14,8 +14,6 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
-
-
 #if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
 #else
@@ -75,7 +73,6 @@ public static partial class TypedAstEvaluator
             returnValue = CreateIteratorResult(yieldedValue, false);
             return InstructionResult.Return;
         }
-
 
 #if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -144,7 +141,6 @@ public static partial class TypedAstEvaluator
             returnValue = default;
             return InstructionResult.Continue;
         }
-
 
 #if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -394,6 +390,5 @@ public static partial class TypedAstEvaluator
             returnValue = default;
             return InstructionResult.Continue;
         }
-
     }
 }

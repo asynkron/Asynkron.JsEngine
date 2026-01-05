@@ -753,7 +753,11 @@ public static partial class TypedAstEvaluator
             return ExecuteInstructionLoop(ref environment, context);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private JsValue ExecuteInstructionLoop(ref JsEnvironment environment, EvaluationContext context)
         {
             // Cache debug mode check outside the hot loop - avoid virtual property access per iteration
@@ -898,7 +902,11 @@ public static partial class TypedAstEvaluator
             return CreateIteratorResult(JsValue.Undefined, true);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult DispatchInstruction(
             ExecutionInstruction instruction,
             InstructionKind instructionKind,
@@ -1509,7 +1517,11 @@ public static partial class TypedAstEvaluator
         // Change to AggressiveInlining after profiling is complete
         // ═══════════════════════════════════════════════════════════════════════════
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static bool ProfileReadOperand(
             JsEnvironment environment,
             EvaluationContext context,
@@ -1531,7 +1543,11 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileBranchCompare(
             BinaryOperator op,
             JsValue leftVal,
@@ -1547,13 +1563,21 @@ public static partial class TypedAstEvaluator
             };
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static int ProfileHandleJump(JumpInstruction jumpInstruction)
         {
             return jumpInstruction.TargetIndex;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileEvaluateExpression(
             ExpressionNode expression,
             JsEnvironment environment,
@@ -1562,7 +1586,11 @@ public static partial class TypedAstEvaluator
             return expression.EvaluateExpression(environment, context);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileEvaluateStatement(
             StatementNode statement,
             JsEnvironment environment,
@@ -1571,7 +1599,11 @@ public static partial class TypedAstEvaluator
             return statement.EvaluateStatementJsValue(environment, context);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileApplyBinaryOperator(
             BinaryOperator op,
             JsValue left,
@@ -1581,7 +1613,11 @@ public static partial class TypedAstEvaluator
             return ApplyBinaryOperator(op, left, right, context);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileGetIdentifier(
             JsEnvironment environment,
             Symbol symbol,
@@ -1590,7 +1626,11 @@ public static partial class TypedAstEvaluator
             return environment.GetIdentifierJsValueDirect(symbol, context);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static void ProfileAssignJsValue(
             JsEnvironment environment,
             Symbol symbol,
@@ -1599,7 +1639,11 @@ public static partial class TypedAstEvaluator
             environment.AssignJsValue(symbol, value);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static ExecutionInstruction ProfileFetchInstruction(
             ref ExecutionInstruction instructionsRef,
             int programCounter)
@@ -1607,13 +1651,21 @@ public static partial class TypedAstEvaluator
             return Unsafe.Add(ref instructionsRef, programCounter);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static int ProfileBranchDecision(bool isTruthy, int consequent, int alternate)
         {
             return isTruthy ? consequent : alternate;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileIncrementMath(JsValue currentValue, bool isIncrement)
         {
             // Fast path for numbers (most common case)
@@ -1627,7 +1679,11 @@ public static partial class TypedAstEvaluator
             return JsValue.Undefined;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private static JsValue ProfileCompoundAdd(JsValue left, JsValue right)
         {
             // Fast path for number + number (most common in loops)
@@ -1740,7 +1796,11 @@ public static partial class TypedAstEvaluator
         // Change to AggressiveInlining after profiling is complete
         // ═══════════════════════════════════════════════════════════════════════════
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleStatement(
             StatementInstruction instruction,
             JsEnvironment environment,
@@ -1801,7 +1861,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleThrow(
             ThrowInstruction instruction,
             JsEnvironment environment,
@@ -1866,7 +1930,11 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(throwValue);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleEvaluateAndDiscard(
             EvaluateAndDiscardInstruction instruction,
             JsEnvironment environment,
@@ -1896,7 +1964,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleBinaryOp(
             BinaryOpInstruction instruction,
             JsEnvironment environment,
@@ -1963,7 +2035,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleIncrementSlot(
             IncrementSlotInstruction instruction,
             JsEnvironment environment,
@@ -2073,7 +2149,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleCompoundAssignmentSlot(
             CompoundAssignmentSlotInstruction instruction,
             JsEnvironment environment,
@@ -2184,7 +2264,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleFunctionDeclaration(
             FunctionDeclarationInstruction instruction,
             out JsValue returnValue)
@@ -2194,7 +2278,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleClassDeclaration(
             ClassDeclarationInstruction instruction,
             JsEnvironment environment,
@@ -2232,7 +2320,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleSimpleVariableDeclaration(
             SimpleVariableDeclarationInstruction instruction,
             JsEnvironment environment,
@@ -2347,7 +2439,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleBreakableEnter(
             BreakableEnterInstruction instruction,
             out JsValue returnValue)
@@ -2367,7 +2463,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleBreakableExit(
             BreakableExitInstruction instruction,
             out JsValue returnValue)
@@ -2383,7 +2483,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleEnterTry(
             EnterTryInstruction instruction,
             JsEnvironment environment,
@@ -2396,7 +2500,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleLeaveTry(
             LeaveTryInstruction instruction,
             out JsValue returnValue)
@@ -2406,7 +2514,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleSetCompletionValue(
             SetCompletionValueInstruction instruction,
             out JsValue returnValue)
@@ -2421,7 +2533,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleBreak(
             BreakInstruction instruction,
             ref JsEnvironment environment,
@@ -2462,7 +2578,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleContinue(
             ContinueInstruction instruction,
             ref JsEnvironment environment,
@@ -2503,7 +2623,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleReturn(
             ReturnInstruction instruction,
             JsEnvironment environment,
@@ -2565,7 +2689,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Return;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleJumpSwitch(
             JumpInstruction instruction,
             out JsValue returnValue)
@@ -2575,7 +2703,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleBranchSwitch(
             BranchInstruction instruction,
             JsEnvironment environment,
@@ -2609,7 +2741,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleBranchFastPath(
             BranchInstruction instruction,
             JsEnvironment environment,
@@ -2672,7 +2808,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleEnterCatch(
             EnterCatchInstruction instruction,
             ref JsEnvironment environment,
@@ -2709,7 +2849,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleEnterCatchWithDestructuring(
             EnterCatchWithDestructuringInstruction instruction,
             ref JsEnvironment environment,
@@ -2761,7 +2905,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleEndFinally(
             EndFinallyInstruction instruction,
             ref JsEnvironment environment,
@@ -2824,7 +2972,11 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(throwJs);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleEnterWith(
             EnterWithInstruction instruction,
             ref JsEnvironment environment,
@@ -2867,7 +3019,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleLeaveWith(
             LeaveWithInstruction instruction,
             ref JsEnvironment environment,
@@ -2890,7 +3046,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleIteratorClose(
             IteratorCloseInstruction instruction,
             JsEnvironment environment,
@@ -2947,7 +3107,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleYield(
             YieldInstruction instruction,
             JsEnvironment environment,
@@ -3001,7 +3165,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Return;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleStoreResumeValue(
             StoreResumeValueInstruction instruction,
             JsEnvironment environment,
@@ -3063,7 +3231,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandlePushEnvironment(
             PushEnvironmentInstruction instruction,
             ref JsEnvironment environment,
@@ -3179,7 +3351,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandlePopEnvironment(
             PopEnvironmentInstruction instruction,
             ref JsEnvironment environment,
@@ -3205,7 +3381,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleYieldStar(
             YieldStarInstruction instruction,
             JsEnvironment environment,
@@ -3448,7 +3628,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleIteratorInit(
             IteratorInitInstruction instruction,
             JsEnvironment environment,
@@ -3528,7 +3712,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleIteratorMoveNext(
             IteratorMoveNextInstruction instruction,
             ref JsEnvironment environment,
@@ -3617,7 +3805,11 @@ public static partial class TypedAstEvaluator
             return HandleAsyncIteratorMoveNext(instruction, ref environment, context, driverState, iterVar, valueVar, iteratorIndex, out returnValue);
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleSyncIteratorMoveNext(
             IteratorMoveNextInstruction instruction,
             ref JsEnvironment environment,
@@ -3775,7 +3967,11 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+#if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
         private InstructionResult HandleAsyncIteratorMoveNext(
             IteratorMoveNextInstruction instruction,
             ref JsEnvironment environment,

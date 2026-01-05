@@ -8,8 +8,18 @@ runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
 runner_exe="$runner_bin/ProfileRunner"
 runner_dll="$runner_bin/ProfileRunner.dll"
 runner_cmd=()
+profiler_repo_root="$repo_root/../Asynkron.Profiler"
+profiler_project="$profiler_repo_root/src/ProfileTool/ProfileTool.csproj"
+profiler_cmd=()
+profiler_config="Release"
+use_local_profiler=false
+profiler_ready=false
 engine_args=()
 profiler_args=()
+
+log() {
+  printf '%s\n' "$*" >&2
+}
 
 run_benchmarks() {
   (cd "$repo_root/benchmarks/Asynkron.JsEngine.Benchmarks" && dotnet run -c Release -- jint --job short)
@@ -27,19 +37,75 @@ build_runner() {
   fi
 }
 
+build_profiler() {
+  if [[ ! -f "$profiler_project" ]]; then
+    echo "Local profiler project not found at $profiler_project" >&2
+    exit 1
+  fi
+
+  log "Building local profiler ($profiler_config)..."
+  if ! dotnet build "$profiler_project" -c "$profiler_config" -v q --nologo; then
+    echo "Profiler build failed. Fix compilation errors before profiling." >&2
+    exit 1
+  fi
+
+  local profiler_project_dir
+  profiler_project_dir=$(cd "$(dirname "$profiler_project")" && pwd)
+  local profiler_bin="$profiler_project_dir/bin/$profiler_config/net10.0"
+  local profiler_dll="$profiler_bin/ProfileTool.dll"
+  if [[ ! -f "$profiler_dll" ]]; then
+    echo "Profiler output not found at $profiler_dll" >&2
+    exit 1
+  fi
+
+  profiler_cmd=(dotnet "$profiler_dll")
+  log "Using local profiler: ${profiler_cmd[*]}"
+}
+
+ensure_profiler() {
+  if [[ "$profiler_ready" == "true" ]]; then
+    return
+  fi
+
+  if [[ "$use_local_profiler" == "true" ]]; then
+    build_profiler
+  else
+    if ! command -v asynkron-profiler &> /dev/null; then
+      echo "asynkron-profiler not found. Install with: dotnet tool install -g asynkron-profiler --prerelease" >&2
+      exit 1
+    fi
+    profiler_cmd=(asynkron-profiler)
+  fi
+
+  profiler_ready=true
+}
+
+run_profiler() {
+  ensure_profiler
+  (cd "$script_dir" && "${profiler_cmd[@]}" "$@")
+}
+
 run_profile() {
   local profile_key=$1
   shift
   local engine_args_expanded=("${engine_args[@]-}")
-  (cd "$script_dir" && asynkron-profiler "$@" -- "${runner_cmd[@]}" "${engine_args_expanded[@]}" "$profile_key")
+  run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args_expanded[@]}" "$profile_key"
 }
 
-if ! command -v asynkron-profiler &> /dev/null; then
-  echo "asynkron-profiler not found. Install with: dotnet tool install -g asynkron-profiler --prerelease" >&2
-  exit 1
-fi
-
 args=("$@")
+filtered_args=()
+for arg in "${args[@]}"; do
+  case "$arg" in
+    --debug)
+      use_local_profiler=true
+      profiler_config="Debug"
+      ;;
+    *)
+      filtered_args+=("$arg")
+      ;;
+  esac
+done
+args=("${filtered_args[@]}")
 for arg in "${args[@]}"; do
   if [[ "$arg" == "--compare" ]]; then
     run_benchmarks
@@ -49,7 +115,7 @@ done
 
 for arg in "${args[@]}"; do
   if [[ "$arg" == "--input" || "$arg" == --input=* ]]; then
-    (cd "$script_dir" && asynkron-profiler "$@")
+    run_profiler "${args[@]}"
     exit 0
   fi
 done
@@ -99,7 +165,8 @@ fi
 
 if [[ "$profile_key" == "all" ]]; then
   build_runner
-  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" --engine-args "${engine_args[@]}" --profiler-args "${profiler_args[@]}"
+  ensure_profiler
+  python3 - <<'PY' "$script_dir/profile-manifest.json" "${runner_exe}" "${runner_dll}" --profiler-cmd "${profiler_cmd[@]}" --engine-args "${engine_args[@]}" --profiler-args "${profiler_args[@]}"
 import json
 import subprocess
 import sys
@@ -111,15 +178,21 @@ runner_dll = Path(sys.argv[3])
 raw_args = sys.argv[4:]
 engine_args = []
 profiler_args = []
+profiler_cmd = []
 mode = "profiler"
 for arg in raw_args:
+    if arg == "--profiler-cmd":
+        mode = "profiler-cmd"
+        continue
     if arg == "--engine-args":
         mode = "engine"
         continue
     if arg == "--profiler-args":
         mode = "profiler"
         continue
-    if mode == "engine":
+    if mode == "profiler-cmd":
+        profiler_cmd.append(arg)
+    elif mode == "engine":
         engine_args.append(arg)
     else:
         profiler_args.append(arg)
@@ -130,10 +203,12 @@ with open(manifest_path, "r", encoding="utf-8") as f:
 tools_dir = Path(manifest_path).parent
 runner_path = runner_exe if runner_exe.exists() else runner_dll
 runner_cmd = [str(runner_path)] if runner_path == runner_exe else ["dotnet", str(runner_dll)]
+if not profiler_cmd:
+    profiler_cmd = ["asynkron-profiler"]
 
 profiles = sorted(data.get("profiles", {}).keys())
 for key in profiles:
-    cmd = ["asynkron-profiler", *profiler_args, "--", *runner_cmd, *engine_args, key]
+    cmd = [*profiler_cmd, *profiler_args, "--", *runner_cmd, *engine_args, key]
     subprocess.run(cmd, check=True, cwd=str(tools_dir))
 PY
   exit 0

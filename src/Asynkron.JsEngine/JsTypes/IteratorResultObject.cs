@@ -10,9 +10,10 @@ namespace Asynkron.JsEngine.JsTypes;
 /// <remarks>
 /// Implements <see cref="IJsSurfacedMutable"/> because JS code can hold references
 /// to iterator results (e.g., <c>let result = iterator.next(); saved = result;</c>).
-/// This means instances CANNOT be pooled.
+/// Pooling is supported via the IsCaptured/Capture pattern: when a result is assigned
+/// to a JS variable, Capture() is called to prevent pooling.
 /// </remarks>
-internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObjectLike, IAsJsValue, IJsSurfacedMutable
+internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfacedMutable
 {
     private static readonly string[] PropertyNames = ["value", "done"];
 
@@ -20,14 +21,48 @@ internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObject
     /// Cached "done" result with value=undefined. Since this is immutable (done=true means
     /// the iterator is exhausted), it's safe to share this singleton.
     /// </summary>
-    public static readonly IteratorResultObject DoneUndefined = new(JsValue.Undefined, true);
+    public static readonly IteratorResultObject DoneUndefined = new(JsValue.Undefined, true) { IsCaptured = true };
 
-    private JsValue _value = value;
-    private bool _done = done;
+    private JsValue _value;
+    private bool _done;
     private JsValue _cachedJsValue;
 
     /// <summary>
+    /// Whether this result has been captured (assigned to a variable, passed to a function, etc.).
+    /// Captured results cannot be returned to the pool.
+    /// </summary>
+    internal bool IsCaptured { get; private set; }
+
+    public IteratorResultObject(JsValue value, bool done)
+    {
+        _value = value;
+        _done = done;
+    }
+
+    /// <summary>
+    /// Marks this result as captured, preventing it from being returned to the pool.
+    /// Call this when the result is assigned to a JS variable or otherwise escapes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void Capture()
+    {
+        IsCaptured = true;
+    }
+
+    /// <summary>
+    /// Resets this instance for reuse from the pool.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void Reset(JsValue value, bool done)
+    {
+        _value = value;
+        _done = done;
+        IsCaptured = false;
+    }
+
+    /// <summary>
     /// Creates an iterator result. For done=true with undefined value, returns a cached singleton.
+    /// Uses pooling for non-done results to reduce allocations in hot loops.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static JsValue Create(JsValue value, bool done)
@@ -36,7 +71,7 @@ internal sealed class IteratorResultObject(JsValue value, bool done) : IJsObject
         {
             return DoneUndefined.AsJsValue;
         }
-        return new IteratorResultObject(value, done).AsJsValue;
+        return IteratorResultObjectPool.Rent(value, done).AsJsValue;
     }
 
     public ref readonly JsValue AsJsValue

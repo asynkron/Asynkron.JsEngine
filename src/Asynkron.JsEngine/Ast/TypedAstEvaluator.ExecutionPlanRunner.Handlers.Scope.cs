@@ -15,6 +15,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
+
         private static InstructionResult HandleEnterWith(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -129,14 +130,28 @@ public static partial class TypedAstEvaluator
             if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
             {
                 newIterationEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
-                if (!instruction.SlotMap.IsEmpty)
+
+                // Fast path: use pre-computed SlotNames array if available (avoids ImmutableDictionary iteration)
+                if (!instruction.SlotNames.IsDefaultOrEmpty)
+                {
+                    newIterationEnv.SetSlotNames(instruction.SlotNames);
+                }
+                else if (!instruction.SlotMap.IsEmpty)
                 {
                     newIterationEnv.SetSlotMap(instruction.SlotMap);
                 }
 
-                if (instruction.LexicalBindings is { Count: > 0 })
+                // Mark lexical bindings as uninitialized (TDZ) using SlotMap for O(log n) lookup
+                // instead of O(n) linear search via FindSlotIndex
+                if (instruction.LexicalBindings is { Count: > 0 } && !instruction.SlotMap.IsEmpty)
                 {
-                    newIterationEnv.MarkSlotsLexicalUninitialized(instruction.LexicalBindings);
+                    foreach (var binding in instruction.LexicalBindings)
+                    {
+                        if (instruction.SlotMap.TryGetValue(binding, out var slotIndex))
+                        {
+                            newIterationEnv.SetSlotLexicalUninitialized(slotIndex);
+                        }
+                    }
                 }
             }
 
@@ -233,5 +248,6 @@ public static partial class TypedAstEvaluator
             returnValue = default;
             return InstructionResult.Continue;
         }
+
     }
 }

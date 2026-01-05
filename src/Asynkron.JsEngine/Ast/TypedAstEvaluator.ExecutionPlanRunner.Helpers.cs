@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
                 return IteratorResultObject.DoneUndefined.AsJsValue;
             }
 
-            return new IteratorResultObject(value, done).AsJsValue;
+            return IteratorResultObjectPool.Rent(value, done).AsJsValue;
         }
 
         private static IteratorDriverState CreateIteratorDriverState(

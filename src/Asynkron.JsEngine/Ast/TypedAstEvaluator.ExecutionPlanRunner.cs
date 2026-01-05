@@ -901,7 +901,7 @@ public static partial class TypedAstEvaluator
                             continue;
                         }
 
-                        var loopResult = DispatchInstruction(instruction, instructionKind, ref environment, context, out var loopReturnValue);
+                        var loopResult = DispatchInstruction(this, instruction, instructionKind, ref environment, context, out var loopReturnValue);
                         if (loopResult == InstructionResult.Return) return loopReturnValue;
                     }
                 }
@@ -955,21 +955,22 @@ public static partial class TypedAstEvaluator
             _done = true;
             TryCatchStateRef.TryStack.Clear();
             return CreateIteratorResult(JsValue.Undefined, true);
-        }
 
 #if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
 #else
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private InstructionResult DispatchInstruction(
-            ExecutionInstruction instruction,
-            InstructionKind instructionKind,
-            ref JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue returnValue)
-        {
-            return InstructionHandlers[(int)instructionKind](this, instruction, ref environment, context, out returnValue);
+            static InstructionResult DispatchInstruction(
+                ExecutionPlanRunner runner,
+                ExecutionInstruction instruction,
+                InstructionKind instructionKind,
+                ref JsEnvironment environment,
+                EvaluationContext context,
+                out JsValue returnValue)
+            {
+                return InstructionHandlers[(int)instructionKind](runner, instruction, ref environment, context, out returnValue);
+            }
         }
 
         private JsEnvironment EnsureExecutionEnvironment()
@@ -1869,6 +1870,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleIncrementSlot(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -1896,6 +1898,19 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            // Delegate to slow path for non-number cases
+            return HandleIncrementSlotSlow(runner, instruction, flatSlotId, ref environment, context, out returnValue);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleIncrementSlotSlow(
+            ExecutionPlanRunner runner,
+            IncrementSlotInstruction instruction,
+            int flatSlotId,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
             // Regular path: use ref ternary for variable access
             JsValue incCurrentValue;
             ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
@@ -2001,6 +2016,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleCompoundAssignmentSlot(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -2010,11 +2026,10 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<CompoundAssignmentSlotInstruction>(instr);
             var flatSlotId = instruction.FlatSlotId;
+            var rhsFlatSlotId = instruction.RhsFlatSlotId;
 
             // Super-fast path: both operands use flat slots, operator is Add, both are numbers
             // This covers the common loop case like: sum = sum + prev
-            // Use direct type check instead of pattern matching for speed
-            var rhsFlatSlotId = instruction.RhsFlatSlotId;
             if (flatSlotId >= 0 &&
                 rhsFlatSlotId >= 0 &&
                 instruction.Operator == BinaryOperator.Add)
@@ -2033,7 +2048,20 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Fast path: flat slot for target variable
+            // Delegate to slow path for non-fast cases
+            return HandleCompoundAssignmentSlotSlow(runner, instruction, flatSlotId, ref environment, context, out returnValue);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleCompoundAssignmentSlotSlow(
+            ExecutionPlanRunner runner,
+            CompoundAssignmentSlotInstruction instruction,
+            int flatSlotId,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            // Regular path: use ref ternary for variable access
             JsValue compCurrentValue;
             ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
                 ? ref runner._flatSlots[flatSlotId]

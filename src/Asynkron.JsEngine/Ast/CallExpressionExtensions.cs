@@ -538,11 +538,6 @@ public static partial class TypedAstEvaluator
                         thisAfterSuper = thisValue.Kind == JsValueKind.Object ? thisValue.ObjectValue : null;
                     }
 
-                    if (context is not null)
-                    {
-                        context.LastConstructedThis = thisAfterSuper;
-                    }
-
                     context?.RealmState?.Logger?.LogInformation(
                         "Super call produced this type={Type}",
                         thisAfterSuper?.GetType().Name ?? "null");

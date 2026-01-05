@@ -210,8 +210,6 @@ public sealed class EvaluationContext(
 
     public PrivateNameScope? CurrentPrivateNameScope => _privateNameScopes.Count > 0 ? _privateNameScopes.Peek() : null;
 
-    public object? LastConstructedThis { get; set; }
-
     /// <summary>
     /// Resolves an identifier using the appropriate path based on whether 'with' statements
     /// are in scope. This branches once instead of checking per-identifier access.
@@ -547,7 +545,6 @@ public sealed class EvaluationContext(
         MaxCallDepth = 1000;
         IsThisInitialized = true;
         SourceReference = null;
-        LastConstructedThis = null;
     }
 
     internal void PushClassFieldInitializer(PendingClassFieldInitialization initializer)

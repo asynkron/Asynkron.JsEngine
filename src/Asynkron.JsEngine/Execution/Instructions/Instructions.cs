@@ -164,7 +164,8 @@ internal sealed record PushEnvironmentInstruction(
     int SlotCount,
     ImmutableDictionary<Symbol, int> SlotMap,
     bool AllowPooling = false,
-    ImmutableHashSet<Symbol>? LexicalBindings = null)
+    ImmutableHashSet<Symbol>? LexicalBindings = null,
+    ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings = default)
     : ExecutionInstruction(InstructionKind.PushEnvironment, Next);
 
 /// <summary>

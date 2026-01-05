@@ -249,7 +249,13 @@ public static partial class TypedAstEvaluator
             // At construction: _isClassConstructor=false, _capturedPrivateNameScopes=empty, PrivateNameScope=null,
             // _homeObject=null, _superConstructor=null, _superPrototype=null
             // So we only need to check _isSimpleFunction and _lexicalThisEnvironment
-            _canUseFastPathBase = isSimpleFunction && _lexicalThisEnvironment is null;
+            //
+            // IMPORTANT: Functions containing inner function expressions (closures) must use IR path.
+            // The fast path uses _function.ScopeId for environments, while IR uses _plan.RootScopeId.
+            // If parent uses fast path but child uses IR, scope IDs won't match and variable
+            // lookup via scope chain will fail. By forcing parent to IR, we ensure consistent scope IDs.
+            _canUseFastPathBase = isSimpleFunction && _lexicalThisEnvironment is null &&
+                                  !ContainsInnerFunctionExpression(function);
         }
 
         public bool IsAsyncFunction { get; }

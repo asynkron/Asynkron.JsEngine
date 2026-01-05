@@ -1153,10 +1153,19 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment = CreateExecutionEnvironment();
                 LogRootScopeIdOnce();
 
-                // Eagerly populate flat slots for the root scope
-                if (_plan is not null)
+                // Initialize and populate flat slots for the root scope and closure chain
+                if (_plan is not null && _plan.FlatSlotCount > 0 && _flatSlots is null)
                 {
+                    _flatSlots = new JsVariable[_plan.FlatSlotCount];
                     PopulateFlatSlotsForScope(_plan.RootScopeId, _executionEnvironment);
+
+                    // Walk closure chain to populate flat slots for captured variables
+                    var closureEnv = _executionEnvironment.Enclosing;
+                    while (closureEnv is not null)
+                    {
+                        PopulateFlatSlotsForScope(closureEnv.ScopeId, closureEnv);
+                        closureEnv = closureEnv.Enclosing;
+                    }
                 }
             }
 
@@ -1522,7 +1531,7 @@ public static partial class TypedAstEvaluator
 #else
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 #endif
-        private static bool ProfileReadOperand(
+        private bool ProfileReadOperand(
             JsEnvironment environment,
             EvaluationContext context,
             ExpressionNode expr,
@@ -1534,9 +1543,17 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
-            if (expr is IdentifierExpression id && id.SlotIndex >= 0 && id.ScopeId >= 0)
+            // Fast path: use flat slot for O(1) identifier read
+            if (expr is IdentifierExpression { FlatSlotId: >= 0 } id && _flatSlots is not null)
             {
-                return environment.TryReadIdentifierWithSlot(id, context, out value);
+                value = _flatSlots[id.FlatSlotId].Read();
+                return true;
+            }
+
+            // Fallback: slot-based read
+            if (expr is IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } slotId)
+            {
+                return environment.TryReadIdentifierWithSlot(slotId, context, out value);
             }
 
             value = default;
@@ -2047,13 +2064,17 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             // Fast path: use flat slot for O(1) access when available
+            // Cache the variable reference once to avoid double array access
             JsValue incCurrentValue;
             var flatSlotId = instruction.FlatSlotId;
-            var useFlatSlot = flatSlotId >= 0 && _flatSlots is not null && _flatSlots[flatSlotId].IsValid;
+            ref var variable = ref (flatSlotId >= 0 && _flatSlots is not null
+                ? ref _flatSlots[flatSlotId]
+                : ref Unsafe.NullRef<JsVariable>());
+            var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
 
             if (useFlatSlot)
             {
-                incCurrentValue = _flatSlots![flatSlotId].Read();
+                incCurrentValue = variable.Read();
             }
             else
             {
@@ -2132,7 +2153,7 @@ public static partial class TypedAstEvaluator
             // Fast path: use flat slot for O(1) write when available
             if (useFlatSlot)
             {
-                _flatSlots![flatSlotId].Write(incNewJsValue);
+                variable.Write(incNewJsValue);
             }
             else
             {
@@ -2161,13 +2182,17 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             // Fast path: use flat slot for O(1) access when available
+            // Cache the variable reference once to avoid double array access
             JsValue compCurrentValue;
             var flatSlotId = instruction.FlatSlotId;
-            var useFlatSlot = flatSlotId >= 0 && _flatSlots is not null && _flatSlots[flatSlotId].IsValid;
+            ref var variable = ref (flatSlotId >= 0 && _flatSlots is not null
+                ? ref _flatSlots[flatSlotId]
+                : ref Unsafe.NullRef<JsVariable>());
+            var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
 
             if (useFlatSlot)
             {
-                compCurrentValue = _flatSlots![flatSlotId].Read();
+                compCurrentValue = variable.Read();
             }
             else
             {
@@ -2193,6 +2218,10 @@ public static partial class TypedAstEvaluator
             {
                 case LiteralExpression { Value: var literalValue }:
                     compRhsValue = literalValue;
+                    break;
+                case IdentifierExpression { FlatSlotId: >= 0 } rhsIdent when _flatSlots is not null:
+                    // Fast path: use flat slot for O(1) RHS read
+                    compRhsValue = _flatSlots[rhsIdent.FlatSlotId].Read();
                     break;
                 case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
                     if (environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
@@ -2247,7 +2276,7 @@ public static partial class TypedAstEvaluator
             // Fast path: use flat slot for O(1) write when available
             if (useFlatSlot)
             {
-                _flatSlots![flatSlotId].Write(compResult);
+                variable.Write(compResult);
             }
             else
             {
@@ -3335,8 +3364,14 @@ public static partial class TypedAstEvaluator
 
             IteratorStateRef.ResumedWithEnvironment = null;
 
-            // Eagerly populate flat slots for this scope
-            PopulateFlatSlotsForScope(instruction.ScopeId, newIterationEnv);
+            // Eagerly populate flat slots for this scope (no dictionary lookup - mappings are on instruction)
+            if (_flatSlots is not null && !instruction.FlatSlotMappings.IsDefaultOrEmpty)
+            {
+                foreach (var (slotIndex, flatSlotId) in instruction.FlatSlotMappings)
+                {
+                    _flatSlots[flatSlotId] = new JsVariable(newIterationEnv, slotIndex);
+                }
+            }
 
             _realmState.Logger?.LogInformation(
                 "PushEnv: old.ScopeId={OldScope} new.ScopeId={NewScope} loopScope.ScopeId={LoopScope} parent={Parent}",

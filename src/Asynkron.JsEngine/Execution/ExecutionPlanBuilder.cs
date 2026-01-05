@@ -161,6 +161,19 @@ internal sealed partial class ExecutionPlanBuilder
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
+        // Post-process: stamp FlatSlotMappings on PushEnvironmentInstructions for O(1) access at runtime
+        if (flatSlotMappings is { Count: > 0 })
+        {
+            for (var i = 0; i < Instructions.Count; i++)
+            {
+                if (Instructions[i] is PushEnvironmentInstruction push &&
+                    flatSlotMappings.TryGetValue(push.ScopeId, out var scopeMappings))
+                {
+                    Instructions[i] = push with { FlatSlotMappings = scopeMappings };
+                }
+            }
+        }
+
         plan = new ExecutionPlan(
             [..Instructions],
             entryIndex,

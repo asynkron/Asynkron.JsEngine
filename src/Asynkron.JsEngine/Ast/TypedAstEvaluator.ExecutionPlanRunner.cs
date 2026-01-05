@@ -1023,8 +1023,16 @@ public static partial class TypedAstEvaluator
         {
             if (_privateScopesApplied || _context is null)
             {
+                _realmState.Logger?.LogInformation(
+                    "ApplyPrivateNameScopes SKIPPED: _privateScopesApplied={Applied} _context={Context}",
+                    _privateScopesApplied, _context is null ? "null" : "not null");
                 return;
             }
+
+            _realmState.Logger?.LogInformation(
+                "ApplyPrivateNameScopes: captured={CapturedCount} privateScope={HasPrivateScope}",
+                _capturedPrivateNameScopes.Length,
+                _privateNameScope is not null);
 
             if (!_capturedPrivateNameScopes.IsDefaultOrEmpty)
             {

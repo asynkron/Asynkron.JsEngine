@@ -166,6 +166,9 @@ public readonly struct PropertyHandle
 
         if (_privateScope is null)
         {
+            _context.RealmState.Logger?.LogInformation(
+                "EnsurePrivateBrand: FAILED - _privateScope is null for property {PropertyName}",
+                _propertyName);
             throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);
         }
 
@@ -181,6 +184,9 @@ public readonly struct PropertyHandle
 
         if (!hasBrand)
         {
+            _context.RealmState.Logger?.LogInformation(
+                "EnsurePrivateBrand: FAILED - no brand on target for property {PropertyName}",
+                _propertyName);
             throw StandardLibrary.ThrowTypeError("Invalid access of private member", _context, _context.RealmState);
         }
     }
@@ -193,6 +199,11 @@ public readonly struct PropertyHandle
         {
             return (propertyName, false, null);
         }
+
+        context.RealmState.Logger?.LogInformation(
+            "ResolvePrivate: propertyName={PropertyName} CurrentPrivateNameScope={HasScope}",
+            propertyName,
+            context.CurrentPrivateNameScope is not null);
 
         PrivateNameScope? privateScope = null;
         var resolvedKey = propertyName;
@@ -216,6 +227,11 @@ public readonly struct PropertyHandle
         {
             PrivateNameScope.TryResolveScope(context.RealmState, propertyName, out privateScope);
         }
+
+        context.RealmState.Logger?.LogInformation(
+            "ResolvePrivate: resolved privateScope={HasScope} resolvedFromContext={FromContext}",
+            privateScope is not null,
+            resolvedFromContext);
 
         if (privateScope is null)
         {

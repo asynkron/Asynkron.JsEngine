@@ -1564,6 +1564,12 @@ public static partial class TypedAstEvaluator
 
         public void InitializeInstance(IJsObjectLike instance, JsEnvironment environment, EvaluationContext context)
         {
+            RealmState.Logger?.LogInformation(
+                "InitializeInstance: instance={InstanceType} PrivateNameScope={HasScope} IsBrandHolder={IsBrandHolder}",
+                instance.GetType().Name,
+                PrivateNameScope is not null,
+                instance is IPrivateBrandHolder);
+
             if (PrivateNameScope is not null && instance is IPrivateBrandHolder brandHolder)
             {
                 // Per ES spec 7.3.28 PrivateMethodOrAccessorAdd, throw TypeError if private elements
@@ -1576,6 +1582,7 @@ public static partial class TypedAstEvaluator
                         context.RealmState);
                 }
 
+                RealmState.Logger?.LogInformation("Adding private brand to instance");
                 brandHolder.AddPrivateBrand(PrivateNameScope.BrandToken);
             }
 

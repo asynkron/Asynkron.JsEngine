@@ -274,7 +274,14 @@ internal static class SwitchEmitter
         // This pops the breakable stack when exiting the switch (normal exit or break)
         var breakableExitIndex = ctx.Append(new BreakableExitInstruction(nextIndex));
 
-        if (!ctx.TryBuildStatement(lowered, breakableExitIndex, out var switchBodyEntry, activeLabel))
+        // Push a loop scope so break statements in nested blocks (e.g., try/catch inside
+        // switch cases) can resolve their targets during IR building. ContinueTarget is -1
+        // because switch statements do not support continue.
+        ctx.PushLoopScope(activeLabel, -1, breakableExitIndex, -1);
+        var bodyBuilt = ctx.TryBuildStatement(lowered, breakableExitIndex, out var switchBodyEntry, activeLabel);
+        ctx.PopLoopScope();
+
+        if (!bodyBuilt)
         {
             ctx.Rollback(instructionStart);
             entryIndex = -1;

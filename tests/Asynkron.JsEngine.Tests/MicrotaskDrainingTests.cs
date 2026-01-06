@@ -233,7 +233,6 @@ public sealed class MicrotaskDrainingTests(ITestOutputHelper output) : InternalT
     }
 }
 
-
 /// <summary>
 /// Tests demonstrating the for await...of bug where async iteration
 /// doesn't complete when used inside an async IIFE.

@@ -415,78 +415,78 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("42", result);
     }
 
-//     [Fact(Timeout = 2000)]
-//     public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
-//     {
-//         // Arrange
-//         await using var engine = CreateEngine();
-//         var transformer = new CpsTransformer();
-//
-//         // engine.Parse() already applies CPS transformation, so the result
-//         // should not need transformation again
-//         var program = engine.Parse("""
-//
-//                                                async function test() {
-//                                                    return 42;
-//                                                }
-//
-//                                    """);
-//
-//         // Act
-//         var needsTransform = CpsTransformer.NeedsTransformation(program);
-//
-//         // Assert - Already transformed code should not need transformation
-//         Assert.False(needsTransform);
-//     }
-//
-//     [Fact(Timeout = 2000)]
-//     public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
-//     {
-//         // Arrange
-//         await using var engine = CreateEngine();
-//         var transformer = new CpsTransformer();
-//
-//         // engine.Parse() already applies CPS transformation, so the result
-//         // should not need transformation again
-//         var program = engine.Parse("""
-//
-//                                                async function test() {
-//                                                    let value = await Promise.resolve(42);
-//                                                    return value;
-//                                                }
-//
-//                                    """);
-//
-//         // Act
-//         var needsTransform = CpsTransformer.NeedsTransformation(program);
-//
-//         // Assert - Already transformed code should not need transformation
-//         Assert.False(needsTransform);
-//     }
-//
-//     [Fact(Timeout = 2000)]
-//     public async Task CpsTransformer_TransformIsIdempotent()
-//     {
-//         // Arrange
-//         await using var engine = CreateEngine();
-//         var transformer = new CpsTransformer();
-//
-//         // engine.Parse() already applies CPS transformation
-//         var program = engine.Parse("""
-//
-//                                                async function test() {
-//                                                    return 42;
-//                                                }
-//
-//                                    """);
-//
-//         // Act - Transform already-transformed code
-//         var transformed = transformer.Transform(program);
-//
-//         // Assert - Should return the same program unchanged since it doesn't need transformation
-//         Assert.NotNull(transformed);
-//         Assert.Same(program, transformed); // Should be the same instance
-//     }
+    //     [Fact(Timeout = 2000)]
+    //     public async Task CpsTransformer_AlreadyTransformedCodeDoesNotNeedTransformation()
+    //     {
+    //         // Arrange
+    //         await using var engine = CreateEngine();
+    //         var transformer = new CpsTransformer();
+    //
+    //         // engine.Parse() already applies CPS transformation, so the result
+    //         // should not need transformation again
+    //         var program = engine.Parse("""
+    //
+    //                                                async function test() {
+    //                                                    return 42;
+    //                                                }
+    //
+    //                                    """);
+    //
+    //         // Act
+    //         var needsTransform = CpsTransformer.NeedsTransformation(program);
+    //
+    //         // Assert - Already transformed code should not need transformation
+    //         Assert.False(needsTransform);
+    //     }
+    //
+    //     [Fact(Timeout = 2000)]
+    //     public async Task CpsTransformer_AlreadyTransformedAwaitDoesNotNeedTransformation()
+    //     {
+    //         // Arrange
+    //         await using var engine = CreateEngine();
+    //         var transformer = new CpsTransformer();
+    //
+    //         // engine.Parse() already applies CPS transformation, so the result
+    //         // should not need transformation again
+    //         var program = engine.Parse("""
+    //
+    //                                                async function test() {
+    //                                                    let value = await Promise.resolve(42);
+    //                                                    return value;
+    //                                                }
+    //
+    //                                    """);
+    //
+    //         // Act
+    //         var needsTransform = CpsTransformer.NeedsTransformation(program);
+    //
+    //         // Assert - Already transformed code should not need transformation
+    //         Assert.False(needsTransform);
+    //     }
+    //
+    //     [Fact(Timeout = 2000)]
+    //     public async Task CpsTransformer_TransformIsIdempotent()
+    //     {
+    //         // Arrange
+    //         await using var engine = CreateEngine();
+    //         var transformer = new CpsTransformer();
+    //
+    //         // engine.Parse() already applies CPS transformation
+    //         var program = engine.Parse("""
+    //
+    //                                                async function test() {
+    //                                                    return 42;
+    //                                                }
+    //
+    //                                    """);
+    //
+    //         // Act - Transform already-transformed code
+    //         var transformed = transformer.Transform(program);
+    //
+    //         // Assert - Should return the same program unchanged since it doesn't need transformation
+    //         Assert.NotNull(transformed);
+    //         Assert.Same(program, transformed); // Should be the same instance
+    //     }
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_SequentialAwaits()
@@ -853,7 +853,10 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
 
         // Get the debug messages
         var debugMessages = new List<DebugMessage>();
-        for (var i = 0; i < 3; i++) debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        for (var i = 0; i < 3; i++)
+        {
+            debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        }
 
         // Assert - Verify we captured state after each await
         Assert.Equal(3, debugMessages.Count);

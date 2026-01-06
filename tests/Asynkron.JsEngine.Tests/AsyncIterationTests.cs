@@ -15,7 +15,7 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
         // Test that regular for-of with await in body works
         await using var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+            Logger = new TestLogger(output, minLogLevel: LogLevel.Debug)
         });
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
@@ -263,7 +263,7 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
         // Currently, promises in arrays are treated as objects, not awaited.
         await using var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+            Logger = new TestLogger(output, minLogLevel: LogLevel.Debug)
         });
 
         AsyncTestHelpers.RegisterDelayHelper(engine);
@@ -589,7 +589,10 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
         // Verify we got debug messages - should have 7 total:
         // 3 iterations * 2 (before + after await) + 1 after loop = 7
         var debugMessages = new List<DebugMessage>();
-        for (var i = 0; i < 7; i++) debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        for (var i = 0; i < 7; i++)
+        {
+            debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        }
 
         Assert.Equal(7, debugMessages.Count);
 
@@ -640,7 +643,10 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
 
         // Should have 4 debug messages (3 iterations + 1 after loop)
         var debugMessages = new List<DebugMessage>();
-        for (var i = 0; i < 4; i++) debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        for (var i = 0; i < 4; i++)
+        {
+            debugMessages.Add(await engine.DebugMessages().ReadAsync());
+        }
 
         Assert.Equal(4, debugMessages.Count);
 

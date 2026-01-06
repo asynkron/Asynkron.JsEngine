@@ -26,7 +26,7 @@ public sealed class PerfDebugging(ITestOutputHelper output) : InternalTestBase(o
         var sw = Stopwatch.StartNew();
         var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput:output)
+            Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput: output)
         });
         await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");

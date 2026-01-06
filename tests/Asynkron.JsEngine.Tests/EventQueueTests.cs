@@ -81,7 +81,9 @@ public sealed class EventQueueTests(ITestOutputHelper output) : InternalTestBase
         var count = 0;
 
         for (var i = 0; i < 10; i++)
+        {
             engine.ScheduleTask(() => count++);
+        }
 
         await engine.Evaluate("let x = 1;");
 

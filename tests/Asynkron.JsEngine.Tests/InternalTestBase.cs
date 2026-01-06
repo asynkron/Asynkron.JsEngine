@@ -29,7 +29,7 @@ public class InternalTestBase
     {
         // Default to info-level logs and no cap to avoid test failures from noisy trace/debug output.
         CurrentLogger = new TestLogger(Output, maxLogCount: 0, minLogLevel: LogLevel.Information);
-        return new JsEngine(new JsEngineOptions { Logger = CurrentLogger, DebugMode = true});
+        return new JsEngine(new JsEngineOptions { Logger = CurrentLogger, DebugMode = true });
     }
 
     /// <summary>

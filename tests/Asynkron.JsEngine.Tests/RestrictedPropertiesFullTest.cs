@@ -108,7 +108,8 @@ public sealed class RestrictedPropertiesFullTest(ITestOutputHelper output) : Int
         // Now try assert.throws with generator.caller
         Output.WriteLine("Testing assert.throws with generator.caller...");
 
-        try {
+        try
+        {
             await engine.Evaluate("""
 
                                   assert.throws(TypeError, function() {
@@ -118,7 +119,9 @@ public sealed class RestrictedPropertiesFullTest(ITestOutputHelper output) : Int
 
                                   """);
             Output.WriteLine("Test passed - assert.throws worked correctly");
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             Output.WriteLine($"Test failed: {e.GetType().Name}: {e.Message}");
             throw;
         }

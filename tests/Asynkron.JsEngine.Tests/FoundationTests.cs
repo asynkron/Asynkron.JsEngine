@@ -1117,7 +1117,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate("async function test() { return 42; } test().then(capture)");
@@ -1131,7 +1135,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate(@"
@@ -1151,7 +1159,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate(@"
@@ -1172,7 +1184,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate(@"
@@ -1191,7 +1207,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate(@"
@@ -1219,7 +1239,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate("Promise.resolve(55).then(capture)");
@@ -1233,7 +1257,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate("Promise.resolve(5).then(x => x * 2).then(capture)");
@@ -1247,7 +1275,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate("Promise.resolve(1).then(x => x + 1).then(x => x + 1).then(x => x + 1).then(capture)");
@@ -1261,7 +1293,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate("Promise.reject('error').catch(e => 'caught').then(capture)");
@@ -1275,7 +1311,11 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         var captured = "";
         engine.SetGlobalFunction("capture", args =>
         {
-            if (args.Count > 0) captured = args[0].ToObject()?.ToString() ?? "";
+            if (args.Count > 0)
+            {
+                captured = args[0].ToObject()?.ToString() ?? "";
+            }
+
             return JsValue.Undefined;
         });
         await engine.Evaluate(@"

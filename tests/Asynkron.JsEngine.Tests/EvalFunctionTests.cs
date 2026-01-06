@@ -112,19 +112,19 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
         Assert.Equal(25d, result);
     }
 
-//     [Fact(Timeout = 2000)]
-//     public async Task Eval_WithArrayExpression()
-//     {
-//         await using var engine = CreateEngine();
-//         // Array literals need to be properly parenthesized when used with eval
-//         var result = await engine.Evaluate("""
-//
-//                                                        let arr = eval('([1, 2, 3, 4, 5]);');
-//                                                        arr[2];
-//
-//                                            """);
-//         Assert.Equal(3d, result);
-//     }
+    //     [Fact(Timeout = 2000)]
+    //     public async Task Eval_WithArrayExpression()
+    //     {
+    //         await using var engine = CreateEngine();
+    //         // Array literals need to be properly parenthesized when used with eval
+    //         var result = await engine.Evaluate("""
+    //
+    //                                                        let arr = eval('([1, 2, 3, 4, 5]);');
+    //                                                        arr[2];
+    //
+    //                                            """);
+    //         Assert.Equal(3d, result);
+    //     }
 
     [Fact(Timeout = 2000)]
     public async Task Eval_WithObjectExpression()

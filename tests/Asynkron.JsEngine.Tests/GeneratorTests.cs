@@ -764,7 +764,6 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.Fail($"Unexpected thrown value: {signal.ThrownValue}");
     }
 
-
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowAwaitedPromiseIr()
     {
@@ -813,7 +812,6 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.Equal("after", thirdValue);
     }
 
-
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarThrowPromiseRejectsIr()
     {
@@ -846,7 +844,6 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("g.throw('boom');"));
         Assert.Equal("reject:boom", signal.ThrownValue);
     }
-
 
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnAwaitedPromiseIr()
@@ -898,7 +895,6 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.Equal("result:finished", finalValue);
         Assert.True((bool)finalDone!);
     }
-
 
     [Fact(Timeout = 2000)]
     public async Task Generator_YieldStarReturnDoneFalseContinuesIr()
@@ -3152,7 +3148,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         ExecutionPlanDiagnostics.Reset();
         await using var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+            Logger = new TestLogger(output, minLogLevel: LogLevel.Debug)
         });
 
         await engine.Evaluate("""

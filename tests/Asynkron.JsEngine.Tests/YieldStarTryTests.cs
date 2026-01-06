@@ -32,7 +32,7 @@ results;
 
         var array = Assert.IsType<JsArray>(result);
         output.WriteLine($"Results: {array.GetElement(0)}, {array.GetElement(1)}, {array.GetElement(2)}");
-        
+
         Assert.Equal(1.0, array.GetElement(0).AsDouble());
         Assert.Equal(2.0, array.GetElement(1).AsDouble());
         Assert.True(array.GetElement(2).IsUndefined);
@@ -67,7 +67,7 @@ results;
 
         var array = Assert.IsType<JsArray>(result);
         output.WriteLine($"Results: {array.GetElement(0)}, {array.GetElement(1)}, {array.GetElement(2)}");
-        
+
         Assert.Equal(1.0, array.GetElement(0).AsDouble());
         Assert.Equal(2.0, array.GetElement(1).AsDouble());
         Assert.True(array.GetElement(2).IsUndefined);
@@ -103,7 +103,7 @@ controlIterator.next();
 
         var array = Assert.IsType<JsArray>(result);
         output.WriteLine($"i={array.GetElement(0)}, j={array.GetElement(1)}");
-        
+
         // After first .next(), we should have:
         // - entered for-of once (x=1)
         // - incremented i (i=1)

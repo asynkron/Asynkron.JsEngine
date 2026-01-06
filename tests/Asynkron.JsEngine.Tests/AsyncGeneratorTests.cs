@@ -143,7 +143,7 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
     {
         await using var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+            Logger = new TestLogger(output, minLogLevel: LogLevel.Debug)
         });
 
         await engine.Evaluate("""

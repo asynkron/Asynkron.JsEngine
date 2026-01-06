@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.AsyncRuntime)]
 [Category(TestCategories.IteratorRuntime)]
 [Category(TestCategories.Debugging)]
-public sealed class AsyncIterableDebugTest(ITestOutputHelper output): InternalTestBase(output)
+public sealed class AsyncIterableDebugTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
     public async Task GlobalIterable_CatchRejections()

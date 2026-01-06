@@ -26,11 +26,11 @@ public sealed class IteratorCloseGeneratorTests(ITestOutputHelper output) : Inte
             
             finallyCount;
             """);
-        
+
         Output.WriteLine($"finallyCount: {result}");
         Assert.Equal(1.0, result);
     }
-    
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorCloseViaContinue_CallsFinally()
     {
@@ -54,11 +54,11 @@ public sealed class IteratorCloseGeneratorTests(ITestOutputHelper output) : Inte
             
             finallyCount;
             """);
-        
+
         Output.WriteLine($"finallyCount: {result}");
         Assert.Equal(1.0, result);
     }
-    
+
     [Fact(Timeout = 5000)]
     public async Task GeneratorCloseViaThrow_CallsFinally()
     {
@@ -84,7 +84,7 @@ public sealed class IteratorCloseGeneratorTests(ITestOutputHelper output) : Inte
             
             [finallyCount, caught];
             """);
-        
+
         var arr = (JsTypes.JsArray)result!;
         Output.WriteLine($"finallyCount: {arr.GetElement(0)}, caught: {arr.GetElement(1)}");
         Assert.Equal(1.0, arr.GetElement(0).AsDouble());

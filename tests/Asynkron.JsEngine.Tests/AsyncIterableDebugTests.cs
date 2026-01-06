@@ -1,6 +1,6 @@
-using Xunit.Abstractions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 

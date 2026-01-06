@@ -265,7 +265,10 @@ public sealed class DebugTests
 
         // Should have 4 debug messages (2x2)
         var messages = new List<DebugMessage>();
-        for (var k = 0; k < 4; k++) messages.Add(await engine.DebugMessages().ReadAsync());
+        for (var k = 0; k < 4; k++)
+        {
+            messages.Add(await engine.DebugMessages().ReadAsync());
+        }
 
         // Verify all combinations are captured
         Assert.Equal(0d, messages[0].Variables["i"]);

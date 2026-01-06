@@ -18,7 +18,7 @@ public sealed class CpsTransformDebugTests(ITestOutputHelper output) : InternalT
         // Simplest possible test case - single iteration
         await using var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+            Logger = new TestLogger(output, minLogLevel: LogLevel.Debug)
         });
 
         await engine.Evaluate("""
@@ -103,7 +103,7 @@ public sealed class CpsTransformDebugTests(ITestOutputHelper output) : InternalT
         // Add logging to see if loop executes at all
         await using var engine = CreateEngine(() => new JsEngineOptions()
         {
-            Logger = new TestLogger(output, minLogLevel:LogLevel.Debug)
+            Logger = new TestLogger(output, minLogLevel: LogLevel.Debug)
         });
         var logMessages = new List<string>();
 

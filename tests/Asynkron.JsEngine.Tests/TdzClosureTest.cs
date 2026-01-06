@@ -214,7 +214,7 @@ public sealed class TdzClosureTest(ITestOutputHelper output)
         """);
 
         output.WriteLine($"Result: {result}");
-        var val2 = result is JsValue jv2 ? jv2.AsDouble() : Convert.ToDouble(result,CultureInfo.InvariantCulture);
+        var val2 = result is JsValue jv2 ? jv2.AsDouble() : Convert.ToDouble(result, CultureInfo.InvariantCulture);
         Assert.Equal(42.0, val2);
     }
 

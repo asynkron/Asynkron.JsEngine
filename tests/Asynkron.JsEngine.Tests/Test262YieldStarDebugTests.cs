@@ -46,7 +46,7 @@ controlIterator.next();
 
         var array = Assert.IsType<JsArray>(result);
         output.WriteLine($"After first .next(): i={array.GetElement(0)}, j={array.GetElement(1)}, k={array.GetElement(2)}, l={array.GetElement(3)}");
-        
+
         // Expected: i=1, j=0, k=0, l=0
         Assert.Equal(1.0, array.GetElement(0).AsDouble());
         Assert.Equal(0.0, array.GetElement(1).AsDouble());
@@ -89,7 +89,7 @@ controlIterator.next();
 
         var array = Assert.IsType<JsArray>(result);
         output.WriteLine($"After second .next(): i={array.GetElement(0)}, j={array.GetElement(1)}, k={array.GetElement(2)}, l={array.GetElement(3)}");
-        
+
         // Expected: i=1, j=0, k=0, l=0 (still in first yield* delegation)
         Assert.Equal(1.0, array.GetElement(0).AsDouble());
         Assert.Equal(0.0, array.GetElement(1).AsDouble());

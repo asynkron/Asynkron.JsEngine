@@ -1,6 +1,6 @@
-using Xunit.Abstractions;
 using System.Text;
 using Asynkron.JsEngine.JsTypes;
+using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -738,7 +738,6 @@ public sealed class AsyncIteratorDebuggingTests(ITestOutputHelper output)
         // await Task.Delay(1000);
         output.WriteLine("Check if exceptions are being thrown and caught");
     }
-
 
     [Fact(Timeout = 5000)]
     public async Task TestH_CheckPromiseRejectionHandling()

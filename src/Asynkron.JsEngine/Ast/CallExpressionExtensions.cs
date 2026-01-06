@@ -137,8 +137,7 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateCallSlow(this CallExpression expression, JsEnvironment environment, EvaluationContext context)
     {
         // Fast-path for plain Map/Set method calls - bypasses prototype lookup and host function machinery
-        if (
-            CallExpression.TryFastPathMapSetCall(expression, environment, context, out var fastResult))
+        if (expression.TryFastPathMapSetCall(environment, context, out var fastResult))
         {
             return fastResult;
         }
@@ -704,26 +703,24 @@ public static partial class TypedAstEvaluator
         return callResult;
     }
 
-    extension(CallExpression expression)
+    /// <summary>
+    ///     Fast-path for plain Map/Set method calls.
+    ///     Bypasses prototype lookup, host function creation, and argument array allocation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryFastPathMapSetCall(
+        this CallExpression callExpr,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue result)
     {
-        /// <summary>
-        ///     Fast-path for plain Map/Set method calls.
-        ///     Bypasses prototype lookup, host function creation, and argument array allocation.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryFastPathMapSetCall(
-            CallExpression callExpr,
-            JsEnvironment environment,
-            EvaluationContext context,
-            out JsValue result)
-        {
-            result = JsValue.Unit;
+        result = JsValue.Unit;
 
-            // Only handle simple member expression calls like map.set(), map.get(), etc.
-            if (callExpr.Callee is not MemberExpression { IsComputed: false, IsOptional: false } member)
-            {
-                return false;
-            }
+        // Only handle simple member expression calls like map.set(), map.get(), etc.
+        if (callExpr.Callee is not MemberExpression { IsComputed: false, IsOptional: false } member)
+        {
+            return false;
+        }
 
             // IMPORTANT: Only use fast path for simple identifier targets (e.g., `myMap.set(...)`)
             // If we evaluate a complex target expression (like `getMap().set(...)`) and it's NOT
@@ -772,15 +769,15 @@ public static partial class TypedAstEvaluator
                 {
                     result = methodName switch
                     {
-                        "set" when callExpr.Arguments.Length >= 2 => CallExpression.FastMapSet(map, callExpr.Arguments,
+                        "set" when callExpr.Arguments.Length >= 2 => FastMapSet(map, callExpr.Arguments,
                             environment, context),
-                        "get" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapGet(map, callExpr.Arguments,
+                        "get" when callExpr.Arguments.Length >= 1 => FastMapGet(map, callExpr.Arguments,
                             environment, context),
-                        "has" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapHas(map, callExpr.Arguments,
+                        "has" when callExpr.Arguments.Length >= 1 => FastMapHas(map, callExpr.Arguments,
                             environment, context),
-                        "delete" when callExpr.Arguments.Length >= 1 => CallExpression.FastMapDelete(map,
+                        "delete" when callExpr.Arguments.Length >= 1 => FastMapDelete(map,
                             callExpr.Arguments, environment, context),
-                        "clear" => CallExpression.FastMapClear(map),
+                        "clear" => FastMapClear(map),
                         _ => JsValue
                             .Unit // Fall back to normal path for other methods (size is a property, not a method)
                     };
@@ -810,13 +807,13 @@ public static partial class TypedAstEvaluator
                 {
                     result = methodName switch
                     {
-                        "add" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetAdd(set, callExpr.Arguments,
+                        "add" when callExpr.Arguments.Length >= 1 => FastSetAdd(set, callExpr.Arguments,
                             environment, context),
-                        "has" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetHas(set, callExpr.Arguments,
+                        "has" when callExpr.Arguments.Length >= 1 => FastSetHas(set, callExpr.Arguments,
                             environment, context),
-                        "delete" when callExpr.Arguments.Length >= 1 => CallExpression.FastSetDelete(set,
+                        "delete" when callExpr.Arguments.Length >= 1 => FastSetDelete(set,
                             callExpr.Arguments, environment, context),
-                        "clear" => CallExpression.FastSetClear(set),
+                        "clear" => FastSetClear(set),
                         _ => JsValue
                             .Unit // Fall back to normal path for other methods (size is a property, not a method)
                     };
@@ -946,6 +943,5 @@ public static partial class TypedAstEvaluator
         {
             set.Clear();
             return JsValue.Undefined;
-        }
     }
 }

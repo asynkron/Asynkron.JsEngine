@@ -107,7 +107,7 @@ public static partial class TypedAstEvaluator
             BinaryOperator.LessThanOrEqual => LessThanOrEqualValue(leftVal, rightVal, context),
             BinaryOperator.StrictEqual => StrictEqualsValue(leftVal, rightVal) ? JsValue.True : JsValue.False,
             BinaryOperator.StrictNotEqual => StrictEqualsValue(leftVal, rightVal) ? JsValue.False : JsValue.True,
-            _ => BinaryExpression.EvaluateBinaryOperator(op, leftVal, rightVal, context)
+            _ => expression.EvaluateBinaryOperator(op, leftVal, rightVal, context)
         };
 
         // Medium frequency operators
@@ -155,33 +155,30 @@ public static partial class TypedAstEvaluator
         };
     }
 
-    extension(BinaryExpression expression)
+    /// <summary>
+    /// Handles medium frequency binary operators.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static JsValue EvaluateBinaryOperator(this BinaryExpression _, BinaryOperator op, in JsValue left, in JsValue right,
+        EvaluationContext context)
     {
-        /// <summary>
-        /// Handles medium frequency binary operators.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static JsValue EvaluateBinaryOperator(BinaryOperator op, in JsValue left, in JsValue right,
-            EvaluationContext context)
+        return op switch
         {
-            return op switch
-            {
-                BinaryOperator.Multiply => MultiplyValue(left, right, context),
-                BinaryOperator.Divide => DivideValue(left, right, context),
-                BinaryOperator.Modulo => ModuloValue(left, right, context),
-                BinaryOperator.Power => PowerValue(left, right, context),
-                BinaryOperator.Equal => LooseEqualsValue(left, right, context) ? JsValue.True : JsValue.False,
-                BinaryOperator.NotEqual => LooseEqualsValue(left, right, context) ? JsValue.False : JsValue.True,
-                BinaryOperator.GreaterThan => GreaterThanValue(left, right, context),
-                BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(left, right, context),
-                BinaryOperator.BitwiseAnd => BitwiseAndValue(left, right, context),
-                BinaryOperator.BitwiseOr => BitwiseOrValue(left, right, context),
-                BinaryOperator.BitwiseXor => BitwiseXorValue(left, right, context),
-                BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
-                BinaryOperator.RightShift => RightShiftValue(left, right, context),
-                BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
-                _ => throw new NotSupportedException($"Operator '{op}' is not supported yet.")
-            };
-        }
+            BinaryOperator.Multiply => MultiplyValue(left, right, context),
+            BinaryOperator.Divide => DivideValue(left, right, context),
+            BinaryOperator.Modulo => ModuloValue(left, right, context),
+            BinaryOperator.Power => PowerValue(left, right, context),
+            BinaryOperator.Equal => LooseEqualsValue(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.NotEqual => LooseEqualsValue(left, right, context) ? JsValue.False : JsValue.True,
+            BinaryOperator.GreaterThan => GreaterThanValue(left, right, context),
+            BinaryOperator.GreaterThanOrEqual => GreaterThanOrEqualValue(left, right, context),
+            BinaryOperator.BitwiseAnd => BitwiseAndValue(left, right, context),
+            BinaryOperator.BitwiseOr => BitwiseOrValue(left, right, context),
+            BinaryOperator.BitwiseXor => BitwiseXorValue(left, right, context),
+            BinaryOperator.LeftShift => LeftShiftValue(left, right, context),
+            BinaryOperator.RightShift => RightShiftValue(left, right, context),
+            BinaryOperator.UnsignedRightShift => UnsignedRightShiftValue(left, right, context),
+            _ => throw new NotSupportedException($"Operator '{op}' is not supported yet.")
+        };
     }
 }

@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
             definition.StaticElements.Length,
             evaluationEnvironment.IsStrict);
         var resolvedFields =
-            ClassDefinition.ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
+            definition.ResolveFieldNames(definition.Fields, evaluationEnvironment, context, privateNameScope);
         if (context.ShouldStopEvaluation)
         {
             return JsValue.Undefined;
@@ -130,7 +130,7 @@ public static partial class TypedAstEvaluator
         var constructorDefinition = definition.Constructor;
         if (definition.Extends is not null &&
             !constructorDefinition.IsDefaultDerivedConstructor &&
-            IsImplicitDefaultDerivedConstructor(constructorDefinition))
+            constructorDefinition.IsImplicitDefaultDerivedConstructor())
         {
             constructorDefinition = constructorDefinition with { IsDefaultDerivedConstructor = true };
         }
@@ -173,7 +173,7 @@ public static partial class TypedAstEvaluator
         {
             typedFunction.SetSuperBinding(superConstructor, superPrototype);
             var instanceFields = resolvedFields.Where(static field => !field.IsStatic).ToImmutableArray();
-            var resolvedInstanceFields = ClassDefinition.ResolveInstanceFieldNames(instanceFields,
+            var resolvedInstanceFields = definition.ResolveInstanceFieldNames(instanceFields,
                 evaluationEnvironment, context, privateNameScope);
             if (context.ShouldStopEvaluation)
             {
@@ -262,97 +262,94 @@ public static partial class TypedAstEvaluator
         return hasPrivateFields || hasPrivateMembers ? new PrivateNameScope(realm) : null;
     }
 
-    extension(ClassDefinition definition)
+    // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
+    // so resolve all field keys eagerly in declaration order (static + instance).
+    private static ImmutableArray<ClassField> ResolveFieldNames(this ClassDefinition _,
+        ImmutableArray<ClassField> fields,
+        JsEnvironment environment,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope)
     {
-        // ClassFieldDefinitionEvaluation evaluates computed field names during class evaluation,
-        // so resolve all field keys eagerly in declaration order (static + instance).
-        private static ImmutableArray<ClassField> ResolveFieldNames(
-            ImmutableArray<ClassField> fields,
-            JsEnvironment environment,
-            EvaluationContext context,
-            PrivateNameScope? privateNameScope)
+        if (fields.IsDefaultOrEmpty)
         {
-            if (fields.IsDefaultOrEmpty)
-            {
-                return fields;
-            }
-
-            var builder = ImmutableArray.CreateBuilder<ClassField>(fields.Length);
-            foreach (var field in fields)
-            {
-                var propertyName = field.Name;
-                if (!field.TryResolveFieldName(expr => expr.EvaluateExpression(environment, context),
-                        context,
-                        privateNameScope,
-                        out propertyName))
-                {
-                    context.RealmState.Logger?.LogInformation(
-                        "Class field name resolution aborted (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
-                        field.IsComputed,
-                        field.IsStatic,
-                        field.IsPrivate);
-                    return fields;
-                }
-
-                context.RealmState.Logger?.LogInformation(
-                    "Class field resolved name: original='{Original}' resolved='{Resolved}' (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
-                    field.Name,
-                    propertyName,
-                    field.IsComputed,
-                    field.IsStatic,
-                    field.IsPrivate);
-
-                builder.Add(field with { Name = propertyName, IsComputed = false, ComputedName = null });
-            }
-
-            return builder.ToImmutable();
-        }
-
-        // Instance field keys must already be resolved; this simply returns
-        // the provided collection (kept for clarity / future adjustments).
-        [UsedImplicitly]
-        public static ImmutableArray<ClassField> ResolveInstanceFieldNames(
-            ImmutableArray<ClassField> fields,
-            JsEnvironment environment,
-            EvaluationContext context,
-            PrivateNameScope? privateNameScope)
-        {
-            _ = environment;
-            _ = context;
-            _ = privateNameScope;
             return fields;
         }
 
-        [UsedImplicitly]
-        public static bool IsImplicitDefaultDerivedConstructor(FunctionExpression constructor)
+        var builder = ImmutableArray.CreateBuilder<ClassField>(fields.Length);
+        foreach (var field in fields)
         {
-            if (constructor.Parameters.Length != 0)
+            var propertyName = field.Name;
+            if (!field.TryResolveFieldName(expr => expr.EvaluateExpression(environment, context),
+                    context,
+                    privateNameScope,
+                    out propertyName))
             {
-                return false;
+                context.RealmState.Logger?.LogInformation(
+                    "Class field name resolution aborted (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
+                    field.IsComputed,
+                    field.IsStatic,
+                    field.IsPrivate);
+                return fields;
             }
 
-            if (constructor.Body.Statements.Length != 1)
-            {
-                return false;
-            }
+            context.RealmState.Logger?.LogInformation(
+                "Class field resolved name: original='{Original}' resolved='{Resolved}' (computed={IsComputed}, static={IsStatic}, private={IsPrivate})",
+                field.Name,
+                propertyName,
+                field.IsComputed,
+                field.IsStatic,
+                field.IsPrivate);
 
-            if (constructor.Body.Statements[0] is not ExpressionStatement
-                {
-                    Expression: CallExpression
-                    {
-                        Callee: SuperExpression,
-                        Arguments.Length: 1
-                    } superCall
-                })
-            {
-                return false;
-            }
-
-            var arg = superCall.Arguments[0];
-            return arg.IsSpread && arg.Expression is IdentifierExpression
-            {
-                Name.Name: "arguments"
-            };
+            builder.Add(field with { Name = propertyName, IsComputed = false, ComputedName = null });
         }
+
+        return builder.ToImmutable();
+    }
+
+    // Instance field keys must already be resolved; this simply returns
+    // the provided collection (kept for clarity / future adjustments).
+    [UsedImplicitly]
+    public static ImmutableArray<ClassField> ResolveInstanceFieldNames(this ClassDefinition _definition,
+        ImmutableArray<ClassField> fields,
+        JsEnvironment environment,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope)
+    {
+        _ = environment;
+        _ = context;
+        _ = privateNameScope;
+        return fields;
+    }
+
+    [UsedImplicitly]
+    public static bool IsImplicitDefaultDerivedConstructor(this FunctionExpression constructor)
+    {
+        if (constructor.Parameters.Length != 0)
+        {
+            return false;
+        }
+
+        if (constructor.Body.Statements.Length != 1)
+        {
+            return false;
+        }
+
+        if (constructor.Body.Statements[0] is not ExpressionStatement
+            {
+                Expression: CallExpression
+                {
+                    Callee: SuperExpression,
+                    Arguments.Length: 1
+                } superCall
+            })
+        {
+            return false;
+        }
+
+        var arg = superCall.Arguments[0];
+        return arg.IsSpread && arg.Expression is IdentifierExpression
+        {
+            Name.Name: "arguments"
+        };
     }
 }

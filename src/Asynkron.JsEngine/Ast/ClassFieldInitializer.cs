@@ -44,7 +44,7 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
+            if (field.Initializer.IsAnonymousFunctionDefinitionNode())
             {
                 SetAnonymousFunctionName(valueJs, displayName);
             }

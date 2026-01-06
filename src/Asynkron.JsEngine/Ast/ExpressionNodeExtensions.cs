@@ -232,7 +232,7 @@ public static partial class TypedAstEvaluator
 
     private static bool IsAnonymousFunctionDefinition(this ExpressionNode expression)
     {
-        return ExpressionNode.IsAnonymousFunctionDefinitionNode(expression);
+        return expression.IsAnonymousFunctionDefinitionNode();
     }
 
     private static bool ContainsDirectEvalCall(this ExpressionNode expression)
@@ -330,24 +330,21 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    extension(ExpressionNode expression)
+    internal static bool IsAnonymousFunctionDefinitionNode(this ExpressionNode node)
     {
-        internal static bool IsAnonymousFunctionDefinitionNode(ExpressionNode node)
+        // Per ES spec, sequence expressions (comma operator) do not qualify for name inference
+        // e.g., `const x = (0, function() {})` should not infer name
+        if (node is SequenceExpression)
         {
-            // Per ES spec, sequence expressions (comma operator) do not qualify for name inference
-            // e.g., `const x = (0, function() {})` should not infer name
-            if (node is SequenceExpression)
-            {
-                return false;
-            }
-
-            return node switch
-            {
-                FunctionExpression func => func.Name is null,
-                ClassExpression classExpression => classExpression.Name is null,
-                _ => false
-            };
+            return false;
         }
+
+        return node switch
+        {
+            FunctionExpression func => func.Name is null,
+            ClassExpression classExpression => classExpression.Name is null,
+            _ => false
+        };
     }
 
     private static (JsValue Callee, JsValue thisValue, bool SkippedOptional) EvaluateCallTarget(this ExpressionNode callee, JsEnvironment environment,

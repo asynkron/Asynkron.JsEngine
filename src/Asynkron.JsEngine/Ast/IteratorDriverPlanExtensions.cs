@@ -70,7 +70,7 @@ public static partial class TypedAstEvaluator
             throw new ThrowSignal(context.FlowValue);
         }
 
-        IteratorDriverPlan.SyncIterationSlots(plan, reusableIterationEnvironment, context);
+        plan.SyncIterationSlots(reusableIterationEnvironment, context);
         letConstFirstIterationDone = true;
     }
 
@@ -219,7 +219,7 @@ public static partial class TypedAstEvaluator
                             throw new ThrowSignal(context.FlowValue);
                         }
 
-                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                        plan.SyncIterationSlots(iterationEnvironment, context);
                     }
 
                     // Check if yield/await happened during binding (e.g., yield in destructuring default)
@@ -334,7 +334,7 @@ public static partial class TypedAstEvaluator
                                 throw new ThrowSignal(context.FlowValue);
                             }
 
-                            IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                            plan.SyncIterationSlots(iterationEnvironment, context);
                         }
 
                         // Check if yield/await happened during binding (e.g., yield in destructuring default)
@@ -423,7 +423,7 @@ public static partial class TypedAstEvaluator
                                             throw new ThrowSignal(context.FlowValue);
                                         }
 
-                                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                                        plan.SyncIterationSlots(iterationEnvironment, context);
                                     }
 
                                     break;
@@ -642,49 +642,46 @@ public static partial class TypedAstEvaluator
         }
     }
 
-    extension(IteratorDriverPlan plan)
+    private static void SyncIterationSlots(this IteratorDriverPlan driverPlan, JsEnvironment iterationEnvironment,
+        EvaluationContext context)
     {
-        private static void SyncIterationSlots(IteratorDriverPlan driverPlan, JsEnvironment iterationEnvironment,
-            EvaluationContext context)
+        if (driverPlan.IterationSlotCount < 0 ||
+            driverPlan.IterationScopeId < 0 ||
+            driverPlan.PerIterationSlotIndices.IsDefaultOrEmpty ||
+            driverPlan.PerIterationBindings.IsDefaultOrEmpty)
         {
-            if (driverPlan.IterationSlotCount < 0 ||
-                driverPlan.IterationScopeId < 0 ||
-                driverPlan.PerIterationSlotIndices.IsDefaultOrEmpty ||
-                driverPlan.PerIterationBindings.IsDefaultOrEmpty)
+            return;
+        }
+
+        if (iterationEnvironment.ScopeId != driverPlan.IterationScopeId)
+        {
+            return;
+        }
+
+        if (!iterationEnvironment.HasSlots)
+        {
+            return;
+        }
+
+        var slotIndices = driverPlan.PerIterationSlotIndices;
+        var bindingNames = driverPlan.PerIterationBindings;
+        var count = Math.Min(slotIndices.Length, bindingNames.Length);
+
+        for (var i = 0; i < count; i++)
+        {
+            var slotIndex = slotIndices[i];
+            if (slotIndex < 0)
             {
-                return;
+                continue;
             }
 
-            if (iterationEnvironment.ScopeId != driverPlan.IterationScopeId)
+            var binding = bindingNames[i];
+            if (!iterationEnvironment.TryGetIdentifierJsValue(binding, context, out var value))
             {
-                return;
+                continue;
             }
 
-            if (!iterationEnvironment.HasSlots)
-            {
-                return;
-            }
-
-            var slotIndices = driverPlan.PerIterationSlotIndices;
-            var bindingNames = driverPlan.PerIterationBindings;
-            var count = Math.Min(slotIndices.Length, bindingNames.Length);
-
-            for (var i = 0; i < count; i++)
-            {
-                var slotIndex = slotIndices[i];
-                if (slotIndex < 0)
-                {
-                    continue;
-                }
-
-                var binding = bindingNames[i];
-                if (!iterationEnvironment.TryGetIdentifierJsValue(binding, context, out var value))
-                {
-                    continue;
-                }
-
-                iterationEnvironment.SetSlotDirect(slotIndex, value);
-            }
+            iterationEnvironment.SetSlotDirect(slotIndex, value);
         }
     }
 

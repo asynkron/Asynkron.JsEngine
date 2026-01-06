@@ -148,7 +148,7 @@ public static partial class TypedAstEvaluator
                 break;
             }
 
-            IteratorDriverPlan.SyncIterationSlots(cachedPlan, iterationEnvironment, context);
+            cachedPlan.SyncIterationSlots(iterationEnvironment, context);
 
             // Per ES spec 14.7.5.7 ForIn/OfBodyEvaluation step 5.k-l:
             // Only update V (completion value) if result.[[Value]] is not empty

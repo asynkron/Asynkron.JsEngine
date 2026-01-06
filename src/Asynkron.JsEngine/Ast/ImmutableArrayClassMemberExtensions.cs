@@ -36,9 +36,9 @@ public static partial class TypedAstEvaluator
             var baseDisplayName = member.IsPrivate ? member.Name : propertyName;
             var displayName = member.Kind switch
             {
-                ClassMemberKind.Getter => $"get {ObjectExpression.BuildFunctionNameDisplay(baseDisplayName)}",
-                ClassMemberKind.Setter => $"set {ObjectExpression.BuildFunctionNameDisplay(baseDisplayName)}",
-                _ => ObjectExpression.BuildFunctionNameDisplay(baseDisplayName)
+                ClassMemberKind.Getter => $"get {baseDisplayName.BuildFunctionNameDisplay()}",
+                ClassMemberKind.Setter => $"set {baseDisplayName.BuildFunctionNameDisplay()}",
+                _ => baseDisplayName.BuildFunctionNameDisplay()
             };
 
             if (member.IsStatic &&

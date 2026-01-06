@@ -535,9 +535,9 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        if (LoopPlan.StatementsContainDynamicScope(plan.LeadingStatements) ||
-            LoopPlan.StatementsContainDynamicScope(plan.ConditionPrologue) ||
-            LoopPlan.StatementsContainDynamicScope(plan.PostIteration))
+        if (plan.StatementsContainDynamicScope(plan.LeadingStatements) ||
+            plan.StatementsContainDynamicScope(plan.ConditionPrologue) ||
+            plan.StatementsContainDynamicScope(plan.PostIteration))
         {
             return true;
         }
@@ -695,13 +695,13 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
+        if (!plan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
                 out var accumScopeId, out var accumSlotIndex, out var operation))
         {
             return false;
         }
 
-        return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
+        return plan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
             accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
     }
 
@@ -736,7 +736,7 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
+        if (!plan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
                 out var accumScopeId, out var accumSlotIndex, out var operation))
         {
             return false;
@@ -763,38 +763,36 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
+        return plan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
             accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
     }
 
-    extension(LoopPlan plan)
+    private static bool StatementsContainDynamicScope(this LoopPlan _, ImmutableArray<StatementNode> statements)
     {
-        private static bool StatementsContainDynamicScope(ImmutableArray<StatementNode> statements)
+        if (statements.IsDefaultOrEmpty)
         {
-            if (statements.IsDefaultOrEmpty)
-            {
-                return false;
-            }
-
-            var synthetic = new BlockStatement(null, statements, false);
-            return DynamicScopeDetector.ContainsWithOrDirectEval(synthetic);
+            return false;
         }
+
+        var synthetic = new BlockStatement(null, statements, false);
+        return DynamicScopeDetector.ContainsWithOrDirectEval(synthetic);
+    }
 
         /// <summary>
         /// Extracts accumulator slot info from a compound assignment expression (s += i, s -= i, s *= i).
         /// </summary>
-        private static bool TryExtractAccumulatorPattern(
-            AssignmentExpression assignExpr,
-            IdentifierExpression loopVarId,
-            out Symbol accumulatorName,
-            out int accumScopeId,
-            out int accumSlotIndex,
-            out FastLoopOperation operation)
-        {
-            accumulatorName = null!;
-            accumScopeId = -1;
-            accumSlotIndex = -1;
-            operation = default;
+    private static bool TryExtractAccumulatorPattern(this LoopPlan _,
+        AssignmentExpression assignExpr,
+        IdentifierExpression loopVarId,
+        out Symbol accumulatorName,
+        out int accumScopeId,
+        out int accumSlotIndex,
+        out FastLoopOperation operation)
+    {
+        accumulatorName = null!;
+        accumScopeId = -1;
+        accumSlotIndex = -1;
+        operation = default;
 
             // Must be compound assignment
             if (!assignExpr.IsCompoundAssignment)
@@ -845,27 +843,27 @@ public static partial class TypedAstEvaluator
             accumulatorName = assignExpr.Target;
             accumScopeId = assignExpr.ScopeId;
             accumSlotIndex = assignExpr.SlotIndex;
-            return true;
-        }
+        return true;
+    }
 
         /// <summary>
         /// Executes the tight numeric loop with pre-resolved slot references.
         /// Supports all comparison operators, increment/decrement, and arithmetic operations.
         /// </summary>
-        private static bool ExecuteFastNumericLoop(
-            IdentifierExpression loopVarId,
-            Symbol accumulatorName,
-            double limit,
-            FastLoopComparison comparison,
-            bool isIncrement,
-            int accumScopeId,
-            int accumSlotIndex,
-            FastLoopOperation operation,
-            bool conditionAfterBody,
-            JsEnvironment environment,
-            out JsValue result)
-        {
-            result = JsValue.Undefined;
+    private static bool ExecuteFastNumericLoop(this LoopPlan _,
+        IdentifierExpression loopVarId,
+        Symbol accumulatorName,
+        double limit,
+        FastLoopComparison comparison,
+        bool isIncrement,
+        int accumScopeId,
+        int accumSlotIndex,
+        FastLoopOperation operation,
+        bool conditionAfterBody,
+        JsEnvironment environment,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
 
             // Pre-resolve slots
             if (!environment.TryResolveSlot(loopVarId.Name, loopVarId.ScopeId, loopVarId.SlotIndex,
@@ -906,12 +904,12 @@ public static partial class TypedAstEvaluator
                     accumRef = new JsValue(newAccum);
                     lastValue = accumRef;
                     loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
-                } while (LoopPlan.CheckCondition(loopVarRef.NumberValue, limit, comparison));
+                } while (CheckCondition(loopVarRef.NumberValue, limit, comparison));
             }
             else
             {
                 // while/for: check condition first
-                while (LoopPlan.CheckCondition(loopVarRef.NumberValue, limit, comparison))
+                while (CheckCondition(loopVarRef.NumberValue, limit, comparison))
                 {
                     var i = loopVarRef.NumberValue;
                     var s = accumRef.NumberValue;
@@ -932,19 +930,18 @@ public static partial class TypedAstEvaluator
 
             result = lastValue;
             return true;
-        }
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool CheckCondition(double loopVar, double limit, FastLoopComparison comparison)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool CheckCondition(double loopVar, double limit, FastLoopComparison comparison)
+    {
+        return comparison switch
         {
-            return comparison switch
-            {
-                FastLoopComparison.LessThan => loopVar < limit,
-                FastLoopComparison.LessThanOrEqual => loopVar <= limit,
-                FastLoopComparison.GreaterThan => loopVar > limit,
-                FastLoopComparison.GreaterThanOrEqual => loopVar >= limit,
-                _ => false
-            };
-        }
+            FastLoopComparison.LessThan => loopVar < limit,
+            FastLoopComparison.LessThanOrEqual => loopVar <= limit,
+            FastLoopComparison.GreaterThan => loopVar > limit,
+            FastLoopComparison.GreaterThanOrEqual => loopVar >= limit,
+            _ => false
+        };
     }
 }

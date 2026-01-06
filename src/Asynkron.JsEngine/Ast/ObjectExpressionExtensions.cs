@@ -56,7 +56,7 @@ public static partial class TypedAstEvaluator
                         if (valueJs.ObjectValue is IFunctionNameTarget nameTarget &&
                             member.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                         {
-                            var displayName = ObjectExpression.BuildFunctionNameDisplay(name);
+                            var displayName = name.BuildFunctionNameDisplay();
                             nameTarget.EnsureHasName(displayName);
                         }
 
@@ -98,7 +98,7 @@ public static partial class TypedAstEvaluator
 
                         if (callable is IFunctionNameTarget nameTarget)
                         {
-                            var displayName = ObjectExpression.BuildFunctionNameDisplay(name);
+                            var displayName = name.BuildFunctionNameDisplay();
                             nameTarget.EnsureHasName(displayName);
                         }
 
@@ -127,7 +127,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        getter.EnsureHasName($"get {ObjectExpression.BuildFunctionNameDisplay(name)}");
+                        getter.EnsureHasName($"get {name.BuildFunctionNameDisplay()}");
 
                         obj.DefineAccessorProperty(name, getter, null);
                         break;
@@ -147,7 +147,7 @@ public static partial class TypedAstEvaluator
                             return JsValue.Undefined;
                         }
 
-                        setter.EnsureHasName($"set {ObjectExpression.BuildFunctionNameDisplay(name)}");
+                        setter.EnsureHasName($"set {name.BuildFunctionNameDisplay()}");
 
                         obj.DefineAccessorProperty(name, null, setter);
                         break;
@@ -239,16 +239,13 @@ public static partial class TypedAstEvaluator
         return new JsValue(obj);
     }
 
-    extension(ObjectExpression expression)
+    private static string BuildFunctionNameDisplay(this string propertyName)
     {
-        private static string BuildFunctionNameDisplay(string propertyName)
+        if (JsSymbol.TryGetByInternalKey(propertyName, out var symbol))
         {
-            if (JsSymbol.TryGetByInternalKey(propertyName, out var symbol))
-            {
-                return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
-            }
-
-            return propertyName;
+            return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
         }
+
+        return propertyName;
     }
 }

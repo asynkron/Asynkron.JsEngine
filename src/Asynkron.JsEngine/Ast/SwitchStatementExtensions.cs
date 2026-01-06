@@ -82,7 +82,7 @@ public static partial class TypedAstEvaluator
                 // Evaluate the case clause body statements in the switch environment
                 // We evaluate the statements directly without creating a new block environment
                 var (caseCompletionJs, hasCaseJs) =
-                    SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context);
+                    SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context, instantiationPlan.IsStrict);
 
                 // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
                 // UpdateEmpty semantics: only update V if the completion is not empty
@@ -153,7 +153,7 @@ public static partial class TypedAstEvaluator
         /// Evaluates a case clause body and returns a tuple with the value and whether it produced a value.
         /// </summary>
         private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body,
-            JsEnvironment switchEnv, EvaluationContext context)
+            JsEnvironment switchEnv, EvaluationContext context, bool isStrict)
         {
             // Evaluate statements in the case clause body without creating a new environment
             // The statements are evaluated in the shared switch environment
@@ -169,30 +169,20 @@ public static partial class TypedAstEvaluator
                 if (stmt is FunctionDeclaration funcDecl &&
                     (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator))
                 {
-                    // Pass skipInternalNameBinding: true so the function doesn't create an internal
-                    // const binding for its name (the binding was already defined during instantiation).
-                    var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
-                        skipInternalNameBinding: true);
-                    switchEnv.AssignJsValue(funcDecl.Name, JsValue.FromObjectUnsafe(functionValue));
-                    // Function declarations have empty completion
-                    continue;
-                }
-
-                // In strict mode, regular function declarations need to be evaluated when
-                // execution reaches them (not hoisted during instantiation per Annex B.3.3.1)
-                if (body.IsStrict && stmt is FunctionDeclaration strictFuncDecl)
-                {
-                    var functionValue = strictFuncDecl.Function.CreateFunctionValue(switchEnv, context,
-                        skipInternalNameBinding: false);
-                    // Define the binding directly (not assign, as it hasn't been hoisted)
-                    switchEnv.DefineJsValue(
-                        strictFuncDecl.Name,
-                        JsValue.FromObjectUnsafe(functionValue),
-                        isConst: false,
-                        isLexicalBinding: true,
-                        blocksFunctionScopeOverride: false);
-                    // Function declarations have empty completion
-                    continue;
+                    // In strict mode, function declarations are handled by the generic
+                    // statement evaluation (which will create the binding).
+                    // In non-strict mode, they were hoisted during instantiation, so we
+                    // just need to assign the value for async/generator functions.
+                    if (!isStrict)
+                    {
+                        // Pass skipInternalNameBinding: true so the function doesn't create an internal
+                        // const binding for its name (the binding was already defined during instantiation).
+                        var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
+                            skipInternalNameBinding: true);
+                        switchEnv.AssignJsValue(funcDecl.Name, JsValue.FromObjectUnsafe(functionValue));
+                        // Function declarations have empty completion
+                        continue;
+                    }
                 }
 
                 var completion = stmt.EvaluateStatementJsValue(switchEnv, context);

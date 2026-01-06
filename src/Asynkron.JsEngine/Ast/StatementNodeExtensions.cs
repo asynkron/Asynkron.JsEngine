@@ -91,7 +91,7 @@ public static partial class TypedAstEvaluator
             {
                 ThrowStatement throwStatement => throwStatement.EvaluateThrowJsValue(environment, context),
                 VariableDeclaration declaration => declaration.EvaluateVariableDeclarationJsValue(environment, context),
-                FunctionDeclaration => EvaluateFunctionDeclarationJsValue(),
+                FunctionDeclaration functionDeclaration => functionDeclaration.EvaluateFunctionDeclarationJsValue(environment, context),
                 ForEachStatement forEachStatement => forEachStatement.EvaluateForEachJsValue(environment, context,
                     activeLabel),
                 BreakStatement breakStatement => breakStatement.EvaluateBreakJsValue(context),

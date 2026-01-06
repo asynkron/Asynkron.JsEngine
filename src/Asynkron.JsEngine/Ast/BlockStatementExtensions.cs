@@ -140,6 +140,15 @@ public static partial class TypedAstEvaluator
             JsEnvironment blockEnvironment,
             EvaluationContext context)
         {
+            // Per Annex B.3.3.1: In strict mode, function declarations in blocks
+            // are NOT hoisted (no AnnexB extension). They should only be instantiated
+            // when execution reaches them.
+            if (block.IsStrict || blockEnvironment.IsStrict)
+            {
+                // Skip hoisting in strict mode - functions will be created during evaluation
+                return;
+            }
+
             foreach (var statement in block.Statements)
             {
                 if (statement is not FunctionDeclaration functionDeclaration)

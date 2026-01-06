@@ -25,16 +25,19 @@ public static partial class TypedAstEvaluator
 
             var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
 
+            // Determine if we're in strict mode at runtime (context-dependent)
+            var isStrict = context.CurrentScope.IsStrict;
+
             // Create a lexical environment for the entire switch block
             // This environment is shared by all case clause bodies
-            var switchEnv = new JsEnvironment(environment, false, instantiationPlan.IsStrict);
+            var switchEnv = new JsEnvironment(environment, false, isStrict);
 
             // Push a scope context for the switch block
-            var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var scopeMode = isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
 
             // Hoist lexical declarations from all case bodies
-            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
+            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context, isStrict);
 
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
@@ -82,7 +85,7 @@ public static partial class TypedAstEvaluator
                 // Evaluate the case clause body statements in the switch environment
                 // We evaluate the statements directly without creating a new block environment
                 var (caseCompletionJs, hasCaseJs) =
-                    SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context, instantiationPlan.IsStrict);
+                    SwitchStatement.EvaluateCaseClauseBodyJsValue(switchCase.Body, switchEnv, context, isStrict);
 
                 // If R.[[value]] is not empty, let V = R.[[value]] (spec step 4.b.ii)
                 // UpdateEmpty semantics: only update V if the completion is not empty
@@ -108,34 +111,40 @@ public static partial class TypedAstEvaluator
         }
 
         private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv,
-            EvaluationContext context)
+            EvaluationContext context, bool isStrict)
         {
             foreach (var binding in plan.LexicalBindings)
             {
                 binding.Target.CreateUninitializedLexicalBindings(switchEnv, binding.IsConst);
             }
 
-            foreach (var funcBinding in plan.FunctionBindings)
+            // Per Annex B.3.3.1: In strict mode, function declarations in blocks
+            // are NOT hoisted as var-scoped bindings (no AnnexB extension).
+            // Skip function hoisting in strict mode.
+            if (!isStrict)
             {
-                if (!funcBinding.InitializeNow)
+                foreach (var funcBinding in plan.FunctionBindings)
                 {
+                    if (!funcBinding.InitializeNow)
+                    {
+                        switchEnv.DefineJsValue(
+                            funcBinding.Name,
+                            JsValue.Uninitialized,
+                            true,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                        continue;
+                    }
+
+                    var functionValue = funcBinding.Function.CreateFunctionValue(switchEnv, context,
+                        skipInternalNameBinding: true);
                     switchEnv.DefineJsValue(
                         funcBinding.Name,
-                        JsValue.Uninitialized,
+                        JsValue.FromObjectUnsafe(functionValue),
                         true,
                         isLexicalBinding: true,
                         blocksFunctionScopeOverride: true);
-                    continue;
                 }
-
-                var functionValue = funcBinding.Function.CreateFunctionValue(switchEnv, context,
-                    skipInternalNameBinding: true);
-                switchEnv.DefineJsValue(
-                    funcBinding.Name,
-                    JsValue.FromObjectUnsafe(functionValue),
-                    true,
-                    isLexicalBinding: true,
-                    blocksFunctionScopeOverride: true);
             }
 
             foreach (var className in plan.ClassBindings)

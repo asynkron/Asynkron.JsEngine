@@ -99,13 +99,17 @@ Example consolidation:
 
 ### 4. Generate markdown structure
 
-**Important formatting rules:**
-- Only include issues that are **open** (exclude closed issues)
-- Epics get `##` headers with the epic issue number
+**CRITICAL: Only OPEN issues appear in the roadmap!**
+- **NEVER include closed issues** - they are done and should not appear
+- **No "completed" sections** - if it's done, it's not in the roadmap
+- The roadmap shows ONLY remaining work
+
+**Formatting rules:**
+- Epics get `##` headers with the epic issue number (only if epic is open)
 - Tasks are bullet points under epics
 - Subtasks are nested bullet points (2-space indent) under their parent task
-- This creates a proper visual hierarchy showing task relationships
-- If a parent task is closed but has open subtasks, still show the parent as a header for context
+- If a parent task is closed but has open subtasks, show only the subtasks under the epic directly
+- Ungrouped open issues go under "Other"
 
 ```markdown
 # Roadmap
@@ -165,12 +169,13 @@ Output:
 
 ## Hierarchy Rules
 
-1. **Only open issues are included** - closed issues are excluded from the roadmap
-2. Task numbering indicates hierarchy depth (`Task 1.2` is under `Task 1`)
-3. Issues referencing other issues (`Parent: #X`, `Blocked by #X`) are children
-4. Epic labels indicate top-level groupings (must have `Epic:` prefix)
-5. Bug labels go under the Bugs section (must have `Bug:` prefix)
-6. Ungrouped issues go under "Other"
+1. **ONLY OPEN ISSUES** - closed/completed issues are NEVER in the roadmap
+2. **No history tracking** - the roadmap shows remaining work, not completed work
+3. Task numbering indicates hierarchy depth (`Task 1.2` is under `Task 1`)
+4. Issues referencing other issues (`Parent: #X`, `Blocked by #X`) are children
+5. Epic labels indicate top-level groupings (must have `Epic:` prefix)
+6. Bug labels go under the Bugs section (must have `Bug:` prefix)
+7. Ungrouped issues go under "Other"
 
 ## Naming Migration Examples
 
@@ -185,26 +190,16 @@ Output:
 
 ## Reference Snapshot
 
-This is the expected format for the current roadmap:
+This is an example of the expected format (note: only OPEN issues appear):
 
 ```markdown
 # Roadmap
 
-## Bugs
-
-* #420 - Bug: strict mode block function scoping (TypeError: null ref in FDI)
-  * #421 - Bug: switch-case-decl-onlystrict.js
-  * #423 - Bug: switch-dflt-decl-onlystrict.js
-
 ## Epic: IR-only Execution (#364)
 
-* #398 - Task 0: Inventory + invariants
-  * #415 - Task 0.1: Add AST-free assertion guard
-  * #416 - Task 0.2: Inventory of all StatementInstruction usages
 * #399 - Task 1: Remove statement-level AST delegation
   * #404 - Task 1.1: IR support for block statements with lexical bindings
   * #405 - Task 1.2: IR support for for-in loops
-  * #406 - Task 1.3: IR support for with statements (full coverage)
   * #410 - Task 1.7: IR support for yield in binding target defaults
 * #400 - Task 2: Introduce expression bytecode
   * #411 - Task 2.1: Design expression bytecode format
@@ -214,9 +209,6 @@ This is the expected format for the current roadmap:
 * #401 - Task 3: Remove / quarantine AST evaluators
 * #402 - Task 4: IL backend for sync bytecode
 * #403 - Task 5: IL backend for generator/async stepping
-
-## Epic: Refactor ExecutionPlanRunner (#365)
-
-* #366 - Task 1: Extract ExecutionPlanRunner profiling helpers
-* #368 - Task 2: Split instruction handlers into partial file
 ```
+
+Note: Closed issues like #398, #406, #407, #408, #409, #415, #416 do NOT appear - they are done!

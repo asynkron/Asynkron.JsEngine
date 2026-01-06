@@ -265,10 +265,16 @@ public static partial class TypedAstEvaluator
                         // In strict mode, block-level function declarations are block-scoped only
                         // (no Annex B var-style hoisting). Skip hoisting entirely - the block's
                         // FunctionDeclarationInstruction will create the binding at runtime.
-                        if (inBlockScope && context.CurrentScope.IsStrict)
+                        // TEMPORARY FIX: Always skip hoisting for block-scoped functions
+                        System.Console.WriteLine($"HoistFromStatement: {functionDeclaration.Name.Name}, inBlockScope={inBlockScope}");
+                        if (inBlockScope)
                         {
+                            System.Console.WriteLine($"  Skipping hoisting for {functionDeclaration.Name.Name}");
                             break;
                         }
+
+                        System.Console.WriteLine($"  Hoisting {functionDeclaration.Name.Name}");
+
 
                         if (functionHoistDedupe is not null &&
                             !functionHoistDedupe.Add(functionDeclaration.Name))

@@ -389,9 +389,9 @@ dotnet_diagnostic.IDE0059.severity = warning
 # CS0162: Unreachable code detected
 dotnet_diagnostic.CS0162.severity = warning
 
-# IDE0060: Remove unused parameter
+
 dotnet_code_quality_unused_parameters = non_public
-dotnet_diagnostic.IDE0060.severity = warning
+
 
 # Roslynator analyzers focused on dead/unused code
 dotnet_diagnostic.RCS1163.severity = warning

@@ -110,6 +110,9 @@ Example consolidation:
 - Subtasks are nested bullet points (2-space indent) under their parent task
 - If a parent task is closed but has open subtasks, show only the subtasks under the epic directly
 - Ungrouped open issues go under "Other"
+- **Include blocker info** - if an issue has blockers documented in comments, add ⚠️ **Blocked** - reason
+  - Check issue comments for investigation findings about blockers
+  - Brief reason helps others understand what's needed before working on it
 
 ```markdown
 # Roadmap
@@ -190,7 +193,7 @@ Output:
 
 ## Reference Snapshot
 
-This is an example of the expected format (note: only OPEN issues appear):
+This is an example of the expected format (note: only OPEN issues appear, with blocker info):
 
 ```markdown
 # Roadmap
@@ -198,9 +201,9 @@ This is an example of the expected format (note: only OPEN issues appear):
 ## Epic: IR-only Execution (#364)
 
 * #399 - Task 1: Remove statement-level AST delegation
-  * #404 - Task 1.1: IR support for block statements with lexical bindings
-  * #405 - Task 1.2: IR support for for-in loops
-  * #410 - Task 1.7: IR support for yield in binding target defaults
+  * #404 - Task 1.1: IR support for block statements with lexical bindings ⚠️ **Blocked** - exception handling with `for await...of`
+  * #405 - Task 1.2: IR support for for-in loops ⚠️ **Blocked** - needs new ForInEmitter
+  * #410 - Task 1.7: IR support for yield in binding target defaults ⚠️ **Blocked** - needs complex yield lowering
 * #400 - Task 2: Introduce expression bytecode
   * #411 - Task 2.1: Design expression bytecode format
   * #412 - Task 2.2: Expression bytecode emitter
@@ -211,4 +214,4 @@ This is an example of the expected format (note: only OPEN issues appear):
 * #403 - Task 5: IL backend for generator/async stepping
 ```
 
-Note: Closed issues like #398, #406, #407, #408, #409, #415, #416 do NOT appear - they are done!
+Note: Closed issues do NOT appear - they are done! Blocker info is pulled from issue comments.

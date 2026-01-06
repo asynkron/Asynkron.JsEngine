@@ -71,11 +71,7 @@ internal static class StatementEmitter
                     return TryEmitter.TryEmitTry(ctx, tryStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ForEachStatement { Kind: ForEachKind.In } forInStatement:
-                    // AST fallback: for-in loops delegate to AST evaluator via StatementInstruction
-                    // Reason: No dedicated IR instructions for property enumeration
-                    // Tracking: #398, #416 (IR-only execution epic)
-                    entryIndex = ctx.Append(new StatementInstruction(nextIndex, forInStatement));
-                    return true;
+                    return TryEmitForIn(ctx, forInStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ForEachStatement { Kind: ForEachKind.Of or ForEachKind.AwaitOf } forEachStatement
                     when IsSimpleForOfBinding(forEachStatement):
@@ -107,18 +103,7 @@ internal static class StatementEmitter
                     return DeclarationEmitter.TryEmitThrow(ctx, throwStatement, out entryIndex);
 
                 case LabeledStatement labeled:
-                    // For for-in loops that are AST-evaluated, keep the label wrapper
-                    // so the AST evaluator can handle labeled break/continue correctly
-                    if (labeled.Statement is ForEachStatement { Kind: ForEachKind.In })
-                    {
-                        // AST fallback: labeled for-in wrapper
-                        // Reason: Wraps the for-in AST fallback to preserve label semantics
-                        // Tracking: #398, #416 (IR-only execution epic)
-                        entryIndex = ctx.Append(new StatementInstruction(nextIndex, labeled));
-                        return true;
-                    }
-
-                    // For other loop-like statements, pass the label through - they handle it internally
+                    // For loop-like statements, pass the label through - they handle it internally
                     if (labeled.Statement is WhileStatement or DoWhileStatement or ForStatement
                         or ForEachStatement or SwitchStatement)
                     {
@@ -251,6 +236,32 @@ internal static class StatementEmitter
         }
 
         return ForOfEmitter.TryEmit(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // For-In Helper
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private static bool TryEmitForIn(
+        EmitContext ctx,
+        ForEachStatement forInStatement,
+        int nextIndex,
+        Symbol? activeLabel,
+        out int entryIndex)
+    {
+        // If binding target has yields anywhere (defaults or assignment target expressions),
+        // we cannot emit IR - fall back to StatementInstruction.
+        if (EmitContext.BindingTargetContainsYieldAnywhere(forInStatement.Target) &&
+            !AstShapeAnalyzer.StatementContainsYield(forInStatement.Body) &&
+            !AstShapeAnalyzer.ContainsYield(forInStatement.Iterable))
+        {
+            // AST fallback: for-in with yield in binding target
+            // Reason: Conditional yield semantics in destructuring defaults
+            entryIndex = ctx.Append(new StatementInstruction(nextIndex, forInStatement));
+            return true;
+        }
+
+        return ForInEmitter.TryEmit(ctx, forInStatement, nextIndex, activeLabel, out entryIndex);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

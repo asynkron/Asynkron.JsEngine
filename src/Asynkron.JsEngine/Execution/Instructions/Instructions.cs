@@ -431,3 +431,47 @@ internal sealed record ExpressionInstruction(int Next, ExpressionNode Expression
 /// </summary>
 internal sealed record SetCompletionValueInstruction(int Next)
     : ExecutionInstruction(InstructionKind.SetCompletionValue, Next);
+
+/// <summary>
+///     Initializes the for-in loop by evaluating the object expression and collecting
+///     enumerable property keys.
+/// </summary>
+/// <param name="ObjectExpression">Expression that produces the object to iterate.</param>
+/// <param name="StateSlot">Symbol for the for-in state.</param>
+/// <param name="StateSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
+/// <param name="ValueSlot">Symbol for the current property key value.</param>
+/// <param name="ValueSlotIndex">Pre-resolved slot index for fast value access (-1 if not resolved).</param>
+/// <param name="Next">Jump target after initialization.</param>
+/// <param name="TdzBindings">
+///     Symbols that need TDZ bindings during object evaluation (for let/const declarations).
+///     This ensures `for (const x in {[x]: 1})` throws ReferenceError for accessing x before initialization.
+/// </param>
+/// <param name="TdzIsConst">Whether the TDZ bindings are const (true) or let (false).</param>
+internal sealed record ForInInitInstruction(
+    ExpressionNode ObjectExpression,
+    Symbol StateSlot,
+    int StateSlotIndex,
+    Symbol ValueSlot,
+    int ValueSlotIndex,
+    int Next,
+    ImmutableArray<Symbol> TdzBindings = default,
+    bool TdzIsConst = false)
+    : ExecutionInstruction(InstructionKind.ForInInit, Next);
+
+/// <summary>
+///     Advances the for-in loop to the next enumerable property key.
+/// </summary>
+/// <param name="StateSlot">Symbol for the for-in state.</param>
+/// <param name="ValueSlot">Symbol for the current property key value.</param>
+/// <param name="StateSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
+/// <param name="ValueSlotIndex">Pre-resolved slot index for fast value access (-1 if not resolved).</param>
+/// <param name="BreakIndex">Jump target when iteration completes.</param>
+/// <param name="Next">Jump target for the loop body.</param>
+internal sealed record ForInMoveNextInstruction(
+    Symbol StateSlot,
+    Symbol ValueSlot,
+    int StateSlotIndex,
+    int ValueSlotIndex,
+    int BreakIndex,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ForInMoveNext, Next);

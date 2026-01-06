@@ -173,6 +173,12 @@ internal static class ExecutionPlanPrinter
             IteratorCloseInstruction iterClose =>
                 $"ITER_CLOSE (iter: {iterClose.IteratorSlot.Name}) → [{iterClose.Next}]",
 
+            ForInInitInstruction forInInit =>
+                $"FORIN_INIT {FormatExpression(forInInit.ObjectExpression)} (state: {forInInit.StateSlot.Name}, value: {forInInit.ValueSlot.Name}) → [{forInInit.Next}]",
+
+            ForInMoveNextInstruction forInMoveNext =>
+                $"FORIN_MOVE_NEXT (state: {forInMoveNext.StateSlot.Name}, value: {forInMoveNext.ValueSlot.Name}) body: [{forInMoveNext.Next}], done: [{forInMoveNext.BreakIndex}]",
+
             EnterWithInstruction enterWith =>
                 $"ENTER_WITH {FormatExpression(enterWith.ObjectExpression)} → [{enterWith.Next}]",
 

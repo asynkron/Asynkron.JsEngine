@@ -30,20 +30,10 @@ internal static class BlockEmitter
         var hoistPlan = ((IAstCacheable<HoistPlan>)block).GetOrCreateCache();
         if (hoistPlan.NeedsEnvironment)
         {
-            // If the block contains yield or await, we must NOT use StatementInstruction
-            // because that causes duplicate execution on resume. Instead, emit
-            // PushEnvironment + individual statements + PopEnvironment.
-            if (AstShapeAnalyzer.StatementContainsYield(block) ||
-                AstShapeAnalyzer.StatementContainsAwait(block))
-            {
-                return TryEmitBlockWithEnvironment(ctx, block, hoistPlan, nextIndex, out entryIndex);
-            }
-
-            // AST fallback: block with lexical bindings but no yield/await
-            // Reason: Environment creation without yield/await is simpler via AST eval
-            // Tracking: #398, #416 (IR-only execution epic)
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, block));
-            return true;
+            // Always emit proper IR for blocks with lexical bindings:
+            // PushEnvironment + individual statements + PopEnvironment
+            // This ensures exception handling works correctly (fix for #432)
+            return TryEmitBlockWithEnvironment(ctx, block, hoistPlan, nextIndex, out entryIndex);
         }
 
         return ctx.TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
@@ -60,17 +50,28 @@ internal static class BlockEmitter
         int nextIndex,
         out int entryIndex)
     {
-        var instructionStart = ctx.InstructionCount;
-
-        // Check if we can pool the environment (no closures or dynamic scope)
-        var allowPooling = !DynamicScopeDetector.ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
-
         // Build slot map from hoistPlan.TopLevelLexicalNames at IR build time.
         // This is necessary because scope analysis runs AFTER IR is built - we can't rely on
         // block.SlotMap being populated yet. TopLevelLexicalNames contains all lexical bindings
         // (let/const/class/function declarations) directly in this block.
         var slotMap = BuildSlotMap(hoistPlan.TopLevelLexicalNames);
         var slotCount = slotMap.Count;
+
+        // IMPORTANT FIX for #432: If TopLevelLexicalNames is empty, we don't need a block environment.
+        // This happens when NeedsEnvironment returns true due to NESTED lexical bindings (e.g.,
+        // for-await-of with let), but those bindings are handled by the child emitter (ForOfEmitter).
+        // Emitting an unnecessary PushEnvironment here breaks exception handling because the
+        // try/catch frame's EntryEnvironment doesn't account for these extra environments.
+        if (slotCount == 0)
+        {
+            // No top-level bindings - just emit the statements directly
+            return ctx.TryBuildStatementList(block.Statements, nextIndex, out entryIndex);
+        }
+
+        var instructionStart = ctx.InstructionCount;
+
+        // Check if we can pool the environment (no closures or dynamic scope)
+        var allowPooling = !DynamicScopeDetector.ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
 
         // Allocate a scope ID for this block (will be remapped during scope analysis)
         var scopeId = ctx.AllocateScopeId();

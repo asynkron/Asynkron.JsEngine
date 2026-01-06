@@ -43,13 +43,13 @@ dotnet_diagnostic.MA0025.severity = none
 # File name doesn't need to match every type name (multiple types per file is OK)
 dotnet_diagnostic.MA0048.severity = none
 
-# Unused field/parameter warnings - we'll address these individually
+# Unused field/parameter warnings 
+dotnet_diagnostic.CA1823.severity = warning
+# Unused private code 
+dotnet_diagnostic.CA1801.severity = warning
+# Unused private members 
 dotnet_diagnostic.CA1823.severity = suggestion
-# 
-dotnet_diagnostic.CA1801.severity = suggestion
-# 
-dotnet_diagnostic.CA1823.severity = suggestion
-# 
+# Unused parameters 
 dotnet_diagnostic.RCS1163.severity = suggestion
 
 # Unreachable code - some debug code is intentionally unreachable

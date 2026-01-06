@@ -34,169 +34,136 @@ internal enum FastLoopOperation
 
 public static partial class TypedAstEvaluator
 {
-    extension(LoopPlan plan)
+    /// <summary>
+    /// JsValue-returning version of EvaluateLoopPlan for use in hot paths.
+    /// Avoids boxing on each iteration and at the final return.
+    /// </summary>
+    private static JsValue EvaluateLoopPlanJsValue(this LoopPlan plan, JsEnvironment environment, EvaluationContext context,
+        Symbol? loopLabel)
     {
-        /// <summary>
-        /// JsValue-returning version of EvaluateLoopPlan for use in hot paths.
-        /// Avoids boxing on each iteration and at the final return.
-        /// </summary>
-        private JsValue EvaluateLoopPlanJsValue(JsEnvironment environment, EvaluationContext context,
-            Symbol? loopLabel)
+        // Use JsValue to track the loop body result to avoid boxing on each iteration
+        var lastValueJs = JsValue.Undefined;
+        var logger = context.RealmState.Logger;
+        var iterationIndex = 0;
+        var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
+        var loopEnvironment = environment;
+
+        if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
         {
-            // Use JsValue to track the loop body result to avoid boxing on each iteration
-            var lastValueJs = JsValue.Undefined;
-            var logger = context.RealmState.Logger;
-            var iterationIndex = 0;
-            var hasPerIterationBindings = !plan.PerIterationBindings.IsDefaultOrEmpty;
-            var loopEnvironment = environment;
+            context.AllowIdentifierCache = false;
+        }
 
-            if (context.AllowIdentifierCache && plan.LoopPlanHasDynamicScope())
+        if (!plan.LeadingStatements.IsDefaultOrEmpty)
+        {
+            foreach (var statement in plan.LeadingStatements)
             {
-                context.AllowIdentifierCache = false;
-            }
-
-            if (!plan.LeadingStatements.IsDefaultOrEmpty)
-            {
-                foreach (var statement in plan.LeadingStatements)
+                // Leading statements (e.g., for loop initializer) are evaluated for side effects only.
+                // Per ES spec (14.7.4.7), the initializer does NOT contribute to the loop's completion value.
+                // The loop's completion value comes solely from the body; if the body never executes,
+                // the result is undefined.
+                _ = statement.EvaluateStatementJsValue(environment, context, loopLabel);
+                if (context.ShouldStopEvaluation)
                 {
-                    // Leading statements (e.g., for loop initializer) are evaluated for side effects only.
-                    // Per ES spec (14.7.4.7), the initializer does NOT contribute to the loop's completion value.
-                    // The loop's completion value comes solely from the body; if the body never executes,
-                    // the result is undefined.
-                    _ = statement.EvaluateStatementJsValue(environment, context, loopLabel);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return lastValueJs;
-                    }
+                    return lastValueJs;
                 }
             }
+        }
 
-            // Check if we need per-iteration environments for lexical bindings
-            var allowIterationEnvPooling = plan.AllowIterationEnvironmentPooling;
+        // Check if we need per-iteration environments for lexical bindings
+        var allowIterationEnvPooling = plan.AllowIterationEnvironmentPooling;
 
-            // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:
-            // Create the first per-iteration environment BEFORE entering the loop
-            var iterationEnvironment = hasPerIterationBindings
-                ? plan.CreatePerIterationEnvironment(loopEnvironment, loopEnvironment, context)
-                : loopEnvironment;
+        // Per ECMAScript spec 13.7.4.8 ForBodyEvaluation step 2:
+        // Create the first per-iteration environment BEFORE entering the loop
+        var iterationEnvironment = hasPerIterationBindings
+            ? plan.CreatePerIterationEnvironment(loopEnvironment, loopEnvironment, context)
+            : loopEnvironment;
 
-            // Fast path: if body is a single statement without block environment needs,
-            // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
-            var singleStatement = plan.SingleBodyStatement;
+        // Fast path: if body is a single statement without block environment needs,
+        // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
+        var singleStatement = plan.SingleBodyStatement;
 
-            // Try ultra-fast path for simple numeric for loops
-            // Pattern: for (let i = 0; i < limit; i++) { s += i; }
-            if (plan.TryExecuteFastNumericLoop(iterationEnvironment, context, loopLabel, out var fastResult))
+        // Try ultra-fast path for simple numeric for loops
+        // Pattern: for (let i = 0; i < limit; i++) { s += i; }
+        if (plan.TryExecuteFastNumericLoop(iterationEnvironment, loopLabel, out var fastResult))
+        {
+            return fastResult;
+        }
+
+        // Note: IR execution for loops is now handled at the function level.
+        // When EnableFastPaths is true, entire functions run via ExecutionPlanRunner,
+        // which includes loop IR. This fallback only runs when IR is disabled or failed.
+
+        // Fallback: AST interpretation for loops
+        while (true)
+        {
+            context.ThrowIfCancellationRequested();
+            iterationIndex++;
+
+            if (logger is not null && ShouldLogIteration(iterationIndex))
             {
-                return fastResult;
-            }
-
-            // Note: IR execution for loops is now handled at the function level.
-            // When EnableFastPaths is true, entire functions run via ExecutionPlanRunner,
-            // which includes loop IR. This fallback only runs when IR is disabled or failed.
-
-            // Fallback: AST interpretation for loops
-            while (true)
-            {
-                context.ThrowIfCancellationRequested();
-                iterationIndex++;
-
-                if (logger is not null && ShouldLogIteration(iterationIndex))
+                if (plan.PerIterationBindings.IsDefaultOrEmpty)
                 {
-                    if (plan.PerIterationBindings.IsDefaultOrEmpty)
-                    {
-                        logger.LogInformation("Loop iteration {Iteration}: (no per-iteration bindings)",
-                            iterationIndex);
-                    }
-                    else
-                    {
-                        var parts = ArrayPool<string>.Shared.Rent(plan.PerIterationBindings.Length);
-                        var partCount = 0;
-                        foreach (var binding in plan.PerIterationBindings)
-                        {
-                            if (iterationEnvironment.TryGetIdentifierJsValue(binding, context, out var value))
-                            {
-                                parts[partCount++] = $"{binding.Name}={value}";
-                            }
-                        }
-
-                        logger.LogInformation(
-                            "Loop iteration {Iteration}: {Bindings}",
-                            iterationIndex,
-                            string.Join(", ", parts.AsSpan(0, partCount).ToArray()));
-
-                        ArrayPool<string>.Shared.Return(parts, true);
-                    }
-                }
-
-                if (!plan.ConditionAfterBody)
-                {
-                    if (!plan.ExecuteCondition(iterationEnvironment, context))
-                    {
-                        break;
-                    }
-                }
-
-                // Fast path: execute single statement directly without block overhead
-                // Note: We do NOT pass loopLabel to inner statements - the block evaluation doesn't either.
-                // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
-                // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
-                JsValue bodyResult;
-                if (singleStatement is not null)
-                {
-                    bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
+                    logger.LogInformation("Loop iteration {Iteration}: (no per-iteration bindings)",
+                        iterationIndex);
                 }
                 else
                 {
-                    bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
-                }
+                    var parts = ArrayPool<string>.Shared.Rent(plan.PerIterationBindings.Length);
+                    var partCount = 0;
+                    foreach (var binding in plan.PerIterationBindings)
+                    {
+                        if (iterationEnvironment.TryGetIdentifierJsValue(binding, context, out var value))
+                        {
+                            parts[partCount++] = $"{binding.Name}={value}";
+                        }
+                    }
 
-                // Apply UpdateEmpty semantics (ES spec 13.7.3.6 step 2.f):
-                // Only update the completion value if body returned a non-empty value.
-                // This preserves the previous completion value when break/continue has empty completion.
-                if (!bodyResult.IsUnit)
-                {
-                    lastValueJs = bodyResult;
-                }
+                    logger.LogInformation(
+                        "Loop iteration {Iteration}: {Bindings}",
+                        iterationIndex,
+                        string.Join(", ", parts.AsSpan(0, partCount).ToArray()));
 
-                if (context.IsReturn || context.IsThrow)
+                    ArrayPool<string>.Shared.Return(parts, true);
+                }
+            }
+
+            if (!plan.ConditionAfterBody)
+            {
+                if (!plan.ExecuteCondition(iterationEnvironment, context))
                 {
                     break;
                 }
+            }
 
-                if (context.TryClearContinue(loopLabel))
-                {
-                    // Create new per-iteration environment before increment, but only if there are closures
-                    // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
-                    // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
-                    if (hasPerIterationBindings && !allowIterationEnvPooling)
-                    {
-                        iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
-                    }
+            // Fast path: execute single statement directly without block overhead
+            // Note: We do NOT pass loopLabel to inner statements - the block evaluation doesn't either.
+            // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
+            // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
+            JsValue bodyResult;
+            if (singleStatement is not null)
+            {
+                bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
+            }
+            else
+            {
+                bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
+            }
 
-                    if (!plan.ExecutePostIteration(iterationEnvironment, context))
-                    {
-                        break;
-                    }
+            // Apply UpdateEmpty semantics (ES spec 13.7.3.6 step 2.f):
+            // Only update the completion value if body returned a non-empty value.
+            // This preserves the previous completion value when break/continue has empty completion.
+            if (!bodyResult.IsUnit)
+            {
+                lastValueJs = bodyResult;
+            }
 
-                    if (plan.ConditionAfterBody && !plan.ExecuteCondition(iterationEnvironment, context))
-                    {
-                        break;
-                    }
+            if (context.IsReturn || context.IsThrow)
+            {
+                break;
+            }
 
-                    continue;
-                }
-
-                if (context.TryClearBreak(loopLabel))
-                {
-                    break;
-                }
-
-                if (context.ShouldStopEvaluation)
-                {
-                    break;
-                }
-
+            if (context.TryClearContinue(loopLabel))
+            {
                 // Create new per-iteration environment before increment, but only if there are closures
                 // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
                 // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
@@ -210,103 +177,218 @@ public static partial class TypedAstEvaluator
                     break;
                 }
 
-                if (!plan.ConditionAfterBody)
-                {
-                    continue;
-                }
-
-                if (!plan.ExecuteCondition(iterationEnvironment, context))
+                if (plan.ConditionAfterBody && !plan.ExecuteCondition(iterationEnvironment, context))
                 {
                     break;
                 }
+
+                continue;
             }
 
-            static bool ShouldLogIteration(int iterationIndex)
+            if (context.TryClearBreak(loopLabel))
             {
-                return iterationIndex <= 10 || (iterationIndex & (iterationIndex - 1)) == 0;
+                break;
             }
 
-            if (hasPerIterationBindings &&
-                !ReferenceEquals(iterationEnvironment, environment))
+            if (context.ShouldStopEvaluation)
             {
-                if (allowIterationEnvPooling)
-                {
-                    JsEnvironmentPool.Return(iterationEnvironment, logger);
-                }
-                // Otherwise keep the final iteration environment alive for any closures that captured it.
+                break;
             }
 
-            return lastValueJs;
+            // Create new per-iteration environment before increment, but only if there are closures
+            // that might capture loop variable values. When allowIterationEnvPooling is true, no closures
+            // exist, so we can skip the expensive environment refresh and just mutate bindings in place.
+            if (hasPerIterationBindings && !allowIterationEnvPooling)
+            {
+                iterationEnvironment = plan.CreateNextIterationEnvironment(iterationEnvironment, context);
+            }
+
+            if (!plan.ExecutePostIteration(iterationEnvironment, context))
+            {
+                break;
+            }
+
+            if (!plan.ConditionAfterBody)
+            {
+                continue;
+            }
+
+            if (!plan.ExecuteCondition(iterationEnvironment, context))
+            {
+                break;
+            }
         }
 
-        private JsEnvironment CreatePerIterationEnvironment(JsEnvironment sourceEnvironment,
-            JsEnvironment loopEnvironment,
-            EvaluationContext context)
+        static bool ShouldLogIteration(int iterationIndex)
         {
-            var logger = context.RealmState.Logger;
-            var iterationScopeId = plan.IterationScopeId;
-            var iterationSlotCount = plan.IterationSlotCount;
-            var iterationSlotIndices = plan.PerIterationSlotIndices;
+            return iterationIndex <= 10 || (iterationIndex & (iterationIndex - 1)) == 0;
+        }
 
-            // Per ECMAScript spec 13.7.4.9 CreatePerIterationEnvironment:
-            // The new iteration environment should enclose the loop environment so bindings/slot maps remain visible.
-            var outerEnvironment = loopEnvironment;
+        if (hasPerIterationBindings &&
+            !ReferenceEquals(iterationEnvironment, environment))
+        {
+            if (allowIterationEnvPooling)
+            {
+                JsEnvironmentPool.Return(iterationEnvironment, logger);
+            }
+            // Otherwise keep the final iteration environment alive for any closures that captured it.
+        }
 
-            // Create a fresh environment for this iteration
-            var newIterationEnvironment = plan.AllowIterationEnvironmentPooling
-                ? JsEnvironmentPool.Rent(
-                    outerEnvironment,
-                    false,
-                    false,
-                    null,
-                    "for-iteration",
-                    logger: logger)
-                : new JsEnvironment(
-                    outerEnvironment,
-                    false,
-                    false,
-                    null,
-                    "for-iteration");
+        return lastValueJs;
+    }
 
-            logger?.LogInformation(
-                "CreatePerIterationEnvironment source={SourceEnv} loop={LoopEnv} new={NewEnv} outer={OuterEnv} scopeId={ScopeId} slots={Slots}",
-                sourceEnvironment.GetHashCode(),
-                loopEnvironment.GetHashCode(),
-                newIterationEnvironment.GetHashCode(),
-                outerEnvironment.GetHashCode(),
-                JsEnvironment.FormatScopeIdForLog(iterationScopeId),
-                iterationSlotCount);
+    private static JsEnvironment CreatePerIterationEnvironment(this LoopPlan plan, JsEnvironment sourceEnvironment,
+        JsEnvironment loopEnvironment,
+        EvaluationContext context)
+    {
+        var logger = context.RealmState.Logger;
+        var iterationScopeId = plan.IterationScopeId;
+        var iterationSlotCount = plan.IterationSlotCount;
+        var iterationSlotIndices = plan.PerIterationSlotIndices;
 
-            newIterationEnvironment.Initialize(iterationScopeId, plan.IterationSlotMap);
+        // Per ECMAScript spec 13.7.4.9 CreatePerIterationEnvironment:
+        // The new iteration environment should enclose the loop environment so bindings/slot maps remain visible.
+        var outerEnvironment = loopEnvironment;
 
-            // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
+        // Create a fresh environment for this iteration
+        var newIterationEnvironment = plan.AllowIterationEnvironmentPooling
+            ? JsEnvironmentPool.Rent(
+                outerEnvironment,
+                false,
+                false,
+                null,
+                "for-iteration",
+                logger: logger)
+            : new JsEnvironment(
+                outerEnvironment,
+                false,
+                false,
+                null,
+                "for-iteration");
+
+        logger?.LogInformation(
+            "CreatePerIterationEnvironment source={SourceEnv} loop={LoopEnv} new={NewEnv} outer={OuterEnv} scopeId={ScopeId} slots={Slots}",
+            sourceEnvironment.GetHashCode(),
+            loopEnvironment.GetHashCode(),
+            newIterationEnvironment.GetHashCode(),
+            outerEnvironment.GetHashCode(),
+            JsEnvironment.FormatScopeIdForLog(iterationScopeId),
+            iterationSlotCount);
+
+        newIterationEnvironment.Initialize(iterationScopeId, plan.IterationSlotMap);
+
+        // Copy the per-iteration bindings from the CURRENT iteration environment to the new environment
+        // Fast path: use direct slot access when slot indices are available
+        // Always use fast path - the reference path has bugs
+        var canUseSlotFastPath = iterationSlotCount >= 0 &&
+                                 !iterationSlotIndices.IsDefaultOrEmpty &&
+                                 sourceEnvironment.HasSlots &&
+                                 sourceEnvironment.ScopeId == iterationScopeId;
+
+        for (var i = 0; i < plan.PerIterationBindings.Length; i++)
+        {
+            var bindingName = plan.PerIterationBindings[i];
+            // Guard against uninitialized ImmutableArray when ScopeAnalyzer hasn't run
+            var sourceSlotIndex = iterationSlotIndices.IsDefaultOrEmpty || iterationSlotIndices.Length <= i
+                ? -1
+                : iterationSlotIndices[i];
+
+            // Fast path: direct slot read avoids scope chain traversal
+            JsValue currentValue;
+            if (canUseSlotFastPath && sourceSlotIndex >= 0)
+            {
+                currentValue = sourceEnvironment.GetSlotRef(sourceSlotIndex);
+            }
+            else
+            {
+                // Fallback: full identifier resolution
+                try
+                {
+                    currentValue = context.GetIdentifier(sourceEnvironment, bindingName);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
+                                                               StringComparison.Ordinal))
+                {
+                    var errorValue = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
+                    context.SetThrow(errorValue);
+                    currentValue = errorValue;
+                }
+            }
+
+            var isConstBinding = sourceEnvironment.IsConstBinding(bindingName);
+
+            newIterationEnvironment.DefineJsValue(
+                bindingName,
+                currentValue,
+                isConstBinding);
+
+            if (iterationSlotCount >= 0 && newIterationEnvironment.ScopeId == iterationScopeId &&
+                !iterationSlotIndices.IsDefaultOrEmpty)
+            {
+                var targetSlot = sourceSlotIndex;
+                if (targetSlot >= 0 && newIterationEnvironment.HasSlots)
+                {
+                    newIterationEnvironment.SetSlot(0, targetSlot, currentValue);
+                }
+            }
+        }
+
+        return newIterationEnvironment;
+    }
+
+    private static JsEnvironment CreateNextIterationEnvironment(this LoopPlan plan, JsEnvironment currentIterationEnvironment,
+        EvaluationContext context)
+    {
+        if (plan.AllowIterationEnvironmentPooling)
+        {
+            var bindings = plan.PerIterationBindings;
+            if (bindings.IsDefaultOrEmpty)
+            {
+                return currentIterationEnvironment;
+            }
+
+            const int StackAllocLimit = 8;
+
+            var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
+
+            // Snapshot current values before we reset the environment instance.
+            // Use pooled buffers to avoid per-iteration heap allocations.
+            var count = bindings.Length;
+            var slotIndices = plan.PerIterationSlotIndices;
+
             // Fast path: use direct slot access when slot indices are available
             // Always use fast path - the reference path has bugs
-            var canUseSlotFastPath = iterationSlotCount >= 0 &&
-                                     !iterationSlotIndices.IsDefaultOrEmpty &&
-                                     sourceEnvironment.HasSlots &&
-                                     sourceEnvironment.ScopeId == iterationScopeId;
+            var canUseSlotFastPath = plan.IterationSlotCount >= 0 &&
+                                     !slotIndices.IsDefaultOrEmpty &&
+                                     currentIterationEnvironment.HasSlots &&
+                                     currentIterationEnvironment.ScopeId == plan.IterationScopeId;
 
-            for (var i = 0; i < plan.PerIterationBindings.Length; i++)
+            // JsValue is a managed type (contains object reference) and cannot be stack-allocated
+            var rentedValues = ArrayPool<JsValue>.Shared.Rent(count);
+            var valueSpan = rentedValues.AsSpan(0, count);
+
+            bool[]? rentedConstFlags = null;
+            var constFlagSpan = count <= StackAllocLimit
+                ? stackalloc bool[StackAllocLimit]
+                : (rentedConstFlags = ArrayPool<bool>.Shared.Rent(count)).AsSpan(0, count);
+
+            for (var i = 0; i < count; i++)
             {
-                var bindingName = plan.PerIterationBindings[i];
-                // Guard against uninitialized ImmutableArray when ScopeAnalyzer hasn't run
-                var sourceSlotIndex = iterationSlotIndices.IsDefaultOrEmpty || iterationSlotIndices.Length <= i
-                    ? -1
-                    : iterationSlotIndices[i];
+                var bindingName = bindings[i];
+                var sourceSlotIndex = slotIndices.Length > i ? slotIndices[i] : -1;
 
                 // Fast path: direct slot read avoids scope chain traversal
                 JsValue currentValue;
                 if (canUseSlotFastPath && sourceSlotIndex >= 0)
                 {
-                    currentValue = sourceEnvironment.GetSlotRef(sourceSlotIndex);
+                    currentValue = currentIterationEnvironment.GetSlotRef(sourceSlotIndex);
                 }
                 else
                 {
                     // Fallback: full identifier resolution
                     try
                     {
-                        currentValue = context.GetIdentifier(sourceEnvironment, bindingName);
+                        currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
                     }
                     catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                                    StringComparison.Ordinal))
@@ -317,242 +399,376 @@ public static partial class TypedAstEvaluator
                     }
                 }
 
-                var isConstBinding = sourceEnvironment.IsConstBinding(bindingName);
+                valueSpan[i] = currentValue;
+                constFlagSpan[i] = currentIterationEnvironment.IsConstBinding(bindingName);
+            }
 
-                newIterationEnvironment.DefineJsValue(
+            // Reset the environment in place to mimic a fresh per-iteration lexical environment,
+            // but keep the enclosing/scope metadata intact.
+            currentIterationEnvironment.Reset(
+                outerEnvironment,
+                false,
+                false,
+                null,
+                "for-iteration");
+
+            currentIterationEnvironment.Initialize(plan.IterationScopeId, plan.IterationSlotMap);
+
+            for (var i = 0; i < count; i++)
+            {
+                var bindingName = bindings[i];
+                var slotIndex = -1;
+                if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
+                    !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
+                {
+                    slotIndex = plan.PerIterationSlotIndices.Length > i ? plan.PerIterationSlotIndices[i] : -1;
+                    if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)
+                    {
+                        currentIterationEnvironment.SetSlot(0, slotIndex, valueSpan[i]);
+                    }
+                }
+
+                currentIterationEnvironment.DefineJsValue(
                     bindingName,
-                    currentValue,
-                    isConstBinding);
+                    valueSpan[i],
+                    constFlagSpan[i]);
 
-                if (iterationSlotCount >= 0 && newIterationEnvironment.ScopeId == iterationScopeId &&
-                    !iterationSlotIndices.IsDefaultOrEmpty)
+                if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
+                    !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
                 {
-                    var targetSlot = sourceSlotIndex;
-                    if (targetSlot >= 0 && newIterationEnvironment.HasSlots)
+                    if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)
                     {
-                        newIterationEnvironment.SetSlot(0, targetSlot, currentValue);
+                        currentIterationEnvironment.SetSlot(0, slotIndex, valueSpan[i]);
                     }
                 }
             }
 
-            return newIterationEnvironment;
+            ArrayPool<JsValue>.Shared.Return(rentedValues, true);
+
+            if (rentedConstFlags is not null)
+            {
+                ArrayPool<bool>.Shared.Return(rentedConstFlags, true);
+            }
+
+            context.RealmState.Logger?.LogInformation(
+                "Reset per-iteration env reuse env={Env} outer={Outer} scopeId={ScopeId} slots={Slots}",
+                currentIterationEnvironment.GetHashCode(),
+                outerEnvironment.GetHashCode(),
+                JsEnvironment.FormatScopeIdForLog(plan.IterationScopeId),
+                plan.IterationSlotCount);
+
+            return currentIterationEnvironment;
         }
 
-        private JsEnvironment CreateNextIterationEnvironment(
-            JsEnvironment currentIterationEnvironment,
-            EvaluationContext context)
+        // Create a new env using the outer of the current iteration env
+        var next = plan.CreatePerIterationEnvironment(
+            currentIterationEnvironment,
+            currentIterationEnvironment.Enclosing ?? currentIterationEnvironment,
+            context);
+
+        if (plan.AllowIterationEnvironmentPooling &&
+            !ReferenceEquals(currentIterationEnvironment, currentIterationEnvironment.Enclosing))
         {
-            if (plan.AllowIterationEnvironmentPooling)
-            {
-                var bindings = plan.PerIterationBindings;
-                if (bindings.IsDefaultOrEmpty)
-                {
-                    return currentIterationEnvironment;
-                }
-
-                const int StackAllocLimit = 8;
-
-                var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
-
-                // Snapshot current values before we reset the environment instance.
-                // Use pooled buffers to avoid per-iteration heap allocations.
-                var count = bindings.Length;
-                var slotIndices = plan.PerIterationSlotIndices;
-
-                // Fast path: use direct slot access when slot indices are available
-                // Always use fast path - the reference path has bugs
-                var canUseSlotFastPath = plan.IterationSlotCount >= 0 &&
-                                         !slotIndices.IsDefaultOrEmpty &&
-                                         currentIterationEnvironment.HasSlots &&
-                                         currentIterationEnvironment.ScopeId == plan.IterationScopeId;
-
-                // JsValue is a managed type (contains object reference) and cannot be stack-allocated
-                var rentedValues = ArrayPool<JsValue>.Shared.Rent(count);
-                var valueSpan = rentedValues.AsSpan(0, count);
-
-                bool[]? rentedConstFlags = null;
-                var constFlagSpan = count <= StackAllocLimit
-                    ? stackalloc bool[StackAllocLimit]
-                    : (rentedConstFlags = ArrayPool<bool>.Shared.Rent(count)).AsSpan(0, count);
-
-                for (var i = 0; i < count; i++)
-                {
-                    var bindingName = bindings[i];
-                    var sourceSlotIndex = slotIndices.Length > i ? slotIndices[i] : -1;
-
-                    // Fast path: direct slot read avoids scope chain traversal
-                    JsValue currentValue;
-                    if (canUseSlotFastPath && sourceSlotIndex >= 0)
-                    {
-                        currentValue = currentIterationEnvironment.GetSlotRef(sourceSlotIndex);
-                    }
-                    else
-                    {
-                        // Fallback: full identifier resolution
-                        try
-                        {
-                            currentValue = context.GetIdentifier(currentIterationEnvironment, bindingName);
-                        }
-                        catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
-                                                                       StringComparison.Ordinal))
-                        {
-                            var errorValue = StandardLibrary.CreateReferenceError(ex.Message, context, context.RealmState);
-                            context.SetThrow(errorValue);
-                            currentValue = errorValue;
-                        }
-                    }
-
-                    valueSpan[i] = currentValue;
-                    constFlagSpan[i] = currentIterationEnvironment.IsConstBinding(bindingName);
-                }
-
-                // Reset the environment in place to mimic a fresh per-iteration lexical environment,
-                // but keep the enclosing/scope metadata intact.
-                currentIterationEnvironment.Reset(
-                    outerEnvironment,
-                    false,
-                    false,
-                    null,
-                    "for-iteration");
-
-                currentIterationEnvironment.Initialize(plan.IterationScopeId, plan.IterationSlotMap);
-
-                for (var i = 0; i < count; i++)
-                {
-                    var bindingName = bindings[i];
-                    var slotIndex = -1;
-                    if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
-                        !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
-                    {
-                        slotIndex = plan.PerIterationSlotIndices.Length > i ? plan.PerIterationSlotIndices[i] : -1;
-                        if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)
-                        {
-                            currentIterationEnvironment.SetSlot(0, slotIndex, valueSpan[i]);
-                        }
-                    }
-
-                    currentIterationEnvironment.DefineJsValue(
-                        bindingName,
-                        valueSpan[i],
-                        constFlagSpan[i]);
-
-                    if (plan.IterationSlotCount >= 0 && currentIterationEnvironment.ScopeId == plan.IterationScopeId &&
-                        !plan.PerIterationSlotIndices.IsDefaultOrEmpty)
-                    {
-                        if (slotIndex >= 0 && currentIterationEnvironment.HasSlots)
-                        {
-                            currentIterationEnvironment.SetSlot(0, slotIndex, valueSpan[i]);
-                        }
-                    }
-                }
-
-                ArrayPool<JsValue>.Shared.Return(rentedValues, true);
-
-                if (rentedConstFlags is not null)
-                {
-                    ArrayPool<bool>.Shared.Return(rentedConstFlags, true);
-                }
-
-                context.RealmState.Logger?.LogInformation(
-                    "Reset per-iteration env reuse env={Env} outer={Outer} scopeId={ScopeId} slots={Slots}",
-                    currentIterationEnvironment.GetHashCode(),
-                    outerEnvironment.GetHashCode(),
-                    JsEnvironment.FormatScopeIdForLog(plan.IterationScopeId),
-                    plan.IterationSlotCount);
-
-                return currentIterationEnvironment;
-            }
-
-            // Create a new env using the outer of the current iteration env
-            var next = plan.CreatePerIterationEnvironment(
-                currentIterationEnvironment,
-                currentIterationEnvironment.Enclosing ?? currentIterationEnvironment,
-                context);
-
-            if (plan.AllowIterationEnvironmentPooling &&
-                !ReferenceEquals(currentIterationEnvironment, currentIterationEnvironment.Enclosing))
-            {
-                JsEnvironmentPool.Return(currentIterationEnvironment);
-            }
-
-            return next;
+            JsEnvironmentPool.Return(currentIterationEnvironment);
         }
 
-        private bool ExecuteCondition(JsEnvironment environment, EvaluationContext context)
+        return next;
+    }
+
+    private static bool ExecuteCondition(this LoopPlan plan, JsEnvironment environment, EvaluationContext context)
+    {
+        if (!plan.ConditionPrologue.IsDefaultOrEmpty)
         {
-            if (!plan.ConditionPrologue.IsDefaultOrEmpty)
+            foreach (var statement in plan.ConditionPrologue)
             {
-                foreach (var statement in plan.ConditionPrologue)
-                {
-                    _ = statement.EvaluateStatementJsValue(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            var test = plan.Condition.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return false;
-            }
-
-            return test.IsTruthy;
-        }
-
-        private bool ExecutePostIteration(JsEnvironment environment, EvaluationContext context)
-        {
-            if (plan.PostIteration.IsDefaultOrEmpty)
-            {
-                return true;
-            }
-
-            foreach (var statement in plan.PostIteration)
-            {
-                // Post-iteration steps usually contain a simple expression (e.g., i++).
-                // We don't need its completion value, so evaluate expression statements
-                // directly to avoid ToObject/GetNumber boxing on every iteration.
-                if (statement is ExpressionStatement expr)
-                {
-                    _ = expr.Expression.EvaluateExpression(environment, context);
-                }
-                else
-                {
-                    _ = statement.EvaluateStatementJsValue(environment, context);
-                }
-
+                _ = statement.EvaluateStatementJsValue(environment, context);
                 if (context.ShouldStopEvaluation)
                 {
                     return false;
                 }
             }
-
-            return true;
         }
 
-        private bool LoopPlanHasDynamicScope()
+        var test = plan.Condition.EvaluateExpression(environment, context);
+        if (context.ShouldStopEvaluation)
         {
-            if (!AllowsIdentifierCaching(plan.Body))
-            {
-                return true;
-            }
-
-            if (LoopPlan.StatementsContainDynamicScope(plan.LeadingStatements) ||
-                LoopPlan.StatementsContainDynamicScope(plan.ConditionPrologue) ||
-                LoopPlan.StatementsContainDynamicScope(plan.PostIteration))
-            {
-                return true;
-            }
-
-            if (plan.Condition is not null && DynamicScopeDetector.ContainsDirectEval(plan.Condition))
-            {
-                return true;
-            }
-
             return false;
         }
 
+        return test.IsTruthy;
+    }
+
+    private static bool ExecutePostIteration(this LoopPlan plan, JsEnvironment environment, EvaluationContext context)
+    {
+        if (plan.PostIteration.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        foreach (var statement in plan.PostIteration)
+        {
+            // Post-iteration steps usually contain a simple expression (e.g., i++).
+            // We don't need its completion value, so evaluate expression statements
+            // directly to avoid ToObject/GetNumber boxing on every iteration.
+            if (statement is ExpressionStatement expr)
+            {
+                _ = expr.Expression.EvaluateExpression(environment, context);
+            }
+            else
+            {
+                _ = statement.EvaluateStatementJsValue(environment, context);
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool LoopPlanHasDynamicScope(this LoopPlan plan)
+    {
+        if (!AllowsIdentifierCaching(plan.Body))
+        {
+            return true;
+        }
+
+        if (LoopPlan.StatementsContainDynamicScope(plan.LeadingStatements) ||
+            LoopPlan.StatementsContainDynamicScope(plan.ConditionPrologue) ||
+            LoopPlan.StatementsContainDynamicScope(plan.PostIteration))
+        {
+            return true;
+        }
+
+        if (plan.Condition is not null && DynamicScopeDetector.ContainsDirectEval(plan.Condition))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to execute a simple numeric loop using a fast path that bypasses AST evaluation.
+    /// Supports: for, while, do-while with various comparison and arithmetic operators.
+    /// </summary>
+    private static bool TryExecuteFastNumericLoop(this LoopPlan plan, JsEnvironment environment,
+        Symbol? loopLabel,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+
+        // Only attempt fast path for simple loops without dynamic scope or per-iteration environments
+        if (!plan.AllowIterationEnvironmentPooling ||
+            !plan.ConditionPrologue.IsDefaultOrEmpty ||
+            loopLabel is not null)
+        {
+            return false;
+        }
+
+        // Extract condition pattern: identifier <op> constant or constant <op> identifier
+        if (!plan.TryExtractConditionPattern(out var loopVarId, out var limit, out var comparison))
+        {
+            return false;
+        }
+
+        // Determine expected increment/decrement direction
+        var expectIncrement = comparison is FastLoopComparison.LessThan or FastLoopComparison.LessThanOrEqual;
+
+        // Try for-loop pattern: post-iteration has i++ or i--
+        if (plan.TryMatchForLoopPattern(loopVarId, limit, comparison, expectIncrement, environment, out result))
+        {
+            return true;
+        }
+
+        // Try while/do-while pattern: body has { s <op>= i; i++/i--; }
+        if (plan.TryMatchWhileLoopPattern(loopVarId, limit, comparison, expectIncrement, environment, out result))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Extracts the condition pattern from the loop.
+    /// Supports: i &lt; n, i &lt;= n, i &gt; n, i &gt;= n (and reversed: n &gt; i, etc.)
+    /// </summary>
+    private static bool TryExtractConditionPattern(this LoopPlan plan, out IdentifierExpression loopVarId,
+        out double limit,
+        out FastLoopComparison comparison)
+    {
+        loopVarId = null!;
+        limit = 0;
+        comparison = default;
+
+        if (plan.Condition is not BinaryExpression condBinary)
+        {
+            return false;
+        }
+
+        // Pattern: identifier <op> literal
+        if (condBinary is
+            {
+                Left: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } leftId,
+                Right: LiteralExpression { Value.IsNumber: true } rightLit
+            })
+        {
+            loopVarId = leftId;
+            limit = rightLit.Value.NumberValue;
+            comparison = condBinary.Operator switch
+            {
+                BinaryOperator.LessThan => FastLoopComparison.LessThan,
+                BinaryOperator.LessThanOrEqual => FastLoopComparison.LessThanOrEqual,
+                BinaryOperator.GreaterThan => FastLoopComparison.GreaterThan,
+                BinaryOperator.GreaterThanOrEqual => FastLoopComparison.GreaterThanOrEqual,
+                _ => (FastLoopComparison)(-1)
+            };
+            return (int)comparison >= 0;
+        }
+
+        // Pattern: literal <op> identifier (reversed)
+        if (condBinary is
+            {
+                Right: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } rightId,
+                Left: LiteralExpression { Value.IsNumber: true } leftLit
+            })
+        {
+            loopVarId = rightId;
+            limit = leftLit.Value.NumberValue;
+            // Reverse the comparison: (5 > i) means (i < 5)
+            comparison = condBinary.Operator switch
+            {
+                BinaryOperator.LessThan => FastLoopComparison.GreaterThan,
+                BinaryOperator.LessThanOrEqual => FastLoopComparison.GreaterThanOrEqual,
+                BinaryOperator.GreaterThan => FastLoopComparison.LessThan,
+                BinaryOperator.GreaterThanOrEqual => FastLoopComparison.LessThanOrEqual,
+                _ => (FastLoopComparison)(-1)
+            };
+            return (int)comparison >= 0;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Matches for-loop pattern: for (let i = 0; i &lt; limit; i++) { s += i; }
+    /// PostIteration contains i++ or i--, body is single s &lt;op&gt;= i statement.
+    /// </summary>
+    private static bool TryMatchForLoopPattern(this LoopPlan plan, IdentifierExpression loopVarId,
+        double limit,
+        FastLoopComparison comparison,
+        bool expectIncrement,
+        JsEnvironment environment,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+
+        // Check post-iteration pattern: i++ or i--
+        if (plan.PostIteration.Length != 1 ||
+            plan.PostIteration[0] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
+            unaryExpr.Operand is not IdentifierExpression postId ||
+            !ReferenceEquals(postId.Name, loopVarId.Name))
+        {
+            return false;
+        }
+
+        var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
+        var isDecrement = unaryExpr.Operator == UnaryOperator.Decrement;
+        if (!isIncrement && !isDecrement)
+        {
+            return false;
+        }
+
+        // Verify direction matches expectation
+        if (expectIncrement != isIncrement)
+        {
+            return false;
+        }
+
+        // Check body pattern: single expression statement with compound assignment
+        var bodyStatement = plan.SingleBodyStatement;
+        if (bodyStatement is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
+        {
+            return false;
+        }
+
+        if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
+                out var accumScopeId, out var accumSlotIndex, out var operation))
+        {
+            return false;
+        }
+
+        return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
+            accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+    }
+
+    /// <summary>
+    /// Matches while/do-while pattern: while (i &lt; limit) { s += i; i++; }
+    /// PostIteration is empty, body contains both s &lt;op&gt;= i and i++/i--.
+    /// </summary>
+    private static bool TryMatchWhileLoopPattern(this LoopPlan plan, IdentifierExpression loopVarId,
+        double limit,
+        FastLoopComparison comparison,
+        bool expectIncrement,
+        JsEnvironment environment,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+
+        // While/do-while loops have empty PostIteration
+        if (!plan.PostIteration.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        // Body must have exactly 2 statements
+        if (plan.Body.Statements.Length != 2)
+        {
+            return false;
+        }
+
+        // First statement: s <op>= i (compound assignment)
+        if (plan.Body.Statements[0] is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
+        {
+            return false;
+        }
+
+        if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
+                out var accumScopeId, out var accumSlotIndex, out var operation))
+        {
+            return false;
+        }
+
+        // Second statement: i++ or i--
+        if (plan.Body.Statements[1] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
+            unaryExpr.Operand is not IdentifierExpression incrId ||
+            !ReferenceEquals(incrId.Name, loopVarId.Name))
+        {
+            return false;
+        }
+
+        var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
+        var isDecrement = unaryExpr.Operator == UnaryOperator.Decrement;
+        if (!isIncrement && !isDecrement)
+        {
+            return false;
+        }
+
+        // Verify direction matches expectation
+        if (expectIncrement != isIncrement)
+        {
+            return false;
+        }
+
+        return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
+            accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
+    }
+
+    extension(LoopPlan plan)
+    {
         private static bool StatementsContainDynamicScope(ImmutableArray<StatementNode> statements)
         {
             if (statements.IsDefaultOrEmpty)
@@ -562,228 +778,6 @@ public static partial class TypedAstEvaluator
 
             var synthetic = new BlockStatement(null, statements, false);
             return DynamicScopeDetector.ContainsWithOrDirectEval(synthetic);
-        }
-
-        /// <summary>
-        /// Tries to execute a simple numeric loop using a fast path that bypasses AST evaluation.
-        /// Supports: for, while, do-while with various comparison and arithmetic operators.
-        /// </summary>
-        private bool TryExecuteFastNumericLoop(
-            JsEnvironment environment,
-            EvaluationContext context,
-            Symbol? loopLabel,
-            out JsValue result)
-        {
-            result = JsValue.Undefined;
-
-            // Only attempt fast path for simple loops without dynamic scope or per-iteration environments
-            if (!plan.AllowIterationEnvironmentPooling ||
-                !plan.ConditionPrologue.IsDefaultOrEmpty ||
-                loopLabel is not null)
-            {
-                return false;
-            }
-
-            // Extract condition pattern: identifier <op> constant or constant <op> identifier
-            if (!plan.TryExtractConditionPattern(out var loopVarId, out var limit, out var comparison))
-            {
-                return false;
-            }
-
-            // Determine expected increment/decrement direction
-            var expectIncrement = comparison is FastLoopComparison.LessThan or FastLoopComparison.LessThanOrEqual;
-
-            // Try for-loop pattern: post-iteration has i++ or i--
-            if (plan.TryMatchForLoopPattern(loopVarId, limit, comparison, expectIncrement, environment, out result))
-            {
-                return true;
-            }
-
-            // Try while/do-while pattern: body has { s <op>= i; i++/i--; }
-            if (plan.TryMatchWhileLoopPattern(loopVarId, limit, comparison, expectIncrement, environment, out result))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Extracts the condition pattern from the loop.
-        /// Supports: i &lt; n, i &lt;= n, i &gt; n, i &gt;= n (and reversed: n &gt; i, etc.)
-        /// </summary>
-        private bool TryExtractConditionPattern(
-            out IdentifierExpression loopVarId,
-            out double limit,
-            out FastLoopComparison comparison)
-        {
-            loopVarId = null!;
-            limit = 0;
-            comparison = default;
-
-            if (plan.Condition is not BinaryExpression condBinary)
-            {
-                return false;
-            }
-
-            // Pattern: identifier <op> literal
-            if (condBinary is
-                {
-                    Left: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } leftId,
-                    Right: LiteralExpression { Value.IsNumber: true } rightLit
-                })
-            {
-                loopVarId = leftId;
-                limit = rightLit.Value.NumberValue;
-                comparison = condBinary.Operator switch
-                {
-                    BinaryOperator.LessThan => FastLoopComparison.LessThan,
-                    BinaryOperator.LessThanOrEqual => FastLoopComparison.LessThanOrEqual,
-                    BinaryOperator.GreaterThan => FastLoopComparison.GreaterThan,
-                    BinaryOperator.GreaterThanOrEqual => FastLoopComparison.GreaterThanOrEqual,
-                    _ => (FastLoopComparison)(-1)
-                };
-                return (int)comparison >= 0;
-            }
-
-            // Pattern: literal <op> identifier (reversed)
-            if (condBinary is
-                {
-                    Right: IdentifierExpression { ScopeId: >= 0, SlotIndex: >= 0 } rightId,
-                    Left: LiteralExpression { Value.IsNumber: true } leftLit
-                })
-            {
-                loopVarId = rightId;
-                limit = leftLit.Value.NumberValue;
-                // Reverse the comparison: (5 > i) means (i < 5)
-                comparison = condBinary.Operator switch
-                {
-                    BinaryOperator.LessThan => FastLoopComparison.GreaterThan,
-                    BinaryOperator.LessThanOrEqual => FastLoopComparison.GreaterThanOrEqual,
-                    BinaryOperator.GreaterThan => FastLoopComparison.LessThan,
-                    BinaryOperator.GreaterThanOrEqual => FastLoopComparison.LessThanOrEqual,
-                    _ => (FastLoopComparison)(-1)
-                };
-                return (int)comparison >= 0;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Matches for-loop pattern: for (let i = 0; i &lt; limit; i++) { s += i; }
-        /// PostIteration contains i++ or i--, body is single s &lt;op&gt;= i statement.
-        /// </summary>
-        private bool TryMatchForLoopPattern(
-            IdentifierExpression loopVarId,
-            double limit,
-            FastLoopComparison comparison,
-            bool expectIncrement,
-            JsEnvironment environment,
-            out JsValue result)
-        {
-            result = JsValue.Undefined;
-
-            // Check post-iteration pattern: i++ or i--
-            if (plan.PostIteration.Length != 1 ||
-                plan.PostIteration[0] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
-                unaryExpr.Operand is not IdentifierExpression postId ||
-                !ReferenceEquals(postId.Name, loopVarId.Name))
-            {
-                return false;
-            }
-
-            var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
-            var isDecrement = unaryExpr.Operator == UnaryOperator.Decrement;
-            if (!isIncrement && !isDecrement)
-            {
-                return false;
-            }
-
-            // Verify direction matches expectation
-            if (expectIncrement != isIncrement)
-            {
-                return false;
-            }
-
-            // Check body pattern: single expression statement with compound assignment
-            var bodyStatement = plan.SingleBodyStatement;
-            if (bodyStatement is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
-            {
-                return false;
-            }
-
-            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
-                    out var accumScopeId, out var accumSlotIndex, out var operation))
-            {
-                return false;
-            }
-
-            return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
-                accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
-        }
-
-        /// <summary>
-        /// Matches while/do-while pattern: while (i &lt; limit) { s += i; i++; }
-        /// PostIteration is empty, body contains both s &lt;op&gt;= i and i++/i--.
-        /// </summary>
-        private bool TryMatchWhileLoopPattern(
-            IdentifierExpression loopVarId,
-            double limit,
-            FastLoopComparison comparison,
-            bool expectIncrement,
-            JsEnvironment environment,
-            out JsValue result)
-        {
-            result = JsValue.Undefined;
-
-            // While/do-while loops have empty PostIteration
-            if (!plan.PostIteration.IsDefaultOrEmpty)
-            {
-                return false;
-            }
-
-            // Body must have exactly 2 statements
-            if (plan.Body.Statements.Length != 2)
-            {
-                return false;
-            }
-
-            // First statement: s <op>= i (compound assignment)
-            if (plan.Body.Statements[0] is not ExpressionStatement { Expression: AssignmentExpression assignExpr })
-            {
-                return false;
-            }
-
-            if (!LoopPlan.TryExtractAccumulatorPattern(assignExpr, loopVarId, out var accumName,
-                    out var accumScopeId, out var accumSlotIndex, out var operation))
-            {
-                return false;
-            }
-
-            // Second statement: i++ or i--
-            if (plan.Body.Statements[1] is not ExpressionStatement { Expression: UnaryExpression unaryExpr } ||
-                unaryExpr.Operand is not IdentifierExpression incrId ||
-                !ReferenceEquals(incrId.Name, loopVarId.Name))
-            {
-                return false;
-            }
-
-            var isIncrement = unaryExpr.Operator == UnaryOperator.Increment;
-            var isDecrement = unaryExpr.Operator == UnaryOperator.Decrement;
-            if (!isIncrement && !isDecrement)
-            {
-                return false;
-            }
-
-            // Verify direction matches expectation
-            if (expectIncrement != isIncrement)
-            {
-                return false;
-            }
-
-            return LoopPlan.ExecuteFastNumericLoop(loopVarId, accumName, limit, comparison, isIncrement,
-                accumScopeId, accumSlotIndex, operation, plan.ConditionAfterBody, environment, out result);
         }
 
         /// <summary>

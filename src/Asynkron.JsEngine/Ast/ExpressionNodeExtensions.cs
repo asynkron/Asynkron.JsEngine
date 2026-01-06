@@ -133,16 +133,14 @@ public static partial class TypedAstEvaluator
             context.RealmState));
     }
 
-    extension(ExpressionNode expression)
+    /// <summary>
+    /// Ultra-thin hot path for expression evaluation - designed to be inlined.
+    /// Uses explicit if statements instead of switch for minimal IL size.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static JsValue EvaluateExpression(this ExpressionNode expression, JsEnvironment environment,
+        EvaluationContext context)
     {
-        /// <summary>
-        /// Ultra-thin hot path for expression evaluation - designed to be inlined.
-        /// Uses explicit if statements instead of switch for minimal IL size.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue EvaluateExpression(JsEnvironment environment,
-            EvaluationContext context)
-        {
 #if DEBUG
             // Guard: detect AST evaluation during IR-only execution (see #398, #415, #364)
             if (EvaluationContext.AssertNoAstEvaluation)
@@ -151,92 +149,189 @@ public static partial class TypedAstEvaluator
                     $"AST evaluation invoked for {expression.GetType().Name} during IR execution");
             }
 #endif
-            return expression switch
-            {
-                // Explicit if statements generate less IL than switch expressions
-                LiteralExpression literal => literal.Value,
-                IdentifierExpression identifier => identifier.EvaluateIdentifier(environment, context),
-                BinaryExpression binary => binary.EvaluateBinary(environment, context),
-                AssignmentExpression assignment => assignment.EvaluateAssignment(environment, context),
-                UnaryExpression unary => unary.EvaluateUnary(environment, context),
-                CallExpression call => call.EvaluateCall(environment, context),
-                _ => expression.EvaluateExpressionSlow(environment, context)
-            };
+        return expression switch
+        {
+            // Explicit if statements generate less IL than switch expressions
+            LiteralExpression literal => literal.Value,
+            IdentifierExpression identifier => identifier.EvaluateIdentifier(environment, context),
+            BinaryExpression binary => binary.EvaluateBinary(environment, context),
+            AssignmentExpression assignment => assignment.EvaluateAssignment(environment, context),
+            UnaryExpression unary => unary.EvaluateUnary(environment, context),
+            CallExpression call => call.EvaluateCall(environment, context),
+            _ => expression.EvaluateExpressionSlow(environment, context)
+        };
+    }
+
+    /// <summary>
+    /// Slow path for less common expression types. Marked NoInlining to keep hot path small.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static JsValue EvaluateExpressionSlow(this ExpressionNode expression, JsEnvironment environment,
+        EvaluationContext context)
+    {
+        // Second tier of common expressions
+        switch (expression)
+        {
+            case UnaryExpression unary:
+                return unary.EvaluateUnary(environment, context);
+            case AssignmentExpression assignment:
+                return assignment.EvaluateAssignment(environment, context);
+            case MemberExpression member:
+                return member.EvaluateMember(environment, context);
+            case CallExpression call:
+                return call.EvaluateCall(environment, context);
         }
 
-        /// <summary>
-        /// Slow path for less common expression types. Marked NoInlining to keep hot path small.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private JsValue EvaluateExpressionSlow(JsEnvironment environment,
-            EvaluationContext context)
+        // Slowest path - set source reference and optionally trace
+        context.SourceReference = expression.Source;
+
+        return expression switch
         {
-            // Second tier of common expressions
+            RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
+            ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
+            FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
+                functionExpression.CreateFunctionValue(environment, context)),
+            DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment
+                .EvaluateDestructuringAssignment(environment, context),
+            PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(
+                environment, context),
+            IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment,
+                context),
+            SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
+            NewExpression newExpression => newExpression.EvaluateNew(environment, context),
+            NewTargetExpression => environment.TryGetJsValue(Symbol.NewTarget, out var newTarget)
+                ? newTarget
+                : JsValue.Undefined,
+            ImportMetaExpression => EvaluateImportMeta(environment, context),
+            ArrayExpression array => array.EvaluateArray(environment, context),
+            ObjectExpression obj => obj.EvaluateObject(environment, context),
+            ClassExpression classExpression => classExpression.EvaluateClassExpression(environment, context),
+            DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
+            TemplateLiteralExpression template => template.EvaluateTemplateLiteral(environment, context),
+            TaggedTemplateExpression taggedTemplate => taggedTemplate.EvaluateTaggedTemplate(environment, context),
+            AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
+            YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
+            ThisExpression => ResolveThisValue(environment, context),
+            SuperExpression => throw new InvalidOperationException(
+                $"Super is not available in this context.{context.GetSourceInfo(expression.Source)}"),
+            _ => throw new NotSupportedException(
+                $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
+        };
+    }
+
+    private static string DescribeCallee(this ExpressionNode expression)
+    {
+        return expression switch
+        {
+            IdentifierExpression id => id.Name.Name,
+            MemberExpression member => $"{member.Target.DescribeCallee()}.{member.Property.DescribeMemberName()}",
+            CallExpression call => $"{call.Callee.DescribeCallee()}(...)",
+            _ => expression.GetType().Name
+        };
+    }
+
+    private static bool IsAnonymousFunctionDefinition(this ExpressionNode expression)
+    {
+        return ExpressionNode.IsAnonymousFunctionDefinitionNode(expression);
+    }
+
+    private static bool ContainsDirectEvalCall(this ExpressionNode expression)
+    {
+        while (true)
+        {
             switch (expression)
             {
-                case UnaryExpression unary:
-                    return unary.EvaluateUnary(environment, context);
-                case AssignmentExpression assignment:
-                    return assignment.EvaluateAssignment(environment, context);
-                case MemberExpression member:
-                    return member.EvaluateMember(environment, context);
+                case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
+                    return true;
                 case CallExpression call:
-                    return call.EvaluateCall(environment, context);
+                    if (call.Callee.ContainsDirectEvalCall())
+                    {
+                        return true;
+                    }
+
+                    foreach (var arg in call.Arguments)
+                    {
+                        if (arg.Expression.ContainsDirectEvalCall())
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case BinaryExpression binary:
+                    return binary.Left.ContainsDirectEvalCall() || binary.Right.ContainsDirectEvalCall();
+                case ConditionalExpression cond:
+                    return cond.Test.ContainsDirectEvalCall() || cond.Consequent.ContainsDirectEvalCall() ||
+                           cond.Alternate.ContainsDirectEvalCall();
+                case MemberExpression member:
+                    return member.Target.ContainsDirectEvalCall() || member.Property.ContainsDirectEvalCall();
+                case UnaryExpression unary:
+                    expression = unary.Operand;
+                    continue;
+                case SequenceExpression seq:
+                    return seq.Left.ContainsDirectEvalCall() || seq.Right.ContainsDirectEvalCall();
+                case ArrayExpression array:
+                    foreach (var element in array.Elements)
+                    {
+                        if (element.Expression is not null && element.Expression.ContainsDirectEvalCall())
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case ObjectExpression obj:
+                    foreach (var member in obj.Members)
+                    {
+                        if (member.Value is not null && member.Value.ContainsDirectEvalCall())
+                        {
+                            return true;
+                        }
+
+                        if (member.Function is not null && member.Function.ContainsDirectEvalCall())
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TemplateLiteralExpression template:
+                    foreach (var part in template.Parts)
+                    {
+                        if (part.Expression is not null && part.Expression.ContainsDirectEvalCall())
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case TaggedTemplateExpression tagged:
+                    if (tagged.Tag.ContainsDirectEvalCall() || tagged.StringsArray.ContainsDirectEvalCall() ||
+                        tagged.RawStringsArray.ContainsDirectEvalCall())
+                    {
+                        return true;
+                    }
+
+                    foreach (var expr in tagged.Expressions)
+                    {
+                        if (expr.ContainsDirectEvalCall())
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                case FunctionExpression:
+                    // Direct eval inside nested functions does not affect the parameter scope we are validating here.
+                    return false;
+                default:
+                    return false;
             }
-
-            // Slowest path - set source reference and optionally trace
-            context.SourceReference = expression.Source;
-
-            return expression switch
-            {
-                RegexLiteralExpression regex => regex.EvaluateRegexLiteral(context),
-                ConditionalExpression conditional => conditional.EvaluateConditional(environment, context),
-                FunctionExpression functionExpression => JsValue.FromObjectUnsafe(
-                    functionExpression.CreateFunctionValue(environment, context)),
-                DestructuringAssignmentExpression destructuringAssignment => destructuringAssignment
-                    .EvaluateDestructuringAssignment(environment, context),
-                PropertyAssignmentExpression propertyAssignment => propertyAssignment.EvaluatePropertyAssignment(
-                    environment, context),
-                IndexAssignmentExpression indexAssignment => indexAssignment.EvaluateIndexAssignment(environment,
-                    context),
-                SequenceExpression sequence => sequence.EvaluateSequence(environment, context),
-                NewExpression newExpression => newExpression.EvaluateNew(environment, context),
-                NewTargetExpression => environment.TryGetJsValue(Symbol.NewTarget, out var newTarget)
-                    ? newTarget
-                    : JsValue.Undefined,
-                ImportMetaExpression => EvaluateImportMeta(environment, context),
-                ArrayExpression array => array.EvaluateArray(environment, context),
-                ObjectExpression obj => obj.EvaluateObject(environment, context),
-                ClassExpression classExpression => classExpression.EvaluateClassExpression(environment, context),
-                DecoratorExpression => throw new NotSupportedException("Decorators are not supported."),
-                TemplateLiteralExpression template => template.EvaluateTemplateLiteral(environment, context),
-                TaggedTemplateExpression taggedTemplate => taggedTemplate.EvaluateTaggedTemplate(environment, context),
-                AwaitExpression awaitExpression => awaitExpression.EvaluateAwait(environment, context),
-                YieldExpression yieldExpression => yieldExpression.EvaluateYield(environment, context),
-                ThisExpression => ResolveThisValue(environment, context),
-                SuperExpression => throw new InvalidOperationException(
-                    $"Super is not available in this context.{context.GetSourceInfo(expression.Source)}"),
-                _ => throw new NotSupportedException(
-                    $"Typed evaluator does not yet support '{expression.GetType().Name}'.")
-            };
         }
+    }
 
-        private string DescribeCallee()
-        {
-            return expression switch
-            {
-                IdentifierExpression id => id.Name.Name,
-                MemberExpression member => $"{member.Target.DescribeCallee()}.{member.Property.DescribeMemberName()}",
-                CallExpression call => $"{call.Callee.DescribeCallee()}(...)",
-                _ => expression.GetType().Name
-            };
-        }
-
-        private bool IsAnonymousFunctionDefinition()
-        {
-            return ExpressionNode.IsAnonymousFunctionDefinitionNode(expression);
-        }
-
+    extension(ExpressionNode expression)
+    {
         internal static bool IsAnonymousFunctionDefinitionNode(ExpressionNode node)
         {
             // Per ES spec, sequence expressions (comma operator) do not qualify for name inference
@@ -252,101 +347,6 @@ public static partial class TypedAstEvaluator
                 ClassExpression classExpression => classExpression.Name is null,
                 _ => false
             };
-        }
-
-        private bool ContainsDirectEvalCall()
-        {
-            while (true)
-            {
-                switch (expression)
-                {
-                    case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
-                        return true;
-                    case CallExpression call:
-                        if (call.Callee.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-
-                        foreach (var arg in call.Arguments)
-                        {
-                            if (arg.Expression.ContainsDirectEvalCall())
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case BinaryExpression binary:
-                        return binary.Left.ContainsDirectEvalCall() || binary.Right.ContainsDirectEvalCall();
-                    case ConditionalExpression cond:
-                        return cond.Test.ContainsDirectEvalCall() || cond.Consequent.ContainsDirectEvalCall() ||
-                               cond.Alternate.ContainsDirectEvalCall();
-                    case MemberExpression member:
-                        return member.Target.ContainsDirectEvalCall() || member.Property.ContainsDirectEvalCall();
-                    case UnaryExpression unary:
-                        expression = unary.Operand;
-                        continue;
-                    case SequenceExpression seq:
-                        return seq.Left.ContainsDirectEvalCall() || seq.Right.ContainsDirectEvalCall();
-                    case ArrayExpression array:
-                        foreach (var element in array.Elements)
-                        {
-                            if (element.Expression is not null && element.Expression.ContainsDirectEvalCall())
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case ObjectExpression obj:
-                        foreach (var member in obj.Members)
-                        {
-                            if (member.Value is not null && member.Value.ContainsDirectEvalCall())
-                            {
-                                return true;
-                            }
-
-                            if (member.Function is not null && member.Function.ContainsDirectEvalCall())
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case TemplateLiteralExpression template:
-                        foreach (var part in template.Parts)
-                        {
-                            if (part.Expression is not null && part.Expression.ContainsDirectEvalCall())
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case TaggedTemplateExpression tagged:
-                        if (tagged.Tag.ContainsDirectEvalCall() || tagged.StringsArray.ContainsDirectEvalCall() ||
-                            tagged.RawStringsArray.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-
-                        foreach (var expr in tagged.Expressions)
-                        {
-                            if (expr.ContainsDirectEvalCall())
-                            {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    case FunctionExpression:
-                        // Direct eval inside nested functions does not affect the parameter scope we are validating here.
-                        return false;
-                    default:
-                        return false;
-                }
-            }
         }
     }
 

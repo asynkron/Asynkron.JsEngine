@@ -118,17 +118,6 @@ public static partial class TypedAstEvaluator
 
             foreach (var funcBinding in plan.FunctionBindings)
             {
-                if (isStrict)
-                {
-                    switchEnv.DefineJsValue(
-                        funcBinding.Name,
-                        JsValue.Uninitialized,
-                        true,
-                        isLexicalBinding: true,
-                        blocksFunctionScopeOverride: true);
-                    continue;
-                }
-
                 if (!funcBinding.InitializeNow)
                 {
                     switchEnv.DefineJsValue(
@@ -140,6 +129,8 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
+                // In strict mode, block-scoped function declarations are initialized at switch entry
+                // (mirrors block evaluation behavior).
                 var functionValue = funcBinding.Function.CreateFunctionValue(switchEnv, context,
                     skipInternalNameBinding: true);
                 switchEnv.DefineJsValue(
@@ -176,11 +167,10 @@ public static partial class TypedAstEvaluator
             {
                 context.ThrowIfCancellationRequested();
 
-                // Special handling for function declarations that need to be initialized when evaluated
-                // (async/generator always; sync functions when running in strict mode)
+                // Special handling for async/generator function declarations
+                // They need to be initialized when evaluated (not during instantiation)
                 if (stmt is FunctionDeclaration funcDecl &&
-                    (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator ||
-                     context.CurrentScope.IsStrict))
+                    (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator))
                 {
                     // Pass skipInternalNameBinding: true so the function doesn't create an internal
                     // const binding for its name (the binding was already defined during instantiation).

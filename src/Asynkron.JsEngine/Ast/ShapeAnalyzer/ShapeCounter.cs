@@ -86,6 +86,12 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                     statement = forStatement.Body;
                     continue;
                 case ForEachStatement forEachStatement:
+                    // for await...of statements contain implicit await semantics
+                    if (forEachStatement.Kind == ForEachKind.AwaitOf)
+                    {
+                        AwaitCount++;
+                    }
+
                     VisitExpression(forEachStatement.Iterable);
                     statement = forEachStatement.Body;
                     continue;

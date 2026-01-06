@@ -943,13 +943,6 @@ public static partial class TypedAstEvaluator
                     environment.GetHashCode());
             }
 
-            // For async iterators, clear any pending completion flags that would
-            // prevent subsequent iterations after continue.
-            if (_isAsync)
-            {
-                TryCatchStateRef.TryStack.Clear();
-            }
-
             _programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;

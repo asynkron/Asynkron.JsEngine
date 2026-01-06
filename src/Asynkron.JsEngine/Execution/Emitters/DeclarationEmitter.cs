@@ -18,7 +18,8 @@ internal static class DeclarationEmitter
     /// </summary>
     public static int EmitFunctionDeclaration(EmitContext ctx, int nextIndex)
     {
-        return ctx.Append(new FunctionDeclarationInstruction(nextIndex));
+        // Hoisted function-scoped declarations don't need the declaration at runtime
+        return ctx.Append(new FunctionDeclarationInstruction(nextIndex, null));
     }
 
     /// <summary>

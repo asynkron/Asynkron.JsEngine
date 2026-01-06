@@ -31,9 +31,10 @@ internal static class StatementEmitter
                 case BlockStatement block:
                     return BlockEmitter.TryEmitBlock(ctx, block, nextIndex, out entryIndex);
 
-                case FunctionDeclaration:
-                    // Function declarations are hoisted - this is a no-op at runtime
-                    entryIndex = ctx.Append(new FunctionDeclarationInstruction(nextIndex));
+                case FunctionDeclaration funcDecl:
+                    // Block-scoped function declarations need to be instantiated at runtime.
+                    // Function-scoped declarations are hoisted (no-op at runtime).
+                    entryIndex = ctx.Append(new FunctionDeclarationInstruction(nextIndex, funcDecl));
                     return true;
 
                 case IfStatement ifStatement:

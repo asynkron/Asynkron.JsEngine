@@ -114,10 +114,11 @@ internal sealed record CompoundAssignmentSlotInstruction(
 
 /// <summary>
 ///     Represents a function declaration in the generator.
-///     Function declarations are hoisted, so this instruction is a no-op at runtime
-///     that simply advances to the next instruction.
+///     For block-scoped function declarations (strict mode), the function is created
+///     and bound to the environment at runtime. For function-scoped declarations,
+///     this is a no-op as they are hoisted.
 /// </summary>
-internal sealed record FunctionDeclarationInstruction(int Next)
+internal sealed record FunctionDeclarationInstruction(int Next, FunctionDeclaration? Declaration)
     : ExecutionInstruction(InstructionKind.FunctionDeclaration, Next);
 
 /// <summary>

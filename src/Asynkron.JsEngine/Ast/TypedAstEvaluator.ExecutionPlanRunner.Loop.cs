@@ -187,9 +187,6 @@ public static partial class TypedAstEvaluator
             var instructionsArray = ImmutableCollectionsMarshal.AsArray(instructions)!;
             ref var instructionsRef = ref MemoryMarshal.GetArrayDataReference(instructionsArray);
 
-            // Cache try-catch state check - avoid repeated null checks in hot loop
-            var hasTryCatchState = _tryCatchState is not null;
-
             bool continueAfterCatch;
             do
             {
@@ -200,8 +197,9 @@ public static partial class TypedAstEvaluator
                     {
                         // Check if HandleAbruptCompletion restored the environment (e.g., jumping to catch handler)
                         // This ensures block-scoped bindings from inside the try are no longer visible.
-                        // Only check when TryCatchState has been allocated.
-                        if (hasTryCatchState && _tryCatchState!.RestoredEnvironmentFromTry is { } restored)
+                        // NOTE: Must check _tryCatchState directly (not cached hasTryCatchState) because
+                        // TryCatchState is lazily allocated when EnterTry executes inside the loop.
+                        if (_tryCatchState?.RestoredEnvironmentFromTry is { } restored)
                         {
                             environment = restored;
                             _tryCatchState.RestoredEnvironmentFromTry = null;

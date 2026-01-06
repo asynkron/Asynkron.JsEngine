@@ -22,6 +22,23 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<FunctionDeclarationInstruction>(instr);
+
+            // Block-scoped function declarations need to be instantiated at runtime.
+            // Function-scoped declarations are hoisted (handled during function entry).
+            if (instruction.Declaration is { } funcDecl)
+            {
+                // Pass skipInternalNameBinding: true so the function doesn't create an internal
+                // const binding for its name (the binding is handled by environment.Define below).
+                var functionValue = funcDecl.Function.CreateFunctionValue(environment, ctx,
+                    skipInternalNameBinding: true);
+                environment.DefineJsValue(
+                    funcDecl.Name,
+                    JsValue.FromObjectUnsafe(functionValue),
+                    true,
+                    isLexicalBinding: true,
+                    blocksFunctionScopeOverride: true);
+            }
+
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;

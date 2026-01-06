@@ -1675,28 +1675,17 @@ internal static class GeneratorYieldLowerer
                 // Step 1: Get the property value
                 // let __propVal = __temp.propertyName;
                 var propValSymbol = CreateResumeIdentifier();
-                ExpressionNode propertyAccess;
-
-                if (prop.NameExpression is not null)
-                {
-                    // Computed property name: __temp[expr]
-                    propertyAccess = new MemberExpression(
-                        null,
-                        new IdentifierExpression(null, sourceSymbol.Name),
-                        prop.NameExpression,
-                        true,
-                        false);
-                }
-                else
-                {
-                    // Static property name: __temp.name
-                    propertyAccess = new MemberExpression(
-                        null,
-                        new IdentifierExpression(null, sourceSymbol.Name),
-                        new LiteralExpression(null, JsValue.FromString(prop.Name)),
-                        false,
-                        false);
-                }
+                // Use computed access for dynamic names, static access for literal names
+                var isComputed = prop.NameExpression is not null;
+                var propExpr = isComputed
+                    ? prop.NameExpression!
+                    : new LiteralExpression(null, JsValue.FromString(prop.Name));
+                var propertyAccess = new MemberExpression(
+                    null,
+                    new IdentifierExpression(null, sourceSymbol.Name),
+                    propExpr,
+                    isComputed,
+                    false);
 
                 statements.Add(new VariableDeclaration(
                     null,
@@ -1765,9 +1754,10 @@ internal static class GeneratorYieldLowerer
                         var resolvedSymbol = CreateResumeIdentifier();
 
                         // let resolvedSymbol;
+                        // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
                         statements.Add(new VariableDeclaration(
                             null,
-                            varKind,
+                            VariableKind.Let,
                             [new VariableDeclarator(null, resolvedSymbol, null)]));
 
                         // if (__val === undefined) { resolvedSymbol = yield expr; } else { resolvedSymbol = __val; }
@@ -1825,9 +1815,10 @@ internal static class GeneratorYieldLowerer
                     if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
                     {
                         var resolvedSymbol = CreateResumeIdentifier();
+                        // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
                         statements.Add(new VariableDeclaration(
                             null,
-                            varKind,
+                            VariableKind.Let,
                             [new VariableDeclarator(null, resolvedSymbol, null)]));
 
                         if (!EmitYieldDefaultConditional(
@@ -1935,9 +1926,10 @@ internal static class GeneratorYieldLowerer
 
             // Has yield in default: use if statement
             // let targetName;
+            // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
             statements.Add(new VariableDeclaration(
                 null,
-                varKind,
+                VariableKind.Let,
                 [new VariableDeclarator(null, identifierBinding, null)]));
 
             // if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }

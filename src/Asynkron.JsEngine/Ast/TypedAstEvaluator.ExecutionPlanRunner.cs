@@ -107,6 +107,7 @@ public static partial class TypedAstEvaluator
         private TryCatchState TryCatchStateRef => _tryCatchState ??= new TryCatchState();
         private BreakableState BreakableStateRef => field ??= new BreakableState();
         private WithState WithStateRef => field ??= new WithState();
+        private ForInState ForInStateRef => field ??= new ForInState();
 
         internal JsValue EvaluateAwaitInGenerator(AwaitExpression expression, JsEnvironment environment,
             EvaluationContext context)

@@ -40,7 +40,9 @@ internal enum InstructionKind : byte
     LeaveWith,
     Expression,
     SetCompletionValue,
-    CompoundAssignmentSlot
+    CompoundAssignmentSlot,
+    ForInInit,
+    ForInMoveNext
 }
 
 /// <summary>

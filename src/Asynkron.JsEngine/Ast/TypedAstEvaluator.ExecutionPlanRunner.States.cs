@@ -73,5 +73,14 @@ public static partial class TypedAstEvaluator
         {
             public readonly Stack<Symbol> ActiveWithScopes = new();
         }
+
+        /// <summary>
+        /// State for for-in loop handling.
+        /// Only allocated when the function uses for-in loops.
+        /// </summary>
+        private sealed class ForInState
+        {
+            public ForInDriverState? CurrentDriverState;
+        }
     }
 }

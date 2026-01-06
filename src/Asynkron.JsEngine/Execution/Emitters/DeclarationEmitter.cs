@@ -68,13 +68,13 @@ internal static class DeclarationEmitter
 
         // Check for variable declarations with yields in binding target default values.
         // These cannot be safely lowered because defaults are only evaluated when
-        // the value is undefined. Wrap them as StatementInstruction.
+        // the value is undefined. Use the complex declaration instruction (AST eval).
         if (DeclarationContainsYieldInBindingTargetDefaults(declaration))
         {
             // AST fallback: var decl with yield in binding target defaults
             // Reason: Conditional yield semantics in destructuring defaults
             // Tracking: #398, #416 (IR-only execution epic)
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, declaration));
+            entryIndex = ctx.Append(new ComplexVariableDeclarationInstruction(nextIndex, declaration));
             return true;
         }
 

@@ -221,20 +221,6 @@ internal static class StatementEmitter
         Symbol? activeLabel,
         out int entryIndex)
     {
-        // If binding target has yields anywhere (defaults or assignment target expressions),
-        // wrap as StatementInstruction. The AST evaluator handles yield state-saving correctly.
-        // This handles patterns like: for ([ {}[ yield ] ] of iterable) { }
-        if (EmitContext.BindingTargetContainsYieldAnywhere(forEachStatement.Target) &&
-            !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
-            !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
-        {
-            // AST fallback: for-of with yield in binding target
-            // Reason: Conditional yield semantics in destructuring defaults
-            // Tracking: #398, #416 (IR-only execution epic)
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, forEachStatement));
-            return true;
-        }
-
         return ForOfEmitter.TryEmit(ctx, forEachStatement, nextIndex, activeLabel, out entryIndex);
     }
 
@@ -249,18 +235,6 @@ internal static class StatementEmitter
         Symbol? activeLabel,
         out int entryIndex)
     {
-        // If binding target has yields anywhere (defaults or assignment target expressions),
-        // we cannot emit IR - fall back to StatementInstruction.
-        if (EmitContext.BindingTargetContainsYieldAnywhere(forInStatement.Target) &&
-            !AstShapeAnalyzer.StatementContainsYield(forInStatement.Body) &&
-            !AstShapeAnalyzer.ContainsYield(forInStatement.Iterable))
-        {
-            // AST fallback: for-in with yield in binding target
-            // Reason: Conditional yield semantics in destructuring defaults
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, forInStatement));
-            return true;
-        }
-
         return ForInEmitter.TryEmit(ctx, forInStatement, nextIndex, activeLabel, out entryIndex);
     }
 

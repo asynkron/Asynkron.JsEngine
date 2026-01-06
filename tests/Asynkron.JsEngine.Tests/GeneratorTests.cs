@@ -2688,6 +2688,42 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Generator_BlockScopedFunctionDeclaration_HoistsWithinBlock_Ir()
+    {
+        await using var engine = CreateEngine();
+
+        ExecutionPlanDiagnostics.Reset();
+        var exception = await Record.ExceptionAsync(() => engine.Evaluate("""
+            "use strict";
+            function* gen() {
+                let result;
+                {
+                    let sentinel = 0;
+                    result = f() + sentinel;
+                    function f() { return 42; }
+                    yield result;
+                }
+            }
+            var g = gen();
+            var first = g.next();
+            var value = first.value;
+            """));
+
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+
+        Assert.True(attempts >= 1);
+        Assert.True(succeeded >= 1);
+        Assert.Equal(0, failed);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
+
+        Assert.Null(exception);
+
+        var value = await engine.Evaluate("value;");
+        Assert.Equal(42.0, value);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Generator_SwitchStatementDefaultNotLastIr_UsesIrPlan()
     {
         ExecutionPlanDiagnostics.Reset();
@@ -6381,4 +6417,3 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.Contains("\"xProp\":22", resultStr, StringComparison.Ordinal);
     }
 }
-

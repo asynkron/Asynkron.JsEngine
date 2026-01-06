@@ -88,8 +88,11 @@ run_profiler() {
 run_profile() {
   local profile_key=$1
   shift
-  local engine_args_expanded=("${engine_args[@]-}")
-  run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args_expanded[@]}" "$profile_key"
+  if [[ ${#engine_args[@]} -gt 0 ]]; then
+    run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "$profile_key"
+  else
+    run_profiler "$@" -- "${runner_cmd[@]}" "$profile_key"
+  fi
 }
 
 args=("$@")
@@ -120,23 +123,15 @@ for arg in "${args[@]}"; do
   fi
 done
 
-profile_key="fib"
-pass_args=()
-
-if [[ ${#args[@]} -gt 0 && "${args[0]}" != -* ]]; then
-  profile_key="${args[0]}"
-  pass_args=("${args[@]:1}")
-else
-  pass_args=("${args[@]}")
-fi
+profile_key=""
 
 i=0
-while [[ $i -lt ${#pass_args[@]} ]]; do
-  arg="${pass_args[$i]}"
+while [[ $i -lt ${#args[@]} ]]; do
+  arg="${args[$i]}"
   case "$arg" in
     --engine)
-      if [[ $((i + 1)) -lt ${#pass_args[@]} ]]; then
-        engine_args+=("$arg" "${pass_args[$((i + 1))]}")
+      if [[ $((i + 1)) -lt ${#args[@]} ]]; then
+        engine_args+=("$arg" "${args[$((i + 1))]}")
         i=$((i + 2))
         continue
       fi
@@ -151,11 +146,36 @@ while [[ $i -lt ${#pass_args[@]} ]]; do
       i=$((i + 1))
       continue
       ;;
+    --jit-method|--jit-altjit-path|--jit-altjit-name|--input|--root|--root-mode|--calltree-depth|--calltree-width|--calltree-sibling-cutoff|--exception-type|--filter|--tfm|--theme|--timeline-width)
+      if [[ $((i + 1)) -lt ${#args[@]} ]]; then
+        profiler_args+=("$arg" "${args[$((i + 1))]}")
+        i=$((i + 2))
+        continue
+      fi
+      ;;
+    --jit-method=*|--jit-altjit-path=*|--jit-altjit-name=*|--input=*|--root=*|--root-mode=*|--calltree-depth=*|--calltree-width=*|--calltree-sibling-cutoff=*|--exception-type=*|--filter=*|--tfm=*|--theme=*|--timeline-width=*)
+      profiler_args+=("$arg")
+      i=$((i + 1))
+      continue
+      ;;
+    -*)
+      profiler_args+=("$arg")
+      i=$((i + 1))
+      continue
+      ;;
   esac
 
-  profiler_args+=("$arg")
+  if [[ -z "$profile_key" ]]; then
+    profile_key="$arg"
+  else
+    profiler_args+=("$arg")
+  fi
   i=$((i + 1))
 done
+
+if [[ -z "$profile_key" ]]; then
+  profile_key="fib"
+fi
 
 if [[ "$profile_key" == "list" ]]; then
   build_runner

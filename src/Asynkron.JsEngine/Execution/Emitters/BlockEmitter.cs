@@ -84,8 +84,34 @@ internal static class BlockEmitter
         // 1. Pop environment (exit the block scope)
         var popEnvIndex = ctx.Append(new PopEnvironmentInstruction(scopeId, allowPooling, nextIndex));
 
-        // 2. Build the body statements, they flow to PopEnvironment
-        if (!ctx.TryBuildStatementList(block.Statements, popEnvIndex, out var bodyEntry))
+        // 2. Build non-function statements so function declarations can be hoisted
+        var functionDeclarations = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length);
+        var nonFunctionStatements = ImmutableArray.CreateBuilder<StatementNode>(block.Statements.Length);
+        foreach (var statement in block.Statements)
+        {
+            if (statement is FunctionDeclaration)
+            {
+                functionDeclarations.Add(statement);
+            }
+            else
+            {
+                nonFunctionStatements.Add(statement);
+            }
+        }
+
+        var bodyEntry = popEnvIndex;
+        if (nonFunctionStatements.Count > 0 &&
+            !ctx.TryBuildStatementList(nonFunctionStatements.ToImmutable(), popEnvIndex, out bodyEntry))
+        {
+            ctx.Rollback(instructionStart);
+            entryIndex = -1;
+            return false;
+        }
+
+        // 2a. Hoist block-scoped function declarations before other statements
+        var hoistEntry = bodyEntry;
+        if (functionDeclarations.Count > 0 &&
+            !ctx.TryBuildStatementList(functionDeclarations.ToImmutable(), bodyEntry, out hoistEntry))
         {
             ctx.Rollback(instructionStart);
             entryIndex = -1;
@@ -98,7 +124,7 @@ internal static class BlockEmitter
         // whether a PUSH_ENV is for a loop iteration (non-empty) vs a regular block (empty).
         // Passing LexicalTemplate here would incorrectly mark this as a loop iteration scope.
         entryIndex = ctx.Append(new PushEnvironmentInstruction(
-            bodyEntry,
+            hoistEntry,
             ImmutableArray<Symbol>.Empty,
             scopeId,
             slotCount,

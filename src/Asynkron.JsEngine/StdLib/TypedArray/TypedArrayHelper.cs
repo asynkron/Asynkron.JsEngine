@@ -56,12 +56,18 @@ public static class TypedArrayHelper
         prototype.DefineProperty(toStringTagKey,
             new PropertyDescriptor
             {
-                Value = constructorName, Writable = false, Enumerable = false, Configurable = true
+                Value = constructorName,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
         constructor.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = constructorName, Writable = false, Enumerable = false, Configurable = true
+                Value = constructorName,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
         constructor.DefineProperty("of",
             new PropertyDescriptor
@@ -270,17 +276,17 @@ public static class TypedArrayHelper
                 case 0:
                     return CreateTarget(0);
                 case > 1 when !args[1].IsUndefined:
-                {
-                    if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
                     {
-                        throw new ThrowSignal(
-                            JsValue.FromObjectUnsafe(WrapTypeError("mapfn is not callable", callingEnv)));
-                    }
+                        if (!args[1].TryGetObject<IJsCallable>(out var callableMap))
+                        {
+                            throw new ThrowSignal(
+                                JsValue.FromObjectUnsafe(WrapTypeError("mapfn is not callable", callingEnv)));
+                        }
 
-                    mapFn = callableMap;
-                    mapThis = args.GetArgument(2);
-                    break;
-                }
+                        mapFn = callableMap;
+                        mapThis = args.GetArgument(2);
+                        break;
+                    }
             }
 
             var source = args[0];

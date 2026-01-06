@@ -205,43 +205,75 @@ public static partial class TypedAstEvaluator
         switch (value.Kind)
         {
             case JsValueKind.Object when value.ObjectValue is JsArray array:
-            {
-                // First, enumerate numeric indices (array elements)
-                for (var i = 0; i < array.Items.Count; i++)
                 {
-                    yield return JsValue.FromString(i.ToString(CultureInfo.InvariantCulture));
-                }
-
-                // Track seen keys to properly handle shadowing
-                var seenArrayKeys = new HashSet<string>(StringComparer.Ordinal);
-
-                // Add all numeric indices as seen (already enumerated above)
-                for (var i = 0; i < array.Items.Count; i++)
-                {
-                    seenArrayKeys.Add(JsValueCache.GetIndexString(i));
-                }
-
-                // Now enumerate non-index properties on the array and its prototype chain
-                IJsPropertyAccessor? currentArray = array;
-                while (currentArray is not null)
-                {
-                    var keys = currentArray.GetOwnPropertyNames().ToList();
-
-                    foreach (var key in keys)
+                    // First, enumerate numeric indices (array elements)
+                    for (var i = 0; i < array.Items.Count; i++)
                     {
-                        // Skip if we've already seen this key
-                        if (!seenArrayKeys.Add(key))
+                        yield return JsValue.FromString(i.ToString(CultureInfo.InvariantCulture));
+                    }
+
+                    // Track seen keys to properly handle shadowing
+                    var seenArrayKeys = new HashSet<string>(StringComparer.Ordinal);
+
+                    // Add all numeric indices as seen (already enumerated above)
+                    for (var i = 0; i < array.Items.Count; i++)
+                    {
+                        seenArrayKeys.Add(JsValueCache.GetIndexString(i));
+                    }
+
+                    // Now enumerate non-index properties on the array and its prototype chain
+                    IJsPropertyAccessor? currentArray = array;
+                    while (currentArray is not null)
+                    {
+                        var keys = currentArray.GetOwnPropertyNames().ToList();
+
+                        foreach (var key in keys)
+                        {
+                            // Skip if we've already seen this key
+                            if (!seenArrayKeys.Add(key))
+                            {
+                                continue;
+                            }
+
+                            // Skip 'length' - it's not enumerable
+                            if (string.Equals(key, "length", StringComparison.Ordinal))
+                            {
+                                continue;
+                            }
+
+                            var desc = currentArray.GetOwnPropertyDescriptor(key);
+                            if (desc is null or { Enumerable: false })
+                            {
+                                continue;
+                            }
+
+                            yield return JsValue.FromString(key);
+                        }
+
+                        // Move to prototype
+                        currentArray = currentArray switch
+                        {
+                            IJsObjectLike objectLike => objectLike.Prototype,
+                            IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                            _ => null
+                        };
+                    }
+
+                    yield break;
+                }
+
+            case JsValueKind.Object when value.ObjectValue is TypedArrayBase typedArray:
+                {
+                    // TypedArray for-in only exposes own enumerable properties (indices and custom slots).
+                    var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var key in typedArray.GetOwnPropertyNames().ToList())
+                    {
+                        if (!seenKeys.Add(key))
                         {
                             continue;
                         }
 
-                        // Skip 'length' - it's not enumerable
-                        if (string.Equals(key, "length", StringComparison.Ordinal))
-                        {
-                            continue;
-                        }
-
-                        var desc = currentArray.GetOwnPropertyDescriptor(key);
+                        var desc = typedArray.GetOwnPropertyDescriptor(key);
                         if (desc is null or { Enumerable: false })
                         {
                             continue;
@@ -250,101 +282,69 @@ public static partial class TypedAstEvaluator
                         yield return JsValue.FromString(key);
                     }
 
-                    // Move to prototype
-                    currentArray = currentArray switch
-                    {
-                        IJsObjectLike objectLike => objectLike.Prototype,
-                        IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                        _ => null
-                    };
+                    yield break;
                 }
-
-                yield break;
-            }
-
-            case JsValueKind.Object when value.ObjectValue is TypedArrayBase typedArray:
-            {
-                // TypedArray for-in only exposes own enumerable properties (indices and custom slots).
-                var seenKeys = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var key in typedArray.GetOwnPropertyNames().ToList())
-                {
-                    if (!seenKeys.Add(key))
-                    {
-                        continue;
-                    }
-
-                    var desc = typedArray.GetOwnPropertyDescriptor(key);
-                    if (desc is null or { Enumerable: false })
-                    {
-                        continue;
-                    }
-
-                    yield return JsValue.FromString(key);
-                }
-
-                yield break;
-            }
 
             case JsValueKind.String when value.ObjectValue is string s:
-            {
-                for (var i = 0; i < s.Length; i++)
                 {
-                    yield return JsValue.FromString(JsValueCache.GetIndexString(i));
-                }
-
-                yield break;
-            }
-
-            case JsValueKind.Object when value.ObjectValue is IJsObjectLike accessor:
-            {
-                // Track seen keys to properly handle shadowing - prototype properties
-                // with the same name as own properties should not be enumerated
-                var seenKeys = new HashSet<string>(StringComparer.Ordinal);
-
-                // Walk prototype chain, starting with the object itself
-                IJsPropertyAccessor? current = accessor;
-                while (current is not null)
-                {
-                    // Collect keys from this object in the chain - we snapshot to avoid
-                    // concurrent modification issues during iteration
-                    var keys = current.GetOwnPropertyNames().ToList();
-
-                    foreach (var key in keys)
+                    for (var i = 0; i < s.Length; i++)
                     {
-                        // Skip if we've already seen this key (shadowed by own/earlier property)
-                        if (!seenKeys.Add(key))
-                        {
-                            continue;
-                        }
-
-                        // Per ECMAScript spec, skip properties that were deleted during enumeration.
-                        // Check that the property still exists on this object in the chain.
-                        var desc = current.GetOwnPropertyDescriptor(key);
-                        if (desc is null)
-                        {
-                            // Property was deleted since we collected the keys
-                            continue;
-                        }
-
-                        if (desc is { Enumerable: false })
-                        {
-                            continue;
-                        }
-
-                        yield return JsValue.FromString(key);
+                        yield return JsValue.FromString(JsValueCache.GetIndexString(i));
                     }
 
-                    // Move to prototype
-                    current = current switch
-                    {
-                        IJsObjectLike objectLike => objectLike.Prototype,
-                        IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
-                        _ => null
-                    };
+                    yield break;
                 }
 
-                yield break;
-            }
+            case JsValueKind.Object when value.ObjectValue is IJsObjectLike accessor:
+                {
+                    // Track seen keys to properly handle shadowing - prototype properties
+                    // with the same name as own properties should not be enumerated
+                    var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+
+                    // Walk prototype chain, starting with the object itself
+                    IJsPropertyAccessor? current = accessor;
+                    while (current is not null)
+                    {
+                        // Collect keys from this object in the chain - we snapshot to avoid
+                        // concurrent modification issues during iteration
+                        var keys = current.GetOwnPropertyNames().ToList();
+
+                        foreach (var key in keys)
+                        {
+                            // Skip if we've already seen this key (shadowed by own/earlier property)
+                            if (!seenKeys.Add(key))
+                            {
+                                continue;
+                            }
+
+                            // Per ECMAScript spec, skip properties that were deleted during enumeration.
+                            // Check that the property still exists on this object in the chain.
+                            var desc = current.GetOwnPropertyDescriptor(key);
+                            if (desc is null)
+                            {
+                                // Property was deleted since we collected the keys
+                                continue;
+                            }
+
+                            if (desc is { Enumerable: false })
+                            {
+                                continue;
+                            }
+
+                            yield return JsValue.FromString(key);
+                        }
+
+                        // Move to prototype
+                        current = current switch
+                        {
+                            IJsObjectLike objectLike => objectLike.Prototype,
+                            IPrototypeAccessorProvider provider => provider.PrototypeAccessor,
+                            _ => null
+                        };
+                    }
+
+                    yield break;
+                }
         }
 
         throw new InvalidOperationException("Cannot iterate properties of non-object value.");

@@ -56,7 +56,10 @@ public static partial class TypedAstEvaluator
 
             var descriptor = new PropertyDescriptor
             {
-                JsValue = valueJs, Writable = true, Enumerable = true, Configurable = true
+                JsValue = valueJs,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             };
 
             if (constructorAccessor is IPropertyDefinitionHost definitionHost)

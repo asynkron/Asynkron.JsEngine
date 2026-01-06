@@ -24,15 +24,18 @@ public sealed class SingleYieldRewriter(Symbol replacementSymbol)
             },
             CallExpression call => call with
             {
-                Callee = Rewrite(call.Callee), Arguments = RewriteArguments(call.Arguments)
+                Callee = Rewrite(call.Callee),
+                Arguments = RewriteArguments(call.Arguments)
             },
             NewExpression @new => @new with
             {
-                Constructor = Rewrite(@new.Constructor), Arguments = RewriteArguments(@new.Arguments)
+                Constructor = Rewrite(@new.Constructor),
+                Arguments = RewriteArguments(@new.Arguments)
             },
             MemberExpression member => member with
             {
-                Target = Rewrite(member.Target), Property = Rewrite(member.Property)
+                Target = Rewrite(member.Target),
+                Property = Rewrite(member.Property)
             },
             AssignmentExpression assignment => assignment with { Value = Rewrite(assignment.Value) },
             PropertyAssignmentExpression propertyAssignment => propertyAssignment with
@@ -49,7 +52,8 @@ public sealed class SingleYieldRewriter(Symbol replacementSymbol)
             },
             SequenceExpression sequence => sequence with
             {
-                Left = Rewrite(sequence.Left), Right = Rewrite(sequence.Right)
+                Left = Rewrite(sequence.Left),
+                Right = Rewrite(sequence.Right)
             },
             UnaryExpression unary => unary with { Operand = Rewrite(unary.Operand) },
             ArrayExpression array => array with { Elements = RewriteArrayElements(array.Elements) },

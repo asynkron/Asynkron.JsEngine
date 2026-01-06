@@ -1662,9 +1662,9 @@ public sealed class JsAstParser(
                     }
                 }
                 else
-                    // In non-strict mode, 'for (let' is only a lexical declaration if followed by '[', '{'
-                    // or a binding identifier. Otherwise 'let' is just an identifier expression.
-                    // See: for ( [lookahead ∉ { let [ }] Expression
+                // In non-strict mode, 'for (let' is only a lexical declaration if followed by '[', '{'
+                // or a binding identifier. Otherwise 'let' is just an identifier expression.
+                // See: for ( [lookahead ∉ { let [ }] Expression
                 if (Check(TokenType.Let) &&
                     (InStrictContext || CheckAhead(TokenType.LeftBracket) || CheckAhead(TokenType.LeftBrace) ||
                      (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let) &&
@@ -3061,13 +3061,13 @@ public sealed class JsAstParser(
                         builder.Add(new TemplatePart(null, text, null));
                         break;
                     case TemplateExpression expression:
-                    {
-                        var parsedExpression = ParseTemplateInterpolation(expression.ExpressionText);
-                        builder.Add(new TemplatePart(parsedExpression.Source ?? CreateSourceReference(templateToken),
-                            null,
-                            parsedExpression));
-                        break;
-                    }
+                        {
+                            var parsedExpression = ParseTemplateInterpolation(expression.ExpressionText);
+                            builder.Add(new TemplatePart(parsedExpression.Source ?? CreateSourceReference(templateToken),
+                                null,
+                                parsedExpression));
+                            break;
+                        }
                 }
             }
 
@@ -3087,22 +3087,22 @@ public sealed class JsAstParser(
                 switch (part)
                 {
                     case TemplateStringPart templateString:
-                    {
-                        // Per ES2018 Tagged Template Literal Revision:
-                        // - Invalid escape sequences should NOT throw in tagged templates
-                        // - Instead, they make the cooked value undefined while raw is preserved
-                        // - Legacy octals (\1-\7, \01, etc.) are always invalid in tagged templates
-                        //   (Note: \0 without following octal digit is still valid as null character)
-                        // - \8 and \9 also make the cooked value undefined in tagged templates
-                        var hasInvalidEscape = templateString.Cooked.HasInvalidEscape ||
-                                               templateString.Cooked.HasLegacyOctal ||
-                                               templateString.Cooked.HasLegacyNonOctalEscape;
+                        {
+                            // Per ES2018 Tagged Template Literal Revision:
+                            // - Invalid escape sequences should NOT throw in tagged templates
+                            // - Instead, they make the cooked value undefined while raw is preserved
+                            // - Legacy octals (\1-\7, \01, etc.) are always invalid in tagged templates
+                            //   (Note: \0 without following octal digit is still valid as null character)
+                            // - \8 and \9 also make the cooked value undefined in tagged templates
+                            var hasInvalidEscape = templateString.Cooked.HasInvalidEscape ||
+                                                   templateString.Cooked.HasLegacyOctal ||
+                                                   templateString.Cooked.HasLegacyNonOctalEscape;
 
-                        // For invalid escape sequences, cooked value is null (undefined in JS)
-                        cookedStrings.Add(hasInvalidEscape ? null : templateString.Cooked.Value);
-                        rawStrings.Add(templateString.RawText);
-                        break;
-                    }
+                            // For invalid escape sequences, cooked value is null (undefined in JS)
+                            cookedStrings.Add(hasInvalidEscape ? null : templateString.Cooked.Value);
+                            rawStrings.Add(templateString.RawText);
+                            break;
+                        }
                     case string text:
                         cookedStrings.Add(text);
                         rawStrings.Add(text);

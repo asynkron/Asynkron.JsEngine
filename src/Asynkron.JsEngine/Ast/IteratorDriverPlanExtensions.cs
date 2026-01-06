@@ -413,27 +413,27 @@ public static partial class TypedAstEvaluator
                                         outerEnvironment, context, ref letConstFirstIterationDone);
                                     break;
                                 default:
-                                {
-                                    if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                                     {
-                                        // Fast path: direct slot write for let/const bindings
-                                        iterationEnvironment.SetSlotDirect(fastPathSlotIndex, nextJsValue);
-                                    }
-                                    else
-                                    {
-                                        plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
-                                            outerEnvironment, context,
-                                            plan.DeclarationKind);
-                                        if (context.IsThrow)
+                                        if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                                         {
-                                            throw new ThrowSignal(context.FlowValue);
+                                            // Fast path: direct slot write for let/const bindings
+                                            iterationEnvironment.SetSlotDirect(fastPathSlotIndex, nextJsValue);
+                                        }
+                                        else
+                                        {
+                                            plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
+                                                outerEnvironment, context,
+                                                plan.DeclarationKind);
+                                            if (context.IsThrow)
+                                            {
+                                                throw new ThrowSignal(context.FlowValue);
+                                            }
+
+                                            IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
                                         }
 
-                                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                                        break;
                                     }
-
-                                    break;
-                                }
                             }
                         }
 

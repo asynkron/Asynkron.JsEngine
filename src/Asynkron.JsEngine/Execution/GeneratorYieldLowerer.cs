@@ -478,7 +478,9 @@ internal static class GeneratorYieldLowerer
 
             rewritten = definition with
             {
-                Extends = rewrittenExtends, Members = members.ToImmutable(), Fields = fields.ToImmutable()
+                Extends = rewrittenExtends,
+                Members = members.ToImmutable(),
+                Fields = fields.ToImmutable()
             };
             return true;
         }
@@ -580,334 +582,336 @@ internal static class GeneratorYieldLowerer
                     return ReplaceYieldWithIdentifier(yieldExpression, prefixStatements, ref changed);
 
                 case BinaryExpression binaryExpression:
-                {
-                    var left = RewriteExpressionForComplexYields(binaryExpression.Left, prefixStatements, ref changed);
-                    var right = RewriteExpressionForComplexYields(binaryExpression.Right, prefixStatements,
-                        ref changed);
-                    if (!ReferenceEquals(left, binaryExpression.Left) ||
-                        !ReferenceEquals(right, binaryExpression.Right))
                     {
-                        return binaryExpression with { Left = left, Right = right };
-                    }
+                        var left = RewriteExpressionForComplexYields(binaryExpression.Left, prefixStatements, ref changed);
+                        var right = RewriteExpressionForComplexYields(binaryExpression.Right, prefixStatements,
+                            ref changed);
+                        if (!ReferenceEquals(left, binaryExpression.Left) ||
+                            !ReferenceEquals(right, binaryExpression.Right))
+                        {
+                            return binaryExpression with { Left = left, Right = right };
+                        }
 
-                    return binaryExpression;
-                }
+                        return binaryExpression;
+                    }
 
                 case UnaryExpression unaryExpression:
-                {
-                    var operand =
-                        RewriteExpressionForComplexYields(unaryExpression.Operand, prefixStatements, ref changed);
-                    return ReferenceEquals(operand, unaryExpression.Operand)
-                        ? unaryExpression
-                        : unaryExpression with { Operand = operand };
-                }
+                    {
+                        var operand =
+                            RewriteExpressionForComplexYields(unaryExpression.Operand, prefixStatements, ref changed);
+                        return ReferenceEquals(operand, unaryExpression.Operand)
+                            ? unaryExpression
+                            : unaryExpression with { Operand = operand };
+                    }
 
                 case ConditionalExpression conditionalExpression:
-                {
-                    // Only rewrite the test expression. The consequent and alternate should NOT
-                    // be rewritten here because only one of them will execute. If we extract yields
-                    // from both branches, we'd execute yields that shouldn't run.
-                    var test =
-                        RewriteExpressionForComplexYields(conditionalExpression.Test, prefixStatements, ref changed);
-
-                    if (!ReferenceEquals(test, conditionalExpression.Test))
                     {
-                        return conditionalExpression with { Test = test };
-                    }
+                        // Only rewrite the test expression. The consequent and alternate should NOT
+                        // be rewritten here because only one of them will execute. If we extract yields
+                        // from both branches, we'd execute yields that shouldn't run.
+                        var test =
+                            RewriteExpressionForComplexYields(conditionalExpression.Test, prefixStatements, ref changed);
 
-                    return conditionalExpression;
-                }
+                        if (!ReferenceEquals(test, conditionalExpression.Test))
+                        {
+                            return conditionalExpression with { Test = test };
+                        }
+
+                        return conditionalExpression;
+                    }
 
                 case AssignmentExpression assignmentExpression:
-                {
-                    var value =
-                        RewriteExpressionForComplexYields(assignmentExpression.Value, prefixStatements, ref changed);
-                    return ReferenceEquals(value, assignmentExpression.Value)
-                        ? assignmentExpression
-                        : assignmentExpression with { Value = value };
-                }
+                    {
+                        var value =
+                            RewriteExpressionForComplexYields(assignmentExpression.Value, prefixStatements, ref changed);
+                        return ReferenceEquals(value, assignmentExpression.Value)
+                            ? assignmentExpression
+                            : assignmentExpression with { Value = value };
+                    }
 
                 case PropertyAssignmentExpression propertyAssignmentExpression:
-                {
-                    var target =
-                        RewriteExpressionForComplexYields(propertyAssignmentExpression.Target, prefixStatements,
-                            ref changed);
-                    var property =
-                        RewriteExpressionForComplexYields(propertyAssignmentExpression.Property, prefixStatements,
-                            ref changed);
-                    var value =
-                        RewriteExpressionForComplexYields(propertyAssignmentExpression.Value, prefixStatements,
-                            ref changed);
-                    if (!ReferenceEquals(target, propertyAssignmentExpression.Target) ||
-                        !ReferenceEquals(property, propertyAssignmentExpression.Property) ||
-                        !ReferenceEquals(value, propertyAssignmentExpression.Value))
                     {
-                        return propertyAssignmentExpression with
+                        var target =
+                            RewriteExpressionForComplexYields(propertyAssignmentExpression.Target, prefixStatements,
+                                ref changed);
+                        var property =
+                            RewriteExpressionForComplexYields(propertyAssignmentExpression.Property, prefixStatements,
+                                ref changed);
+                        var value =
+                            RewriteExpressionForComplexYields(propertyAssignmentExpression.Value, prefixStatements,
+                                ref changed);
+                        if (!ReferenceEquals(target, propertyAssignmentExpression.Target) ||
+                            !ReferenceEquals(property, propertyAssignmentExpression.Property) ||
+                            !ReferenceEquals(value, propertyAssignmentExpression.Value))
                         {
-                            Target = target, Property = property, Value = value
-                        };
-                    }
+                            return propertyAssignmentExpression with
+                            {
+                                Target = target,
+                                Property = property,
+                                Value = value
+                            };
+                        }
 
-                    return propertyAssignmentExpression;
-                }
+                        return propertyAssignmentExpression;
+                    }
 
                 case IndexAssignmentExpression indexAssignmentExpression:
-                {
-                    var target =
-                        RewriteExpressionForComplexYields(indexAssignmentExpression.Target, prefixStatements,
-                            ref changed);
-                    var index =
-                        RewriteExpressionForComplexYields(indexAssignmentExpression.Index, prefixStatements,
-                            ref changed);
-                    var value =
-                        RewriteExpressionForComplexYields(indexAssignmentExpression.Value, prefixStatements,
-                            ref changed);
-                    if (!ReferenceEquals(target, indexAssignmentExpression.Target) ||
-                        !ReferenceEquals(index, indexAssignmentExpression.Index) ||
-                        !ReferenceEquals(value, indexAssignmentExpression.Value))
                     {
-                        return indexAssignmentExpression with { Target = target, Index = index, Value = value };
-                    }
+                        var target =
+                            RewriteExpressionForComplexYields(indexAssignmentExpression.Target, prefixStatements,
+                                ref changed);
+                        var index =
+                            RewriteExpressionForComplexYields(indexAssignmentExpression.Index, prefixStatements,
+                                ref changed);
+                        var value =
+                            RewriteExpressionForComplexYields(indexAssignmentExpression.Value, prefixStatements,
+                                ref changed);
+                        if (!ReferenceEquals(target, indexAssignmentExpression.Target) ||
+                            !ReferenceEquals(index, indexAssignmentExpression.Index) ||
+                            !ReferenceEquals(value, indexAssignmentExpression.Value))
+                        {
+                            return indexAssignmentExpression with { Target = target, Index = index, Value = value };
+                        }
 
-                    return indexAssignmentExpression;
-                }
+                        return indexAssignmentExpression;
+                    }
 
                 case CallExpression callExpression:
-                {
-                    var callee =
-                        RewriteExpressionForComplexYields(callExpression.Callee, prefixStatements, ref changed);
-                    var argsBuilder = ImmutableArray.CreateBuilder<CallArgument>(callExpression.Arguments.Length);
-                    var argsChanged = false;
-                    foreach (var argument in callExpression.Arguments)
                     {
-                        var rewrittenArgument =
-                            RewriteExpressionForComplexYields(argument.Expression, prefixStatements, ref changed);
-                        argsChanged |= !ReferenceEquals(rewrittenArgument, argument.Expression);
-                        argsBuilder.Add(argument with { Expression = rewrittenArgument });
-                    }
+                        var callee =
+                            RewriteExpressionForComplexYields(callExpression.Callee, prefixStatements, ref changed);
+                        var argsBuilder = ImmutableArray.CreateBuilder<CallArgument>(callExpression.Arguments.Length);
+                        var argsChanged = false;
+                        foreach (var argument in callExpression.Arguments)
+                        {
+                            var rewrittenArgument =
+                                RewriteExpressionForComplexYields(argument.Expression, prefixStatements, ref changed);
+                            argsChanged |= !ReferenceEquals(rewrittenArgument, argument.Expression);
+                            argsBuilder.Add(argument with { Expression = rewrittenArgument });
+                        }
 
-                    if (!ReferenceEquals(callee, callExpression.Callee) || argsChanged)
-                    {
-                        return callExpression with { Callee = callee, Arguments = argsBuilder.ToImmutable() };
-                    }
+                        if (!ReferenceEquals(callee, callExpression.Callee) || argsChanged)
+                        {
+                            return callExpression with { Callee = callee, Arguments = argsBuilder.ToImmutable() };
+                        }
 
-                    return callExpression;
-                }
+                        return callExpression;
+                    }
 
                 case NewExpression newExpression:
-                {
-                    var ctor = RewriteExpressionForComplexYields(newExpression.Constructor, prefixStatements,
-                        ref changed);
-                    var argsBuilder = ImmutableArray.CreateBuilder<CallArgument>(newExpression.Arguments.Length);
-                    var argsChanged = false;
-                    foreach (var argument in newExpression.Arguments)
                     {
-                        var rewrittenArgument =
-                            RewriteExpressionForComplexYields(argument.Expression, prefixStatements, ref changed);
-                        argsChanged |= !ReferenceEquals(argument.Expression, rewrittenArgument);
-                        argsBuilder.Add(argument with { Expression = rewrittenArgument });
-                    }
+                        var ctor = RewriteExpressionForComplexYields(newExpression.Constructor, prefixStatements,
+                            ref changed);
+                        var argsBuilder = ImmutableArray.CreateBuilder<CallArgument>(newExpression.Arguments.Length);
+                        var argsChanged = false;
+                        foreach (var argument in newExpression.Arguments)
+                        {
+                            var rewrittenArgument =
+                                RewriteExpressionForComplexYields(argument.Expression, prefixStatements, ref changed);
+                            argsChanged |= !ReferenceEquals(argument.Expression, rewrittenArgument);
+                            argsBuilder.Add(argument with { Expression = rewrittenArgument });
+                        }
 
-                    if (!ReferenceEquals(ctor, newExpression.Constructor) || argsChanged)
-                    {
-                        return newExpression with { Constructor = ctor, Arguments = argsBuilder.ToImmutable() };
-                    }
+                        if (!ReferenceEquals(ctor, newExpression.Constructor) || argsChanged)
+                        {
+                            return newExpression with { Constructor = ctor, Arguments = argsBuilder.ToImmutable() };
+                        }
 
-                    return newExpression;
-                }
+                        return newExpression;
+                    }
 
                 case MemberExpression memberExpression:
-                {
-                    var target =
-                        RewriteExpressionForComplexYields(memberExpression.Target, prefixStatements, ref changed);
-                    var property = memberExpression.IsComputed
-                        ? RewriteExpressionForComplexYields(memberExpression.Property, prefixStatements, ref changed)
-                        : memberExpression.Property;
-                    if (!ReferenceEquals(target, memberExpression.Target) ||
-                        !ReferenceEquals(property, memberExpression.Property))
                     {
-                        return memberExpression with { Target = target, Property = property };
-                    }
+                        var target =
+                            RewriteExpressionForComplexYields(memberExpression.Target, prefixStatements, ref changed);
+                        var property = memberExpression.IsComputed
+                            ? RewriteExpressionForComplexYields(memberExpression.Property, prefixStatements, ref changed)
+                            : memberExpression.Property;
+                        if (!ReferenceEquals(target, memberExpression.Target) ||
+                            !ReferenceEquals(property, memberExpression.Property))
+                        {
+                            return memberExpression with { Target = target, Property = property };
+                        }
 
-                    return memberExpression;
-                }
+                        return memberExpression;
+                    }
 
                 case SequenceExpression sequenceExpression:
-                {
-                    var left = RewriteExpressionForComplexYields(sequenceExpression.Left, prefixStatements,
-                        ref changed);
-                    var right =
-                        RewriteExpressionForComplexYields(sequenceExpression.Right, prefixStatements, ref changed);
-                    if (!ReferenceEquals(left, sequenceExpression.Left) ||
-                        !ReferenceEquals(right, sequenceExpression.Right))
                     {
-                        return sequenceExpression with { Left = left, Right = right };
-                    }
+                        var left = RewriteExpressionForComplexYields(sequenceExpression.Left, prefixStatements,
+                            ref changed);
+                        var right =
+                            RewriteExpressionForComplexYields(sequenceExpression.Right, prefixStatements, ref changed);
+                        if (!ReferenceEquals(left, sequenceExpression.Left) ||
+                            !ReferenceEquals(right, sequenceExpression.Right))
+                        {
+                            return sequenceExpression with { Left = left, Right = right };
+                        }
 
-                    return sequenceExpression;
-                }
+                        return sequenceExpression;
+                    }
 
                 case ArrayExpression arrayExpression:
-                {
-                    var elementsBuilder = ImmutableArray.CreateBuilder<ArrayElement>(arrayExpression.Elements.Length);
-                    var elementsChanged = false;
-                    foreach (var element in arrayExpression.Elements)
                     {
-                        if (element.Expression is null)
+                        var elementsBuilder = ImmutableArray.CreateBuilder<ArrayElement>(arrayExpression.Elements.Length);
+                        var elementsChanged = false;
+                        foreach (var element in arrayExpression.Elements)
                         {
-                            elementsBuilder.Add(element);
-                            continue;
+                            if (element.Expression is null)
+                            {
+                                elementsBuilder.Add(element);
+                                continue;
+                            }
+
+                            var rewrittenElement =
+                                RewriteExpressionForComplexYields(element.Expression, prefixStatements, ref changed);
+                            elementsChanged |= !ReferenceEquals(rewrittenElement, element.Expression);
+                            elementsBuilder.Add(element with { Expression = rewrittenElement });
                         }
 
-                        var rewrittenElement =
-                            RewriteExpressionForComplexYields(element.Expression, prefixStatements, ref changed);
-                        elementsChanged |= !ReferenceEquals(rewrittenElement, element.Expression);
-                        elementsBuilder.Add(element with { Expression = rewrittenElement });
+                        return elementsChanged
+                            ? arrayExpression with { Elements = elementsBuilder.ToImmutable() }
+                            : arrayExpression;
                     }
-
-                    return elementsChanged
-                        ? arrayExpression with { Elements = elementsBuilder.ToImmutable() }
-                        : arrayExpression;
-                }
 
                 case ObjectExpression objectExpression:
-                {
-                    var membersBuilder = ImmutableArray.CreateBuilder<ObjectMember>(objectExpression.Members.Length);
-                    var membersChanged = false;
-                    foreach (var member in objectExpression.Members)
                     {
-                        var key = member.Key;
-                        if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
+                        var membersBuilder = ImmutableArray.CreateBuilder<ObjectMember>(objectExpression.Members.Length);
+                        var membersChanged = false;
+                        foreach (var member in objectExpression.Members)
                         {
-                            var rewrittenKey =
-                                RewriteExpressionForComplexYields(keyExpression, prefixStatements, ref changed);
-                            if (!ReferenceEquals(rewrittenKey, keyExpression))
+                            var key = member.Key;
+                            if (member is { IsComputed: true, Key: ExpressionNode keyExpression })
                             {
-                                key = rewrittenKey;
-                                membersChanged = true;
+                                var rewrittenKey =
+                                    RewriteExpressionForComplexYields(keyExpression, prefixStatements, ref changed);
+                                if (!ReferenceEquals(rewrittenKey, keyExpression))
+                                {
+                                    key = rewrittenKey;
+                                    membersChanged = true;
+                                }
                             }
+
+                            var value = member.Value;
+                            if (value is not null)
+                            {
+                                var rewrittenValue =
+                                    RewriteExpressionForComplexYields(value, prefixStatements, ref changed);
+                                if (!ReferenceEquals(value, rewrittenValue))
+                                {
+                                    value = rewrittenValue;
+                                    membersChanged = true;
+                                }
+                            }
+
+                            membersBuilder.Add(member with { Key = key, Value = value });
                         }
 
-                        var value = member.Value;
-                        if (value is not null)
-                        {
-                            var rewrittenValue =
-                                RewriteExpressionForComplexYields(value, prefixStatements, ref changed);
-                            if (!ReferenceEquals(value, rewrittenValue))
-                            {
-                                value = rewrittenValue;
-                                membersChanged = true;
-                            }
-                        }
-
-                        membersBuilder.Add(member with { Key = key, Value = value });
+                        return membersChanged
+                            ? objectExpression with { Members = membersBuilder.ToImmutable() }
+                            : objectExpression;
                     }
-
-                    return membersChanged
-                        ? objectExpression with { Members = membersBuilder.ToImmutable() }
-                        : objectExpression;
-                }
 
                 case TemplateLiteralExpression templateLiteral:
-                {
-                    var partsBuilder = ImmutableArray.CreateBuilder<TemplatePart>(templateLiteral.Parts.Length);
-                    var partsChanged = false;
-                    foreach (var part in templateLiteral.Parts)
                     {
-                        if (part.Expression is null)
+                        var partsBuilder = ImmutableArray.CreateBuilder<TemplatePart>(templateLiteral.Parts.Length);
+                        var partsChanged = false;
+                        foreach (var part in templateLiteral.Parts)
                         {
-                            partsBuilder.Add(part);
-                            continue;
+                            if (part.Expression is null)
+                            {
+                                partsBuilder.Add(part);
+                                continue;
+                            }
+
+                            var rewrittenExpression =
+                                RewriteExpressionForComplexYields(part.Expression, prefixStatements, ref changed);
+                            if (!ReferenceEquals(part.Expression, rewrittenExpression))
+                            {
+                                partsChanged = true;
+                                partsBuilder.Add(part with { Expression = rewrittenExpression });
+                            }
+                            else
+                            {
+                                partsBuilder.Add(part);
+                            }
                         }
 
-                        var rewrittenExpression =
-                            RewriteExpressionForComplexYields(part.Expression, prefixStatements, ref changed);
-                        if (!ReferenceEquals(part.Expression, rewrittenExpression))
-                        {
-                            partsChanged = true;
-                            partsBuilder.Add(part with { Expression = rewrittenExpression });
-                        }
-                        else
-                        {
-                            partsBuilder.Add(part);
-                        }
+                        return partsChanged
+                            ? templateLiteral with { Parts = partsBuilder.ToImmutable() }
+                            : templateLiteral;
                     }
-
-                    return partsChanged
-                        ? templateLiteral with { Parts = partsBuilder.ToImmutable() }
-                        : templateLiteral;
-                }
 
                 case TaggedTemplateExpression taggedTemplate:
-                {
-                    var tag = RewriteExpressionForComplexYields(taggedTemplate.Tag, prefixStatements, ref changed);
-                    var stringsArray =
-                        RewriteExpressionForComplexYields(taggedTemplate.StringsArray, prefixStatements, ref changed);
-                    var rawStringsArray = RewriteExpressionForComplexYields(taggedTemplate.RawStringsArray,
-                        prefixStatements,
-                        ref changed);
-                    var expressionsBuilder =
-                        ImmutableArray.CreateBuilder<ExpressionNode>(taggedTemplate.Expressions.Length);
-                    var expressionsChanged = false;
-                    foreach (var expr in taggedTemplate.Expressions)
                     {
-                        var rewrittenExpr = RewriteExpressionForComplexYields(expr, prefixStatements, ref changed);
-                        expressionsChanged |= !ReferenceEquals(expr, rewrittenExpr);
-                        expressionsBuilder.Add(rewrittenExpr);
-                    }
-
-                    if (!ReferenceEquals(tag, taggedTemplate.Tag) ||
-                        !ReferenceEquals(stringsArray, taggedTemplate.StringsArray) ||
-                        !ReferenceEquals(rawStringsArray, taggedTemplate.RawStringsArray) ||
-                        expressionsChanged)
-                    {
-                        return taggedTemplate with
+                        var tag = RewriteExpressionForComplexYields(taggedTemplate.Tag, prefixStatements, ref changed);
+                        var stringsArray =
+                            RewriteExpressionForComplexYields(taggedTemplate.StringsArray, prefixStatements, ref changed);
+                        var rawStringsArray = RewriteExpressionForComplexYields(taggedTemplate.RawStringsArray,
+                            prefixStatements,
+                            ref changed);
+                        var expressionsBuilder =
+                            ImmutableArray.CreateBuilder<ExpressionNode>(taggedTemplate.Expressions.Length);
+                        var expressionsChanged = false;
+                        foreach (var expr in taggedTemplate.Expressions)
                         {
-                            Tag = tag,
-                            StringsArray = stringsArray,
-                            RawStringsArray = rawStringsArray,
-                            Expressions = expressionsBuilder.ToImmutable()
-                        };
-                    }
+                            var rewrittenExpr = RewriteExpressionForComplexYields(expr, prefixStatements, ref changed);
+                            expressionsChanged |= !ReferenceEquals(expr, rewrittenExpr);
+                            expressionsBuilder.Add(rewrittenExpr);
+                        }
 
-                    return taggedTemplate;
-                }
+                        if (!ReferenceEquals(tag, taggedTemplate.Tag) ||
+                            !ReferenceEquals(stringsArray, taggedTemplate.StringsArray) ||
+                            !ReferenceEquals(rawStringsArray, taggedTemplate.RawStringsArray) ||
+                            expressionsChanged)
+                        {
+                            return taggedTemplate with
+                            {
+                                Tag = tag,
+                                StringsArray = stringsArray,
+                                RawStringsArray = rawStringsArray,
+                                Expressions = expressionsBuilder.ToImmutable()
+                            };
+                        }
+
+                        return taggedTemplate;
+                    }
 
                 case DestructuringAssignmentExpression destructuringAssignment:
-                {
-                    // Check if the binding target has yields in default values or in
-                    // AssignmentTargetBinding expressions (computed property accesses).
-                    // If so, we cannot safely extract those yields:
-                    // - Defaults are conditional (only evaluated when value is undefined)
-                    // - AssignmentTargetBinding yields must happen AFTER the iterator is opened,
-                    //   otherwise iterator close semantics break (the iterator won't exist yet)
-                    // Let the expression pass through unchanged so the IR builder can wrap it
-                    // in a StatementInstruction for proper handling.
-                    if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) ||
-                        BindingTargetContainsYieldInAssignmentTarget(destructuringAssignment.Target))
                     {
+                        // Check if the binding target has yields in default values or in
+                        // AssignmentTargetBinding expressions (computed property accesses).
+                        // If so, we cannot safely extract those yields:
+                        // - Defaults are conditional (only evaluated when value is undefined)
+                        // - AssignmentTargetBinding yields must happen AFTER the iterator is opened,
+                        //   otherwise iterator close semantics break (the iterator won't exist yet)
+                        // Let the expression pass through unchanged so the IR builder can wrap it
+                        // in a StatementInstruction for proper handling.
+                        if (AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(destructuringAssignment.Target) ||
+                            BindingTargetContainsYieldInAssignmentTarget(destructuringAssignment.Target))
+                        {
+                            return destructuringAssignment;
+                        }
+
+                        // No yields in defaults or assignment targets - safe to extract yields from:
+                        // 1. The binding target (computed properties in object keys)
+                        // 2. The value expression
+                        var targetChanged = false;
+                        var rewrittenTarget = RewriteBindingTargetForExtractableYields(
+                            destructuringAssignment.Target, prefixStatements, ref targetChanged);
+
+                        var valueChanged = false;
+                        var rewrittenValue = RewriteExpressionForComplexYields(
+                            destructuringAssignment.Value, prefixStatements, ref valueChanged);
+
+                        if (targetChanged || valueChanged)
+                        {
+                            changed = true;
+                            return destructuringAssignment with { Target = rewrittenTarget, Value = rewrittenValue };
+                        }
+
                         return destructuringAssignment;
                     }
-
-                    // No yields in defaults or assignment targets - safe to extract yields from:
-                    // 1. The binding target (computed properties in object keys)
-                    // 2. The value expression
-                    var targetChanged = false;
-                    var rewrittenTarget = RewriteBindingTargetForExtractableYields(
-                        destructuringAssignment.Target, prefixStatements, ref targetChanged);
-
-                    var valueChanged = false;
-                    var rewrittenValue = RewriteExpressionForComplexYields(
-                        destructuringAssignment.Value, prefixStatements, ref valueChanged);
-
-                    if (targetChanged || valueChanged)
-                    {
-                        changed = true;
-                        return destructuringAssignment with { Target = rewrittenTarget, Value = rewrittenValue };
-                    }
-
-                    return destructuringAssignment;
-                }
 
                 default:
                     return expression;
@@ -957,81 +961,81 @@ internal static class GeneratorYieldLowerer
             switch (target)
             {
                 case ArrayBinding arrayBinding:
-                {
-                    var elementsBuilder =
-                        ImmutableArray.CreateBuilder<ArrayBindingElement>(arrayBinding.Elements.Length);
-                    var elementsChanged = false;
-
-                    foreach (var element in arrayBinding.Elements)
                     {
-                        var rewrittenElement = RewriteArrayBindingElement(element, prefixStatements, ref changed);
-                        elementsChanged |= !ReferenceEquals(rewrittenElement, element);
-                        elementsBuilder.Add(rewrittenElement);
-                    }
+                        var elementsBuilder =
+                            ImmutableArray.CreateBuilder<ArrayBindingElement>(arrayBinding.Elements.Length);
+                        var elementsChanged = false;
 
-                    // Handle rest element if it has nested bindings
-                    var rest = arrayBinding.RestElement;
-                    if (rest is not null)
-                    {
-                        rest = RewriteBindingTarget(rest, prefixStatements, ref changed);
-                    }
+                        foreach (var element in arrayBinding.Elements)
+                        {
+                            var rewrittenElement = RewriteArrayBindingElement(element, prefixStatements, ref changed);
+                            elementsChanged |= !ReferenceEquals(rewrittenElement, element);
+                            elementsBuilder.Add(rewrittenElement);
+                        }
 
-                    if (elementsChanged || !ReferenceEquals(rest, arrayBinding.RestElement))
-                    {
-                        changed = true;
-                        return arrayBinding with { Elements = elementsBuilder.ToImmutable(), RestElement = rest };
-                    }
+                        // Handle rest element if it has nested bindings
+                        var rest = arrayBinding.RestElement;
+                        if (rest is not null)
+                        {
+                            rest = RewriteBindingTarget(rest, prefixStatements, ref changed);
+                        }
 
-                    return arrayBinding;
-                }
-
-                case ObjectBinding objectBinding:
-                {
-                    var propsBuilder =
-                        ImmutableArray.CreateBuilder<ObjectBindingProperty>(objectBinding.Properties.Length);
-                    var propsChanged = false;
-
-                    foreach (var prop in objectBinding.Properties)
-                    {
-                        var rewrittenProp = RewriteObjectBindingProperty(prop, prefixStatements, ref changed);
-                        propsChanged |= !ReferenceEquals(rewrittenProp, prop);
-                        propsBuilder.Add(rewrittenProp);
-                    }
-
-                    // Handle rest element if present
-                    var rest = objectBinding.RestElement;
-                    if (rest is not null)
-                    {
-                        rest = RewriteBindingTarget(rest, prefixStatements, ref changed);
-                    }
-
-                    if (propsChanged || !ReferenceEquals(rest, objectBinding.RestElement))
-                    {
-                        changed = true;
-                        return objectBinding with { Properties = propsBuilder.ToImmutable(), RestElement = rest };
-                    }
-
-                    return objectBinding;
-                }
-
-                case AssignmentTargetBinding assignmentTarget:
-                {
-                    // AssignmentTargetBinding has an Expression (e.g., a.b or a[yield])
-                    // Check if the expression contains yields and rewrite if needed
-                    if (AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression))
-                    {
-                        var exprChanged = false;
-                        var rewrittenExpr = RewriteExpressionForComplexYields(
-                            assignmentTarget.Expression, prefixStatements, ref exprChanged);
-                        if (exprChanged)
+                        if (elementsChanged || !ReferenceEquals(rest, arrayBinding.RestElement))
                         {
                             changed = true;
-                            return assignmentTarget with { Expression = rewrittenExpr };
+                            return arrayBinding with { Elements = elementsBuilder.ToImmutable(), RestElement = rest };
                         }
+
+                        return arrayBinding;
                     }
 
-                    return assignmentTarget;
-                }
+                case ObjectBinding objectBinding:
+                    {
+                        var propsBuilder =
+                            ImmutableArray.CreateBuilder<ObjectBindingProperty>(objectBinding.Properties.Length);
+                        var propsChanged = false;
+
+                        foreach (var prop in objectBinding.Properties)
+                        {
+                            var rewrittenProp = RewriteObjectBindingProperty(prop, prefixStatements, ref changed);
+                            propsChanged |= !ReferenceEquals(rewrittenProp, prop);
+                            propsBuilder.Add(rewrittenProp);
+                        }
+
+                        // Handle rest element if present
+                        var rest = objectBinding.RestElement;
+                        if (rest is not null)
+                        {
+                            rest = RewriteBindingTarget(rest, prefixStatements, ref changed);
+                        }
+
+                        if (propsChanged || !ReferenceEquals(rest, objectBinding.RestElement))
+                        {
+                            changed = true;
+                            return objectBinding with { Properties = propsBuilder.ToImmutable(), RestElement = rest };
+                        }
+
+                        return objectBinding;
+                    }
+
+                case AssignmentTargetBinding assignmentTarget:
+                    {
+                        // AssignmentTargetBinding has an Expression (e.g., a.b or a[yield])
+                        // Check if the expression contains yields and rewrite if needed
+                        if (AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression))
+                        {
+                            var exprChanged = false;
+                            var rewrittenExpr = RewriteExpressionForComplexYields(
+                                assignmentTarget.Expression, prefixStatements, ref exprChanged);
+                            if (exprChanged)
+                            {
+                                changed = true;
+                                return assignmentTarget with { Expression = rewrittenExpr };
+                            }
+                        }
+
+                        return assignmentTarget;
+                    }
 
                 default:
                     return target;
@@ -1052,83 +1056,83 @@ internal static class GeneratorYieldLowerer
             switch (target)
             {
                 case ArrayBinding arrayBinding:
-                {
-                    var elementsBuilder =
-                        ImmutableArray.CreateBuilder<ArrayBindingElement>(arrayBinding.Elements.Length);
-                    var elementsChanged = false;
-
-                    foreach (var element in arrayBinding.Elements)
                     {
-                        var rewrittenElement = RewriteArrayBindingElementForExtractableYields(
-                            element, prefixStatements, ref changed);
-                        elementsChanged |= !ReferenceEquals(rewrittenElement, element);
-                        elementsBuilder.Add(rewrittenElement);
-                    }
+                        var elementsBuilder =
+                            ImmutableArray.CreateBuilder<ArrayBindingElement>(arrayBinding.Elements.Length);
+                        var elementsChanged = false;
 
-                    // Handle rest element if it has nested bindings
-                    var rest = arrayBinding.RestElement;
-                    if (rest is not null)
-                    {
-                        rest = RewriteBindingTargetForExtractableYields(rest, prefixStatements, ref changed);
-                    }
+                        foreach (var element in arrayBinding.Elements)
+                        {
+                            var rewrittenElement = RewriteArrayBindingElementForExtractableYields(
+                                element, prefixStatements, ref changed);
+                            elementsChanged |= !ReferenceEquals(rewrittenElement, element);
+                            elementsBuilder.Add(rewrittenElement);
+                        }
 
-                    if (elementsChanged || !ReferenceEquals(rest, arrayBinding.RestElement))
-                    {
-                        changed = true;
-                        return arrayBinding with { Elements = elementsBuilder.ToImmutable(), RestElement = rest };
-                    }
+                        // Handle rest element if it has nested bindings
+                        var rest = arrayBinding.RestElement;
+                        if (rest is not null)
+                        {
+                            rest = RewriteBindingTargetForExtractableYields(rest, prefixStatements, ref changed);
+                        }
 
-                    return arrayBinding;
-                }
-
-                case ObjectBinding objectBinding:
-                {
-                    var propsBuilder =
-                        ImmutableArray.CreateBuilder<ObjectBindingProperty>(objectBinding.Properties.Length);
-                    var propsChanged = false;
-
-                    foreach (var prop in objectBinding.Properties)
-                    {
-                        var rewrittenProp = RewriteObjectBindingPropertyForExtractableYields(
-                            prop, prefixStatements, ref changed);
-                        propsChanged |= !ReferenceEquals(rewrittenProp, prop);
-                        propsBuilder.Add(rewrittenProp);
-                    }
-
-                    // Handle rest element if present
-                    var rest = objectBinding.RestElement;
-                    if (rest is not null)
-                    {
-                        rest = RewriteBindingTargetForExtractableYields(rest, prefixStatements, ref changed);
-                    }
-
-                    if (propsChanged || !ReferenceEquals(rest, objectBinding.RestElement))
-                    {
-                        changed = true;
-                        return objectBinding with { Properties = propsBuilder.ToImmutable(), RestElement = rest };
-                    }
-
-                    return objectBinding;
-                }
-
-                case AssignmentTargetBinding assignmentTarget:
-                {
-                    // AssignmentTargetBinding has an Expression (e.g., a.b or a[yield])
-                    // Check if the expression contains yields and rewrite if needed
-                    if (AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression))
-                    {
-                        var exprChanged = false;
-                        var rewrittenExpr = RewriteExpressionForComplexYields(
-                            assignmentTarget.Expression, prefixStatements, ref exprChanged);
-                        if (exprChanged)
+                        if (elementsChanged || !ReferenceEquals(rest, arrayBinding.RestElement))
                         {
                             changed = true;
-                            return assignmentTarget with { Expression = rewrittenExpr };
+                            return arrayBinding with { Elements = elementsBuilder.ToImmutable(), RestElement = rest };
                         }
+
+                        return arrayBinding;
                     }
 
-                    return assignmentTarget;
-                }
+                case ObjectBinding objectBinding:
+                    {
+                        var propsBuilder =
+                            ImmutableArray.CreateBuilder<ObjectBindingProperty>(objectBinding.Properties.Length);
+                        var propsChanged = false;
+
+                        foreach (var prop in objectBinding.Properties)
+                        {
+                            var rewrittenProp = RewriteObjectBindingPropertyForExtractableYields(
+                                prop, prefixStatements, ref changed);
+                            propsChanged |= !ReferenceEquals(rewrittenProp, prop);
+                            propsBuilder.Add(rewrittenProp);
+                        }
+
+                        // Handle rest element if present
+                        var rest = objectBinding.RestElement;
+                        if (rest is not null)
+                        {
+                            rest = RewriteBindingTargetForExtractableYields(rest, prefixStatements, ref changed);
+                        }
+
+                        if (propsChanged || !ReferenceEquals(rest, objectBinding.RestElement))
+                        {
+                            changed = true;
+                            return objectBinding with { Properties = propsBuilder.ToImmutable(), RestElement = rest };
+                        }
+
+                        return objectBinding;
+                    }
+
+                case AssignmentTargetBinding assignmentTarget:
+                    {
+                        // AssignmentTargetBinding has an Expression (e.g., a.b or a[yield])
+                        // Check if the expression contains yields and rewrite if needed
+                        if (AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression))
+                        {
+                            var exprChanged = false;
+                            var rewrittenExpr = RewriteExpressionForComplexYields(
+                                assignmentTarget.Expression, prefixStatements, ref exprChanged);
+                            if (exprChanged)
+                            {
+                                changed = true;
+                                return assignmentTarget with { Expression = rewrittenExpr };
+                            }
+                        }
+
+                        return assignmentTarget;
+                    }
 
                 default:
                     return target;
@@ -2043,95 +2047,97 @@ internal static class GeneratorYieldLowerer
             switch (statement)
             {
                 case IfStatement ifStatement:
-                {
-                    var resumeIdentifier = CreateResumeIdentifier();
-                    if (!AstShapeAnalyzer.TryRewriteSingleYield(ifStatement.Condition, resumeIdentifier.Name,
-                            out var yieldExpression, out var rewrittenCondition))
                     {
-                        return false;
-                    }
+                        var resumeIdentifier = CreateResumeIdentifier();
+                        if (!AstShapeAnalyzer.TryRewriteSingleYield(ifStatement.Condition, resumeIdentifier.Name,
+                                out var yieldExpression, out var rewrittenCondition))
+                        {
+                            return false;
+                        }
 
-                    if (yieldExpression.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
-                    {
-                        return false;
-                    }
+                        if (yieldExpression.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
+                        {
+                            return false;
+                        }
 
-                    var rewrittenThen = RewriteEmbedded(ifStatement.Then, isStrict);
-                    var rewrittenElse = ifStatement.Else is null
-                        ? null
-                        : RewriteEmbedded(ifStatement.Else, isStrict);
+                        var rewrittenThen = RewriteEmbedded(ifStatement.Then, isStrict);
+                        var rewrittenElse = ifStatement.Else is null
+                            ? null
+                            : RewriteEmbedded(ifStatement.Else, isStrict);
 
-                    var loweredIf = ifStatement with
-                    {
-                        Condition = rewrittenCondition, Then = rewrittenThen, Else = rewrittenElse
-                    };
+                        var loweredIf = ifStatement with
+                        {
+                            Condition = rewrittenCondition,
+                            Then = rewrittenThen,
+                            Else = rewrittenElse
+                        };
 
-                    var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
-                        [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
-                    var assignResume = new ExpressionStatement(yieldExpression.Source,
-                        new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
-                            new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
-                                yieldExpression.IsDelegated)));
+                        var declareResume = new VariableDeclaration(yieldExpression.Source, VariableKind.Let,
+                            [new VariableDeclarator(yieldExpression.Source, resumeIdentifier, null)]);
+                        var assignResume = new ExpressionStatement(yieldExpression.Source,
+                            new AssignmentExpression(yieldExpression.Source, resumeIdentifier.Name,
+                                new YieldExpression(yieldExpression.Source, yieldExpression.Expression,
+                                    yieldExpression.IsDelegated)));
 
-                    replacement =
-                    [
-                        declareResume,
+                        replacement =
+                        [
+                            declareResume,
                         assignResume,
                         loweredIf
-                    ];
-                    return true;
-                }
+                        ];
+                        return true;
+                    }
 
                 case WhileStatement whileStatement:
-                {
-                    var resumeIdentifier = CreateResumeIdentifier();
-                    if (!AstShapeAnalyzer.TryRewriteSingleYield(whileStatement.Condition, resumeIdentifier.Name,
-                            out var yieldExpression, out var rewrittenCondition))
                     {
-                        return false;
-                    }
+                        var resumeIdentifier = CreateResumeIdentifier();
+                        if (!AstShapeAnalyzer.TryRewriteSingleYield(whileStatement.Condition, resumeIdentifier.Name,
+                                out var yieldExpression, out var rewrittenCondition))
+                        {
+                            return false;
+                        }
 
-                    if (yieldExpression.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
-                    {
-                        return false;
-                    }
+                        if (yieldExpression.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
+                        {
+                            return false;
+                        }
 
-                    if (!LoopNormalizer.TryNormalize(whileStatement, isStrict, out var plan, out _))
-                    {
-                        replacement = default;
-                        return false;
-                    }
+                        if (!LoopNormalizer.TryNormalize(whileStatement, isStrict, out var plan, out _))
+                        {
+                            replacement = default;
+                            return false;
+                        }
 
-                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan,
-                        isStrict);
-                    return true;
-                }
+                        replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan,
+                            isStrict);
+                        return true;
+                    }
 
                 case DoWhileStatement doWhileStatement:
-                {
-                    var resumeIdentifier = CreateResumeIdentifier();
-                    if (!AstShapeAnalyzer.TryRewriteSingleYield(doWhileStatement.Condition, resumeIdentifier.Name,
-                            out var yieldExpression, out var rewrittenCondition))
                     {
-                        return false;
+                        var resumeIdentifier = CreateResumeIdentifier();
+                        if (!AstShapeAnalyzer.TryRewriteSingleYield(doWhileStatement.Condition, resumeIdentifier.Name,
+                                out var yieldExpression, out var rewrittenCondition))
+                        {
+                            return false;
+                        }
+
+                        if (yieldExpression.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
+                        {
+                            return false;
+                        }
+
+                        if (!LoopNormalizer.TryNormalize(doWhileStatement, isStrict, out var plan, out _))
+                        {
+                            replacement = default;
+                            return false;
+                        }
+
+                        replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan,
+                            isStrict);
+
+                        return true;
                     }
-
-                    if (yieldExpression.IsDelegated || AstShapeAnalyzer.ContainsYield(yieldExpression.Expression))
-                    {
-                        return false;
-                    }
-
-                    if (!LoopNormalizer.TryNormalize(doWhileStatement, isStrict, out var plan, out _))
-                    {
-                        replacement = default;
-                        return false;
-                    }
-
-                    replacement = BuildYieldedLoop(resumeIdentifier, yieldExpression, rewrittenCondition, plan,
-                        isStrict);
-
-                    return true;
-                }
 
                 default:
                     return false;

@@ -350,45 +350,45 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return yieldStar with { IterableExpression = Rewrite(yieldStar.IterableExpression) };
 
             case CompoundAssignmentSlotInstruction compoundAssign:
-            {
-                // Rewrite the RHS expression first to resolve any identifiers
-                var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
-                // Extract RhsFlatSlotId if RHS is an identifier with a flat slot
-                var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
-                    ? rhsIdent.FlatSlotId
-                    : -1;
-
-                // Resolve the target symbol to get scope/slot/flatSlot metadata
-                if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
                 {
-                    var compoundFlatSlotId = GetOrCreateFlatSlotId(compoundResolution.scopeId, compoundResolution.slotIndex);
-                    return compoundAssign with
+                    // Rewrite the RHS expression first to resolve any identifiers
+                    var rewrittenRhs = Rewrite(compoundAssign.RhsExpression);
+                    // Extract RhsFlatSlotId if RHS is an identifier with a flat slot
+                    var rhsFlatSlotId = rewrittenRhs is IdentifierExpression { FlatSlotId: >= 0 } rhsIdent
+                        ? rhsIdent.FlatSlotId
+                        : -1;
+
+                    // Resolve the target symbol to get scope/slot/flatSlot metadata
+                    if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
                     {
-                        RhsExpression = rewrittenRhs,
-                        ScopeId = compoundResolution.scopeId,
-                        SlotIndex = compoundResolution.slotIndex,
-                        FlatSlotId = compoundFlatSlotId,
-                        RhsFlatSlotId = rhsFlatSlotId
-                    };
+                        var compoundFlatSlotId = GetOrCreateFlatSlotId(compoundResolution.scopeId, compoundResolution.slotIndex);
+                        return compoundAssign with
+                        {
+                            RhsExpression = rewrittenRhs,
+                            ScopeId = compoundResolution.scopeId,
+                            SlotIndex = compoundResolution.slotIndex,
+                            FlatSlotId = compoundFlatSlotId,
+                            RhsFlatSlotId = rhsFlatSlotId
+                        };
+                    }
+                    return compoundAssign with { RhsExpression = rewrittenRhs, RhsFlatSlotId = rhsFlatSlotId };
                 }
-                return compoundAssign with { RhsExpression = rewrittenRhs, RhsFlatSlotId = rhsFlatSlotId };
-            }
 
             case IncrementSlotInstruction increment:
-            {
-                // Resolve the target symbol to get scope/slot/flatSlot metadata
-                if (TryResolve(increment.TargetSymbol, out var incrementResolution))
                 {
-                    var incrementFlatSlotId = GetOrCreateFlatSlotId(incrementResolution.scopeId, incrementResolution.slotIndex);
-                    return increment with
+                    // Resolve the target symbol to get scope/slot/flatSlot metadata
+                    if (TryResolve(increment.TargetSymbol, out var incrementResolution))
                     {
-                        ScopeId = incrementResolution.scopeId,
-                        SlotIndex = incrementResolution.slotIndex,
-                        FlatSlotId = incrementFlatSlotId
-                    };
+                        var incrementFlatSlotId = GetOrCreateFlatSlotId(incrementResolution.scopeId, incrementResolution.slotIndex);
+                        return increment with
+                        {
+                            ScopeId = incrementResolution.scopeId,
+                            SlotIndex = incrementResolution.slotIndex,
+                            FlatSlotId = incrementFlatSlotId
+                        };
+                    }
+                    return increment;
                 }
-                return increment;
-            }
 
             default:
                 return instruction;

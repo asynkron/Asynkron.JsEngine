@@ -3,8 +3,8 @@
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using Microsoft.Extensions.Logging;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 
@@ -214,13 +214,13 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
     public IEnumerable<string> Keys => _properties.Keys;
 
-public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
-{
-    // Allow dynamically assigned properties and prototype chain lookups first.
-    if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
+    public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        return true;
-    }
+        // Allow dynamically assigned properties and prototype chain lookups first.
+        if (_properties.TryGetProperty(name, receiver.IsUndefined ? _cachedJsValue : receiver, out value))
+        {
+            return true;
+        }
 
         switch (name)
         {
@@ -364,7 +364,10 @@ public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
 
         return new PropertyDescriptor
         {
-            Value = GetValueForIndex(index), Writable = true, Enumerable = true, Configurable = false
+            Value = GetValueForIndex(index),
+            Writable = true,
+            Enumerable = true,
+            Configurable = false
         };
     }
 

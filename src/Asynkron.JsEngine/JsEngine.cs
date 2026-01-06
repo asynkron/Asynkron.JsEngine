@@ -125,12 +125,18 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("Array",
             new PropertyDescriptor
             {
-                Value = arrayConstructor, Writable = true, Enumerable = false, Configurable = true
+                Value = arrayConstructor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
         GlobalObject.DefineProperty("BigInt",
             new PropertyDescriptor
             {
-                Value = bigIntFunction, Writable = true, Enumerable = false, Configurable = true
+                Value = bigIntFunction,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         // Register global constants
@@ -138,7 +144,10 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("Infinity",
             new PropertyDescriptor
             {
-                Value = double.PositiveInfinity, Writable = false, Enumerable = false, Configurable = false
+                Value = double.PositiveInfinity,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
             });
 
         SetGlobal("NaN", double.NaN, true);
@@ -149,7 +158,10 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty("undefined",
             new PropertyDescriptor
             {
-                Value = Symbol.Undefined, Writable = false, Enumerable = false, Configurable = false
+                Value = Symbol.Undefined,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
             });
 
         // Register global functions
@@ -575,7 +587,9 @@ public sealed class JsEngine : IAsyncDisposable
 
         _eventQueue = Channel.CreateUnbounded<Action>(new UnboundedChannelOptions
         {
-            SingleReader = true, SingleWriter = false, AllowSynchronousContinuations = true
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = true
         });
         _eventLoopTask = Task.Run(() => ProcessEventQueue(_eventQueue));
     }
@@ -1564,44 +1578,44 @@ public sealed class JsEngine : IAsyncDisposable
 
                     break;
                 case ExportNamedStatement { FromModule: { } fromModule }:
-                {
-                    var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module,
-                        computeAsyncDependencies: false);
-                    if (sourceEntry.IsAsync ||
-                        sourceEntry.HasAsyncDependency ||
-                        ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
                     {
-                        return true;
-                    }
+                        var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module,
+                            computeAsyncDependencies: false);
+                        if (sourceEntry.IsAsync ||
+                            sourceEntry.HasAsyncDependency ||
+                            ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
+                        {
+                            return true;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
                 case ExportAllStatement exportAll:
-                {
-                    var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module,
-                        computeAsyncDependencies: false);
-                    if (sourceEntry.IsAsync ||
-                        sourceEntry.HasAsyncDependency ||
-                        ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
                     {
-                        return true;
-                    }
+                        var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module,
+                            computeAsyncDependencies: false);
+                        if (sourceEntry.IsAsync ||
+                            sourceEntry.HasAsyncDependency ||
+                            ModuleHasAsyncDependency(sourceEntry.Program, sourceEntry.Path, visited))
+                        {
+                            return true;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
                 case ExportNamespaceAsStatement exportNamespace:
-                {
-                    var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath,
-                        ImportPhase.Module, computeAsyncDependencies: false);
-                    if (namespaceEntry.IsAsync ||
-                        namespaceEntry.HasAsyncDependency ||
-                        ModuleHasAsyncDependency(namespaceEntry.Program, namespaceEntry.Path, visited))
                     {
-                        return true;
-                    }
+                        var namespaceEntry = LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath,
+                            ImportPhase.Module, computeAsyncDependencies: false);
+                        if (namespaceEntry.IsAsync ||
+                            namespaceEntry.HasAsyncDependency ||
+                            ModuleHasAsyncDependency(namespaceEntry.Program, namespaceEntry.Path, visited))
+                        {
+                            return true;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
             }
         }
 
@@ -1833,7 +1847,10 @@ public sealed class JsEngine : IAsyncDisposable
         GlobalObject.DefineProperty(name,
             new PropertyDescriptor
             {
-                Value = value, Writable = !isGlobalConstant, Enumerable = false, Configurable = !isGlobalConstant
+                Value = value,
+                Writable = !isGlobalConstant,
+                Enumerable = false,
+                Configurable = !isGlobalConstant
             });
     }
 
@@ -2971,14 +2988,14 @@ public sealed class JsEngine : IAsyncDisposable
                 case ".":
                     continue;
                 case "..":
-                {
-                    if (parts.Count > 0)
                     {
-                        parts.RemoveAt(parts.Count - 1);
-                    }
+                        if (parts.Count > 0)
+                        {
+                            parts.RemoveAt(parts.Count - 1);
+                        }
 
-                    continue;
-                }
+                        continue;
+                    }
                 default:
                     parts.Add(segment);
                     break;
@@ -3517,7 +3534,7 @@ public sealed class JsEngine : IAsyncDisposable
                 }
 
                 break;
-            // Note: exported let/const/class are already handled by PredeclareExportNames
+                // Note: exported let/const/class are already handled by PredeclareExportNames
         }
     }
 
@@ -3806,42 +3823,42 @@ public sealed class JsEngine : IAsyncDisposable
                     dependencies.Add(imported);
                     break;
                 case ExportNamedStatement { FromModule: { } fromModule }:
-                {
-                    var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module);
-                    if (string.Equals(sourceEntry.Path, entry.Path, StringComparison.Ordinal) ||
-                        !seen.Add(sourceEntry.Path))
                     {
-                        continue;
-                    }
+                        var sourceEntry = LoadModuleForInstantiation(fromModule, modulePath, ImportPhase.Module);
+                        if (string.Equals(sourceEntry.Path, entry.Path, StringComparison.Ordinal) ||
+                            !seen.Add(sourceEntry.Path))
+                        {
+                            continue;
+                        }
 
-                    dependencies.Add(sourceEntry);
-                    break;
-                }
+                        dependencies.Add(sourceEntry);
+                        break;
+                    }
                 case ExportAllStatement exportAll:
-                {
-                    var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module);
-                    if (string.Equals(sourceEntry.Path, entry.Path, StringComparison.Ordinal) ||
-                        !seen.Add(sourceEntry.Path))
                     {
-                        continue;
-                    }
+                        var sourceEntry = LoadModuleForInstantiation(exportAll.ModulePath, modulePath, ImportPhase.Module);
+                        if (string.Equals(sourceEntry.Path, entry.Path, StringComparison.Ordinal) ||
+                            !seen.Add(sourceEntry.Path))
+                        {
+                            continue;
+                        }
 
-                    dependencies.Add(sourceEntry);
-                    break;
-                }
+                        dependencies.Add(sourceEntry);
+                        break;
+                    }
                 case ExportNamespaceAsStatement exportNamespace:
-                {
-                    var namespaceEntry =
-                        LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
-                    if (string.Equals(namespaceEntry.Path, entry.Path, StringComparison.Ordinal) ||
-                        !seen.Add(namespaceEntry.Path))
                     {
-                        continue;
-                    }
+                        var namespaceEntry =
+                            LoadModuleForInstantiation(exportNamespace.ModulePath, modulePath, ImportPhase.Module);
+                        if (string.Equals(namespaceEntry.Path, entry.Path, StringComparison.Ordinal) ||
+                            !seen.Add(namespaceEntry.Path))
+                        {
+                            continue;
+                        }
 
-                    dependencies.Add(namespaceEntry);
-                    break;
-                }
+                        dependencies.Add(namespaceEntry);
+                        break;
+                    }
             }
         }
 

@@ -35,7 +35,7 @@ internal static class IteratorDriverFactory
         {
             var bindingNames = new List<Symbol>();
             statement.Target.CollectSymbolsFromBinding(bindingNames);
-            perIterationBindings = [..bindingNames];
+            perIterationBindings = [.. bindingNames];
         }
 
         var iterationScopeId = statement.PerIterationScopeId;
@@ -55,7 +55,7 @@ internal static class IteratorDriverFactory
         var perIterationSlotIndices = !statement.PerIterationSlotIndices.IsDefaultOrEmpty
             ? statement.PerIterationSlotIndices
             : !perIterationBindings.IsDefaultOrEmpty
-                ? [..Enumerable.Range(0, perIterationBindings.Length)]
+                ? [.. Enumerable.Range(0, perIterationBindings.Length)]
                 : ImmutableArray<int>.Empty;
 
         return new IteratorDriverPlan(

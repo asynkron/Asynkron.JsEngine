@@ -406,7 +406,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         {
             var finalArgs = Combine(boundArgs, innerArgs);
             return target.Invoke(finalArgs, boundThis);
-        }, realmState, false) { IsBoundFunction = true, IsConstructor = targetIsConstructor };
+        }, realmState, false)
+        { IsBoundFunction = true, IsConstructor = targetIsConstructor };
 
         boundFunction.SetInvokeWithContext((invokeArgs, _, context, newTarget) =>
         {
@@ -517,7 +518,10 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         Properties.DefineProperty("prototype",
             new PropertyDescriptor
             {
-                Value = (JsValue)prototype, Writable = true, Enumerable = false, Configurable = false
+                Value = (JsValue)prototype,
+                Writable = true,
+                Enumerable = false,
+                Configurable = false
             });
     }
 

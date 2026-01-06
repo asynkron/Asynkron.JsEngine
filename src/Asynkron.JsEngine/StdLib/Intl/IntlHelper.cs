@@ -27,7 +27,10 @@ public static class IntlHelper
         intl.DefineProperty("DurationFormat",
             new PropertyDescriptor
             {
-                Value = durationFormatCtor, Writable = true, Enumerable = false, Configurable = true
+                Value = durationFormatCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         var collatorCtor = IntlCollatorConstructor.CreateConstructor(realm);
@@ -38,28 +41,40 @@ public static class IntlHelper
         intl.DefineProperty("DateTimeFormat",
             new PropertyDescriptor
             {
-                Value = dateTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true
+                Value = dateTimeFormatCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         var numberFormatCtor = IntlNumberFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("NumberFormat",
             new PropertyDescriptor
             {
-                Value = numberFormatCtor, Writable = true, Enumerable = false, Configurable = true
+                Value = numberFormatCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         var relativeTimeFormatCtor = IntlRelativeTimeFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("RelativeTimeFormat",
             new PropertyDescriptor
             {
-                Value = relativeTimeFormatCtor, Writable = true, Enumerable = false, Configurable = true
+                Value = relativeTimeFormatCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         var displayNamesCtor = IntlDisplayNamesConstructor.CreateConstructor(realm);
         intl.DefineProperty("DisplayNames",
             new PropertyDescriptor
             {
-                Value = displayNamesCtor, Writable = true, Enumerable = false, Configurable = true
+                Value = displayNamesCtor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         var getCanonicalLocales = new HostFunction(args => JsValue.FromJsArray(CreateCanonicalLocalesResult(args)),
@@ -70,14 +85,20 @@ public static class IntlHelper
         getCanonicalLocales.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "getCanonicalLocales", Writable = false, Enumerable = false, Configurable = true
+                Value = "getCanonicalLocales",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
         getCanonicalLocales.Delete("prototype");
 
         intl.DefineProperty("getCanonicalLocales",
             new PropertyDescriptor
             {
-                Value = getCanonicalLocales, Writable = true, Enumerable = false, Configurable = true
+                Value = getCanonicalLocales,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         var supportedValuesOf =
@@ -87,14 +108,20 @@ public static class IntlHelper
         supportedValuesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedValuesOf", Writable = false, Enumerable = false, Configurable = true
+                Value = "supportedValuesOf",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
         supportedValuesOf.Delete("prototype");
 
         intl.DefineProperty("supportedValuesOf",
             new PropertyDescriptor
             {
-                Value = supportedValuesOf, Writable = true, Enumerable = false, Configurable = true
+                Value = supportedValuesOf,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         return intl;
@@ -171,13 +198,19 @@ public static class IntlHelper
         supportedLocalesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf", Writable = false, Enumerable = false, Configurable = true
+                Value = "supportedLocalesOf",
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
 
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocalesOf, Writable = true, Enumerable = false, Configurable = true
+                Value = supportedLocalesOf,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         supportedLocalesOf.SetPrototype(constructor.Prototype);
@@ -216,7 +249,8 @@ public static class IntlHelper
             }
 
             return new JsValue(instance);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         var durationFrom = new HostFunction(args =>
         {
@@ -255,7 +289,10 @@ public static class IntlHelper
         durationCtor.DefineProperty("prototype",
             new PropertyDescriptor
             {
-                Value = durationPrototype, Writable = false, Enumerable = false, Configurable = false
+                Value = durationPrototype,
+                Writable = false,
+                Enumerable = false,
+                Configurable = false
             });
         durationPrototype.DefineProperty("constructor",
             new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });

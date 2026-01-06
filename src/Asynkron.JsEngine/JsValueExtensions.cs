@@ -139,10 +139,10 @@ internal static class JsValueExtensions
                 case JsArray arrayVal:
                     return ArrayToString(arrayVal);
                 case IJsPropertyAccessor accessor:
-                {
-                    var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
-                    return primitive.TryGetObject<IJsPropertyAccessor>(out _) ? "[object Object]" : primitive.ToJsString(context, realmState);
-                }
+                    {
+                        var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
+                        return primitive.TryGetObject<IJsPropertyAccessor>(out _) ? "[object Object]" : primitive.ToJsString(context, realmState);
+                    }
                 default:
                     return value switch
                     {

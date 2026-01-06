@@ -395,7 +395,10 @@ public static partial class StandardLibrary
     {
         var descriptor = new PropertyDescriptor
         {
-            Value = value, Writable = true, Enumerable = true, Configurable = true
+            Value = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
         };
 
         if (target is IPropertyDefinitionHost definitionHost)
@@ -420,7 +423,10 @@ public static partial class StandardLibrary
     {
         var descriptor = new PropertyDescriptor
         {
-            JsValue = value, Writable = true, Enumerable = true, Configurable = true
+            JsValue = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
         };
 
         if (target is IPropertyDefinitionHost definitionHost)

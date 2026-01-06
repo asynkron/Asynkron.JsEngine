@@ -21,7 +21,7 @@ internal sealed class FunctionParameterNamesPlan
         function.CollectParameterNamesFromFunction(parameterNames);
         var template = parameterNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : [..parameterNames];
+            : [.. parameterNames];
         return new FunctionParameterNamesPlan(template);
     }
 }

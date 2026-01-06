@@ -148,15 +148,15 @@ public static class JsonHelper
                         case JsValueKind.Boolean:
                             return jsValue.NumberValue != 0 ? "true" : "false";
                         case JsValueKind.Number:
-                        {
-                            var d = jsValue.NumberValue;
-                            if (double.IsNaN(d) || double.IsInfinity(d))
                             {
-                                return "null";
-                            }
+                                var d = jsValue.NumberValue;
+                                if (double.IsNaN(d) || double.IsInfinity(d))
+                                {
+                                    return "null";
+                                }
 
-                            return d.ToString(CultureInfo.InvariantCulture);
-                        }
+                                return d.ToString(CultureInfo.InvariantCulture);
+                            }
                         case JsValueKind.String when jsValue.ObjectValue is string str:
                             return JsonSerializer.Serialize(str);
                         default:

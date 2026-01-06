@@ -183,7 +183,7 @@ internal sealed partial class ExecutionPlanBuilder
         }
 
         plan = new ExecutionPlan(
-            [..Instructions],
+            [.. Instructions],
             entryIndex,
             _slotSymbols.Count,
             slotSymbols,
@@ -376,7 +376,7 @@ internal sealed partial class ExecutionPlanBuilder
 
         // Create an updated plan with stamped instructions
         var stampedPlan = new ExecutionPlan(
-            [..instructions],
+            [.. instructions],
             plan.EntryPoint,
             plan.SlotCount,
             plan.SlotSymbols,
@@ -404,11 +404,11 @@ internal sealed partial class ExecutionPlanBuilder
         {
             // Create a new ExecutionPlanCache with the stamped plan
             var cacheType = typeof(ExecutionPlanCache);
-        var ctor = cacheType.GetConstructor(
-            BindingFlags.NonPublic | BindingFlags.Instance,
-            null,
-            [typeof(ExecutionPlan), typeof(string)],
-            null);
+            var ctor = cacheType.GetConstructor(
+                BindingFlags.NonPublic | BindingFlags.Instance,
+                null,
+                [typeof(ExecutionPlan), typeof(string)],
+                null);
             if (ctor is not null)
             {
                 var newCache = ctor.Invoke([stampedPlan, null]);
@@ -595,7 +595,9 @@ internal sealed partial class ExecutionPlanBuilder
         // ScopeId = 0 means the function's primary scope where execution plan slots live
         var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol) with
         {
-            SlotIndex = valueSlotIndex, ScopeId = 0, ScopeDepth = 0
+            SlotIndex = valueSlotIndex,
+            ScopeId = 0,
+            ScopeDepth = 0
         };
         StatementNode bindingStatement;
 

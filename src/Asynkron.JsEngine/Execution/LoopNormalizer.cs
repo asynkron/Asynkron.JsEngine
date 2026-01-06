@@ -68,7 +68,7 @@ internal static class LoopNormalizer
                     declarator.Target.CollectSymbolsFromBinding(bindingNames);
                 }
 
-                perIterationBindings = [..bindingNames];
+                perIterationBindings = [.. bindingNames];
             }
         }
 

@@ -76,13 +76,13 @@ internal sealed class HoistPlan
 
         var lexicalTemplate = lexicalNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : [..lexicalNames];
+            : [.. lexicalNames];
         var catchParameterTemplate = catchNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : [..catchNames];
+            : [.. catchNames];
         var simpleCatchParameterTemplate = simpleCatchNames.Count == 0
             ? ImmutableArray<Symbol>.Empty
-            : [..simpleCatchNames];
+            : [.. simpleCatchNames];
 
         ImmutableArray<Symbol> bodyLexicalTemplate;
         if (lexicalTemplate.IsEmpty)
@@ -106,7 +106,7 @@ internal sealed class HoistPlan
 
             bodyLexicalTemplate = bodyLexicalNames.Count == 0
                 ? ImmutableArray<Symbol>.Empty
-                : [..bodyLexicalNames];
+                : [.. bodyLexicalNames];
         }
 
         return new HoistPlan(
@@ -452,7 +452,7 @@ internal sealed class HoistPlan
                     lexicalKindMap[functionDeclaration.Name] = false;
                     break;
 
-                // NO recursion into other statement types - they have their own scopes
+                    // NO recursion into other statement types - they have their own scopes
             }
         }
     }

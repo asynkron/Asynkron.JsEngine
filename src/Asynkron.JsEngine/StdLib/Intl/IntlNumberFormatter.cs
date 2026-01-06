@@ -228,7 +228,9 @@ internal static class IntlNumberFormatter
 
         var mantissaQuantity = new DecimalQuantity
         {
-            Coefficient = adjustedCoefficient, Scale = adjustedScale, IsNegative = false
+            Coefficient = adjustedCoefficient,
+            Scale = adjustedScale,
+            IsNegative = false
         };
 
         ApplyMaximumFractionDigits(mantissaQuantity, slots.MaximumFractionDigits);
@@ -611,7 +613,9 @@ internal static class IntlNumberFormatter
 
             return new DecimalQuantity
             {
-                Coefficient = coefficient, Scale = -exponentAdjustment, IsNegative = isNegative
+                Coefficient = coefficient,
+                Scale = -exponentAdjustment,
+                IsNegative = isNegative
             };
         }
 

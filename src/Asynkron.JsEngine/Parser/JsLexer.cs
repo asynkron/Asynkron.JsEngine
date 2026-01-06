@@ -2049,18 +2049,18 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                         break;
                     case '0':
                     case >= '1' and <= '7':
-                    {
-                        var firstDigit = rawString[i + 1];
-                        var (octalValue, length) = DecodeLegacyOctal(rawString, i + 1);
-                        result.Append((char)octalValue);
-                        if (!(length == 1 && firstDigit == '0'))
                         {
-                            hasLegacyOctal = true;
-                        }
+                            var firstDigit = rawString[i + 1];
+                            var (octalValue, length) = DecodeLegacyOctal(rawString, i + 1);
+                            result.Append((char)octalValue);
+                            if (!(length == 1 && firstDigit == '0'))
+                            {
+                                hasLegacyOctal = true;
+                            }
 
-                        i += 1 + length;
-                        break;
-                    }
+                            i += 1 + length;
+                            break;
+                        }
                     case '8':
                     case '9':
                         // \8 and \9 are "legacy non-octal decimal escape sequences"

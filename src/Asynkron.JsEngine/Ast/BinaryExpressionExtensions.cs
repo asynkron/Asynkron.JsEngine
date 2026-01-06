@@ -63,25 +63,25 @@ public static partial class TypedAstEvaluator
             {
                 // Logical operators evaluate left first and may short-circuit
                 case BinaryOperator.LogicalAnd or BinaryOperator.LogicalOr or BinaryOperator.NullishCoalescing:
-                {
-                    var left = expression.Left.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
                     {
-                        return JsValue.Undefined;
-                    }
+                        var left = expression.Left.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return JsValue.Undefined;
+                        }
 
-                    return op switch
-                    {
-                        BinaryOperator.LogicalAnd => left.IsTruthy
-                            ? expression.Right.EvaluateExpression(environment, context)
-                            : left,
-                        BinaryOperator.LogicalOr => left.IsTruthy
-                            ? left
-                            : expression.Right.EvaluateExpression(environment, context),
-                        _ => left.IsNullOrUndefined ? expression.Right.EvaluateExpression(environment, context) : left
-                    };
-                    // NullishCoalescing
-                }
+                        return op switch
+                        {
+                            BinaryOperator.LogicalAnd => left.IsTruthy
+                                ? expression.Right.EvaluateExpression(environment, context)
+                                : left,
+                            BinaryOperator.LogicalOr => left.IsTruthy
+                                ? left
+                                : expression.Right.EvaluateExpression(environment, context),
+                            _ => left.IsNullOrUndefined ? expression.Right.EvaluateExpression(environment, context) : left
+                        };
+                        // NullishCoalescing
+                    }
                 // Slow path: private field In operator, In, InstanceOf
                 case BinaryOperator.In:
                 case BinaryOperator.InstanceOf:

@@ -474,18 +474,18 @@ public sealed partial class MathPrototype
     public JsValue F16round(IReadOnlyList<JsValue> args)
     {
         var x = JsOps.ToNumber(args.GetArgument(0));
-        
+
         // Handle special values
         if (double.IsNaN(x))
         {
             return double.NaN;
         }
-        
+
         if (double.IsInfinity(x))
         {
             return x;
         }
-        
+
         // Convert to Half (float16) and back to double
         // This performs the rounding to float16 precision
         var half = (Half)x;

@@ -272,7 +272,7 @@ public static partial class TypedAstEvaluator
                 // If FinallyScheduled is true, we're executing inside the finally block, so exceptions
                 // should propagate up, not go to the catch handler.
                 if (kind == AbruptKind.Throw && frame is
-                        { HandlerIndex: >= 0, CatchUsed: false, FinallyScheduled: false })
+                    { HandlerIndex: >= 0, CatchUsed: false, FinallyScheduled: false })
                 {
                     frame.CatchUsed = true;
 

@@ -991,7 +991,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)_length, Writable = true, Enumerable = false, Configurable = false
+                Value = (double)_length,
+                Writable = true,
+                Enumerable = false,
+                Configurable = false
             });
     }
 

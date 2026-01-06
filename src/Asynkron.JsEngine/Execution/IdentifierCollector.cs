@@ -527,7 +527,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
         var list = new List<Symbol>();
         function.CollectParameterNamesFromFunction(list);
-        return list.Count == 0 ? ImmutableArray<Symbol>.Empty : [..list];
+        return list.Count == 0 ? ImmutableArray<Symbol>.Empty : [.. list];
     }
 }
 

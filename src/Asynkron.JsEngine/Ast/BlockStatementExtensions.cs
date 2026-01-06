@@ -214,7 +214,7 @@ public static partial class TypedAstEvaluator
         {
             var effectiveLexicalNames = lexicalNames is null
                 ? block.CollectLexicalNames()
-                : [..lexicalNames];
+                : [.. lexicalNames];
             if (lexicalNames is not null)
             {
                 effectiveLexicalNames.UnionWith(block.CollectLexicalNames());
@@ -222,7 +222,7 @@ public static partial class TypedAstEvaluator
 
             var effectiveCatchNames = catchParameterNames is null
                 ? block.CollectCatchParameterNames()
-                : [..catchParameterNames];
+                : [.. catchParameterNames];
             if (catchParameterNames is not null)
             {
                 effectiveCatchNames.UnionWith(block.CollectCatchParameterNames());
@@ -230,7 +230,7 @@ public static partial class TypedAstEvaluator
 
             var effectiveSimpleCatchNames = simpleCatchParameterNames is null
                 ? block.CollectSimpleCatchParameterNames()
-                : [..simpleCatchParameterNames];
+                : [.. simpleCatchParameterNames];
             if (simpleCatchParameterNames is not null)
             {
                 effectiveSimpleCatchNames.UnionWith(block.CollectSimpleCatchParameterNames());

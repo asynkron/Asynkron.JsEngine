@@ -347,7 +347,8 @@ public static class TemporalHelper
             }
 
             return WrapInstant(instant, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -570,7 +571,8 @@ public static class TemporalHelper
                 GetNumberArg(args, 9)); // nanoseconds
 
             return WrapDuration(duration, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -768,7 +770,8 @@ public static class TemporalHelper
 
             var date = new JsTemporalPlainDate(year, month, day, calendar);
             return WrapPlainDate(date, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -923,7 +926,8 @@ public static class TemporalHelper
 
             var time = new JsTemporalPlainTime(hour, minute, second, millisecond, microsecond, nanosecond);
             return WrapPlainTime(time, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1146,7 +1150,8 @@ public static class TemporalHelper
             var dt = new JsTemporalPlainDateTime(year, month, day, hour, minute, second,
                 millisecond, microsecond, nanosecond, calendar);
             return WrapPlainDateTime(dt, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1406,7 +1411,8 @@ public static class TemporalHelper
 
             var zdt = new JsTemporalZonedDateTime(instant, timeZoneId, calendar);
             return WrapZonedDateTime(zdt, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1550,7 +1556,8 @@ public static class TemporalHelper
 
             var ym = new JsTemporalPlainYearMonth(year, month, calendar);
             return WrapPlainYearMonth(ym, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });
@@ -1652,7 +1659,8 @@ public static class TemporalHelper
 
             var md = new JsTemporalPlainMonthDay(month, day, calendar);
             return WrapPlainMonthDay(md, realm, prototype);
-        }, realm) { IsConstructor = true };
+        }, realm)
+        { IsConstructor = true };
 
         ctor.DefineProperty("prototype",
             new PropertyDescriptor { Value = prototype, Writable = false, Enumerable = false, Configurable = false });

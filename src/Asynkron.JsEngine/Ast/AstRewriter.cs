@@ -50,11 +50,13 @@ public abstract class AstRewriter
             },
             WhileStatement node => node with
             {
-                Condition = RewriteExpression(node.Condition), Body = RewriteStatement(node.Body)
+                Condition = RewriteExpression(node.Condition),
+                Body = RewriteStatement(node.Body)
             },
             DoWhileStatement node => node with
             {
-                Body = RewriteStatement(node.Body), Condition = RewriteExpression(node.Condition)
+                Body = RewriteStatement(node.Body),
+                Condition = RewriteExpression(node.Condition)
             },
             ForStatement node => node with
             {
@@ -65,7 +67,8 @@ public abstract class AstRewriter
             },
             ForEachStatement node => node with
             {
-                Iterable = RewriteExpression(node.Iterable), Body = RewriteStatement(node.Body)
+                Iterable = RewriteExpression(node.Iterable),
+                Body = RewriteStatement(node.Body)
             },
             TryStatement node => node with
             {
@@ -88,7 +91,8 @@ public abstract class AstRewriter
             LabeledStatement node => node with { Statement = RewriteStatement(node.Statement) },
             WithStatement node => node with
             {
-                Object = RewriteExpression(node.Object), Body = RewriteStatement(node.Body)
+                Object = RewriteExpression(node.Object),
+                Body = RewriteStatement(node.Body)
             },
             BreakStatement node => RewriteBreak(node),
             ContinueStatement node => RewriteContinue(node),
@@ -103,7 +107,8 @@ public abstract class AstRewriter
             IdentifierExpression node => RewriteIdentifier(node),
             BinaryExpression node => node with
             {
-                Left = RewriteExpression(node.Left), Right = RewriteExpression(node.Right)
+                Left = RewriteExpression(node.Left),
+                Right = RewriteExpression(node.Right)
             },
             UnaryExpression node => node with { Operand = RewriteExpression(node.Operand) },
             AssignmentExpression node => RewriteAssignment(node),
@@ -140,7 +145,8 @@ public abstract class AstRewriter
             },
             SequenceExpression node => node with
             {
-                Left = RewriteExpression(node.Left), Right = RewriteExpression(node.Right)
+                Left = RewriteExpression(node.Left),
+                Right = RewriteExpression(node.Right)
             },
             ArrayExpression node => node with
             {

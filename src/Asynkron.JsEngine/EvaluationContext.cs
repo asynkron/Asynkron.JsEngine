@@ -288,7 +288,7 @@ public sealed class EvaluationContext(
     public ImmutableArray<PrivateNameScope> CapturePrivateNameScopes()
     {
         // Stack enumerates from top to bottom; reverse to preserve outer-to-inner order.
-        return [.._privateNameScopes.Reverse()];
+        return [.. _privateNameScopes.Reverse()];
     }
 
     public string? ResolvePrivateNameKey(string lexeme)

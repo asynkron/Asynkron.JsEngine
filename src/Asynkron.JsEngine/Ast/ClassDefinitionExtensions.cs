@@ -96,17 +96,17 @@ public static partial class TypedAstEvaluator
 
     extension(ClassDefinition definition)
     {
-    private JsValue CreateClassValue(JsEnvironment environment,
-        EvaluationContext context,
-        Symbol? className,
-        bool createNameScope = true)
-    {
-        using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
-        var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
-            environment,
-            className,
-            definition.Source,
-            createNameScope);
+        private JsValue CreateClassValue(JsEnvironment environment,
+            EvaluationContext context,
+            Symbol? className,
+            bool createNameScope = true)
+        {
+            using var classScope = context.PushScope(ScopeKind.Block, ScopeMode.Strict);
+            var (evaluationEnvironment, classScopeEnvironment) = CreateClassScopeIfNeeded(
+                environment,
+                className,
+                definition.Source,
+                createNameScope);
 
             var (superConstructor, superPrototype) =
                 definition.Extends.ResolveSuperclass(evaluationEnvironment, context);

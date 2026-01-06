@@ -42,9 +42,9 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             _privateStorage.SetPrototype(_meta.Prototype);
         }
         else if (_meta.Prototype is null && Target is IPrototypeAccessorProvider
-                 {
-                     PrototypeAccessor: { } protoAccessor
-                 })
+        {
+            PrototypeAccessor: { } protoAccessor
+        })
         {
             _meta.SetPrototype(protoAccessor);
             _privateStorage.SetPrototype(_meta.Prototype);

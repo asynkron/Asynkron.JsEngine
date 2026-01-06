@@ -761,7 +761,7 @@ public static partial class TypedAstEvaluator
                         var needsInstanceInit = IsClassConstructor && !_isDerivedClassConstructor;
                         IJsObjectLike? instanceToInit = null;
                         JsValue constructorThisValue = effectiveThisValue;
-                        
+
                         if (needsInstanceInit)
                         {
                             // For base class constructors called with `new`, create a new instance
@@ -780,7 +780,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     constructedThis.SetPrototype(defaultProto);
                                 }
-                                
+
                                 constructorThisValue = JsValue.FromObjectUnsafe(constructedThis);
                                 instanceToInit = constructedThis;
                             }
@@ -804,7 +804,7 @@ public static partial class TypedAstEvaluator
                             _capturedPrivateNameScopes,
                             newTarget,
                             _lexicalThisEnvironment);
-                        
+
                         // Initialize instance BEFORE running constructor body (adds private brand and initializes fields)
                         if (instanceToInit is not null)
                         {
@@ -817,7 +817,7 @@ public static partial class TypedAstEvaluator
                                 return initContext.FlowValue;
                             }
                         }
-                        
+
                         return runner.RunSync();
                     }
                     catch (ThrowSignal signal) when (callingContext is not null)
@@ -1740,7 +1740,10 @@ public static partial class TypedAstEvaluator
 
                 var descriptor = new PropertyDescriptor
                 {
-                    JsValue = valueJs, Writable = true, Enumerable = true, Configurable = true
+                    JsValue = valueJs,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
                 };
 
                 if (instance is IPropertyDefinitionHost definitionHost)
@@ -1774,11 +1777,11 @@ public static partial class TypedAstEvaluator
                 case null:
                     return "null";
                 case JsObject jsObj:
-                {
-                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return
-                        $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}'";
-                }
+                    {
+                        var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                        return
+                            $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}'";
+                    }
                 default:
                     return
                         $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto).ToString(CultureInfo.InvariantCulture)}";
@@ -1813,12 +1816,12 @@ public static partial class TypedAstEvaluator
             switch (value)
             {
                 case JsObject jsObj:
-                {
-                    var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
-                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return
-                        $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}' proto={DescribePrototype(proto)}";
-                }
+                    {
+                        var proto = jsObj.PrototypeAccessor ?? jsObj.Prototype;
+                        var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                        return
+                            $"JsObject@{RuntimeHelpers.GetHashCode(jsObj).ToString(CultureInfo.InvariantCulture)} origin='{origin}' proto={DescribePrototype(proto)}";
+                    }
                 case null:
                     return "null";
                 default:

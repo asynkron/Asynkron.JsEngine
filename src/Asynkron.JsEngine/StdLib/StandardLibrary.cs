@@ -104,7 +104,10 @@ public static partial class StandardLibrary
                     jsObj.DefineProperty("constructor",
                         new PropertyDescriptor
                         {
-                            Value = ctor, Writable = true, Enumerable = false, Configurable = true
+                            Value = ctor,
+                            Writable = true,
+                            Enumerable = false,
+                            Configurable = true
                         });
                 }
             }
@@ -216,27 +219,27 @@ public static partial class StandardLibrary
                 case JsValueKind.Symbol:
                     throw ThrowTypeError("Cannot convert Symbol to a BigInt", localContext, realmState);
                 case JsValueKind.Object:
-                {
-                    if (value.TryGetObject<JsBigInt>(out var directBigInt))
                     {
-                        return directBigInt;
-                    }
-
-                    if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
-                    {
-                        var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, localContext);
-                        if (localContext?.IsThrow == true)
+                        if (value.TryGetObject<JsBigInt>(out var directBigInt))
                         {
-                            throw new ThrowSignal(localContext.FlowValue);
+                            return directBigInt;
                         }
 
-                        value = primitive;
+                        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                        {
+                            var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, localContext);
+                            if (localContext?.IsThrow == true)
+                            {
+                                throw new ThrowSignal(localContext.FlowValue);
+                            }
+
+                            value = primitive;
+                            continue;
+                        }
+
+                        value = JsValue.FromObjectUnsafe(value.ObjectValue);
                         continue;
                     }
-
-                    value = JsValue.FromObjectUnsafe(value.ObjectValue);
-                    continue;
-                }
                 case JsValueKind.Unit:
                 case JsValueKind.Uninitialized:
                 default:

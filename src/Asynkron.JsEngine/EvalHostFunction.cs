@@ -678,20 +678,20 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     CollectVarDeclaredNames(block.Statements, names, isStrict, true);
                     break;
                 case ForStatement { Initializer: VariableDeclaration { Kind: VariableKind.Var } initDecl } forStatement:
-                {
-                    foreach (var declarator in initDecl.Declarators)
                     {
-                        declarator.Target.CollectSymbolsFromBinding(names);
-                    }
+                        foreach (var declarator in initDecl.Declarators)
+                        {
+                            declarator.Target.CollectSymbolsFromBinding(names);
+                        }
 
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
+                        if (forStatement.Body is not null)
+                        {
+                            statement = forStatement.Body;
+                            continue;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
                 case ForEachStatement { DeclarationKind: VariableKind.Var } forEach:
                     forEach.Target.CollectSymbolsFromBinding(names);
                     statement = forEach.Body;
@@ -2583,16 +2583,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     Kind: VariableKind.Let or VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing
                 } lexicalDeclaration:
-                {
-                    var isConst =
-                        lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
-                    foreach (var declarator in lexicalDeclaration.Declarators)
                     {
-                        CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
-                    }
+                        var isConst =
+                            lexicalDeclaration.Kind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing;
+                        foreach (var declarator in lexicalDeclaration.Declarators)
+                        {
+                            CollectLexicalDeclarationNames(declarator.Target, isConst, declarations);
+                        }
 
-                    break;
-                }
+                        break;
+                    }
                 case ClassDeclaration classDeclaration:
                     // Class declarations create mutable bindings (like let), not immutable (like const)
                     declarations[classDeclaration.Name] = false;

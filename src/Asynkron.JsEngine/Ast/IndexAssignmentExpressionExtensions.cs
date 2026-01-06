@@ -39,7 +39,7 @@ public static partial class TypedAstEvaluator
 
                 // Only extract for IFunctionNameTarget check - keep as JsValue otherwise
                 if (superAssignedValueJs is
-                        { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget superNameTarget } &&
+                    { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget superNameTarget } &&
                     expression.Value is FunctionExpression { Name: null } or ClassExpression { Name: null })
                 {
                     superNameTarget.EnsureHasName(string.Empty);

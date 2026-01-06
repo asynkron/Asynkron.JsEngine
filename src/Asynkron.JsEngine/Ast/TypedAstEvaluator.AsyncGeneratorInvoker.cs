@@ -112,11 +112,11 @@ public static partial class TypedAstEvaluator
                 {
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
-                    {
-                        var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        resolve.Invoke(new SingleValueArgs((JsValue)iteratorResult), JsValue.Undefined);
-                        break;
-                    }
+                        {
+                            var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
+                            resolve.Invoke(new SingleValueArgs((JsValue)iteratorResult), JsValue.Undefined);
+                            break;
+                        }
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
                         // step.Value is already JsValue
                         reject.Invoke(new SingleValueArgs(step.Value), JsValue.Undefined);
@@ -155,11 +155,11 @@ public static partial class TypedAstEvaluator
             {
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
-                {
-                    var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                    AsyncInvokeWithOneArg(resolve, (JsValue)iteratorResult);
-                    break;
-                }
+                    {
+                        var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
+                        AsyncInvokeWithOneArg(resolve, (JsValue)iteratorResult);
+                        break;
+                    }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
                     // step.Value is already JsValue
                     AsyncInvokeWithOneArg(reject, step.Value);

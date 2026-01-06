@@ -164,7 +164,10 @@ public sealed partial class IntlNumberFormatPrototype
         function.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = (JsValue)string.Empty, Writable = false, Enumerable = false, Configurable = true
+                Value = (JsValue)string.Empty,
+                Writable = false,
+                Enumerable = false,
+                Configurable = true
             });
     }
 }

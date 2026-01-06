@@ -46,7 +46,7 @@ public sealed class PrivateNameScope
             return false;
         }
 
-        if (!int.TryParse(key.AsSpan(separator + 1), CultureInfo.InvariantCulture, out var id ))
+        if (!int.TryParse(key.AsSpan(separator + 1), CultureInfo.InvariantCulture, out var id))
         {
             return false;
         }

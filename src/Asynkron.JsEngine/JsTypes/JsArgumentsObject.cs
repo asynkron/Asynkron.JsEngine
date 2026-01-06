@@ -57,7 +57,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _indexNames[i] = name;
             var descriptor = new PropertyDescriptor
             {
-                JsValue = _values[i], Writable = true, Enumerable = true, Configurable = true
+                JsValue = _values[i],
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             };
             _backing.DefinePropertyDirect(name, descriptor);
             TrackDescriptorDirect(name, descriptor);
@@ -66,7 +69,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.DefinePropertyDirect("length",
             new PropertyDescriptor
             {
-                Value = (double)_values.Length, Writable = true, Enumerable = false, Configurable = true
+                Value = (double)_values.Length,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
 
         _backing.DefinePropertyDirect("__arguments__",
@@ -82,7 +88,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             {
                 _calleeDescriptor = new PropertyDescriptor
                 {
-                    Value = callee, Writable = true, Enumerable = false, Configurable = true
+                    Value = callee,
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
                 };
             }
             else
@@ -94,7 +103,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
                 _calleeDescriptor = new PropertyDescriptor
                 {
-                    Get = thrower, Set = thrower, Enumerable = false, Configurable = false
+                    Get = thrower,
+                    Set = thrower,
+                    Enumerable = false,
+                    Configurable = false
                 };
             }
 
@@ -107,7 +119,10 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             _backing.DefinePropertyDirect(iteratorKey,
                 new PropertyDescriptor
                 {
-                    JsValue = iteratorValue, Writable = true, Enumerable = false, Configurable = true
+                    JsValue = iteratorValue,
+                    Writable = true,
+                    Enumerable = false,
+                    Configurable = true
                 });
         }
 

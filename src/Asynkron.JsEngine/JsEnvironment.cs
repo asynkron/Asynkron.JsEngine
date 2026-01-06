@@ -2070,14 +2070,14 @@ public sealed class JsEnvironment : IRentable
         while (current is not null && hops++ < maxLookupDepth)
         {
             ref var slot = ref current.TryGetSlotRef(name);
-                if (!Unsafe.IsNullRef(ref slot))
+            if (!Unsafe.IsNullRef(ref slot))
+            {
+                if (slot.IsUninitialized)
                 {
-                    if (slot.IsUninitialized)
-                    {
-                        throw StandardLibrary.ThrowReferenceError(
-                            $"Cannot access '{name.Name}' before initialization",
-                            realm: current.RealmState ?? current.Enclosing?.RealmState);
-                    }
+                    throw StandardLibrary.ThrowReferenceError(
+                        $"Cannot access '{name.Name}' before initialization",
+                        realm: current.RealmState ?? current.Enclosing?.RealmState);
+                }
 
                 if (slot.HasSpecialBinding)
                 {
@@ -3352,14 +3352,14 @@ public sealed class JsEnvironment : IRentable
         }
 
         // Populate slots from slotMap - each entry maps Symbol -> index
-            foreach (var (symbol, index) in slotMap)
+        foreach (var (symbol, index) in slotMap)
+        {
+            if (index >= 0 && index < count)
             {
-                if (index >= 0 && index < count)
-                {
-                    _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
-                }
+                _slots[index] = new JsSlot(symbol, JsValue.Undefined, SlotFlags.None);
             }
         }
+    }
 
     /// <summary>
     /// Sets slot names from a slot map. Used for compatibility with old API.

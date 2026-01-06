@@ -190,7 +190,10 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         constructor.DefineProperty("fromAsync",
             new PropertyDescriptor
             {
-                Value = arrayFromAsync, Writable = true, Enumerable = false, Configurable = true
+                Value = arrayFromAsync,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             });
     }
 }

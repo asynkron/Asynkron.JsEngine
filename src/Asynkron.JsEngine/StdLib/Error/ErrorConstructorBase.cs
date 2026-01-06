@@ -49,7 +49,10 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
         {
             var descriptor = new PropertyDescriptor
             {
-                Value = constructor, Writable = true, Enumerable = false, Configurable = true
+                Value = constructor,
+                Writable = true,
+                Enumerable = false,
+                Configurable = true
             };
 
             if (Prototype is IPropertyDefinitionHost definable)

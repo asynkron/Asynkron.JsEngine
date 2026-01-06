@@ -212,7 +212,8 @@ public static partial class TypedAstEvaluator
                             }
 
                             return callable.Invoke(finalArgs, boundThis);
-                        }, RealmState, false) { DisallowConstruct = true };
+                        }, RealmState, false)
+                        { DisallowConstruct = true };
                     });
                     return true;
             }

@@ -88,7 +88,7 @@ internal sealed class BucketedArrayPool<T>
             case 1024:
                 _pool1024.Return(array);
                 break;
-            // Non-pooled sizes are just discarded (will be GC'd)
+                // Non-pooled sizes are just discarded (will be GC'd)
         }
     }
 }

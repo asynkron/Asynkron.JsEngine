@@ -251,7 +251,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             return new PropertyDescriptor
             {
-                Value = existingValue, Writable = true, Enumerable = true, Configurable = true
+                Value = existingValue,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
             };
         }
 
@@ -298,7 +301,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 state.Descriptors[key] = new PropertyDescriptor
                 {
-                    Value = this[key], Writable = true, Enumerable = true, Configurable = false
+                    Value = this[key],
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = false
                 };
             }
         }
@@ -1646,7 +1652,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             {
                 state.Descriptors[key] = new PropertyDescriptor
                 {
-                    Value = this[key], Writable = false, Enumerable = true, Configurable = false
+                    Value = this[key],
+                    Writable = false,
+                    Enumerable = true,
+                    Configurable = false
                 };
             }
         }

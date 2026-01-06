@@ -264,73 +264,73 @@ public static partial class TypedAstEvaluator
 
                         break;
                     case FunctionDeclaration functionDeclaration:
-                    {
-                        if (pass != HoistPass.Functions)
                         {
-                            break;
-                        }
-
-                        // In strict mode, block-level function declarations are block-scoped only
-                        // (no Annex B var-style hoisting). Skip hoisting entirely - the block's
-                        // FunctionDeclarationInstruction will create the binding at runtime.
-                        if (inBlockScope && context.CurrentScope.IsStrict)
-                        {
-                            break;
-                        }
-
-                        if (functionHoistDedupe is not null &&
-                            !functionHoistDedupe.Add(functionDeclaration.Name))
-                        {
-                            break;
-                        }
-
-                        if (hoistFunctionValues)
-                        {
-                            // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create
-                            // an internal const binding for the function name. For function declarations,
-                            // the name binding lives in the outer (function/global) scope and is mutable.
-                            var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
-                                skipInternalNameBinding: true);
-                            var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
-
-                            var slotIndex = -1;
-                            if (environment.TryGetSlotIndex(functionDeclaration.Name, out var directSlotIndex))
+                            if (pass != HoistPass.Functions)
                             {
-                                slotIndex = directSlotIndex;
+                                break;
                             }
-                            else if (environment._slots is not null)
+
+                            // In strict mode, block-level function declarations are block-scoped only
+                            // (no Annex B var-style hoisting). Skip hoisting entirely - the block's
+                            // FunctionDeclarationInstruction will create the binding at runtime.
+                            if (inBlockScope && context.CurrentScope.IsStrict)
                             {
-                                for (var i = 0; i < environment._slotCount; i++)
+                                break;
+                            }
+
+                            if (functionHoistDedupe is not null &&
+                                !functionHoistDedupe.Add(functionDeclaration.Name))
+                            {
+                                break;
+                            }
+
+                            if (hoistFunctionValues)
+                            {
+                                // Pass skipInternalNameBinding: true so the SyncFunctionInvoker doesn't create
+                                // an internal const binding for the function name. For function declarations,
+                                // the name binding lives in the outer (function/global) scope and is mutable.
+                                var functionValue = functionDeclaration.Function.CreateFunctionValue(environment, context,
+                                    skipInternalNameBinding: true);
+                                var fnValueJs = JsValue.FromObjectUnsafe(functionValue);
+
+                                var slotIndex = -1;
+                                if (environment.TryGetSlotIndex(functionDeclaration.Name, out var directSlotIndex))
                                 {
-                                    var slotName = environment._slots[i].Name;
-                                    if (slotName is not null && slotName.Name == functionDeclaration.Name.Name)
+                                    slotIndex = directSlotIndex;
+                                }
+                                else if (environment._slots is not null)
+                                {
+                                    for (var i = 0; i < environment._slotCount; i++)
                                     {
-                                        slotIndex = i;
-                                        break;
+                                        var slotName = environment._slots[i].Name;
+                                        if (slotName is not null && slotName.Name == functionDeclaration.Name.Name)
+                                        {
+                                            slotIndex = i;
+                                            break;
+                                        }
                                     }
+                                }
+
+                                if (slotIndex >= 0)
+                                {
+                                    // Slot-backed scope (IR path): populate slot directly for fast lookup
+                                    environment.SetSlotDirect(slotIndex, fnValueJs);
+                                }
+                                else
+                                {
+                                    environment.DefineFunctionScoped(
+                                        functionDeclaration.Name,
+                                        fnValueJs,
+                                        true,
+                                        true,
+                                        context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
+                                        context,
+                                        canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
                                 }
                             }
 
-                            if (slotIndex >= 0)
-                            {
-                                // Slot-backed scope (IR path): populate slot directly for fast lookup
-                                environment.SetSlotDirect(slotIndex, fnValueJs);
-                            }
-                            else
-                            {
-                                environment.DefineFunctionScoped(
-                                    functionDeclaration.Name,
-                                    fnValueJs,
-                                    true,
-                                    true,
-                                    context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false },
-                                    context,
-                                    canDelete: context is { ExecutionKind: ExecutionKind.Eval, IsStrictSource: false });
-                            }
+                            break;
                         }
-
-                        break;
-                    }
                     case ClassDeclaration:
                     case ModuleStatement:
                         break;

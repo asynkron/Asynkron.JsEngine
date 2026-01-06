@@ -5,8 +5,8 @@ using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Asynkron.JsEngine.StdLib.Temporal;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using static Asynkron.JsEngine.StdLib.DateHelper;
+using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
 #endregion
 

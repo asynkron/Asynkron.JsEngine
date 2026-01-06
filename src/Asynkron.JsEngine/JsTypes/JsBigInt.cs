@@ -161,7 +161,7 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
         return new JsBigInt(left.Value << right);
     }
 
-    public static JsBigInt operator >> (JsBigInt left, int right)
+    public static JsBigInt operator >>(JsBigInt left, int right)
     {
         // JavaScript behavior: negative shifts shift in the opposite direction
         if (right < 0)

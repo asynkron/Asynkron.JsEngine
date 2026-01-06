@@ -363,148 +363,148 @@ public static partial class TypedAstEvaluator
             switch (callee)
             {
                 case SuperExpression superExpression:
-                {
-                    var logger = environment.RealmState?.Logger;
-                    logger?.LogInformation(
-                        "Super call target env={Env} hasThisInit={HasThisInit} hasSuper={HasSuper}",
-                        environment.GetHashCode(),
-                        environment.HasBinding(Symbol.ThisInitialized),
-                        environment.HasBinding(Symbol.Super));
-                    var binding = environment.ExpectSuperBinding(context);
-
-                    // Per ES spec 12.3.5.1 SuperCall, the super constructor should be looked up
-                    // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
-                    // For a constructor, the active function is available via NewTarget when it's
-                    // a constructor being invoked via 'new'.
-                    object? dynamicSuperConstructor = binding.Constructor;
-                    if (dynamicSuperConstructor is null &&
-                        environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
                     {
-                        // Get the current [[Prototype]] of the active function (constructor)
-                        // This respects Object.setPrototypeOf changes made after class definition
-                        // Use PrototypeAccessor to handle non-JsObject prototypes (e.g., HostFunction)
-                        dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor
-                                                  ?? activeFunction.Prototype;
+                        var logger = environment.RealmState?.Logger;
                         logger?.LogInformation(
-                            "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
-                            activeFunction.GetType().Name,
-                            dynamicSuperConstructor?.GetType().Name ?? "null");
-                    }
+                            "Super call target env={Env} hasThisInit={HasThisInit} hasSuper={HasSuper}",
+                            environment.GetHashCode(),
+                            environment.HasBinding(Symbol.ThisInitialized),
+                            environment.HasBinding(Symbol.Super));
+                        var binding = environment.ExpectSuperBinding(context);
 
-                    if (dynamicSuperConstructor is null)
-                    {
-                        throw new InvalidOperationException(
-                            $"Super constructor is not available in this context.{context.GetSourceInfo(superExpression.Source)}");
-                    }
+                        // Per ES spec 12.3.5.1 SuperCall, the super constructor should be looked up
+                        // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
+                        // For a constructor, the active function is available via NewTarget when it's
+                        // a constructor being invoked via 'new'.
+                        object? dynamicSuperConstructor = binding.Constructor;
+                        if (dynamicSuperConstructor is null &&
+                            environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
+                        {
+                            // Get the current [[Prototype]] of the active function (constructor)
+                            // This respects Object.setPrototypeOf changes made after class definition
+                            // Use PrototypeAccessor to handle non-JsObject prototypes (e.g., HostFunction)
+                            dynamicSuperConstructor = (activeFunction as IPrototypeAccessorProvider)?.PrototypeAccessor
+                                                      ?? activeFunction.Prototype;
+                            logger?.LogInformation(
+                                "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
+                                activeFunction.GetType().Name,
+                                dynamicSuperConstructor?.GetType().Name ?? "null");
+                        }
 
-                    var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
-                        ? JsValue.Undefined
-                        : binding.thisValue;
-                    return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
-                }
+                        if (dynamicSuperConstructor is null)
+                        {
+                            throw new InvalidOperationException(
+                                $"Super constructor is not available in this context.{context.GetSourceInfo(superExpression.Source)}");
+                        }
+
+                        var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
+                            ? JsValue.Undefined
+                            : binding.thisValue;
+                        return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
+                    }
                 case MemberExpression { Target: SuperExpression } member:
-                {
-                    var (memberValue, binding) = member.ResolveSuperMember(environment, context);
-                    return context.ShouldStopEvaluation
-                        ? (JsValue.Undefined, binding.thisValue, true)
-                        : (memberValue, binding.thisValue, false);
-                }
+                    {
+                        var (memberValue, binding) = member.ResolveSuperMember(environment, context);
+                        return context.ShouldStopEvaluation
+                            ? (JsValue.Undefined, binding.thisValue, true)
+                            : (memberValue, binding.thisValue, false);
+                    }
                 case MemberExpression member:
-                {
-                    var targetJs = member.Target.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation
-                        || (member.IsOptional && targetJs.IsNullOrUndefined)
-                        || (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target)))
                     {
-                        return (JsValue.Undefined, JsValue.Undefined, true);
-                    }
-
-                    if (targetJs.IsNullOrUndefined)
-                    {
-                        var error = StandardLibrary.CreateTypeError(
-                            "Cannot read properties of null or undefined",
-                            context,
-                            context.RealmState);
-                        context.SetThrow(error);
-                        return (JsValue.Undefined, JsValue.Undefined, true);
-                    }
-
-                    string propertyName;
-                    if (member.IsComputed)
-                    {
-                        var propertyJs = member.Property.EvaluateExpression(environment, context);
-                        if (context.ShouldStopEvaluation)
+                        var targetJs = member.Target.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation
+                            || (member.IsOptional && targetJs.IsNullOrUndefined)
+                            || (targetJs.IsNullOrUndefined && HasOptionalChaining(member.Target)))
                         {
                             return (JsValue.Undefined, JsValue.Undefined, true);
                         }
 
-                        propertyName = JsOps.GetRequiredPropertyName(propertyJs, context);
-                        if (context.ShouldStopEvaluation)
+                        if (targetJs.IsNullOrUndefined)
                         {
+                            var error = StandardLibrary.CreateTypeError(
+                                "Cannot read properties of null or undefined",
+                                context,
+                                context.RealmState);
+                            context.SetThrow(error);
                             return (JsValue.Undefined, JsValue.Undefined, true);
                         }
-                    }
-                    else
-                    {
-                        propertyName = member.Property switch
-                        {
-                            IdentifierExpression id => id.Name.Name,
-                            LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
-                            _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context),
-                                context)
-                        };
-                    }
 
-                    if (member.IsComputed || !propertyName.IsPrivateName())
-                    {
-                        if (targetJs.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                        string propertyName;
+                        if (member.IsComputed)
                         {
-                            try
-                            {
-                                if (accessor.TryGetProperty(propertyName, targetJs, out var directJsValue))
-                                {
-                                    return (directJsValue, targetJs, false);
-                                }
-                            }
-                            catch (ThrowSignal signal)
-                            {
-                                context.SetThrow(signal.ThrownValue);
-                                return (JsValue.Undefined, JsValue.Undefined, true);
-                            }
-                        }
-
-                        if (JsOps.TryGetPropertyValue(targetJs, propertyName, out var directValue, context))
-                        {
+                            var propertyJs = member.Property.EvaluateExpression(environment, context);
                             if (context.ShouldStopEvaluation)
                             {
                                 return (JsValue.Undefined, JsValue.Undefined, true);
                             }
 
-                            return (directValue, targetJs, false);
+                            propertyName = JsOps.GetRequiredPropertyName(propertyJs, context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return (JsValue.Undefined, JsValue.Undefined, true);
+                            }
+                        }
+                        else
+                        {
+                            propertyName = member.Property switch
+                            {
+                                IdentifierExpression id => id.Name.Name,
+                                LiteralExpression { Value.IsString: true } lit => lit.Value.AsString(),
+                                _ => JsOps.GetRequiredPropertyName(member.Property.EvaluateExpression(environment, context),
+                                    context)
+                            };
                         }
 
+                        if (member.IsComputed || !propertyName.IsPrivateName())
+                        {
+                            if (targetJs.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                            {
+                                try
+                                {
+                                    if (accessor.TryGetProperty(propertyName, targetJs, out var directJsValue))
+                                    {
+                                        return (directJsValue, targetJs, false);
+                                    }
+                                }
+                                catch (ThrowSignal signal)
+                                {
+                                    context.SetThrow(signal.ThrownValue);
+                                    return (JsValue.Undefined, JsValue.Undefined, true);
+                                }
+                            }
+
+                            if (JsOps.TryGetPropertyValue(targetJs, propertyName, out var directValue, context))
+                            {
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    return (JsValue.Undefined, JsValue.Undefined, true);
+                                }
+
+                                return (directValue, targetJs, false);
+                            }
+
+                            if (context.ShouldStopEvaluation)
+                            {
+                                return (JsValue.Undefined, JsValue.Undefined, true);
+                            }
+
+                            return (JsValue.Undefined, targetJs, false);
+                        }
+
+                        var handle = PropertyHandle.Resolve(
+                            targetJs,
+                            propertyName,
+                            context,
+                            context.CurrentScope.IsStrict,
+                            !member.IsComputed);
+                        var value = handle.GetJsValue();
                         if (context.ShouldStopEvaluation)
                         {
                             return (JsValue.Undefined, JsValue.Undefined, true);
                         }
 
-                        return (JsValue.Undefined, targetJs, false);
+                        return (value, targetJs, false);
                     }
-
-                    var handle = PropertyHandle.Resolve(
-                        targetJs,
-                        propertyName,
-                        context,
-                        context.CurrentScope.IsStrict,
-                        !member.IsComputed);
-                    var value = handle.GetJsValue();
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return (JsValue.Undefined, JsValue.Undefined, true);
-                    }
-
-                    return (value, targetJs, false);
-                }
                 case IdentifierExpression identifier
                     when environment.TryResolveWithBinding(identifier.Name, context, out var withBinding):
                     try
@@ -522,45 +522,45 @@ public static partial class TypedAstEvaluator
 
                 // Fast path: use slot-based lookup when available
                 case IdentifierExpression identifier:
-                {
-                    if (identifier is { SlotIndex: >= 0, ScopeId: >= 0 })
                     {
-                        if (environment.TryReadIdentifierWithSlot(
-                                identifier.Name,
-                                identifier.ScopeId,
-                                identifier.SlotIndex,
-                                context,
-                                out var slotCallee))
+                        if (identifier is { SlotIndex: >= 0, ScopeId: >= 0 })
                         {
-                            return (slotCallee, JsValue.Undefined, false);
+                            if (environment.TryReadIdentifierWithSlot(
+                                    identifier.Name,
+                                    identifier.ScopeId,
+                                    identifier.SlotIndex,
+                                    context,
+                                    out var slotCallee))
+                            {
+                                return (slotCallee, JsValue.Undefined, false);
+                            }
                         }
-                    }
 
-                    // Fallback: dictionary-based lookup
-                    var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
-                    if (reference.IsUnresolvable)
-                    {
-                        var error = StandardLibrary.CreateReferenceError(
-                            $"{identifier.Name.Name} is not defined",
-                            context,
-                            context.RealmState);
-                        context.SetThrow(error);
-                        return (JsValue.Undefined, JsValue.Undefined, true);
-                    }
+                        // Fallback: dictionary-based lookup
+                        var reference = environment.ResolveIdentifierAssignmentReference(identifier.Name, context);
+                        if (reference.IsUnresolvable)
+                        {
+                            var error = StandardLibrary.CreateReferenceError(
+                                $"{identifier.Name.Name} is not defined",
+                                context,
+                                context.RealmState);
+                            context.SetThrow(error);
+                            return (JsValue.Undefined, JsValue.Undefined, true);
+                        }
 
-                    var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetJsValue, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return (JsValue.Undefined, JsValue.Undefined, true);
-                    }
+                        var calleeValue = AssignmentReferenceResolver.ReadIdentifierValue(reference.GetJsValue, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return (JsValue.Undefined, JsValue.Undefined, true);
+                        }
 
-                    return (calleeValue, JsValue.Undefined, false);
-                }
+                        return (calleeValue, JsValue.Undefined, false);
+                    }
                 default:
-                {
-                    var directCallee = callee.EvaluateExpression(environment, context);
-                    return (directCallee, JsValue.Undefined, false);
-                }
+                    {
+                        var directCallee = callee.EvaluateExpression(environment, context);
+                        return (directCallee, JsValue.Undefined, false);
+                    }
             }
         }
     }
@@ -572,45 +572,45 @@ public static partial class TypedAstEvaluator
             switch (operand)
             {
                 case MemberExpression member:
-                {
-                    if (member.Target is SuperExpression)
                     {
-                        throw StandardLibrary.ThrowReferenceError(
-                            "Cannot delete property on super reference",
+                        if (member.Target is SuperExpression)
+                        {
+                            throw StandardLibrary.ThrowReferenceError(
+                                "Cannot delete property on super reference",
+                                context,
+                                context.RealmState);
+                        }
+
+                        var targetJs = member.Target.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return false;
+                        }
+
+                        var propertyValueJs = member.Property.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return false;
+                        }
+
+                        var handle = PropertyHandle.Resolve(
+                            targetJs,
+                            propertyValueJs,
                             context,
-                            context.RealmState);
+                            context.CurrentScope.IsStrict,
+                            !member.IsComputed);
+                        return handle.Delete();
                     }
-
-                    var targetJs = member.Target.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return false;
-                    }
-
-                    var propertyValueJs = member.Property.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return false;
-                    }
-
-                    var handle = PropertyHandle.Resolve(
-                        targetJs,
-                        propertyValueJs,
-                        context,
-                        context.CurrentScope.IsStrict,
-                        !member.IsComputed);
-                    return handle.Delete();
-                }
                 case IdentifierExpression when context.CurrentScope.IsStrict:
                     throw StandardLibrary.ThrowSyntaxError(
                         "Delete of an unqualified identifier is not allowed in strict mode.",
                         context,
                         context.RealmState);
                 case IdentifierExpression identifier:
-                {
-                    var outcome = environment.DeleteBinding(identifier.Name);
-                    return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
-                }
+                    {
+                        var outcome = environment.DeleteBinding(identifier.Name);
+                        return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
+                    }
                 default:
                     _ = operand.EvaluateExpression(environment, context);
                     return true;

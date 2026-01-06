@@ -1,4 +1,4 @@
-﻿#region
+#region
 
 using Microsoft.Extensions.Logging;
 

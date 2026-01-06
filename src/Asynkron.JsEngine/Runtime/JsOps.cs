@@ -231,16 +231,16 @@ internal static class JsOps
                     return JsValue.NaN;
                 case Symbol:
                 case JsSymbol:
-                {
-                    var error = StandardLibrary.CreateTypeError("Cannot convert a Symbol value to a number", context, context?.RealmState);
-                    if (context is null)
                     {
-                        throw new ThrowSignal(error);
-                    }
+                        var error = StandardLibrary.CreateTypeError("Cannot convert a Symbol value to a number", context, context?.RealmState);
+                        if (context is null)
+                        {
+                            throw new ThrowSignal(error);
+                        }
 
-                    context.SetThrow(error);
-                    return JsValue.Undefined; // Error state - caller should check context.IsThrow
-                }
+                        context.SetThrow(error);
+                        return JsValue.Undefined; // Error state - caller should check context.IsThrow
+                    }
                 case JsBigInt bigInt:
                     return new JsValue(bigInt);
                 case double d:
@@ -276,45 +276,45 @@ internal static class JsOps
             switch (value)
             {
                 case IJsPropertyAccessor accessor:
-                {
-                    if (accessor is JsObject jsObj)
                     {
-                        if (jsObj.TryGetValue("__value__", out var inner))
+                        if (accessor is JsObject jsObj)
                         {
-                            value = inner;
+                            if (jsObj.TryGetValue("__value__", out var inner))
+                            {
+                                value = inner;
+                                continue;
+                            }
+
+                            // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
+                            // so mixed BigInt/Symbol cases throw correctly.
+                            if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
+                                symbolData.TryGetObject<JsSymbol>(out var sym))
+                            {
+                                value = sym;
+                                continue;
+                            }
+                        }
+
+                        if (TryConvertToNumericPrimitiveJsValue(accessor, out var primitive, context))
+                        {
+                            value = primitive;
                             continue;
                         }
 
-                        // Symbol wrappers should behave like their unboxed symbol value for ToNumeric
-                        // so mixed BigInt/Symbol cases throw correctly.
-                        if (jsObj.TryGetProperty("SymbolData", out var symbolData) &&
-                            symbolData.TryGetObject<JsSymbol>(out var sym))
+                        if (context?.IsThrow == true)
                         {
-                            value = sym;
-                            continue;
+                            return JsValue.Undefined; // Error state - caller should check context.IsThrow
                         }
-                    }
 
-                    if (TryConvertToNumericPrimitiveJsValue(accessor, out var primitive, context))
-                    {
-                        value = primitive;
-                        continue;
-                    }
+                        var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
+                        if (context is null)
+                        {
+                            throw new ThrowSignal(error);
+                        }
 
-                    if (context?.IsThrow == true)
-                    {
+                        context.SetThrow(error);
                         return JsValue.Undefined; // Error state - caller should check context.IsThrow
                     }
-
-                    var error = StandardLibrary.CreateTypeError("Cannot convert object to primitive value", context, context?.RealmState);
-                    if (context is null)
-                    {
-                        throw new ThrowSignal(error);
-                    }
-
-                    context.SetThrow(error);
-                    return JsValue.Undefined; // Error state - caller should check context.IsThrow
-                }
                 default:
                     throw new InvalidOperationException($"Cannot convert value '{value}' to a number.");
             }
@@ -669,7 +669,7 @@ internal static class JsOps
     public static bool LooseEquals(in JsValue left, in JsValue right, EvaluationContext? context = null)
     {
         // Fast path for same-type comparisons
-        if ( left.Kind == right.Kind)
+        if (left.Kind == right.Kind)
         {
             return left.Kind switch
             {
@@ -735,15 +735,15 @@ internal static class JsOps
                     left1 = new JsValue(ToNumber(left1, context));
                     continue;
                 case JsValueType.BigInt when rightType == JsValueType.String:
-                {
-                    var rightStr = right1.ObjectValue as string ?? "";
-                    return TryParseJsBigInt(rightStr, out var parsed) && StrictEquals(left1, new JsValue(parsed!));
-                }
+                    {
+                        var rightStr = right1.ObjectValue as string ?? "";
+                        return TryParseJsBigInt(rightStr, out var parsed) && StrictEquals(left1, new JsValue(parsed!));
+                    }
                 case JsValueType.String when rightType == JsValueType.BigInt:
-                {
-                    var leftStr = left1.ObjectValue as string ?? "";
-                    return TryParseJsBigInt(leftStr, out var parsed) && StrictEquals(new JsValue(parsed!), right1);
-                }
+                    {
+                        var leftStr = left1.ObjectValue as string ?? "";
+                        return TryParseJsBigInt(leftStr, out var parsed) && StrictEquals(new JsValue(parsed!), right1);
+                    }
                 case JsValueType.Boolean:
                     left1 = new JsValue(ToNumber(left1, context));
                     continue;
@@ -1129,26 +1129,26 @@ internal static class JsOps
                         _ => value.ObjectValue?.ToString() ?? string.Empty
                     };
                 case JsValueKind.Object:
-                {
-                    if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
                     {
-                        var primitive = ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
+                        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                        {
+                            var primitive = ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
+                            if (context?.IsThrow == true)
+                            {
+                                return null;
+                            }
+
+                            value = primitive;
+                            continue;
+                        }
+
                         if (context?.IsThrow == true)
                         {
                             return null;
                         }
 
-                        value = primitive;
-                        continue;
+                        return Convert.ToString(value.ObjectValue, CultureInfo.InvariantCulture);
                     }
-
-                    if (context?.IsThrow == true)
-                    {
-                        return null;
-                    }
-
-                    return Convert.ToString(value.ObjectValue, CultureInfo.InvariantCulture);
-                }
                 case JsValueKind.Unit:
                 case JsValueKind.Uninitialized:
                 default:
@@ -1569,33 +1569,33 @@ internal static class JsOps
         {
             // Handle objects first - most common case
             case JsValueKind.Object or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt:
-            {
-                var targetObj = target.ObjectValue;
-                if (targetObj != null && TryGetPropertyValueObject(targetObj, propertyName, out var objValue, context))
                 {
-                    value = objValue;
-                    return true;
-                }
+                    var targetObj = target.ObjectValue;
+                    if (targetObj != null && TryGetPropertyValueObject(targetObj, propertyName, out var objValue, context))
+                    {
+                        value = objValue;
+                        return true;
+                    }
 
-                value = JsValue.Undefined;
-                return false;
-            }
+                    value = JsValue.Undefined;
+                    return false;
+                }
             // Handle primitives (Boolean, Number) - need prototype chain lookup
             case JsValueKind.Boolean when (context?.RealmState?.BooleanPrototype is { } booleanProto &&
                                            booleanProto.TryGetProperty(propertyName, target.AsBoolean(), context, out var boolValue)):
-            {
-                value = boolValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(boolValue);
-                return true;
-            }
+                {
+                    value = boolValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(boolValue);
+                    return true;
+                }
             case JsValueKind.Boolean:
                 value = JsValue.Undefined;
                 return false;
             case JsValueKind.Number when (context?.RealmState?.NumberPrototype is { } numberProto &&
                                           numberProto.TryGetProperty(propertyName, target.NumberValue, context, out var numValue)):
-            {
-                value = numValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(numValue);
-                return true;
-            }
+                {
+                    value = numValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(numValue);
+                    return true;
+                }
             default:
                 value = JsValue.Undefined;
                 return false;
@@ -1718,18 +1718,18 @@ internal static class JsOps
                             return true;
                         // Look up in Symbol.prototype chain
                         case JsSymbol:
-                        {
-                            var symbolProto = context?.RealmState?.SymbolPrototype;
-                            if (symbolProto is not null &&
-                                symbolProto.TryGetProperty(propertyName, target, context, out var protoVal))
                             {
-                                value = protoVal is JsValue protoJs ? protoJs : JsValue.FromObjectUnsafe(protoVal);
-                                return true;
-                            }
+                                var symbolProto = context?.RealmState?.SymbolPrototype;
+                                if (symbolProto is not null &&
+                                    symbolProto.TryGetProperty(propertyName, target, context, out var protoVal))
+                                {
+                                    value = protoVal is JsValue protoJs ? protoJs : JsValue.FromObjectUnsafe(protoVal);
+                                    return true;
+                                }
 
-                            value = JsValue.Undefined;
-                            return false;
-                        }
+                                value = JsValue.Undefined;
+                                return false;
+                            }
                     }
 
                     if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
@@ -1801,31 +1801,31 @@ internal static class JsOps
                 value = JsValue.Undefined;
                 return false;
             case JsRopeString rope:
-            {
-                var ropeStr = rope.Flatten();
-                if (string.Equals(propertyName, "length", StringComparison.Ordinal))
                 {
-                    value = new JsValue((double)ropeStr.Length);
-                    return true;
-                }
+                    var ropeStr = rope.Flatten();
+                    if (string.Equals(propertyName, "length", StringComparison.Ordinal))
+                    {
+                        value = new JsValue((double)ropeStr.Length);
+                        return true;
+                    }
 
-                if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ropeIndex) &&
-                    ropeIndex >= 0 && ropeIndex < ropeStr.Length)
-                {
-                    value = new JsValue(ropeStr[ropeIndex].ToString());
-                    return true;
-                }
+                    if (int.TryParse(propertyName, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ropeIndex) &&
+                        ropeIndex >= 0 && ropeIndex < ropeStr.Length)
+                    {
+                        value = new JsValue(ropeStr[ropeIndex].ToString());
+                        return true;
+                    }
 
-                if (context?.RealmState?.StringPrototype is { } ropeStringProto &&
-                    ropeStringProto.TryGetProperty(propertyName, ropeStr, context, out var ropeVal))
-                {
-                    value = ropeVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(ropeVal);
-                    return true;
-                }
+                    if (context?.RealmState?.StringPrototype is { } ropeStringProto &&
+                        ropeStringProto.TryGetProperty(propertyName, ropeStr, context, out var ropeVal))
+                    {
+                        value = ropeVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(ropeVal);
+                        return true;
+                    }
 
-                value = JsValue.Undefined;
-                return false;
-            }
+                    value = JsValue.Undefined;
+                    return false;
+                }
             default:
                 value = JsValue.Undefined;
                 return false;

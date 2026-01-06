@@ -104,7 +104,10 @@ public sealed partial class FunctionPrototype
             false);
         var poisonDescriptor = new PropertyDescriptor
         {
-            Get = thrower, Set = thrower, Enumerable = false, Configurable = true
+            Get = thrower,
+            Set = thrower,
+            Enumerable = false,
+            Configurable = true
         };
         Prototype.DefineProperty("caller", poisonDescriptor);
         Prototype.DefineProperty("arguments", poisonDescriptor);

@@ -257,13 +257,13 @@ public static partial class TypedAstEvaluator
             }
             // Use specialized pre-evaluation path for call * identifier pattern
             else if (statement is
-                     {
-                         UseArgumentPreEvaluation: true,
-                         Expression: BinaryExpression
-                         {
-                             Left: CallExpression callLeft, Right: IdentifierExpression idRight
-                         } binaryCallId
-                     })
+            {
+                UseArgumentPreEvaluation: true,
+                Expression: BinaryExpression
+                {
+                    Left: CallExpression callLeft, Right: IdentifierExpression idRight
+                } binaryCallId
+            })
             {
                 Interlocked.Increment(ref PreEvalPathCount);
                 jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);

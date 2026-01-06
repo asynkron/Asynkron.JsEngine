@@ -147,7 +147,8 @@ public static partial class TypedAstEvaluator
             HostFunction constructor = null!;
 
             constructor = new HostFunction((_, args) =>
-                CreateDynamicGeneratorFunction(args, constructor, engine, realm, "async function*", realm.AsyncGeneratorFunctionConstructor!)) { RealmState = realm };
+                CreateDynamicGeneratorFunction(args, constructor, engine, realm, "async function*", realm.AsyncGeneratorFunctionConstructor!))
+            { RealmState = realm };
 
             constructor.SetInvokeWithContext((args, _, _, newTarget) =>
             {

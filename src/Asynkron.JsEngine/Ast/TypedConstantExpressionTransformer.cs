@@ -682,7 +682,10 @@ public sealed class TypedConstantExpressionTransformer
 
         return expression with
         {
-            Tag = tag, StringsArray = stringsArray, RawStringsArray = rawStringsArray, Expressions = expressions
+            Tag = tag,
+            StringsArray = stringsArray,
+            RawStringsArray = rawStringsArray,
+            Expressions = expressions
         };
     }
 

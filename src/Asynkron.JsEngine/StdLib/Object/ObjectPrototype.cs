@@ -273,15 +273,15 @@ public sealed partial class ObjectPrototype
                     prototype = protoObj;
                     return true;
                 case IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor }:
-                {
-                    prototype = protoAccessor as IJsObjectLike;
-                    if (prototype is not null)
                     {
-                        return true;
-                    }
+                        prototype = protoAccessor as IJsObjectLike;
+                        if (prototype is not null)
+                        {
+                            return true;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
             }
 
             if (candidate is not JsObject jsObj || !jsObj.TryGetProperty("__proto__", out var protoProp))

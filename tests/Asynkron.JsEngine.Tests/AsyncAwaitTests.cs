@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
@@ -77,6 +78,62 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                                    """);
 
         Assert.NotNull(program);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncFunction_BlockScopedFunctionDeclaration_HoistsWithinBlock_Ir()
+    {
+        await using var engine = CreateEngine();
+        var result = "";
+        var error = "";
+
+        engine.SetGlobalFunction("captureResult", args =>
+        {
+            if (args.Count > 0)
+            {
+                result = args[0].ToObject()?.ToString() ?? "";
+            }
+            return JsValue.Null;
+        });
+
+        engine.SetGlobalFunction("captureError", args =>
+        {
+            if (args.Count > 0)
+            {
+                error = args[0].ToObject()?.ToString() ?? "";
+            }
+            return JsValue.Null;
+        });
+
+        ExecutionPlanDiagnostics.Reset();
+        var exception = await Record.ExceptionAsync(() => engine.Evaluate("""
+            "use strict";
+            async function run() {
+                let value;
+                {
+                    let sentinel = 0;
+                    value = f() + sentinel;
+                    function f() { return 42; }
+                    await Promise.resolve();
+                }
+                return value;
+            }
+            run()
+                .then(function(value) { captureResult(value); })
+                .catch(function(error) { captureError(error && error.name); });
+            """));
+
+        var (attempts, succeeded, failed) = ExecutionPlanDiagnostics.Snapshot();
+
+        Assert.True(attempts >= 1);
+        Assert.True(succeeded >= 1);
+        Assert.Equal(0, failed);
+        Assert.Null(ExecutionPlanDiagnostics.LastFailureReason);
+        Assert.Null(ExecutionPlanDiagnostics.LastFunctionDescription);
+
+        Assert.Null(exception);
+        Assert.Equal("42", result);
+        Assert.True(string.IsNullOrEmpty(error));
     }
 
     [Fact(Timeout = 2000)]

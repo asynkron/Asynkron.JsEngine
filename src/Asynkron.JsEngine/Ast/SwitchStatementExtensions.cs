@@ -178,6 +178,23 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
+                // In strict mode, regular function declarations need to be evaluated when
+                // execution reaches them (not hoisted during instantiation per Annex B.3.3.1)
+                if (body.IsStrict && stmt is FunctionDeclaration strictFuncDecl)
+                {
+                    var functionValue = strictFuncDecl.Function.CreateFunctionValue(switchEnv, context,
+                        skipInternalNameBinding: false);
+                    // Define the binding directly (not assign, as it hasn't been hoisted)
+                    switchEnv.DefineJsValue(
+                        strictFuncDecl.Name,
+                        JsValue.FromObjectUnsafe(functionValue),
+                        isConst: false,
+                        isLexicalBinding: true,
+                        blocksFunctionScopeOverride: false);
+                    // Function declarations have empty completion
+                    continue;
+                }
+
                 var completion = stmt.EvaluateStatementJsValue(switchEnv, context);
                 var shouldStop = context.ShouldStopEvaluation;
                 // Apply UpdateEmpty semantics: only update result if completion is not empty (Unit)

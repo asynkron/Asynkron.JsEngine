@@ -25,15 +25,20 @@ public sealed record SwitchStatement(
             var functionBindings = ImmutableArray.CreateBuilder<SwitchFunctionBinding>();
             var classBindings = ImmutableArray.CreateBuilder<Symbol>();
 
+            // First pass: determine if strict mode
             var isStrict = false;
-
             foreach (var switchCase in self.Cases)
             {
                 if (switchCase.Body.IsStrict)
                 {
                     isStrict = true;
+                    break;
                 }
+            }
 
+            // Second pass: collect declarations
+            foreach (var switchCase in self.Cases)
+            {
                 foreach (var stmt in switchCase.Body.Statements)
                 {
                     if (stmt is VariableDeclaration
@@ -54,10 +59,16 @@ public sealed record SwitchStatement(
 
                     if (stmt is FunctionDeclaration funcDecl)
                     {
-                        var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
-                                                 funcDecl.Function.IsGenerator;
-                        functionBindings.Add(new SwitchFunctionBinding(funcDecl.Name, funcDecl.Function,
-                            !isAsyncOrGenerator));
+                        // Per Annex B.3.3.1: In strict mode, function declarations in blocks
+                        // are NOT hoisted as var-scoped bindings (no AnnexB extension).
+                        // They remain as lexical declarations evaluated when execution reaches them.
+                        if (!isStrict)
+                        {
+                            var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
+                                                     funcDecl.Function.IsGenerator;
+                            functionBindings.Add(new SwitchFunctionBinding(funcDecl.Name, funcDecl.Function,
+                                !isAsyncOrGenerator));
+                        }
                         continue;
                     }
 

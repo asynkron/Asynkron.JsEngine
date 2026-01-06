@@ -25,15 +25,19 @@ public sealed record SwitchStatement(
             var functionBindings = ImmutableArray.CreateBuilder<SwitchFunctionBinding>();
             var classBindings = ImmutableArray.CreateBuilder<Symbol>();
 
+            // Determine strict mode first by checking all case bodies
             var isStrict = false;
-
             foreach (var switchCase in self.Cases)
             {
                 if (switchCase.Body.IsStrict)
                 {
                     isStrict = true;
+                    break;
                 }
+            }
 
+            foreach (var switchCase in self.Cases)
+            {
                 foreach (var stmt in switchCase.Body.Statements)
                 {
                     if (stmt is VariableDeclaration
@@ -52,7 +56,9 @@ public sealed record SwitchStatement(
                         continue;
                     }
 
-                    if (stmt is FunctionDeclaration funcDecl)
+                    // Per ES spec AnnexB B.3.3, function declarations in switch cases are only hoisted
+                    // in non-strict mode. In strict mode, they behave like lexical declarations.
+                    if (stmt is FunctionDeclaration funcDecl && !isStrict)
                     {
                         var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
                                                  funcDecl.Function.IsGenerator;

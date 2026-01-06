@@ -36,6 +36,9 @@ public static partial class TypedAstEvaluator
             // Hoist lexical declarations from all case bodies
             SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
 
+            // In strict mode, instantiate function declarations as lexical bindings
+            SwitchStatement.InstantiateSwitchFunctionsInStrictMode(statement, switchEnv, context, instantiationPlan.IsStrict);
+
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
 
@@ -146,6 +149,42 @@ public static partial class TypedAstEvaluator
                     true,
                     isLexicalBinding: true,
                     blocksFunctionScopeOverride: false);
+            }
+        }
+
+        /// <summary>
+        /// In strict mode, instantiate function declarations as lexical bindings in the switch environment.
+        /// This is called AFTER InstantiateSwitchLexicalDeclarations.
+        /// </summary>
+        private static void InstantiateSwitchFunctionsInStrictMode(SwitchStatement switchStmt, 
+            JsEnvironment switchEnv, EvaluationContext context, bool isStrict)
+        {
+            if (!isStrict)
+            {
+                return;
+            }
+
+            // In strict mode, function declarations behave like lexical declarations
+            foreach (var switchCase in switchStmt.Cases)
+            {
+                foreach (var stmt in switchCase.Body.Statements)
+                {
+                    if (stmt is not FunctionDeclaration funcDecl)
+                    {
+                        continue;
+                    }
+
+                    // Pass skipInternalNameBinding: true so the function doesn't create an internal
+                    // const binding for its name (the binding is handled by switchEnv.Define below).
+                    var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
+                        skipInternalNameBinding: true);
+                    switchEnv.DefineJsValue(
+                        funcDecl.Name,
+                        JsValue.FromObjectUnsafe(functionValue),
+                        true,
+                        isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+                }
             }
         }
 

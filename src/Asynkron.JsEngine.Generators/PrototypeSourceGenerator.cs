@@ -62,8 +62,8 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
             .Collect()
             .SelectMany<ImmutableArray<ConstructorInfo>, ConstructorInfo>((items, _) => items.OrderBy(c => c.CacheKey, StringComparer.Ordinal));
 
-        context.RegisterSourceOutput(orderedPrototypes, (spc, info) => Emit(spc, info));
-        context.RegisterSourceOutput(orderedConstructors, (spc, info) => EmitConstructor(spc, info));
+        context.RegisterSourceOutput(orderedPrototypes, Emit);
+        context.RegisterSourceOutput(orderedConstructors, EmitConstructor);
     }
 
     private static PrototypeInfo? TransformPrototype(PrototypeTarget target, WellKnownTypes wellKnown)
@@ -133,98 +133,98 @@ public sealed class PrototypeSourceGenerator : IIncrementalGenerator
                 switch (attrName)
                 {
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsHostGetterAttribute":
-                    {
-                        var propertyName = attr.ConstructorArguments.Length > 0
-                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                            : string.Empty;
-                        if (string.IsNullOrWhiteSpace(propertyName))
                         {
-                            continue;
+                            var propertyName = attr.ConstructorArguments.Length > 0
+                                ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                                : string.Empty;
+                            if (string.IsNullOrWhiteSpace(propertyName))
+                            {
+                                continue;
+                            }
+
+                            var displayName = GetNamedValue(attr, "DisplayName") ?? $"get {propertyName}";
+                            var enumerable = GetNamedBool(attr, "Enumerable");
+                            var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
+
+                            getters.Add(new GetterInfo(member.Name, propertyName, displayName, enumerable, configurable, member.IsStatic));
+                            break;
                         }
-
-                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"get {propertyName}";
-                        var enumerable = GetNamedBool(attr, "Enumerable");
-                        var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
-
-                        getters.Add(new GetterInfo(member.Name, propertyName, displayName, enumerable, configurable, member.IsStatic));
-                        break;
-                    }
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsHostSetterAttribute":
-                    {
-                        var propertyName = attr.ConstructorArguments.Length > 0
-                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                            : string.Empty;
-                        if (string.IsNullOrWhiteSpace(propertyName))
                         {
-                            continue;
+                            var propertyName = attr.ConstructorArguments.Length > 0
+                                ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                                : string.Empty;
+                            if (string.IsNullOrWhiteSpace(propertyName))
+                            {
+                                continue;
+                            }
+
+                            var displayName = GetNamedValue(attr, "DisplayName") ?? $"set {propertyName}";
+                            var enumerable = GetNamedBool(attr, "Enumerable");
+                            var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
+
+                            setters.Add(new SetterInfo(member.Name, propertyName, displayName, enumerable, configurable, member.IsStatic));
+                            break;
                         }
-
-                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"set {propertyName}";
-                        var enumerable = GetNamedBool(attr, "Enumerable");
-                        var configurable = GetNamedBool(attr, "Configurable", defaultValue: true);
-
-                        setters.Add(new SetterInfo(member.Name, propertyName, displayName, enumerable, configurable, member.IsStatic));
-                        break;
-                    }
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsHostMethodAttribute":
-                    {
-                        var propertyName = attr.ConstructorArguments.Length > 0
-                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                            : string.Empty;
-                        if (string.IsNullOrWhiteSpace(propertyName))
                         {
-                            continue;
+                            var propertyName = attr.ConstructorArguments.Length > 0
+                                ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                                : string.Empty;
+                            if (string.IsNullOrWhiteSpace(propertyName))
+                            {
+                                continue;
+                            }
+
+                            var lengthLiteral = GetNamedDouble(attr, "Length");
+                            var displayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
+                            var enumerable = GetNamedBool(attr, "Enumerable");
+                            var configurable = GetNamedBool(attr, "Configurable", true);
+                            var writable = GetNamedBool(attr, "Writable", true);
+
+                            var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
+                            methods.Add(new MethodInfo(member.Name, propertyName, displayName, lengthLiteral, enumerable,
+                                configurable, writable, signature, member.IsStatic));
+                            break;
                         }
-
-                        var lengthLiteral = GetNamedDouble(attr, "Length");
-                        var displayName = GetNamedValue(attr, "DisplayName") ?? propertyName;
-                        var enumerable = GetNamedBool(attr, "Enumerable");
-                        var configurable = GetNamedBool(attr, "Configurable", true);
-                        var writable = GetNamedBool(attr, "Writable", true);
-
-                        var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
-                        methods.Add(new MethodInfo(member.Name, propertyName, displayName, lengthLiteral, enumerable,
-                            configurable, writable, signature, member.IsStatic));
-                        break;
-                    }
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsSymbolMethodAttribute":
-                    {
-                        var symbolName = attr.ConstructorArguments.Length > 0
-                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                            : string.Empty;
-                        if (string.IsNullOrWhiteSpace(symbolName))
                         {
-                            continue;
+                            var symbolName = attr.ConstructorArguments.Length > 0
+                                ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                                : string.Empty;
+                            if (string.IsNullOrWhiteSpace(symbolName))
+                            {
+                                continue;
+                            }
+
+                            var lengthLiteral = GetNamedDouble(attr, "Length");
+                            var displayName = GetNamedValue(attr, "DisplayName") ?? $"[Symbol.{symbolName}]";
+                            var enumerable = GetNamedBool(attr, "Enumerable");
+                            var configurable = GetNamedBool(attr, "Configurable", true);
+                            var writable = GetNamedBool(attr, "Writable", true);
+
+                            var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
+                            symbolMethods.Add(new SymbolMethodInfo(member.Name, symbolName, displayName, lengthLiteral, enumerable,
+                                configurable, writable, signature, member.IsStatic));
+                            break;
                         }
-
-                        var lengthLiteral = GetNamedDouble(attr, "Length");
-                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"[Symbol.{symbolName}]";
-                        var enumerable = GetNamedBool(attr, "Enumerable");
-                        var configurable = GetNamedBool(attr, "Configurable", true);
-                        var writable = GetNamedBool(attr, "Writable", true);
-
-                        var signature = GetHostMethodSignature(member, jsValueType, readOnlyListType);
-                        symbolMethods.Add(new SymbolMethodInfo(member.Name, symbolName, displayName, lengthLiteral, enumerable,
-                            configurable, writable, signature, member.IsStatic));
-                        break;
-                    }
                     case "Asynkron.JsEngine.Runtime.Prototypes.JsSymbolGetterAttribute":
-                    {
-                        var symbolName = attr.ConstructorArguments.Length > 0
-                            ? attr.ConstructorArguments[0].Value as string ?? string.Empty
-                            : string.Empty;
-                        if (string.IsNullOrWhiteSpace(symbolName))
                         {
-                            continue;
+                            var symbolName = attr.ConstructorArguments.Length > 0
+                                ? attr.ConstructorArguments[0].Value as string ?? string.Empty
+                                : string.Empty;
+                            if (string.IsNullOrWhiteSpace(symbolName))
+                            {
+                                continue;
+                            }
+
+                            var displayName = GetNamedValue(attr, "DisplayName") ?? $"get [Symbol.{symbolName}]";
+                            var enumerable = GetNamedBool(attr, "Enumerable");
+                            var configurable = GetNamedBool(attr, "Configurable", true);
+
+                            symbolGetters.Add(new SymbolGetterInfo(member.Name, symbolName, displayName, enumerable, configurable, member.IsStatic));
+                            break;
                         }
-
-                        var displayName = GetNamedValue(attr, "DisplayName") ?? $"get [Symbol.{symbolName}]";
-                        var enumerable = GetNamedBool(attr, "Enumerable");
-                        var configurable = GetNamedBool(attr, "Configurable", true);
-
-                        symbolGetters.Add(new SymbolGetterInfo(member.Name, symbolName, displayName, enumerable, configurable, member.IsStatic));
-                        break;
-                    }
                 }
             }
         }

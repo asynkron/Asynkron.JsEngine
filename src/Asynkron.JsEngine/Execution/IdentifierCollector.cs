@@ -246,6 +246,19 @@ internal sealed class ScopeSlotCollector : AstVisitor
         }
     }
 
+    private void PopToScope(int targetScopeId)
+    {
+        if (targetScopeId < 0 || _scopeStack.Count <= 1)
+        {
+            return;
+        }
+
+        while (_scopeStack.Count > 1 && _scopeStack.Peek() != targetScopeId)
+        {
+            _scopeStack.Pop();
+        }
+    }
+
     private void CollectBindingTargetSlots(BindingTarget target, int scopeId)
     {
         while (true)
@@ -301,6 +314,14 @@ internal sealed class ScopeSlotCollector : AstVisitor
 
             case PopEnvironmentInstruction pop:
                 LeaveScope(pop.ScopeId);
+                return;
+
+            case BreakInstruction breakInstruction:
+                PopToScope(breakInstruction.TargetScopeId);
+                return;
+
+            case ContinueInstruction continueInstruction:
+                PopToScope(continueInstruction.TargetScopeId);
                 return;
 
             case EnterCatchInstruction enterCatch:

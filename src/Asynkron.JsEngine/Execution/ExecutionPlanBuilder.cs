@@ -35,6 +35,7 @@ internal sealed partial class ExecutionPlanBuilder
     private readonly List<Symbol> _slotSymbols = [];
     private int _catchSlotCounter;
     private string? _failureReason;
+    private int _analysisRootScopeId;
     private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
     private int _resumeSlotCounter;
     private int _scopeIdCounter = 1; // Start at 1; root scope id is handled separately and remapped later
@@ -123,6 +124,7 @@ internal sealed partial class ExecutionPlanBuilder
         _rootScopeId = function.ScopeId > 0 ? function.ScopeId : SyntheticScopeIdAllocator.NextFunctionRoot();
         // Scope analysis uses the function's declared ScopeId when available, otherwise 0 for legacy stamping.
         var analysisRootScopeId = function.ScopeId >= 0 ? function.ScopeId : 0;
+        _analysisRootScopeId = analysisRootScopeId;
         // Always append an implicit "return undefined" instruction. Statement lists fall through to this index.
         var implicitReturnIndex = Append(new ReturnInstruction(-1, null));
         if (!TryBuildStatementList(function.Body.Statements, implicitReturnIndex, out var entryIndex))

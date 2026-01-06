@@ -16,8 +16,14 @@ namespace Asynkron.JsEngine.Execution.Emitters;
 internal sealed class EmitContext(
     ExecutionPlanBuilder builder,
     List<ExecutionInstruction> instructions,
-    Stack<ExecutionPlanBuilder.LoopScope> loopScopes)
+    Stack<ExecutionPlanBuilder.LoopScope> loopScopes,
+    int rootScopeId)
 {
+    private readonly Stack<int> _scopeStack = new();
+    private readonly int _rootScopeId = rootScopeId;
+
+    public int CurrentScopeId => _scopeStack.Count > 0 ? _scopeStack.Peek() : _rootScopeId;
+
     /// <summary>
     /// Current number of instructions (used for rollback on failure).
     /// </summary>
@@ -81,6 +87,27 @@ internal sealed class EmitContext(
     public void PopLoopScope()
     {
         loopScopes.Pop();
+    }
+
+    public void PushScope(int scopeId)
+    {
+        if (scopeId >= 0)
+        {
+            _scopeStack.Push(scopeId);
+        }
+    }
+
+    public void PopScope(int scopeId)
+    {
+        if (_scopeStack.Count == 0)
+        {
+            return;
+        }
+
+        if (_scopeStack.Peek() == scopeId)
+        {
+            _scopeStack.Pop();
+        }
     }
 
     /// <summary>

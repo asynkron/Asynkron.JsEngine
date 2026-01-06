@@ -26,7 +26,7 @@ internal sealed partial class ExecutionPlanBuilder
     /// </summary>
     private EmitContext GetEmitContext()
     {
-        return _emitContext ??= new EmitContext(this, Instructions, _loopScopes);
+        return _emitContext ??= new EmitContext(this, Instructions, _loopScopes, _analysisRootScopeId);
     }
 
     /// <summary>

@@ -99,10 +99,13 @@ internal static class BlockEmitter
             }
         }
 
+        ctx.PushScope(scopeId);
+
         var bodyEntry = popEnvIndex;
         if (nonFunctionStatements.Count > 0 &&
             !ctx.TryBuildStatementList(nonFunctionStatements.ToImmutable(), popEnvIndex, out bodyEntry))
         {
+            ctx.PopScope(scopeId);
             ctx.Rollback(instructionStart);
             entryIndex = -1;
             return false;
@@ -113,10 +116,13 @@ internal static class BlockEmitter
         if (functionDeclarations.Count > 0 &&
             !ctx.TryBuildStatementList(functionDeclarations.ToImmutable(), bodyEntry, out hoistEntry))
         {
+            ctx.PopScope(scopeId);
             ctx.Rollback(instructionStart);
             entryIndex = -1;
             return false;
         }
+
+        ctx.PopScope(scopeId);
 
         // 3. Push environment (enter the block scope)
         // For blocks, PerIterationBindings MUST be empty (no loop iteration semantics).

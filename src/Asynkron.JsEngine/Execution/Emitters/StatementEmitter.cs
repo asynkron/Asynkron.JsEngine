@@ -272,17 +272,9 @@ internal static class StatementEmitter
             return false;
         }
 
-        // If the body contains yield, we need to use EnterWith/LeaveWith instructions
-        if (AstShapeAnalyzer.StatementContainsYield(withStatement.Body))
-        {
-            return WithEmitter.TryEmitWith(ctx, withStatement, nextIndex, activeLabel, out entryIndex);
-        }
-
-        // AST fallback: with statement (no yield in body)
-        // Reason: Dynamic scope semantics not yet supported in IR-only mode
-        // Tracking: #398, #416 (IR-only execution epic)
-        entryIndex = ctx.Append(new StatementInstruction(nextIndex, withStatement));
-        return true;
+        // Always use EnterWith/LeaveWith instructions for proper IR execution.
+        // This removes the StatementInstruction fallback for with statements.
+        return WithEmitter.TryEmitWith(ctx, withStatement, nextIndex, activeLabel, out entryIndex);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -169,7 +169,8 @@ public static partial class TypedAstEvaluator
                         }
                         else
                         {
-                            environment.DefineOrAssignJsValue(instruction.TargetSymbol, varValue);
+                            // Assign to the function-scoped binding even if we're currently in a child scope.
+                            environment.AssignJsValue(instruction.TargetSymbol, varValue);
                         }
                     }
                 }

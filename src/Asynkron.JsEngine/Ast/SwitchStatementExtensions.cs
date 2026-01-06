@@ -36,8 +36,12 @@ public static partial class TypedAstEvaluator
             // Hoist lexical declarations from all case bodies
             SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
 
-            // In strict mode, instantiate function declarations as lexical bindings
-            SwitchStatement.InstantiateSwitchFunctionsInStrictMode(statement, switchEnv, context, instantiationPlan.IsStrict);
+            // In strict mode, function declarations are block-scoped and must be instantiated separately
+            // (they're not in functionBindings because we skip them during plan building in strict mode)
+            if (instantiationPlan.IsStrict)
+            {
+                statement.InstantiateSwitchFunctionsInStrictMode(switchEnv, context);
+            }
 
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
@@ -154,18 +158,13 @@ public static partial class TypedAstEvaluator
 
         /// <summary>
         /// In strict mode, instantiate function declarations as lexical bindings in the switch environment.
-        /// This is called AFTER InstantiateSwitchLexicalDeclarations.
+        /// This is called AFTER InstantiateSwitchLexicalDeclarations and mimics InstantiateLexicalBlockFunctions.
         /// </summary>
-        private static void InstantiateSwitchFunctionsInStrictMode(SwitchStatement switchStmt, 
-            JsEnvironment switchEnv, EvaluationContext context, bool isStrict)
+        private void InstantiateSwitchFunctionsInStrictMode(
+            JsEnvironment switchEnv, EvaluationContext context)
         {
-            if (!isStrict)
-            {
-                return;
-            }
-
-            // In strict mode, function declarations behave like lexical declarations
-            foreach (var switchCase in switchStmt.Cases)
+            // In strict mode, iterate through all cases and instantiate function declarations
+            foreach (var switchCase in statement.Cases)
             {
                 foreach (var stmt in switchCase.Body.Statements)
                 {
@@ -174,10 +173,20 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
+                    // Skip async/generator functions - they're handled during case body evaluation
+                    if (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator)
+                    {
+                        continue;
+                    }
+
+                    // Create the function value and define it as a lexical binding
                     // Pass skipInternalNameBinding: true so the function doesn't create an internal
                     // const binding for its name (the binding is handled by switchEnv.Define below).
                     var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
                         skipInternalNameBinding: true);
+                    
+                    // Define as a lexical binding that blocks function scope override
+                    // This ensures the function is scoped to the switch block, not the enclosing function
                     switchEnv.DefineJsValue(
                         funcDecl.Name,
                         JsValue.FromObjectUnsafe(functionValue),

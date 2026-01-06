@@ -25,8 +25,15 @@ public sealed record SwitchStatement(
             var functionBindings = ImmutableArray.CreateBuilder<SwitchFunctionBinding>();
             var classBindings = ImmutableArray.CreateBuilder<Symbol>();
 
+            var isStrict = false;
+
             foreach (var switchCase in self.Cases)
             {
+                if (switchCase.Body.IsStrict)
+                {
+                    isStrict = true;
+                }
+
                 foreach (var stmt in switchCase.Body.Statements)
                 {
                     if (stmt is VariableDeclaration
@@ -49,9 +56,7 @@ public sealed record SwitchStatement(
                     {
                         var isAsyncOrGenerator = funcDecl.Function.IsAsync || funcDecl.Function.WasAsync ||
                                                  funcDecl.Function.IsGenerator;
-                        functionBindings.Add(new SwitchFunctionBinding(
-                            funcDecl.Name,
-                            funcDecl.Function,
+                        functionBindings.Add(new SwitchFunctionBinding(funcDecl.Name, funcDecl.Function,
                             !isAsyncOrGenerator));
                         continue;
                     }
@@ -64,6 +69,7 @@ public sealed record SwitchStatement(
             }
 
             return new SwitchInstantiationPlan(
+                isStrict,
                 lexicalBindings.ToImmutable(),
                 functionBindings.ToImmutable(),
                 classBindings.ToImmutable());

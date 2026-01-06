@@ -105,17 +105,26 @@ Example consolidation:
 - The roadmap shows ONLY remaining work
 
 **Formatting rules:**
+- **Blockers section comes FIRST** - issues that block other work go at the top under `## Blockers (fix these first!)`
+  - Include what issue(s) each blocker blocks (e.g., "Blocks: #404")
+  - These are prerequisites that must be solved before blocked tasks can proceed
+- Bugs section comes next (if any open bugs)
 - Epics get `##` headers with the epic issue number (only if epic is open)
 - Tasks are bullet points under epics
 - Subtasks are nested bullet points (2-space indent) under their parent task
+- For blocked tasks, add ⚠️ **Blocked by #XXX** to show what's blocking them
 - If a parent task is closed but has open subtasks, show only the subtasks under the epic directly
 - Ungrouped open issues go under "Other"
-- **Include blocker info** - if an issue has blockers documented in comments, add ⚠️ **Blocked** - reason
-  - Check issue comments for investigation findings about blockers
-  - Brief reason helps others understand what's needed before working on it
 
 ```markdown
 # Roadmap
+
+## Blockers (fix these first!)
+
+* #432 - Bug: Exception handling broken when block env combined with `for await...of`
+  - Blocks: #404
+* #433 - Task 1.2.1: Implement ForInEmitter with property enumeration instructions
+  - Blocks: #405
 
 ## Bugs
 
@@ -193,17 +202,26 @@ Output:
 
 ## Reference Snapshot
 
-This is an example of the expected format (note: only OPEN issues appear, with blocker info):
+This is an example of the expected format (blockers at top, only OPEN issues):
 
 ```markdown
 # Roadmap
 
+## Blockers (fix these first!)
+
+* #432 - Bug: Exception handling broken when block env combined with `for await...of`
+  - Blocks: #404
+* #433 - Task 1.2.1: Implement ForInEmitter with property enumeration instructions
+  - Blocks: #405
+* #434 - Task 1.7.1: Implement yield lowering for binding pattern defaults
+  - Blocks: #410
+
 ## Epic: IR-only Execution (#364)
 
 * #399 - Task 1: Remove statement-level AST delegation
-  * #404 - Task 1.1: IR support for block statements with lexical bindings ⚠️ **Blocked** - exception handling with `for await...of`
-  * #405 - Task 1.2: IR support for for-in loops ⚠️ **Blocked** - needs new ForInEmitter
-  * #410 - Task 1.7: IR support for yield in binding target defaults ⚠️ **Blocked** - needs complex yield lowering
+  * #404 - Task 1.1: IR support for block statements with lexical bindings ⚠️ Blocked by #432
+  * #405 - Task 1.2: IR support for for-in loops ⚠️ Blocked by #433
+  * #410 - Task 1.7: IR support for yield in binding target defaults ⚠️ Blocked by #434
 * #400 - Task 2: Introduce expression bytecode
   * #411 - Task 2.1: Design expression bytecode format
   * #412 - Task 2.2: Expression bytecode emitter
@@ -214,4 +232,4 @@ This is an example of the expected format (note: only OPEN issues appear, with b
 * #403 - Task 5: IL backend for generator/async stepping
 ```
 
-Note: Closed issues do NOT appear - they are done! Blocker info is pulled from issue comments.
+Note: Closed issues do NOT appear. Blockers at top show what must be fixed first.

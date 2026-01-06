@@ -41,13 +41,17 @@ internal static class ExpressionStatementEmitter
         // extracted. This includes:
         // - Yields in default values (only evaluated when element is undefined)
         // - Yields in assignment target expressions (e.g., [ {}[ yield ] ] = x)
-        // Wrap them as StatementInstruction to use AST evaluation's state-saving.
         if (EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
         {
             // AST fallback: expression statement with yield in destructuring
             // Reason: Conditional yield semantics in destructuring defaults/targets
             // Tracking: #398, #416 (IR-only execution epic)
-            entryIndex = ctx.Append(new StatementInstruction(nextIndex, expressionStatement));
+            var suppressCompletionFallback =
+                ctx.SuppressCompletionValue || expressionStatement.SuppressCompletionValue;
+            entryIndex = ctx.Append(new EvaluateAndDiscardInstruction(
+                nextIndex,
+                expressionStatement.Expression,
+                suppressCompletionFallback));
             return true;
         }
 

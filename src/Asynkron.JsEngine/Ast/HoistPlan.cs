@@ -445,6 +445,13 @@ internal sealed class HoistPlan
                     lexicalKindMap[classDeclaration.Name] = false;
                     break;
 
+                case FunctionDeclaration functionDeclaration:
+                    // Block-scoped function declarations are lexical bindings
+                    names.Add(functionDeclaration.Name);
+                    // Function declarations create mutable bindings (can be reassigned)
+                    lexicalKindMap[functionDeclaration.Name] = false;
+                    break;
+
                 // NO recursion into other statement types - they have their own scopes
             }
         }

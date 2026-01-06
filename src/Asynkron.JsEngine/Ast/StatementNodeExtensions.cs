@@ -263,15 +263,10 @@ public static partial class TypedAstEvaluator
                         }
 
                         // In strict mode, block-level function declarations are block-scoped only
-                        // (no Annex B var-style hoisting). Skip hoisting when we are inside a block.
+                        // (no Annex B var-style hoisting). Skip hoisting entirely - the block's
+                        // FunctionDeclarationInstruction will create the binding at runtime.
                         if (inBlockScope && context.CurrentScope.IsStrict)
                         {
-                            environment.DefineJsValue(
-                                functionDeclaration.Name,
-                                JsValue.Uninitialized,
-                                isConst: true,
-                                isLexicalBinding: true,
-                                blocksFunctionScopeOverride: true);
                             break;
                         }
 

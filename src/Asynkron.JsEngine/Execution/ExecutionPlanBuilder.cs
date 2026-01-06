@@ -546,7 +546,6 @@ internal sealed partial class ExecutionPlanBuilder
                         return;
                     case LabeledStatement labeledStatement:
                         statement = labeledStatement.Statement;
-                        inBlockScope = true;
                         continue;
                     case WithStatement withStatement:
                         statement = withStatement.Body;

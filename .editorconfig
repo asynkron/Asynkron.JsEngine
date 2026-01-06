@@ -161,6 +161,7 @@ charset = utf-8-bom
 
 [*.{cs,vb}]
 # MA0051: Method too long
+# this one breaks extension modules!!!!
 dotnet_diagnostic.MA0051.severity = silent
 # CA1801: Review unused parameters
 dotnet_diagnostic.CA2201.severity = silent

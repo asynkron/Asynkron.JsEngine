@@ -158,6 +158,11 @@ while [[ $i -lt ${#args[@]} ]]; do
       i=$((i + 1))
       continue
       ;;
+    --jit-inline|--jit-disasm)
+      profiler_args+=("$arg")
+      i=$((i + 1))
+      continue
+      ;;
     -*)
       profiler_args+=("$arg")
       i=$((i + 1))

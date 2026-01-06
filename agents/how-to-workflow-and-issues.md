@@ -13,6 +13,18 @@ For any non-trivial bug fix or feature (especially when spawning background code
 
 This ensures code review and avoids pushing directly to main.
 
+## After Background Agent Completes
+When a coder agent finishes, **always evaluate its findings and act on them**:
+
+1. **Read the agent output carefully** - it contains investigation findings, blockers, and recommendations
+2. **Document blockers** - if tasks couldn't be completed, add comments to the relevant issues explaining why
+3. **Create new issues** - if the agent discovered new problems or prerequisites, create issues for them
+4. **Update the roadmap** - run `/roadmap` to refresh the roadmap with current progress
+5. **Close completed issues** - mark finished subtasks as closed
+6. **Link related issues** - add "Blocked by #X" or "Related to #Y" references
+
+This step is **critical** - agent investigation findings are lost if not documented in GitHub issues!
+
 ## GitHub Issue Logging (persistent working memory)
 - Treat GitHub issues as the long-lived log of progress, research, and reasoning.
 - For each session, update an existing issue or create one if none fit.

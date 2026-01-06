@@ -60,7 +60,17 @@ When launching a background coder agent for a big task:
    gh pr merge --squash
    ```
 
-4. **Cleanup:**
+4. **Evaluate agent findings and act on them:**
+   - Read the agent's output summary carefully - it contains valuable findings
+   - If subtasks were blocked, document the blockers on the relevant GitHub issues
+   - If new issues were discovered, create GitHub issues for them
+   - Update the roadmap to reflect current progress and blockers
+   - Close any issues that were completed
+   - Link related issues together (e.g., "Blocked by #X", "Related to #Y")
+
+   This step is critical - the agent's investigation findings are lost if not documented!
+
+5. **Cleanup:**
    ```bash
    git pull origin main
    git worktree remove ../Asynkron.JsEngine-fix-420 --force

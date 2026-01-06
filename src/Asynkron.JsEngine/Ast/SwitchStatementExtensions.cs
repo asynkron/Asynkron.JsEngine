@@ -25,23 +25,17 @@ public static partial class TypedAstEvaluator
 
             var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
 
+            var isStrict = context.CurrentScope.IsStrict;
             // Create a lexical environment for the entire switch block
             // This environment is shared by all case clause bodies
-            var switchEnv = new JsEnvironment(environment, false, instantiationPlan.IsStrict);
+            var switchEnv = new JsEnvironment(environment, false, isStrict);
 
             // Push a scope context for the switch block
-            var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var scopeMode = isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
 
             // Hoist lexical declarations from all case bodies
-            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
-
-            // In strict mode, function declarations are block-scoped and must be instantiated separately
-            // (they're not in functionBindings because we skip them during plan building in strict mode)
-            if (instantiationPlan.IsStrict)
-            {
-                statement.InstantiateSwitchFunctionsInStrictMode(switchEnv, context);
-            }
+            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context, isStrict);
 
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
@@ -115,7 +109,7 @@ public static partial class TypedAstEvaluator
         }
 
         private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv,
-            EvaluationContext context)
+            EvaluationContext context, bool isStrict)
         {
             foreach (var binding in plan.LexicalBindings)
             {
@@ -124,6 +118,17 @@ public static partial class TypedAstEvaluator
 
             foreach (var funcBinding in plan.FunctionBindings)
             {
+                if (isStrict)
+                {
+                    switchEnv.DefineJsValue(
+                        funcBinding.Name,
+                        JsValue.Uninitialized,
+                        true,
+                        isLexicalBinding: true,
+                        blocksFunctionScopeOverride: true);
+                    continue;
+                }
+
                 if (!funcBinding.InitializeNow)
                 {
                     switchEnv.DefineJsValue(
@@ -157,47 +162,6 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// In strict mode, instantiate function declarations as lexical bindings in the switch environment.
-        /// This is called AFTER InstantiateSwitchLexicalDeclarations and mimics InstantiateLexicalBlockFunctions.
-        /// </summary>
-        private void InstantiateSwitchFunctionsInStrictMode(
-            JsEnvironment switchEnv, EvaluationContext context)
-        {
-            // In strict mode, iterate through all cases and instantiate function declarations
-            foreach (var switchCase in statement.Cases)
-            {
-                foreach (var stmt in switchCase.Body.Statements)
-                {
-                    if (stmt is not FunctionDeclaration funcDecl)
-                    {
-                        continue;
-                    }
-
-                    // Skip async/generator functions - they're handled during case body evaluation
-                    if (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator)
-                    {
-                        continue;
-                    }
-
-                    // Create the function value and define it as a lexical binding
-                    // Pass skipInternalNameBinding: true so the function doesn't create an internal
-                    // const binding for its name (the binding is handled by switchEnv.Define below).
-                    var functionValue = funcDecl.Function.CreateFunctionValue(switchEnv, context,
-                        skipInternalNameBinding: true);
-                    
-                    // Define as a lexical binding that blocks function scope override
-                    // This ensures the function is scoped to the switch block, not the enclosing function
-                    switchEnv.DefineJsValue(
-                        funcDecl.Name,
-                        JsValue.FromObjectUnsafe(functionValue),
-                        true,
-                        isLexicalBinding: true,
-                        blocksFunctionScopeOverride: true);
-                }
-            }
-        }
-
-        /// <summary>
         /// Evaluates a case clause body and returns a tuple with the value and whether it produced a value.
         /// </summary>
         private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body,
@@ -212,10 +176,11 @@ public static partial class TypedAstEvaluator
             {
                 context.ThrowIfCancellationRequested();
 
-                // Special handling for async/generator function declarations
-                // They need to be initialized when evaluated (not during instantiation)
+                // Special handling for function declarations that need to be initialized when evaluated
+                // (async/generator always; sync functions when running in strict mode)
                 if (stmt is FunctionDeclaration funcDecl &&
-                    (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator))
+                    (funcDecl.Function.IsAsync || funcDecl.Function.WasAsync || funcDecl.Function.IsGenerator ||
+                     context.CurrentScope.IsStrict))
                 {
                     // Pass skipInternalNameBinding: true so the function doesn't create an internal
                     // const binding for its name (the binding was already defined during instantiation).

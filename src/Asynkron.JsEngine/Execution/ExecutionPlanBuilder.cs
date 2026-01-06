@@ -465,32 +465,45 @@ internal sealed partial class ExecutionPlanBuilder
     private static List<Symbol> CollectHoistedFunctionSymbols(BlockStatement body)
     {
         var result = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var isStrict = body.IsStrict;
 
         foreach (var statement in body.Statements)
         {
-            CollectFromStatement(statement, result);
+            CollectFromStatement(statement, result, isStrict, inBlockScope: false);
         }
 
         return result.ToList();
 
-        static void CollectFromStatement(StatementNode statement, HashSet<Symbol> sink)
+        // Per ES2024 Annex B.3.2 (Block-Level Function Declarations Web Legacy Compatibility Semantics):
+        // In strict mode, function declarations inside blocks are block-scoped only and do NOT get
+        // hoisted to the enclosing function scope. The AnnexB hoisting only applies to sloppy mode.
+        static void CollectFromStatement(StatementNode statement, HashSet<Symbol> sink, bool isStrict, bool inBlockScope)
         {
             while (true)
             {
                 switch (statement)
                 {
                     case FunctionDeclaration funcDecl:
-                        sink.Add(funcDecl.Name);
+                        // In strict mode, function declarations inside blocks are NOT hoisted
+                        // to the function scope. Only collect if we're at function body level
+                        // (not inside a nested block) OR if we're in sloppy mode.
+                        if (!isStrict || !inBlockScope)
+                        {
+                            sink.Add(funcDecl.Name);
+                        }
                         return;
                     case BlockStatement block:
+                        // When entering a nested block, function declarations inside become block-scoped
+                        // in strict mode (not hoisted to function scope)
                         foreach (var inner in block.Statements)
                         {
-                            CollectFromStatement(inner, sink);
+                            CollectFromStatement(inner, sink, isStrict, inBlockScope: true);
                         }
 
                         return;
                     case IfStatement ifStatement:
-                        CollectFromStatement(ifStatement.Then, sink);
+                        // if/else bodies create implicit block scope for function declarations in strict mode
+                        CollectFromStatement(ifStatement.Then, sink, isStrict, inBlockScope: true);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
@@ -507,7 +520,7 @@ internal sealed partial class ExecutionPlanBuilder
                     case ForStatement forStatement:
                         if (forStatement.Initializer is StatementNode initStmt)
                         {
-                            CollectFromStatement(initStmt, sink);
+                            CollectFromStatement(initStmt, sink, isStrict, inBlockScope);
                         }
 
                         statement = forStatement.Body;
@@ -516,22 +529,23 @@ internal sealed partial class ExecutionPlanBuilder
                         statement = forEachStatement.Body;
                         continue;
                     case SwitchStatement switchStatement:
+                        // Switch case/default bodies are block-scoped for function declarations
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            CollectFromStatement(switchCase.Body, sink);
+                            CollectFromStatement(switchCase.Body, sink, isStrict, inBlockScope: true);
                         }
 
                         return;
                     case TryStatement tryStatement:
-                        CollectFromStatement(tryStatement.TryBlock, sink);
+                        CollectFromStatement(tryStatement.TryBlock, sink, isStrict, inBlockScope);
                         if (tryStatement.Catch is { Body: { } catchBody })
                         {
-                            CollectFromStatement(catchBody, sink);
+                            CollectFromStatement(catchBody, sink, isStrict, inBlockScope);
                         }
 
                         if (tryStatement.Finally is { } finallyBody)
                         {
-                            CollectFromStatement(finallyBody, sink);
+                            CollectFromStatement(finallyBody, sink, isStrict, inBlockScope);
                         }
 
                         return;

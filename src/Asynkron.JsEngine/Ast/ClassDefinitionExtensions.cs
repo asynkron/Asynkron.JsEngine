@@ -1,7 +1,6 @@
 #region
 
 using System.Collections.Immutable;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;

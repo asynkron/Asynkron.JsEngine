@@ -3,7 +3,6 @@
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;

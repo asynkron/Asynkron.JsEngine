@@ -2,7 +2,6 @@
 
 using System.Collections.Concurrent;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
 

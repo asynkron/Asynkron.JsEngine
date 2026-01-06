@@ -3,7 +3,6 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 #endregion

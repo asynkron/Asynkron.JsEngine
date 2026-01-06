@@ -1,7 +1,6 @@
 #region
 
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.Execution;
 
 #endregion
 

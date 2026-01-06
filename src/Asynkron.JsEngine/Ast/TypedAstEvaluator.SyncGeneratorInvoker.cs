@@ -1,7 +1,5 @@
 #region
 
-using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 

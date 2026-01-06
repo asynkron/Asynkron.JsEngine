@@ -3,7 +3,6 @@
 using System.Globalization;
 using System.Text;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -48,151 +47,148 @@ internal static class JsValueExtensions
         return builder.ToString();
     }
 
-    extension(object? value)
+    public static double ToNumber(this object? value)
     {
-        public double ToNumber()
+        return value switch
         {
-            return value switch
+            null => 0,
+            JsValue jsValue => jsValue.Kind switch
             {
-                null => 0,
-                JsValue jsValue => jsValue.Kind switch
+                JsValueKind.Undefined => double.NaN,
+                JsValueKind.Null => 0,
+                JsValueKind.Boolean => jsValue.NumberValue,
+                JsValueKind.Number => jsValue.NumberValue,
+                JsValueKind.String => StringToNumber(jsValue.ObjectValue as string ?? string.Empty),
+                JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError(
+                    "Cannot convert a Symbol value to a number"),
+                JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi ? (double)bi.Value : double.NaN,
+                JsValueKind.Object => jsValue.ObjectValue.ToNumber(),
+                _ => double.NaN
+            },
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
+            IIsHtmlDda => double.NaN,
+            JsBigInt bigInt => (double)bigInt.Value,
+            double d => d,
+            float f => f,
+            decimal m => (double)m,
+            int i => i,
+            uint ui => ui,
+            long l => l,
+            ulong ul => ul,
+            short s => s,
+            ushort us => us,
+            byte b => b,
+            sbyte sb => sb,
+            bool flag => flag ? 1 : 0,
+            string str => StringToNumber(str),
+            Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
+            Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number"),
+            JsArray arr => ArrayToNumber(arr),
+            JsObject obj => obj.TryGetProperty("__value__", out var inner)
+                ? inner.ToNumber()
+                : double.NaN,
+            IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
+                ? inner.ToNumber()
+                : double.NaN,
+            _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
+        };
+    }
+
+    public static string ToJsString(this object? value, EvaluationContext? context = null, RealmState? realm = null)
+    {
+        switch (value)
+        {
+            // Fast-path common primitives/wrappers before general object coercion.
+            case null:
+                return "null";
+            // Handle JsValue struct - unwrap based on kind to avoid boxing
+            case JsValue jsValue:
+                return jsValue.Kind switch
                 {
-                    JsValueKind.Undefined => double.NaN,
-                    JsValueKind.Null => 0,
-                    JsValueKind.Boolean => jsValue.NumberValue,
-                    JsValueKind.Number => jsValue.NumberValue,
-                    JsValueKind.String => StringToNumber(jsValue.ObjectValue as string ?? string.Empty),
+                    JsValueKind.Undefined => "undefined",
+                    JsValueKind.Null => "null",
+                    JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
+                    JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
+                    JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
                     JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError(
-                        "Cannot convert a Symbol value to a number"),
-                    JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi ? (double)bi.Value : double.NaN,
-                    JsValueKind.Object => jsValue.ObjectValue.ToNumber(),
-                    _ => double.NaN
-                },
-                Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
-                IIsHtmlDda => double.NaN,
-                JsBigInt bigInt => (double)bigInt.Value,
-                double d => d,
-                float f => f,
-                decimal m => (double)m,
-                int i => i,
-                uint ui => ui,
-                long l => l,
-                ulong ul => ul,
-                short s => s,
-                ushort us => us,
-                byte b => b,
-                sbyte sb => sb,
-                bool flag => flag ? 1 : 0,
-                string str => StringToNumber(str),
-                Symbol sym when ReferenceEquals(sym, Symbol.Undefined) => double.NaN,
-                Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a number"),
-                JsArray arr => ArrayToNumber(arr),
-                JsObject obj => obj.TryGetProperty("__value__", out var inner)
-                    ? inner.ToNumber()
-                    : double.NaN,
-                IJsPropertyAccessor accessor => accessor.TryGetProperty("__value__", out var inner)
-                    ? inner.ToNumber()
-                    : double.NaN,
-                _ => throw new InvalidOperationException($"Cannot convert value '{value}' to a number.")
-            };
+                        "Cannot convert a Symbol value to a string", context, realm ?? context?.RealmState),
+                    JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi
+                        ? bi.Value.ToString(CultureInfo.InvariantCulture)
+                        : string.Empty,
+                    JsValueKind.Object => jsValue.ObjectValue.ToJsString(context, realm),
+                    _ => string.Empty
+                };
+            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
+            case IIsHtmlDda:
+                return "undefined";
         }
 
-        public string ToJsString(EvaluationContext? context = null, RealmState? realm = null)
+        var realmState = realm ?? context?.RealmState;
+
+        switch (value)
         {
-            switch (value)
+            case Symbol or JsSymbol:
+                throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
+            case bool b:
+                return b ? "true" : "false";
+            case JsBigInt bigIntVal:
+                return bigIntVal.ToString();
+            case JsArray arrayVal:
+                return ArrayToString(arrayVal);
+            case IJsPropertyAccessor accessor:
             {
-                // Fast-path common primitives/wrappers before general object coercion.
-                case null:
-                    return "null";
-                // Handle JsValue struct - unwrap based on kind to avoid boxing
-                case JsValue jsValue:
-                    return jsValue.Kind switch
-                    {
-                        JsValueKind.Undefined => "undefined",
-                        JsValueKind.Null => "null",
-                        JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
-                        JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
-                        JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
-                        JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError(
-                            "Cannot convert a Symbol value to a string", context, realm ?? context?.RealmState),
-                        JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi
-                            ? bi.Value.ToString(CultureInfo.InvariantCulture)
-                            : string.Empty,
-                        JsValueKind.Object => jsValue.ObjectValue.ToJsString(context, realm),
-                        _ => string.Empty
-                    };
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                case IIsHtmlDda:
-                    return "undefined";
+                var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
+                return primitive.TryGetObject<IJsPropertyAccessor>(out _) ? "[object Object]" : primitive.ToJsString(context, realmState);
             }
-
-            var realmState = realm ?? context?.RealmState;
-
-            switch (value)
-            {
-                case Symbol or JsSymbol:
-                    throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
-                case bool b:
-                    return b ? "true" : "false";
-                case JsBigInt bigIntVal:
-                    return bigIntVal.ToString();
-                case JsArray arrayVal:
-                    return ArrayToString(arrayVal);
-                case IJsPropertyAccessor accessor:
-                    {
-                        var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
-                        return primitive.TryGetObject<IJsPropertyAccessor>(out _) ? "[object Object]" : primitive.ToJsString(context, realmState);
-                    }
-                default:
-                    return value switch
-                    {
-                        IJsCallable => "function() { [native code] }",
-                        string s => s,
-                        double d => JsOps.ToCanonicalNumberString(d),
-                        float f => JsOps.ToCanonicalNumberString(f),
-                        decimal m => m.ToString(CultureInfo.InvariantCulture),
-                        int i => i.ToString(CultureInfo.InvariantCulture),
-                        uint ui => ui.ToString(CultureInfo.InvariantCulture),
-                        long l => l.ToString(CultureInfo.InvariantCulture),
-                        ulong ul => ul.ToString(CultureInfo.InvariantCulture),
-                        short s16 => s16.ToString(CultureInfo.InvariantCulture),
-                        ushort us16 => us16.ToString(CultureInfo.InvariantCulture),
-                        byte b8 => b8.ToString(CultureInfo.InvariantCulture),
-                        sbyte sb8 => sb8.ToString(CultureInfo.InvariantCulture),
-                        JsSymbol jsSymbol => jsSymbol.ToString(),
-                        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
-                    };
-            }
+            default:
+                return value switch
+                {
+                    IJsCallable => "function() { [native code] }",
+                    string s => s,
+                    double d => JsOps.ToCanonicalNumberString(d),
+                    float f => JsOps.ToCanonicalNumberString(f),
+                    decimal m => m.ToString(CultureInfo.InvariantCulture),
+                    int i => i.ToString(CultureInfo.InvariantCulture),
+                    uint ui => ui.ToString(CultureInfo.InvariantCulture),
+                    long l => l.ToString(CultureInfo.InvariantCulture),
+                    ulong ul => ul.ToString(CultureInfo.InvariantCulture),
+                    short s16 => s16.ToString(CultureInfo.InvariantCulture),
+                    ushort us16 => us16.ToString(CultureInfo.InvariantCulture),
+                    byte b8 => b8.ToString(CultureInfo.InvariantCulture),
+                    sbyte sb8 => sb8.ToString(CultureInfo.InvariantCulture),
+                    JsSymbol jsSymbol => jsSymbol.ToString(),
+                    _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty
+                };
         }
+    }
 
-        public string ToJsStringForArray(EvaluationContext? context = null, RealmState? realm = null)
+    public static string ToJsStringForArray(this object? value, EvaluationContext? context = null, RealmState? realm = null)
+    {
+        switch (value)
         {
-            switch (value)
-            {
-                case null:
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                // Handle JsValue struct - unwrap based on kind to avoid boxing
-                // For array join, undefined and null become empty string
-                case JsValue { IsNullOrUndefined: true }:
-                    return string.Empty;
-                // For objects, recurse with the underlying object
-                case JsValue { Kind: JsValueKind.Object } jsValue:
-                    return jsValue.ObjectValue.ToJsStringForArray(context, realm);
-                // For primitives, use ToJsString which handles them directly
-                case JsValue jsValue:
-                    return jsValue.Kind switch
-                    {
-                        JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
-                        JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
-                        JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
-                        JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi
-                            ? bi.Value.ToString(CultureInfo.InvariantCulture)
-                            : string.Empty,
-                        _ => string.Empty
-                    };
-                default:
-                    return value.ToJsString(context, realm);
-            }
+            case null:
+            case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
+            // Handle JsValue struct - unwrap based on kind to avoid boxing
+            // For array join, undefined and null become empty string
+            case JsValue { IsNullOrUndefined: true }:
+                return string.Empty;
+            // For objects, recurse with the underlying object
+            case JsValue { Kind: JsValueKind.Object } jsValue:
+                return jsValue.ObjectValue.ToJsStringForArray(context, realm);
+            // For primitives, use ToJsString which handles them directly
+            case JsValue jsValue:
+                return jsValue.Kind switch
+                {
+                    JsValueKind.Boolean => jsValue.NumberValue != 0 ? "true" : "false",
+                    JsValueKind.Number => JsOps.ToCanonicalNumberString(jsValue.NumberValue),
+                    JsValueKind.String => jsValue.ObjectValue as string ?? string.Empty,
+                    JsValueKind.BigInt => jsValue.ObjectValue is JsBigInt bi
+                        ? bi.Value.ToString(CultureInfo.InvariantCulture)
+                        : string.Empty,
+                    _ => string.Empty
+                };
+            default:
+                return value.ToJsString(context, realm);
         }
     }
 }

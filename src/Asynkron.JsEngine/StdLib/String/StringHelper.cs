@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 

@@ -1,27 +1,22 @@
 #region
 
-using Asynkron.JsEngine.JsTypes;
-
 #endregion
 
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(ConditionalExpression expression)
+    private static JsValue EvaluateConditional(this ConditionalExpression expression, JsEnvironment environment,
+        EvaluationContext context)
     {
-        private JsValue EvaluateConditional(JsEnvironment environment,
-            EvaluationContext context)
+        var test = expression.Test.EvaluateExpression(environment, context);
+        if (context.ShouldStopEvaluation)
         {
-            var test = expression.Test.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation)
-            {
-                return JsValue.Undefined;
-            }
-
-            return test.IsTruthy
-                ? expression.Consequent.EvaluateExpression(environment, context)
-                : expression.Alternate.EvaluateExpression(environment, context);
+            return JsValue.Undefined;
         }
+
+        return test.IsTruthy
+            ? expression.Consequent.EvaluateExpression(environment, context)
+            : expression.Alternate.EvaluateExpression(environment, context);
     }
 }

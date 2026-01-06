@@ -1,58 +1,53 @@
 #region
 
-using Asynkron.JsEngine.JsTypes;
-
 #endregion
 
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(ArrayExpression expression)
+    private static JsValue EvaluateArray(this ArrayExpression expression, JsEnvironment environment,
+        EvaluationContext context)
     {
-        private JsValue EvaluateArray(JsEnvironment environment,
-            EvaluationContext context)
+        var array = new JsArray(context.RealmState);
+        foreach (var element in expression.Elements)
         {
-            var array = new JsArray(context.RealmState);
-            foreach (var element in expression.Elements)
+            if (element.IsSpread)
             {
-                if (element.IsSpread)
+                var spreadValueJs = element.Expression!.EvaluateExpression(environment, context);
+                if (context.ShouldStopEvaluation)
                 {
-                    var spreadValueJs = element.Expression!.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return JsValue.Undefined;
-                    }
-
-                    foreach (var item in EnumerateSpread(spreadValueJs, context))
-                    {
-                        array.Push(item);
-                    }
-
-                    if (context.ShouldStopEvaluation)
-                    {
-                        return JsValue.Undefined;
-                    }
-
-                    continue;
+                    return JsValue.Undefined;
                 }
 
-                if (element.Expression is null)
+                foreach (var item in EnumerateSpread(spreadValueJs, context))
                 {
-                    array.PushHole();
-                }
-                else
-                {
-                    array.Push(element.Expression.EvaluateExpression(environment, context));
+                    array.Push(item);
                 }
 
                 if (context.ShouldStopEvaluation)
                 {
                     return JsValue.Undefined;
                 }
+
+                continue;
             }
 
-            return JsValue.FromJsArray(array);
+            if (element.Expression is null)
+            {
+                array.PushHole();
+            }
+            else
+            {
+                array.Push(element.Expression.EvaluateExpression(environment, context));
+            }
+
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
         }
+
+        return JsValue.FromJsArray(array);
     }
 }

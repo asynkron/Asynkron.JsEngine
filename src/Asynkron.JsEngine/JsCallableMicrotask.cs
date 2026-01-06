@@ -1,4 +1,3 @@
-using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;

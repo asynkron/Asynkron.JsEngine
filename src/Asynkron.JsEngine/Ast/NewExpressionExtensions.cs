@@ -2,7 +2,6 @@
 
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -13,346 +12,343 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(NewExpression expression)
+    private static JsValue EvaluateNew(this NewExpression expression, JsEnvironment environment, EvaluationContext context)
     {
-        private JsValue EvaluateNew(JsEnvironment environment, EvaluationContext context)
+        var realm = context.RealmState;
+        var constructorJsValue = expression.Constructor.EvaluateExpression(environment, context);
+        if (context.ShouldStopEvaluation)
         {
-            var realm = context.RealmState;
-            var constructorJsValue = expression.Constructor.EvaluateExpression(environment, context);
-            if (context.ShouldStopEvaluation)
+            return JsValue.Undefined;
+        }
+
+        // Constructors must be objects - extract ObjectValue directly
+        var constructor = constructorJsValue.Kind == JsValueKind.Object ? constructorJsValue.ObjectValue : null;
+
+        // ArgumentListEvaluation must run before the IsConstructor check (ES2024 12.3.3.1.1 step 6-7).
+        var hasSpread = false;
+        foreach (var argument in expression.Arguments)
+        {
+            if (argument.IsSpread)
             {
-                return JsValue.Undefined;
+                hasSpread = true;
+                break;
             }
+        }
 
-            // Constructors must be objects - extract ObjectValue directly
-            var constructor = constructorJsValue.Kind == JsValueKind.Object ? constructorJsValue.ObjectValue : null;
-
-            // ArgumentListEvaluation must run before the IsConstructor check (ES2024 12.3.3.1.1 step 6-7).
-            var hasSpread = false;
-            foreach (var argument in expression.Arguments)
+        IReadOnlyList<JsValue> args;
+        if (!hasSpread)
+        {
+            if (expression.Arguments.Length == 0)
             {
-                if (argument.IsSpread)
-                {
-                    hasSpread = true;
-                    break;
-                }
-            }
-
-            IReadOnlyList<JsValue> args;
-            if (!hasSpread)
-            {
-                if (expression.Arguments.Length == 0)
-                {
-                    args = [];
-                }
-                else
-                {
-                    var argsArray = new JsValue[expression.Arguments.Length];
-                    for (var i = 0; i < expression.Arguments.Length; i++)
-                    {
-                        argsArray[i] = expression.Arguments[i].Expression.EvaluateExpression(environment, context);
-                        if (context.ShouldStopEvaluation)
-                        {
-                            return JsValue.Undefined;
-                        }
-                    }
-
-                    args = argsArray;
-                }
+                args = [];
             }
             else
             {
-                var argsBuilder = ImmutableArray.CreateBuilder<JsValue>(expression.Arguments.Length);
-                foreach (var argument in expression.Arguments)
+                var argsArray = new JsValue[expression.Arguments.Length];
+                for (var i = 0; i < expression.Arguments.Length; i++)
                 {
-                    if (argument.IsSpread)
-                    {
-                        var spreadValueJs = argument.Expression.EvaluateExpression(environment, context);
-                        if (context.ShouldStopEvaluation)
-                        {
-                            return JsValue.Undefined;
-                        }
-
-                        foreach (var item in EnumerateSpread(spreadValueJs, context))
-                        {
-                            argsBuilder.Add(item);
-                        }
-
-                        if (context.ShouldStopEvaluation)
-                        {
-                            return JsValue.Undefined;
-                        }
-
-                        continue;
-                    }
-
-                    argsBuilder.Add(argument.Expression.EvaluateExpression(environment, context));
+                    argsArray[i] = expression.Arguments[i].Expression.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
                     }
                 }
 
-                args = FreezeArguments(argsBuilder);
+                args = argsArray;
             }
-
-            if (constructor is not IJsCallable callable)
+        }
+        else
+        {
+            var argsBuilder = ImmutableArray.CreateBuilder<JsValue>(expression.Arguments.Length);
+            foreach (var argument in expression.Arguments)
             {
-                var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
-                throw new ThrowSignal(notCtor);
-            }
-
-            if (constructor is HostFunction hostFunction &&
-                (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
-            {
-                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")),
-                        JsValue.Null)
-                    : JsValue.FromObjectUnsafe(new InvalidOperationException(
-                        hostFunction.ConstructErrorMessage ?? "Target is not a constructor."));
-                throw new ThrowSignal(errorJs);
-            }
-
-            if (constructor is SyncFunctionInvoker { IsArrowFunction: true })
-            {
-                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
-                    : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
-                throw new ThrowSignal(errorJs);
-            }
-
-            if (constructor is SyncFunctionInvoker { DisallowConstruct: true })
-            {
-                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
-                    : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
-                throw new ThrowSignal(errorJs);
-            }
-
-            if (constructor is SyncGeneratorInvoker)
-            {
-                var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
-                    ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Generator functions cannot be constructed with 'new'"),
-                        JsValue.Null)
-                    : JsValue.FromObjectUnsafe(
-                        new InvalidOperationException("Generator functions cannot be constructed with 'new'."));
-                throw new ThrowSignal(errorJs);
-            }
-
-            var typedConstructor = constructor as SyncFunctionInvoker;
-            var isDerivedClassCtor = typedConstructor?.IsDerivedClassConstructor == true;
-            var logger = realm?.Logger;
-
-            JsObject? instance = null;
-
-            if (!isDerivedClassCtor)
-            {
-                instance = new JsObject();
-                if (typedConstructor is not null)
+                if (argument.IsSpread)
                 {
-                    // Use TryGetPrototypeValue to get any object-like prototype (including functions)
-                    // Per ES spec, if Constructor.prototype is not an object, use %Object.prototype%
-                    if (typedConstructor.TryGetPrototypeValue(out var protoValue) && protoValue is not null)
+                    var spreadValueJs = argument.Expression.EvaluateExpression(environment, context);
+                    if (context.ShouldStopEvaluation)
                     {
-                        instance.SetPrototype(protoValue);
-                        logger?.LogInformation(
-                            "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
-                            DescribeInstance(instance),
-                            DescribePrototype(protoValue),
-                            isDerivedClassCtor);
+                        return JsValue.Undefined;
                     }
-                    else
+
+                    foreach (var item in EnumerateSpread(spreadValueJs, context))
                     {
-                        // Fall back to creating/getting a JsObject prototype
-                        var protoObject = typedConstructor.GetOrCreatePrototypeObject();
-                        instance.SetPrototype(protoObject);
-                        logger?.LogInformation(
-                            "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
-                            DescribeInstance(instance),
-                            DescribePrototype(protoObject),
-                            isDerivedClassCtor);
+                        argsBuilder.Add(item);
                     }
+
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    continue;
                 }
-                else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var prototypeJs, context) &&
-                         prototypeJs.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+
+                argsBuilder.Add(argument.Expression.EvaluateExpression(environment, context));
+                if (context.ShouldStopEvaluation)
                 {
-                    instance.SetPrototype(protoAccessor);
+                    return JsValue.Undefined;
+                }
+            }
+
+            args = FreezeArguments(argsBuilder);
+        }
+
+        if (constructor is not IJsCallable callable)
+        {
+            var notCtor = StandardLibrary.CreateTypeError("Target is not a constructor", context, realm);
+            throw new ThrowSignal(notCtor);
+        }
+
+        if (constructor is HostFunction hostFunction &&
+            (!hostFunction.IsConstructor || hostFunction.DisallowConstruct))
+        {
+            var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)(hostFunction.ConstructErrorMessage ?? "is not a constructor")),
+                    JsValue.Null)
+                : JsValue.FromObjectUnsafe(new InvalidOperationException(
+                    hostFunction.ConstructErrorMessage ?? "Target is not a constructor."));
+            throw new ThrowSignal(errorJs);
+        }
+
+        if (constructor is SyncFunctionInvoker { IsArrowFunction: true })
+        {
+            var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
+                : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
+            throw new ThrowSignal(errorJs);
+        }
+
+        if (constructor is SyncFunctionInvoker { DisallowConstruct: true })
+        {
+            var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Target is not a constructor"), JsValue.Null)
+                : JsValue.FromObjectUnsafe(new InvalidOperationException("Target is not a constructor."));
+            throw new ThrowSignal(errorJs);
+        }
+
+        if (constructor is SyncGeneratorInvoker)
+        {
+            var errorJs = realm.TypeErrorConstructor is IJsCallable typeErrorCtor
+                ? typeErrorCtor.Invoke(new SingleValueArgs((JsValue)"Generator functions cannot be constructed with 'new'"),
+                    JsValue.Null)
+                : JsValue.FromObjectUnsafe(
+                    new InvalidOperationException("Generator functions cannot be constructed with 'new'."));
+            throw new ThrowSignal(errorJs);
+        }
+
+        var typedConstructor = constructor as SyncFunctionInvoker;
+        var isDerivedClassCtor = typedConstructor?.IsDerivedClassConstructor == true;
+        var logger = realm?.Logger;
+
+        JsObject? instance = null;
+
+        if (!isDerivedClassCtor)
+        {
+            instance = new JsObject();
+            if (typedConstructor is not null)
+            {
+                // Use TryGetPrototypeValue to get any object-like prototype (including functions)
+                // Per ES spec, if Constructor.prototype is not an object, use %Object.prototype%
+                if (typedConstructor.TryGetPrototypeValue(out var protoValue) && protoValue is not null)
+                {
+                    instance.SetPrototype(protoValue);
                     logger?.LogInformation(
                         "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
                         DescribeInstance(instance),
-                        DescribePrototype(protoAccessor),
+                        DescribePrototype(protoValue),
                         isDerivedClassCtor);
                 }
                 else
                 {
+                    // Fall back to creating/getting a JsObject prototype
+                    var protoObject = typedConstructor.GetOrCreatePrototypeObject();
+                    instance.SetPrototype(protoObject);
                     logger?.LogInformation(
-                        "new: pre-call [[Prototype]] missing instance={Instance} derived={Derived}",
+                        "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
                         DescribeInstance(instance),
+                        DescribePrototype(protoObject),
                         isDerivedClassCtor);
                 }
             }
-
-            JsValue result;
-            instance?.BeginConstruction();
-            try
+            else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var prototypeJs, context) &&
+                     prototypeJs.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
             {
-                var receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance!;
-                if (typedConstructor is not null)
-                {
-                    result = typedConstructor.InvokeWithContext(args, receiver, context,
-                        JsValue.FromObjectUnsafe(constructor));
-                }
-                else if (callable is HostFunction hostFn)
-                {
-                    result = hostFn.InvokeWithContext(args, receiver, context,
-                        JsValue.FromObjectUnsafe(constructor));
-                }
-                else
-                {
-                    result = callable.Invoke(args, receiver);
-                }
+                instance.SetPrototype(protoAccessor);
+                logger?.LogInformation(
+                    "new: pre-call [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                    DescribeInstance(instance),
+                    DescribePrototype(protoAccessor),
+                    isDerivedClassCtor);
             }
-            catch (ThrowSignal signal)
+            else
             {
-                context.SetThrow(signal.ThrownValue);
-                return signal.ThrownValue;
+                logger?.LogInformation(
+                    "new: pre-call [[Prototype]] missing instance={Instance} derived={Derived}",
+                    DescribeInstance(instance),
+                    isDerivedClassCtor);
             }
-            finally
+        }
+
+        JsValue result;
+        instance?.BeginConstruction();
+        try
+        {
+            var receiver = isDerivedClassCtor ? JsValue.Undefined : (JsValue)instance!;
+            if (typedConstructor is not null)
             {
-                instance?.EndConstruction();
+                result = typedConstructor.InvokeWithContext(args, receiver, context,
+                    JsValue.FromObjectUnsafe(constructor));
             }
-
-            // Ensure the instance prototype matches the constructor's current prototype
-            // (non-derived classes). This guards against earlier prototype lookup
-            // failures that could leave the instance with a null/incorrect [[Prototype]].
-            if (!isDerivedClassCtor && instance is not null)
+            else if (callable is HostFunction hostFn)
             {
-                if (typedConstructor is not null)
-                {
-                    // Use TryGetPrototypeValue to get any object-like prototype (including functions)
-                    if (typedConstructor.TryGetPrototypeValue(out var finalProtoValue) && finalProtoValue is not null)
-                    {
-                        if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoValue))
-                        {
-                            instance.SetPrototype(finalProtoValue);
-                        }
+                result = hostFn.InvokeWithContext(args, receiver, context,
+                    JsValue.FromObjectUnsafe(constructor));
+            }
+            else
+            {
+                result = callable.Invoke(args, receiver);
+            }
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return signal.ThrownValue;
+        }
+        finally
+        {
+            instance?.EndConstruction();
+        }
 
-                        logger?.LogInformation(
-                            "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
-                            DescribeInstance(instance),
-                            DescribePrototype(finalProtoValue),
-                            isDerivedClassCtor);
-                    }
-                    else
-                    {
-                        // Fall back to creating/getting a JsObject prototype
-                        var finalProto = typedConstructor.GetOrCreatePrototypeObject();
-                        if (!ReferenceEquals(instance.PrototypeAccessor, finalProto))
-                        {
-                            instance.SetPrototype(finalProto);
-                        }
-
-                        logger?.LogInformation(
-                            "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
-                            DescribeInstance(instance),
-                            DescribePrototype(finalProto),
-                            isDerivedClassCtor);
-                    }
-                }
-                else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var finalPrototypeJs,
-                             context) &&
-                         finalPrototypeJs.TryGetObject<IJsPropertyAccessor>(out var finalProtoAccessor))
+        // Ensure the instance prototype matches the constructor's current prototype
+        // (non-derived classes). This guards against earlier prototype lookup
+        // failures that could leave the instance with a null/incorrect [[Prototype]].
+        if (!isDerivedClassCtor && instance is not null)
+        {
+            if (typedConstructor is not null)
+            {
+                // Use TryGetPrototypeValue to get any object-like prototype (including functions)
+                if (typedConstructor.TryGetPrototypeValue(out var finalProtoValue) && finalProtoValue is not null)
                 {
-                    if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoAccessor))
+                    if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoValue))
                     {
-                        instance.SetPrototype(finalProtoAccessor);
+                        instance.SetPrototype(finalProtoValue);
                     }
 
                     logger?.LogInformation(
                         "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
                         DescribeInstance(instance),
-                        DescribePrototype(finalProtoAccessor),
+                        DescribePrototype(finalProtoValue),
                         isDerivedClassCtor);
                 }
                 else
                 {
+                    // Fall back to creating/getting a JsObject prototype
+                    var finalProto = typedConstructor.GetOrCreatePrototypeObject();
+                    if (!ReferenceEquals(instance.PrototypeAccessor, finalProto))
+                    {
+                        instance.SetPrototype(finalProto);
+                    }
+
                     logger?.LogInformation(
-                        "new: final [[Prototype]] missing instance={Instance} derived={Derived}",
+                        "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
                         DescribeInstance(instance),
+                        DescribePrototype(finalProto),
                         isDerivedClassCtor);
                 }
             }
-
-            // In JavaScript, constructors can explicitly return an object to override the
-            // default instance that `new` creates. Our host objects (Map, Set, custom
-            // host functions, etc.) don't necessarily derive from JsObject, but they do
-            // expose their members through IJsPropertyAccessor/IJsCallable. Treat any
-            // such object-like result as the constructed value; otherwise fall back to
-            // the auto-created instance.
-            var resultObject = result.IsObject ? result.ObjectValue : null;
-            var constructedResultObject = resultObject switch
+            else if (JsOps.TryGetPropertyValue(constructorJsValue, "prototype", out var finalPrototypeJs,
+                         context) &&
+                     finalPrototypeJs.TryGetObject<IJsPropertyAccessor>(out var finalProtoAccessor))
             {
-                IJsPropertyAccessor => resultObject,
-                IJsCallable => resultObject,
-                _ => instance ?? resultObject
-            };
-
-            // If the constructor did not supply its own object, ensure the returned
-            // instance carries the constructor's current prototype object.
-            if (!isDerivedClassCtor &&
-                typedConstructor is not null &&
-                constructedResultObject is JsObject constructedJsObj &&
-                ReferenceEquals(constructedJsObj, instance))
-            {
-                // Use TryGetPrototypeValue to get any object-like prototype (including functions)
-                if (typedConstructor.TryGetPrototypeValue(out var ctorProtoValue) && ctorProtoValue is not null)
+                if (!ReferenceEquals(instance.PrototypeAccessor, finalProtoAccessor))
                 {
-                    if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProtoValue))
-                    {
-                        constructedJsObj.SetPrototype(ctorProtoValue);
-                    }
-                }
-                else
-                {
-                    var ctorProto = typedConstructor.GetOrCreatePrototypeObject();
-                    if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProto))
-                    {
-                        constructedJsObj.SetPrototype(ctorProto);
-                    }
-                }
-            }
-
-            if (logger is not null && constructedResultObject is JsObject constructed)
-            {
-                logger.LogInformation("new: returning instance={Instance} proto={Proto}",
-                    DescribeInstance(constructed),
-                    DescribePrototype(constructed.PrototypeAccessor ?? constructed.Prototype));
-            }
-
-            return JsValue.FromObjectUnsafe(constructedResultObject);
-
-            string DescribePrototype(object? proto)
-            {
-                if (proto is null)
-                {
-                    return "null";
+                    instance.SetPrototype(finalProtoAccessor);
                 }
 
-                if (proto is JsObject jsObj)
-                {
-                    var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
-                    return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
-                }
-
-                return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+                logger?.LogInformation(
+                    "new: final [[Prototype]] set instance={Instance} proto={Proto} derived={Derived}",
+                    DescribeInstance(instance),
+                    DescribePrototype(finalProtoAccessor),
+                    isDerivedClassCtor);
             }
-
-            string DescribeInstance(JsObject obj)
+            else
             {
-                var proto = obj.PrototypeAccessor ?? obj.Prototype;
-                var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
-                return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
+                logger?.LogInformation(
+                    "new: final [[Prototype]] missing instance={Instance} derived={Derived}",
+                    DescribeInstance(instance),
+                    isDerivedClassCtor);
             }
+        }
+
+        // In JavaScript, constructors can explicitly return an object to override the
+        // default instance that `new` creates. Our host objects (Map, Set, custom
+        // host functions, etc.) don't necessarily derive from JsObject, but they do
+        // expose their members through IJsPropertyAccessor/IJsCallable. Treat any
+        // such object-like result as the constructed value; otherwise fall back to
+        // the auto-created instance.
+        var resultObject = result.IsObject ? result.ObjectValue : null;
+        var constructedResultObject = resultObject switch
+        {
+            IJsPropertyAccessor => resultObject,
+            IJsCallable => resultObject,
+            _ => instance ?? resultObject
+        };
+
+        // If the constructor did not supply its own object, ensure the returned
+        // instance carries the constructor's current prototype object.
+        if (!isDerivedClassCtor &&
+            typedConstructor is not null &&
+            constructedResultObject is JsObject constructedJsObj &&
+            ReferenceEquals(constructedJsObj, instance))
+        {
+            // Use TryGetPrototypeValue to get any object-like prototype (including functions)
+            if (typedConstructor.TryGetPrototypeValue(out var ctorProtoValue) && ctorProtoValue is not null)
+            {
+                if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProtoValue))
+                {
+                    constructedJsObj.SetPrototype(ctorProtoValue);
+                }
+            }
+            else
+            {
+                var ctorProto = typedConstructor.GetOrCreatePrototypeObject();
+                if (!ReferenceEquals(constructedJsObj.PrototypeAccessor, ctorProto))
+                {
+                    constructedJsObj.SetPrototype(ctorProto);
+                }
+            }
+        }
+
+        if (logger is not null && constructedResultObject is JsObject constructed)
+        {
+            logger.LogInformation("new: returning instance={Instance} proto={Proto}",
+                DescribeInstance(constructed),
+                DescribePrototype(constructed.PrototypeAccessor ?? constructed.Prototype));
+        }
+
+        return JsValue.FromObjectUnsafe(constructedResultObject);
+
+        string DescribePrototype(object? proto)
+        {
+            if (proto is null)
+            {
+                return "null";
+            }
+
+            if (proto is JsObject jsObj)
+            {
+                var origin = string.IsNullOrEmpty(jsObj.Origin) ? "unknown" : jsObj.Origin;
+                return $"JsObject@{RuntimeHelpers.GetHashCode(jsObj)} origin='{origin}'";
+            }
+
+            return $"{proto.GetType().Name}@{RuntimeHelpers.GetHashCode(proto)}";
+        }
+
+        string DescribeInstance(JsObject obj)
+        {
+            var proto = obj.PrototypeAccessor ?? obj.Prototype;
+            var origin = string.IsNullOrEmpty(obj.Origin) ? "unknown" : obj.Origin;
+            return $"JsObject@{RuntimeHelpers.GetHashCode(obj)} origin='{origin}' proto={DescribePrototype(proto)}";
         }
     }
 }

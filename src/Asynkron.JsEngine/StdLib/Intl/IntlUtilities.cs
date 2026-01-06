@@ -2,8 +2,6 @@
 
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 #endregion

@@ -2,7 +2,6 @@
 
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.ObjectHelper;
 

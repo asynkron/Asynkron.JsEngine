@@ -2,7 +2,6 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
 #endregion

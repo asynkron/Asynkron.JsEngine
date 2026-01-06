@@ -1,7 +1,5 @@
 #region
 
-using Asynkron.JsEngine.JsTypes;
-
 #endregion
 
 namespace Asynkron.JsEngine.Ast;
@@ -64,60 +62,57 @@ public static partial class TypedAstEvaluator
         public int YieldSourceEnd { get; set; }
     }
 
-    extension(YieldExpression expression)
+    private static JsValue EvaluateYield(this YieldExpression expression, JsEnvironment environment,
+        EvaluationContext context)
     {
-        private JsValue EvaluateYield(JsEnvironment environment,
-            EvaluationContext context)
+        // Most yield expressions should be lowered by GeneratorYieldLowerer and compiled to IR.
+        // However, some yields (like those in destructuring default values) cannot be extracted
+        // and are evaluated via StatementInstruction wrapping the containing for-of loop.
+        // In this case, we signal a yield via the context so the caller can save state.
+
+        if (expression.IsDelegated)
         {
-            // Most yield expressions should be lowered by GeneratorYieldLowerer and compiled to IR.
-            // However, some yields (like those in destructuring default values) cannot be extracted
-            // and are evaluated via StatementInstruction wrapping the containing for-of loop.
-            // In this case, we signal a yield via the context so the caller can save state.
-
-            if (expression.IsDelegated)
-            {
-                // yield* is more complex and should be handled by the IR interpreter.
-                // If we reach here with yield*, something went wrong.
-                throw new InvalidOperationException(
-                    "Delegated yield (yield*) expression encountered during AST evaluation. " +
-                    "This should have been lowered to IR by GeneratorYieldLowerer. " +
-                    $"Source: {expression.Source?.StartPosition}-{expression.Source?.EndPosition}");
-            }
-
-            // Check if we're resuming from a previous yield at this position.
-            // If so, return the resume value instead of yielding again.
-            if (environment.TryGetObject<YieldResumeState>(YieldResumeStateKey, out var resumeState) &&
-                resumeState.HasResumeValue &&
-                resumeState.YieldSourceStart == (expression.Source?.StartPosition ?? -1) &&
-                resumeState.YieldSourceEnd == (expression.Source?.EndPosition ?? -1))
-            {
-                // Clear the resume state so future yields at this position work correctly
-                resumeState.HasResumeValue = false;
-                return resumeState.ResumeValue;
-            }
-
-            // Evaluate the yield operand if present
-            var yieldedValue = JsValue.Undefined;
-            if (expression.Expression is not null)
-            {
-                yieldedValue = expression.Expression.EvaluateExpression(environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return yieldedValue;
-                }
-            }
-
-            // Signal the yield via the context.
-            // Use the source position to identify this yield for resume.
-            context.SetYield(yieldedValue, expression.Source?.StartPosition ?? -1);
-
-            // Store the yield position so the IR interpreter can set up resume state
-            context.LastYieldSourceStart = expression.Source?.StartPosition ?? -1;
-            context.LastYieldSourceEnd = expression.Source?.EndPosition ?? -1;
-
-            // Return undefined; the actual resume value will be provided when the generator continues.
-            // The caller (e.g., BindArrayPattern) will check context.IsYield and save state.
-            return JsValue.Undefined;
+            // yield* is more complex and should be handled by the IR interpreter.
+            // If we reach here with yield*, something went wrong.
+            throw new InvalidOperationException(
+                "Delegated yield (yield*) expression encountered during AST evaluation. " +
+                "This should have been lowered to IR by GeneratorYieldLowerer. " +
+                $"Source: {expression.Source?.StartPosition}-{expression.Source?.EndPosition}");
         }
+
+        // Check if we're resuming from a previous yield at this position.
+        // If so, return the resume value instead of yielding again.
+        if (environment.TryGetObject<YieldResumeState>(YieldResumeStateKey, out var resumeState) &&
+            resumeState.HasResumeValue &&
+            resumeState.YieldSourceStart == (expression.Source?.StartPosition ?? -1) &&
+            resumeState.YieldSourceEnd == (expression.Source?.EndPosition ?? -1))
+        {
+            // Clear the resume state so future yields at this position work correctly
+            resumeState.HasResumeValue = false;
+            return resumeState.ResumeValue;
+        }
+
+        // Evaluate the yield operand if present
+        var yieldedValue = JsValue.Undefined;
+        if (expression.Expression is not null)
+        {
+            yieldedValue = expression.Expression.EvaluateExpression(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return yieldedValue;
+            }
+        }
+
+        // Signal the yield via the context.
+        // Use the source position to identify this yield for resume.
+        context.SetYield(yieldedValue, expression.Source?.StartPosition ?? -1);
+
+        // Store the yield position so the IR interpreter can set up resume state
+        context.LastYieldSourceStart = expression.Source?.StartPosition ?? -1;
+        context.LastYieldSourceEnd = expression.Source?.EndPosition ?? -1;
+
+        // Return undefined; the actual resume value will be provided when the generator continues.
+        // The caller (e.g., BindArrayPattern) will check context.IsYield and save state.
+        return JsValue.Undefined;
     }
 }

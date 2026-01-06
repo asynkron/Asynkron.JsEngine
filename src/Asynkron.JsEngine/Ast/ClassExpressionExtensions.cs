@@ -1,20 +1,15 @@
 #region
 
-using Asynkron.JsEngine.JsTypes;
-
 #endregion
 
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(ClassExpression expression)
+    private static JsValue EvaluateClassExpression(this ClassExpression expression, JsEnvironment environment,
+        EvaluationContext context)
     {
-        private JsValue EvaluateClassExpression(JsEnvironment environment,
-            EvaluationContext context)
-        {
-            var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
-            return expression.Definition.CreateClassValue(environment, context, inferredName);
-        }
+        var inferredName = expression.Name ?? context.CurrentFunctionNameHint;
+        return expression.Definition.CreateClassValue(environment, context, inferredName);
     }
 }

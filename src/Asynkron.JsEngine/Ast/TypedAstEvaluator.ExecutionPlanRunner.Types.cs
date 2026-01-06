@@ -1,7 +1,6 @@
 #region
 
 using System.Runtime.InteropServices;
-using Asynkron.JsEngine.JsTypes;
 
 #endregion
 

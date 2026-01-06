@@ -3,7 +3,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Converters;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 

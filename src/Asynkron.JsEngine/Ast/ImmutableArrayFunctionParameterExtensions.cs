@@ -8,22 +8,19 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(ImmutableArray<FunctionParameter> parameters)
+    private static int GetExpectedParameterCount(this ImmutableArray<FunctionParameter> parameters)
     {
-        private int GetExpectedParameterCount()
+        var count = 0;
+        foreach (var parameter in parameters)
         {
-            var count = 0;
-            foreach (var parameter in parameters)
+            if (parameter.IsRest || parameter.DefaultValue is not null)
             {
-                if (parameter.IsRest || parameter.DefaultValue is not null)
-                {
-                    break;
-                }
-
-                count++;
+                break;
             }
 
-            return count;
+            count++;
         }
+
+        return count;
     }
 }

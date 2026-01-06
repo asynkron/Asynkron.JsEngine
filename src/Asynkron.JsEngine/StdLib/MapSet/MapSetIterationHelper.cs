@@ -1,7 +1,6 @@
 #region
 
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 #endregion

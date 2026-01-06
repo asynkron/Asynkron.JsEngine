@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;

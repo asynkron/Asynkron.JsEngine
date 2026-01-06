@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -10,44 +9,38 @@ namespace Asynkron.JsEngine.Ast;
 
 internal static class ClassPropertyNameResolver
 {
-    extension(ClassMember member)
+    public static bool TryResolveMemberName(this ClassMember member, Func<ExpressionNode, JsValue> evaluator,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope,
+        out string propertyName)
     {
-        public bool TryResolveMemberName(Func<ExpressionNode, JsValue> evaluator,
-            EvaluationContext context,
-            PrivateNameScope? privateNameScope,
-            out string propertyName)
-        {
-            return TryResolveNameCore(
-                member.Name,
-                member.IsComputed,
-                member.ComputedName,
-                member.IsPrivate,
-                "class member",
-                evaluator,
-                context,
-                privateNameScope,
-                out propertyName);
-        }
+        return TryResolveNameCore(
+            member.Name,
+            member.IsComputed,
+            member.ComputedName,
+            member.IsPrivate,
+            "class member",
+            evaluator,
+            context,
+            privateNameScope,
+            out propertyName);
     }
 
-    extension(ClassField field)
+    public static bool TryResolveFieldName(this ClassField field, Func<ExpressionNode, JsValue> evaluator,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope,
+        out string propertyName)
     {
-        public bool TryResolveFieldName(Func<ExpressionNode, JsValue> evaluator,
-            EvaluationContext context,
-            PrivateNameScope? privateNameScope,
-            out string propertyName)
-        {
-            return TryResolveNameCore(
-                field.Name,
-                field.IsComputed,
-                field.ComputedName,
-                field.IsPrivate,
-                "class field",
-                evaluator,
-                context,
-                privateNameScope,
-                out propertyName);
-        }
+        return TryResolveNameCore(
+            field.Name,
+            field.IsComputed,
+            field.ComputedName,
+            field.IsPrivate,
+            "class field",
+            evaluator,
+            context,
+            privateNameScope,
+            out propertyName);
     }
 
     private static bool TryResolveNameCore(

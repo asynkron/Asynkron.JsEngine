@@ -4,9 +4,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
-using static Asynkron.JsEngine.StdLib.BooleanHelper;
 
 #endregion
 

@@ -1,7 +1,6 @@
 #region
 
 using System.Runtime.CompilerServices;
-using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -233,56 +232,52 @@ public static partial class TypedAstEvaluator
         };
     }
 
-    extension(ReturnStatement statement)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
+        EvaluationContext context)
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private JsValue EvaluateReturnJsValue(
-            JsEnvironment environment,
-            EvaluationContext context)
-        {
-            JsValue jsValue;
+        JsValue jsValue;
 
-            // Use specialized pre-evaluation path for binary expressions with multiple calls
-            if (statement is
-                {
-                    UseArgumentPreEvaluation: true,
-                    Expression: BinaryExpression
-                    {
-                        Left: CallExpression leftCall, Right: CallExpression rightCall
-                    } binary
-                })
-            {
-                Interlocked.Increment(ref PreEvalPathCount);
-                jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
-            }
-            // Use specialized pre-evaluation path for call * identifier pattern
-            else if (statement is
+        // Use specialized pre-evaluation path for binary expressions with multiple calls
+        if (statement is
             {
                 UseArgumentPreEvaluation: true,
                 Expression: BinaryExpression
                 {
-                    Left: CallExpression callLeft, Right: IdentifierExpression idRight
-                } binaryCallId
+                    Left: CallExpression leftCall, Right: CallExpression rightCall
+                } binary
             })
-            {
-                Interlocked.Increment(ref PreEvalPathCount);
-                jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);
-            }
-            else
-            {
-                Interlocked.Increment(ref NormalPathCount);
-                jsValue = statement.Expression is null
-                    ? JsValue.Undefined
-                    : statement.Expression.EvaluateExpression(environment, context);
-            }
+        {
+            Interlocked.Increment(ref PreEvalPathCount);
+            jsValue = EvaluateBinaryWithPreEvaluation(binary, leftCall, rightCall, environment, context);
+        }
+        // Use specialized pre-evaluation path for call * identifier pattern
+        else if (statement is
+                 {
+                     UseArgumentPreEvaluation: true,
+                     Expression: BinaryExpression
+                     {
+                         Left: CallExpression callLeft, Right: IdentifierExpression idRight
+                     } binaryCallId
+                 })
+        {
+            Interlocked.Increment(ref PreEvalPathCount);
+            jsValue = EvaluateBinaryCallIdentifier(binaryCallId, callLeft, idRight, environment, context);
+        }
+        else
+        {
+            Interlocked.Increment(ref NormalPathCount);
+            jsValue = statement.Expression is null
+                ? JsValue.Undefined
+                : statement.Expression.EvaluateExpression(environment, context);
+        }
 
-            if (context.ShouldStopEvaluation)
-            {
-                return jsValue;
-            }
-
-            context.SetReturn(jsValue);
+        if (context.ShouldStopEvaluation)
+        {
             return jsValue;
         }
+
+        context.SetReturn(jsValue);
+        return jsValue;
     }
 }

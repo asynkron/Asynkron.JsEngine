@@ -1,7 +1,6 @@
 #region
 
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.JsArrayConstants;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;

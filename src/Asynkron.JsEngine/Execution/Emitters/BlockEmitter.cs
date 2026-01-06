@@ -2,9 +2,7 @@
 
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-using Asynkron.JsEngine.JsTypes;
 using static Asynkron.JsEngine.Ast.TypedAstEvaluator;
 
 #endregion

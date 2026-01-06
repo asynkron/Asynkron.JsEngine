@@ -1,6 +1,5 @@
 #region
 
-using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.StdLib;
 
 #endregion
@@ -9,77 +8,73 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    extension(ClassField field)
+    public static bool TryInitializeStaticField(this ClassField field, IJsPropertyAccessor constructorAccessor,
+        Func<ExpressionNode, JsValue> evaluateExpression,
+        EvaluationContext context,
+        PrivateNameScope? privateNameScope,
+        Func<IDisposable?>? privateScopeFactory)
     {
-        public bool TryInitializeStaticField(
-            IJsPropertyAccessor constructorAccessor,
-            Func<ExpressionNode, JsValue> evaluateExpression,
-            EvaluationContext context,
-            PrivateNameScope? privateNameScope,
-            Func<IDisposable?>? privateScopeFactory)
-        {
-            var propertyName = field.Name;
+        var propertyName = field.Name;
 
-            if (string.Equals(propertyName, "prototype", StringComparison.Ordinal))
+        if (string.Equals(propertyName, "prototype", StringComparison.Ordinal))
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot redefine constructor prototype via static member", context,
+                context.RealmState);
+        }
+
+        if (field.IsPrivate && privateNameScope is not null && constructorAccessor is not IPrivateBrandHolder)
+        {
+            throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
+        }
+
+        var valueJs = JsValue.Undefined;
+        var displayName = field.IsComputed ? propertyName : field.Name;
+        var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
+        if (atIndex > 0)
+        {
+            displayName = displayName[..atIndex];
+        }
+
+        if (field.Initializer is not null)
+        {
+            using var handle = privateScopeFactory?.Invoke();
+            valueJs = evaluateExpression(field.Initializer);
+            if (context.ShouldStopEvaluation)
             {
-                throw StandardLibrary.ThrowTypeError("Cannot redefine constructor prototype via static member", context,
+                return false;
+            }
+
+            if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
+            {
+                SetAnonymousFunctionName(valueJs, displayName);
+            }
+        }
+
+        var descriptor = new PropertyDescriptor
+        {
+            JsValue = valueJs,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+
+        if (constructorAccessor is IPropertyDefinitionHost definitionHost)
+        {
+            if (!definitionHost.TryDefineProperty(propertyName, descriptor))
+            {
+                throw StandardLibrary.ThrowTypeError("Cannot define static class field", context,
                     context.RealmState);
             }
-
-            if (field.IsPrivate && privateNameScope is not null && constructorAccessor is not IPrivateBrandHolder)
-            {
-                throw StandardLibrary.ThrowTypeError("Invalid private field receiver", context, context.RealmState);
-            }
-
-            var valueJs = JsValue.Undefined;
-            var displayName = field.IsComputed ? propertyName : field.Name;
-            var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);
-            if (atIndex > 0)
-            {
-                displayName = displayName[..atIndex];
-            }
-
-            if (field.Initializer is not null)
-            {
-                using var handle = privateScopeFactory?.Invoke();
-                valueJs = evaluateExpression(field.Initializer);
-                if (context.ShouldStopEvaluation)
-                {
-                    return false;
-                }
-
-                if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
-                {
-                    SetAnonymousFunctionName(valueJs, displayName);
-                }
-            }
-
-            var descriptor = new PropertyDescriptor
-            {
-                JsValue = valueJs,
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
-            };
-
-            if (constructorAccessor is IPropertyDefinitionHost definitionHost)
-            {
-                if (!definitionHost.TryDefineProperty(propertyName, descriptor))
-                {
-                    throw StandardLibrary.ThrowTypeError("Cannot define static class field", context,
-                        context.RealmState);
-                }
-            }
-            else if (constructorAccessor is IJsObjectLike objectLike)
-            {
-                objectLike.DefineProperty(propertyName, descriptor);
-            }
-            else
-            {
-                throw StandardLibrary.ThrowTypeError("Cannot define static class field", context, context.RealmState);
-            }
-
-            return true;
         }
+        else if (constructorAccessor is IJsObjectLike objectLike)
+        {
+            objectLike.DefineProperty(propertyName, descriptor);
+        }
+        else
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot define static class field", context, context.RealmState);
+        }
+
+        return true;
     }
 }

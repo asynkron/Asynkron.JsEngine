@@ -202,7 +202,7 @@ public static partial class TypedAstEvaluator
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                        StringComparison.Ordinal))
         {
-            return UnaryExpression.HandleReferenceErrorUnary(ex, environment, context);
+            return expression.HandleReferenceErrorUnary(ex, environment, context);
         }
     }
 
@@ -276,31 +276,28 @@ public static partial class TypedAstEvaluator
         };
     }
 
-    extension(UnaryExpression expression)
+    /// <summary>
+    /// Handles ReferenceError exceptions from unary operations.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static JsValue HandleReferenceErrorUnary(this UnaryExpression _, InvalidOperationException ex, JsEnvironment environment,
+        EvaluationContext context)
     {
-        /// <summary>
-        /// Handles ReferenceError exceptions from unary operations.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static JsValue HandleReferenceErrorUnary(InvalidOperationException ex, JsEnvironment environment,
-            EvaluationContext context)
+        var errorValue = new JsValue(ex.Message);
+
+        if (environment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
         {
-            var errorValue = new JsValue(ex.Message);
-
-            if (environment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
+            try
             {
-                try
-                {
-                    errorValue = callable.Invoke(new SingleValueArgs(new JsValue(ex.Message)), JsValue.Undefined);
-                }
-                catch (ThrowSignal signal)
-                {
-                    errorValue = signal.ThrownValue;
-                }
+                errorValue = callable.Invoke(new SingleValueArgs(new JsValue(ex.Message)), JsValue.Undefined);
             }
-
-            context.SetThrow(errorValue);
-            return errorValue;
+            catch (ThrowSignal signal)
+            {
+                errorValue = signal.ThrownValue;
+            }
         }
+
+        context.SetThrow(errorValue);
+        return errorValue;
     }
 }

@@ -281,7 +281,7 @@ public static partial class TypedAstEvaluator
 
         if (assignment is not null &&
             jsValue.ObjectValue is IFunctionNameTarget nameTarget &&
-            ExpressionNode.IsAnonymousFunctionDefinitionNode(rhs) &&
+            rhs.IsAnonymousFunctionDefinitionNode() &&
             !IsParenthesizedIdentifierAssignment(assignment))
         {
             nameTarget.EnsureHasName(assignment.Target.Name);
@@ -293,7 +293,7 @@ public static partial class TypedAstEvaluator
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool ShouldApplyAssignmentNameHint(AssignmentExpression? assignment, ExpressionNode rhs)
     {
-        return assignment is not null && ExpressionNode.IsAnonymousFunctionDefinitionNode(rhs) &&
+        return assignment is not null && rhs.IsAnonymousFunctionDefinitionNode() &&
                !IsParenthesizedIdentifierAssignment(assignment);
     }
 
@@ -461,7 +461,7 @@ public static partial class TypedAstEvaluator
             catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                            StringComparison.Ordinal))
             {
-                return AssignmentExpression.HandleReferenceError(ex, environment, context);
+                return expression.HandleReferenceError(ex, environment, context);
             }
         }
 
@@ -680,27 +680,24 @@ public static partial class TypedAstEvaluator
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:",
                                                        StringComparison.Ordinal))
         {
-            return AssignmentExpression.HandleReferenceError(ex, environment, context);
+            return expression.HandleReferenceError(ex, environment, context);
         }
     }
 
-    extension(AssignmentExpression expression)
+    private static JsValue HandleReferenceError(this AssignmentExpression _, InvalidOperationException ex, JsEnvironment environment,
+        EvaluationContext context)
     {
-        private static JsValue HandleReferenceError(InvalidOperationException ex, JsEnvironment environment,
-            EvaluationContext context)
+        var errorValue = (JsValue)ex.Message;
+
+        // If a ReferenceError constructor is available, use it to
+        // create a proper JS error instance so user code can catch
+        // and inspect it.
+        if (environment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
         {
-            var errorValue = (JsValue)ex.Message;
-
-            // If a ReferenceError constructor is available, use it to
-            // create a proper JS error instance so user code can catch
-            // and inspect it.
-            if (environment.TryGetObject<IJsCallable>(Symbol.ReferenceErrorIdentifier, out var callable))
-            {
-                errorValue = callable.Invoke(new SingleValueArgs((JsValue)ex.Message), JsValue.Undefined);
-            }
-
-            context.SetThrow(errorValue);
-            return errorValue;
+            errorValue = callable.Invoke(new SingleValueArgs((JsValue)ex.Message), JsValue.Undefined);
         }
+
+        context.SetThrow(errorValue);
+        return errorValue;
     }
 }

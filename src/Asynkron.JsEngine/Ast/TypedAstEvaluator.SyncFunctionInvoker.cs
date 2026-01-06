@@ -1715,7 +1715,7 @@ public static partial class TypedAstEvaluator
                         typedFunction.SetSuperBinding(fieldSuperBinding.Constructor, fieldSuperBinding.Prototype);
                     }
 
-                    if (ExpressionNode.IsAnonymousFunctionDefinitionNode(field.Initializer))
+                    if (field.Initializer.IsAnonymousFunctionDefinitionNode())
                     {
                         var displayName = field.IsComputed ? propertyName : field.Name;
                         var atIndex = displayName.IndexOf('@', StringComparison.Ordinal);

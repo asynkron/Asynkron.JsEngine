@@ -106,7 +106,7 @@ public sealed partial class ArrayPrototype
         for (var i = start; i < lenLong; i++)
         {
             var key = ToIndexString(i);
-            var got = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), key, out var value, evalContext);
+            _ = JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(accessor), key, out var value, evalContext);
             if (evalContext?.IsThrow == true)
             {
                 throw new ThrowSignal(evalContext.FlowValue);

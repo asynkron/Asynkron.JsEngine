@@ -128,7 +128,7 @@ public static partial class TypedAstEvaluator
         }
 
         bool invokeSucceeded;
-        var closeResult = JsValue.Undefined;
+        JsValue closeResult;
         try
         {
             invokeSucceeded = iterator.TryInvokeIteratorMethod(
@@ -218,7 +218,6 @@ public static partial class TypedAstEvaluator
             context.CurrentSignal?.GetType().Name ?? "null",
             context.FlowValue.GetType().Name);
     }
-
 
     private static void DefineAccessorProperty(this JsObject obj, string name, IJsCallable? getter, IJsCallable? setter)
     {

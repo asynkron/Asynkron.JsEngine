@@ -2587,8 +2587,7 @@ internal static class GeneratorYieldLowerer
             incrementBinary = null!;
             assignmentTarget = null;
 
-            BinaryExpression? binary = null;
-
+            BinaryExpression? binary;
             switch (expression)
             {
                 case BinaryExpression asBinary:

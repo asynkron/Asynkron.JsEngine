@@ -640,7 +640,6 @@ public readonly struct JsValue : IEquatable<JsValue>
 
     #region Typed FromObject overloads - prefer these to avoid boxing
 
-
     public static JsValue FromJsProxy(JsProxy value) => value.AsJsValue;
     public static JsValue FromJsPromise(JsPromise value) => new(JsValueKind.Object, 0, value);
     public static JsValue FromJsArray(JsArray value) => value.AsJsValue;

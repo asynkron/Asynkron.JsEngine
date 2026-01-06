@@ -344,8 +344,8 @@ internal static class AssignmentReferenceResolver
             context.CurrentScope.IsStrict,
             !member.IsComputed);
         return AssignmentReference.ForDelegate(
-            () => handle.GetJsValue(),
-            newValue => handle.SetValue(newValue));
+            handle.GetJsValue,
+            handle.SetValue);
     }
 
     internal static JsValue ReadIdentifierValue(Func<JsValue> getter, EvaluationContext context)

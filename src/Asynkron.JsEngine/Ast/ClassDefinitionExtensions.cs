@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
+using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -309,7 +310,8 @@ public static partial class TypedAstEvaluator
 
         // Instance field keys must already be resolved; this simply returns
         // the provided collection (kept for clarity / future adjustments).
-        private static ImmutableArray<ClassField> ResolveInstanceFieldNames(
+        [UsedImplicitly]
+        public static ImmutableArray<ClassField> ResolveInstanceFieldNames(
             ImmutableArray<ClassField> fields,
             JsEnvironment environment,
             EvaluationContext context,
@@ -321,7 +323,8 @@ public static partial class TypedAstEvaluator
             return fields;
         }
 
-        private static bool IsImplicitDefaultDerivedConstructor(FunctionExpression constructor)
+        [UsedImplicitly]
+        public static bool IsImplicitDefaultDerivedConstructor(FunctionExpression constructor)
         {
             if (constructor.Parameters.Length != 0)
             {

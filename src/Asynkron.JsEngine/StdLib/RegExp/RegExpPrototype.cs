@@ -85,7 +85,7 @@ public sealed partial class RegExpPrototype
             throw ThrowTypeError("Cannot convert a Symbol value to a string", realm: Realm);
         }
 
-        JsRegExp? providedRegExp = null;
+        JsRegExp? providedRegExp;
         if (patternArg.TryGetObject<JsObject>(out var patternObj) &&
             patternObj is not null &&
             patternObj.TryGetValue("__regex__", out var innerVal) &&

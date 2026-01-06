@@ -46,10 +46,10 @@ public static partial class TypedAstEvaluator
             if (_iterator is not null)
             {
                 IJsObjectLike? nextResult;
-                var candidate = JsValue.Undefined;
                 var methodInvoked = false;
                 try
                 {
+                    JsValue candidate;
                     if (propagateThrow)
                     {
                         methodInvoked = _iterator.TryInvokeIteratorMethod(

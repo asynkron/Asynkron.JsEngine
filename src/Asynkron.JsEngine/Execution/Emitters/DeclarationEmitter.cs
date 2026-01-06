@@ -254,11 +254,6 @@ internal static class DeclarationEmitter
         return ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsYield(e));
     }
 
-    private static bool ClassDefinitionContainsAwait(ClassDefinition definition)
-    {
-        return ClassDefinitionContains(definition, static e => AstShapeAnalyzer.ContainsAwait(e));
-    }
-
     private static bool ClassDefinitionContains(ClassDefinition definition, Func<ExpressionNode, bool> predicate)
     {
         // Check extends clause

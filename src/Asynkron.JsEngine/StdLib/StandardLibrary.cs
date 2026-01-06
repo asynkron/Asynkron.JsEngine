@@ -222,7 +222,7 @@ public static partial class StandardLibrary
                             return directBigInt;
                         }
 
-                        if (value.TryGetObject<IJsPropertyAccessor>(out var accessor))
+                        if (value.TryGetObject<IJsPropertyAccessor>(out _))
                         {
                             var primitive = JsOps.ToPrimitive(value, ToPrimitiveHint.Number, localContext);
                             if (localContext?.IsThrow == true)

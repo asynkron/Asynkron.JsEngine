@@ -407,27 +407,27 @@ public static partial class TypedAstEvaluator
                                     outerEnvironment, context, ref letConstFirstIterationDone);
                                 break;
                             default:
-                            {
-                                if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                                 {
-                                    // Fast path: direct slot write for let/const bindings
-                                    iterationEnvironment.SetSlotDirect(fastPathSlotIndex, nextJsValue);
-                                }
-                                else
-                                {
-                                    plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
-                                        outerEnvironment, context,
-                                        plan.DeclarationKind);
-                                    if (context.IsThrow)
+                                    if (canUseSlotFastPath && iterationEnvironment.HasSlots)
                                     {
-                                        throw new ThrowSignal(context.FlowValue);
+                                        // Fast path: direct slot write for let/const bindings
+                                        iterationEnvironment.SetSlotDirect(fastPathSlotIndex, nextJsValue);
+                                    }
+                                    else
+                                    {
+                                        plan.Target.AssignLoopBinding(nextJsValue, iterationEnvironment,
+                                            outerEnvironment, context,
+                                            plan.DeclarationKind);
+                                        if (context.IsThrow)
+                                        {
+                                            throw new ThrowSignal(context.FlowValue);
+                                        }
+
+                                        IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
                                     }
 
-                                    IteratorDriverPlan.SyncIterationSlots(plan, iterationEnvironment, context);
+                                    break;
                                 }
-
-                                break;
-                            }
                         }
                     }
 
@@ -555,10 +555,11 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        // Pre-resolve accumulator - try slot first, then dictionary fallback for top-level code
-        JsEnvironment? accumEnv = null;
         var useSlotAccess = false;
 
+
+        // Pre-resolve accumulator - try slot first, then dictionary fallback for top-level code
+        JsEnvironment? accumEnv;
         if (loopEnvironment.TryResolveSlot(assignExpr.Target, assignExpr.ScopeId, assignExpr.SlotIndex,
                 out accumEnv) &&
             accumEnv is not null)

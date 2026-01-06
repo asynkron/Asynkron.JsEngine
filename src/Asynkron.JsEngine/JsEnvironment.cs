@@ -2546,7 +2546,6 @@ public sealed class JsEnvironment : IRentable
         return null;
     }
 
-
     private static bool IsBlockedByUnscopables(IJsObjectLike target, string name, out bool touchedUnscopables)
     {
         touchedUnscopables = false;
@@ -3116,9 +3115,9 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     private struct Binding : IEquatable<Binding>
     {
-        private JsValue _jsValue;
+        private readonly JsValue _jsValue;
         private readonly ISpecialBinding? _specialBinding; // Only used when HasSpecialBinding flag is set
-        private BindingFlags _flags;
+        private readonly BindingFlags _flags;
 
         public Binding(
             JsValue value,
@@ -3161,13 +3160,6 @@ public sealed class JsEnvironment : IRentable
             {
                 _flags |= BindingFlags.IsImmutableBinding;
             }
-        }
-
-        private Binding(ISpecialBinding special, BindingFlags flags)
-        {
-            _jsValue = default;
-            _specialBinding = special;
-            _flags = flags | BindingFlags.HasSpecialBinding;
         }
 
         public readonly bool Equals(Binding other)

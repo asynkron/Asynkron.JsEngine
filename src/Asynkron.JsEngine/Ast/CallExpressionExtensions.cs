@@ -192,76 +192,76 @@ public static partial class TypedAstEvaluator
                     frozenArguments = [];
                     break;
                 case 1:
-                {
-                    var v0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
                     {
-                        context.CallDepth--;
-                        return JsValue.Undefined;
-                    }
-
-                    // Use pooled JsValue[] directly - avoid boxing via ToObject()
-                    var jsArr = JsValueCache.RentJsValueArray(1);
-                    jsArr[0] = v0;
-                    pooledJsValueArray = jsArr;
-                    frozenArguments = jsArr;
-                    break;
-                }
-                case 2:
-                {
-                    var v0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        context.CallDepth--;
-                        return JsValue.Undefined;
-                    }
-
-                    var v1 = expression.Arguments[1].Expression.EvaluateExpression(environment, context);
-                    if (context.ShouldStopEvaluation)
-                    {
-                        context.CallDepth--;
-                        return JsValue.Undefined;
-                    }
-
-                    // Use pooled JsValue[] directly - avoid boxing via ToObject()
-                    var jsArr = JsValueCache.RentJsValueArray(2);
-                    jsArr[0] = v0;
-                    jsArr[1] = v1;
-                    pooledJsValueArray = jsArr;
-                    frozenArguments = jsArr;
-                    break;
-                }
-                default:
-                {
-                    // Use pooled JsValue[] for small argument counts (3-4)
-                    var jsArgsArray = argCount <= 4
-                        ? JsValueCache.RentJsValueArray(argCount)
-                        : new JsValue[argCount];
-
-                    if (argCount <= 4)
-                    {
-                        pooledJsValueArray = jsArgsArray;
-                    }
-
-                    for (var i = 0; i < argCount; i++)
-                    {
-                        jsArgsArray[i] = expression.Arguments[i].Expression
-                            .EvaluateExpression(environment, context);
+                        var v0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (pooledJsValueArray is not null)
-                            {
-                                JsValueCache.ReturnJsValueArray(pooledJsValueArray);
-                            }
-
                             context.CallDepth--;
                             return JsValue.Undefined;
                         }
-                    }
 
-                    frozenArguments = jsArgsArray;
-                    break;
-                }
+                        // Use pooled JsValue[] directly - avoid boxing via ToObject()
+                        var jsArr = JsValueCache.RentJsValueArray(1);
+                        jsArr[0] = v0;
+                        pooledJsValueArray = jsArr;
+                        frozenArguments = jsArr;
+                        break;
+                    }
+                case 2:
+                    {
+                        var v0 = expression.Arguments[0].Expression.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return JsValue.Undefined;
+                        }
+
+                        var v1 = expression.Arguments[1].Expression.EvaluateExpression(environment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            context.CallDepth--;
+                            return JsValue.Undefined;
+                        }
+
+                        // Use pooled JsValue[] directly - avoid boxing via ToObject()
+                        var jsArr = JsValueCache.RentJsValueArray(2);
+                        jsArr[0] = v0;
+                        jsArr[1] = v1;
+                        pooledJsValueArray = jsArr;
+                        frozenArguments = jsArr;
+                        break;
+                    }
+                default:
+                    {
+                        // Use pooled JsValue[] for small argument counts (3-4)
+                        var jsArgsArray = argCount <= 4
+                            ? JsValueCache.RentJsValueArray(argCount)
+                            : new JsValue[argCount];
+
+                        if (argCount <= 4)
+                        {
+                            pooledJsValueArray = jsArgsArray;
+                        }
+
+                        for (var i = 0; i < argCount; i++)
+                        {
+                            jsArgsArray[i] = expression.Arguments[i].Expression
+                                .EvaluateExpression(environment, context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (pooledJsValueArray is not null)
+                                {
+                                    JsValueCache.ReturnJsValueArray(pooledJsValueArray);
+                                }
+
+                                context.CallDepth--;
+                                return JsValue.Undefined;
+                            }
+                        }
+
+                        frozenArguments = jsArgsArray;
+                        break;
+                    }
             }
         }
         else
@@ -458,7 +458,7 @@ public static partial class TypedAstEvaluator
         {
             evalHost = evalHostFunction;
             var isDirectEvalCall = expression is
-                                       { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } } &&
+            { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } } &&
                                    thisValue.IsUndefined &&
                                    ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
             evalHost.IsDirectCall = isDirectEvalCall;
@@ -689,11 +689,11 @@ public static partial class TypedAstEvaluator
             // translate it into a rejected promise and clear the signal so it does not
             // escape to the caller's context.
             case true when context.IsThrow:
-            {
-                var reason = context.FlowValue;
-                context.Clear();
-                return CreateRejectedPromise(reason, environment);
-            }
+                {
+                    var reason = context.FlowValue;
+                    context.Clear();
+                    return CreateRejectedPromise(reason, environment);
+                }
             case true:
                 // Async functions should never propagate a throw signal; ensure the
                 // calling context stays clear.

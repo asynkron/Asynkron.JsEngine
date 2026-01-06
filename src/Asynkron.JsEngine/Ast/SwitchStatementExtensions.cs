@@ -9,7 +9,8 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue-returning version for use in hot paths.
     /// </summary>
-    private static JsValue EvaluateSwitchJsValue(this SwitchStatement statement, JsEnvironment environment,
+    private static JsValue EvaluateSwitchJsValue(this SwitchStatement statement,
+        JsEnvironment environment,
         EvaluationContext context,
         Symbol? targetLabel)
     {
@@ -105,7 +106,8 @@ public static partial class TypedAstEvaluator
 
     extension(SwitchStatement statement)
     {
-        private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv,
+        private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan,
+            JsEnvironment switchEnv,
             EvaluationContext context)
         {
             foreach (var binding in plan.LexicalBindings)
@@ -151,7 +153,8 @@ public static partial class TypedAstEvaluator
         /// Evaluates a case clause body and returns a tuple with the value and whether it produced a value.
         /// </summary>
         private static (JsValue result, bool hasResult) EvaluateCaseClauseBodyJsValue(BlockStatement body,
-            JsEnvironment switchEnv, EvaluationContext context)
+            JsEnvironment switchEnv,
+            EvaluationContext context)
         {
             // Evaluate statements in the case clause body without creating a new environment
             // The statements are evaluated in the shared switch environment

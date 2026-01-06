@@ -12,7 +12,7 @@ internal sealed class JsMapIterator : IJsObjectLike, IAsJsValue, IPrototypeAcces
     private readonly MapIterationKind _kind;
     private readonly RealmState _realm;
     private readonly JsObject _properties = new();
-    private JsValue _cachedJsValue;
+    private readonly JsValue _cachedJsValue;
     private int _index;
     private bool _done;
 

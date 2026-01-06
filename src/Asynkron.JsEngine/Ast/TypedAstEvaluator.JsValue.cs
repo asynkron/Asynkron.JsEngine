@@ -216,7 +216,7 @@ public static partial class TypedAstEvaluator
         }
 
         return NumericBinaryOp(left, right,
-            (l, r) => JsOps.MathMod(l, r),
+            JsOps.MathMod,
             (l, r) =>
             {
                 if (r.Value.IsZero)

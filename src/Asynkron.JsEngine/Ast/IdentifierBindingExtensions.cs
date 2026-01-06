@@ -17,7 +17,7 @@ public static partial class TypedAstEvaluator
         bool skipBlockedBindingLookup = false)
     {
         if (allowNameInference && value is
-                { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
         {
             nameTarget.EnsureHasName(identifier.Name.Name);
         }
@@ -41,46 +41,46 @@ public static partial class TypedAstEvaluator
                 environment.DefineJsValue(identifier.Name, value, true, blocksFunctionScopeOverride: true);
                 break;
             case BindingMode.DefineVar:
-            {
-                if (!hasInitializer)
                 {
-                    // Runtime evaluation of `var` without an initializer is a no-op;
-                    // bindings are created during declaration instantiation. If the
-                    // binding was removed (e.g., deletable eval var), do not recreate it.
-                    if (environment.HasFunctionScopedBinding(identifier.Name))
+                    if (!hasInitializer)
                     {
+                        // Runtime evaluation of `var` without an initializer is a no-op;
+                        // bindings are created during declaration instantiation. If the
+                        // binding was removed (e.g., deletable eval var), do not recreate it.
+                        if (environment.HasFunctionScopedBinding(identifier.Name))
+                        {
+                            return;
+                        }
+
+                        if (skipBlockedBindingLookup)
+                        {
+                        }
+
                         return;
                     }
 
                     if (skipBlockedBindingLookup)
                     {
+                        environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
+                        var functionScope = environment.GetFunctionScope();
+                        functionScope.AssignJsValue(identifier.Name, value);
+
+                        break;
                     }
 
-                    return;
-                }
+                    var assignedBlockedBinding = skipBlockedBindingLookup
+                        ? false
+                        : environment.TryAssignBlockedBinding(identifier.Name, value);
 
-                if (skipBlockedBindingLookup)
-                {
                     environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
-                    var functionScope = environment.GetFunctionScope();
-                    functionScope.AssignJsValue(identifier.Name, value);
+
+                    if (!assignedBlockedBinding)
+                    {
+                        environment.AssignJsValue(identifier.Name, value);
+                    }
 
                     break;
                 }
-
-                var assignedBlockedBinding = skipBlockedBindingLookup
-                    ? false
-                    : environment.TryAssignBlockedBinding(identifier.Name, value);
-
-                environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
-
-                if (!assignedBlockedBinding)
-                {
-                    environment.AssignJsValue(identifier.Name, value);
-                }
-
-                break;
-            }
             case BindingMode.DefineParameter:
                 // Parameters are created before defaults run (see the pre-pass in BindFunctionParameters),
                 // so by the time we bind the value the slot should already exist and still be

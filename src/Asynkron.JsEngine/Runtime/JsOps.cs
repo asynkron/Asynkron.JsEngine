@@ -182,7 +182,6 @@ internal static class JsOps
         };
     }
 
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static JsValue ToNumericCore(
         object? value,
@@ -1761,7 +1760,7 @@ internal static class JsOps
                     value = signal.ThrownValue;
                     return true;
                 }
-            case bool b:
+            case bool:
                 if (context?.RealmState?.BooleanPrototype is { } booleanProto &&
                     booleanProto.TryGetProperty(propertyName, target, context, out var boolVal))
                 {
@@ -1771,7 +1770,7 @@ internal static class JsOps
 
                 value = JsValue.Undefined;
                 return false;
-            case double num:
+            case double:
                 if (context?.RealmState?.NumberPrototype is { } numberProto &&
                     numberProto.TryGetProperty(propertyName, target, context, out var numVal))
                 {
@@ -1781,7 +1780,7 @@ internal static class JsOps
 
                 value = JsValue.Undefined;
                 return false;
-            case JsBigInt jsBigInt:
+            case JsBigInt:
                 if (context?.RealmState?.BigIntPrototype is { } bigIntProto &&
                     bigIntProto.TryGetProperty(propertyName, target, context, out var bigIntVal))
                 {
@@ -1902,7 +1901,6 @@ internal static class JsOps
 
         return false;
     }
-
 
     /// <summary>
     /// JsValue overload for property assignment. Avoids boxing when all parameters are JsValue.

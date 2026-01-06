@@ -47,7 +47,6 @@ public interface IJsPropertyAccessor
         SetProperty(name, value);
     }
 
-
     /// <summary>
     ///     Optional hook to provide property descriptors to APIs like
     ///     Object.getOwnPropertyDescriptor without exposing JsObject directly.

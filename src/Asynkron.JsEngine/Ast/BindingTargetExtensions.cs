@@ -230,24 +230,24 @@ public static partial class TypedAstEvaluator
                 objectBinding.BindObjectPattern(value, environment, context, mode);
                 break;
             case AssignmentTargetBinding assignmentTarget:
-            {
-                // Use fast path for identifiers, slow path for member expressions
-                var reference = assignmentTarget.Expression is IdentifierExpression
-                    ? AssignmentReferenceResolver.ResolveIdentifierFast(
-                        assignmentTarget.Expression, environment, context)
-                    : AssignmentReferenceResolver.Resolve(
-                        assignmentTarget.Expression,
-                        environment,
-                        context,
-                        static (e, env, ctx) => e.EvaluateExpression(env, ctx));
-                if (context.ShouldStopEvaluation)
                 {
-                    return;
-                }
+                    // Use fast path for identifiers, slow path for member expressions
+                    var reference = assignmentTarget.Expression is IdentifierExpression
+                        ? AssignmentReferenceResolver.ResolveIdentifierFast(
+                            assignmentTarget.Expression, environment, context)
+                        : AssignmentReferenceResolver.Resolve(
+                            assignmentTarget.Expression,
+                            environment,
+                            context,
+                            static (e, env, ctx) => e.EvaluateExpression(env, ctx));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return;
+                    }
 
-                reference.SetValue(value);
-                break;
-            }
+                    reference.SetValue(value);
+                    break;
+                }
             default:
                 throw new NotSupportedException($"Binding target '{target.GetType().Name}' is not supported.");
         }

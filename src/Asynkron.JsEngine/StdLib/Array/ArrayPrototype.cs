@@ -46,7 +46,6 @@ public sealed partial class ArrayPrototype
         Flag("values");
         // NOTE: "with" is NOT in @@unscopables per ES spec (it's a reserved keyword in strict mode)
 
-        var symbol = Symbols.Unscopables;
         var key = SymbolKeys.Unscopables;
         Prototype.DefineProperty(key,
             new PropertyDescriptor { Value = unscopables, Writable = false, Enumerable = false, Configurable = true });

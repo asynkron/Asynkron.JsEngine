@@ -254,7 +254,6 @@ public static partial class TypedAstEvaluator
                 if (isFirstYieldStarEntry)
                 {
                     sendValue = JsValue.Undefined;
-                    isFirstYieldStarEntry = false;
                 }
                 else if (yieldStarState.AwaitingResume)
                 {

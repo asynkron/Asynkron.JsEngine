@@ -695,7 +695,6 @@ public sealed class JsEngine : IAsyncDisposable
         _eventLoopTask = null;
     }
 
-
     /// <summary>
     ///     Parses and schedules evaluation of the provided source on the event queue.
     ///     This ensures all code executes through the event loop, maintaining proper
@@ -1918,7 +1917,7 @@ public sealed class JsEngine : IAsyncDisposable
 
         ScheduleAfterTask(
             task,
-            result => promise.Resolve(result),
+            promise.Resolve,
             ex => promise.Reject((JsValue)ex.Message));
 
         return (JsValue)promise.JsObject;
@@ -1944,8 +1943,6 @@ public sealed class JsEngine : IAsyncDisposable
 
         return (JsValue)promise.JsObject;
     }
-
-
 
     /// <summary>
     ///     Schedules an asynchronous task to be executed on the event queue.
@@ -4986,9 +4983,9 @@ public sealed class JsEngine : IAsyncDisposable
             var argList = callExpr.Arguments.ToList();
             var completedSynchronously = true;
 
-            string DescribeCallee(ExpressionNode expr)
+            static string DescribeCallee(ExpressionNode expr)
             {
-                string DescribeTarget(ExpressionNode target)
+                static string DescribeTarget(ExpressionNode target)
                 {
                     return target switch
                     {

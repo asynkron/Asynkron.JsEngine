@@ -414,7 +414,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
             }
         }
 
-        var slotIndex = AllocateSlotInScope(targetScope, varDecl.TargetSymbol);
+        _ = AllocateSlotInScope(targetScope, varDecl.TargetSymbol);
         if (varDecl.VarKind != VariableKind.Var)
         {
             GetOrCreateScopeInfo(targetScope).LexicalBindings.Add(varDecl.TargetSymbol);

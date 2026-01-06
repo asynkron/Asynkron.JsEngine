@@ -66,9 +66,9 @@ public static partial class TypedAstEvaluator
         {
             var targetOperand = expression.Operand;
             while (targetOperand is UnaryExpression
-                   {
-                       Operator: UnaryOperator.Increment or UnaryOperator.Decrement
-                   } nested)
+                {
+                    Operator: UnaryOperator.Increment or UnaryOperator.Decrement
+                } nested)
             {
                 targetOperand = nested.Operand;
             }
@@ -223,39 +223,39 @@ public static partial class TypedAstEvaluator
                 return expression.EvaluateUnaryMemberIncrement(environment, context);
 
             case UnaryOperator.TypeOf:
-            {
-                if (expression.Operand is IdentifierExpression identifier)
                 {
-                    var hasBinding = environment.HasBinding(identifier.Name);
-                    var operandValue = expression.Operand.EvaluateExpression(environment, context);
-
-                    if (context.IsThrow)
+                    if (expression.Operand is IdentifierExpression identifier)
                     {
-                        if (!hasBinding)
+                        var hasBinding = environment.HasBinding(identifier.Name);
+                        var operandValue = expression.Operand.EvaluateExpression(environment, context);
+
+                        if (context.IsThrow)
                         {
-                            context.Clear();
-                            return new JsValue("undefined");
+                            if (!hasBinding)
+                            {
+                                context.Clear();
+                                return new JsValue("undefined");
+                            }
+
+                            return JsValue.Undefined;
                         }
 
-                        return JsValue.Undefined;
+                        if (context.ShouldStopEvaluation)
+                        {
+                            return JsValue.Undefined;
+                        }
+
+                        return new JsValue(GetTypeofStringValue(operandValue));
                     }
 
+                    var value = expression.Operand.EvaluateExpression(environment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
                     }
 
-                    return new JsValue(GetTypeofStringValue(operandValue));
+                    return new JsValue(GetTypeofStringValue(value));
                 }
-
-                var value = expression.Operand.EvaluateExpression(environment, context);
-                if (context.ShouldStopEvaluation)
-                {
-                    return JsValue.Undefined;
-                }
-
-                return new JsValue(GetTypeofStringValue(value));
-            }
         }
 
         var operand = expression.Operand.EvaluateExpression(environment, context);

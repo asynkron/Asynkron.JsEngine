@@ -50,8 +50,8 @@ public static partial class TypedAstEvaluator
             allowPrivate);
 
         return AssignmentReference.ForDelegate(
-            () => handle.GetJsValue(),
-            value => handle.SetValue(value));
+            handle.GetJsValue,
+            handle.SetValue);
     }
 
     internal static void AssignPropertyValueWithNullCheck(

@@ -152,7 +152,6 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-
     private static bool IsPromiseLike(JsValue candidate)
     {
         return AwaitScheduler.IsPromiseLike(candidate);
@@ -191,7 +190,6 @@ public static partial class TypedAstEvaluator
             out resolvedValue,
             context.DrainAwaitMicrotasks);
     }
-
 
     private static IEnumerable<JsValue> EnumeratePropertyKeys(JsValue value)
     {
@@ -370,7 +368,6 @@ public static partial class TypedAstEvaluator
         throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
 
-
     private static ImmutableArray<JsValue> FreezeArguments(ImmutableArray<JsValue>.Builder builder)
     {
         return builder.Count == builder.Capacity
@@ -421,7 +418,6 @@ public static partial class TypedAstEvaluator
             return signal.ThrownValue;
         }
     }
-
 
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
     private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
@@ -487,7 +483,6 @@ public static partial class TypedAstEvaluator
             enumerator?.Dispose();
         }
     }
-
 
     private static bool HasOptionalChaining(ExpressionNode? expression)
     {

@@ -79,7 +79,7 @@ public sealed class JsSymbol : IJsPropertyAccessor
         value = JsValue.Undefined;
         return false;
 
-        JsSymbol Unbox(JsValue receiver)
+        static JsSymbol Unbox(JsValue receiver)
         {
             // For primitive symbols: Kind=Symbol, ObjectValue=TypedAstSymbol
             if (receiver.IsSymbol && receiver.TryUnwrap<JsSymbol>(out var sym))

@@ -234,12 +234,10 @@ public static partial class TypedAstEvaluator
             return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
         }
 
-
         public void SetProperty(string name, JsValue value)
         {
             SetProperty(name, value, JsValue.FromObjectUnsafe(this));
         }
-
 
         public void SetProperty(string name, JsValue value, JsValue receiver)
         {

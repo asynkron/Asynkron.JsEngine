@@ -108,7 +108,6 @@ public sealed class RealmState
     // Internal flags to avoid re-attaching built-in surfaces per instance
     public bool StringPrototypeMethodsInitialized { get; set; }
 
-
     public EvaluationContext CreateContext(
         ScopeKind kind = ScopeKind.Function,
         ScopeMode mode = ScopeMode.Strict,

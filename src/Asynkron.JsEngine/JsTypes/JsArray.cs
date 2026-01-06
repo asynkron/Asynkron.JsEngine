@@ -1051,7 +1051,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         return (IJsObjectLike)StdLib.StandardLibrary.CreateArrayIteratorObject(
             this,
-            idx => GetElement(idx),
+            GetElement,
             RealmState);
     }
 

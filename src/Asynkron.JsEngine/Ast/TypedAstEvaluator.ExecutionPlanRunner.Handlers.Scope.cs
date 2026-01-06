@@ -209,7 +209,7 @@ public static partial class TypedAstEvaluator
 
             runner.IteratorStateRef.ResumedWithEnvironment = null;
 
-            if (iteratorDriverState is not null && hasIterationBindings)
+            if (iteratorDriverState is not null)
             {
                 iteratorDriverState.CurrentIterationEnvironment = newIterationEnv;
                 iteratorDriverState.LoopScopeEnvironment ??= loopScope;

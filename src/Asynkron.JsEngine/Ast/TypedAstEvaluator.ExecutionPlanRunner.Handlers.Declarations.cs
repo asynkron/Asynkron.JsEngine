@@ -163,15 +163,8 @@ public static partial class TypedAstEvaluator
                 {
                     if (!environment.TryAssignBlockedBinding(instruction.TargetSymbol, varValue))
                     {
-                        if (instruction.IsScriptLevel)
-                        {
-                            environment.AssignJsValue(instruction.TargetSymbol, varValue);
-                        }
-                        else
-                        {
-                            // Assign to the function-scoped binding even if we're currently in a child scope.
-                            environment.AssignJsValue(instruction.TargetSymbol, varValue);
-                        }
+                        // Assign to the function-scoped binding even if we're currently in a child scope.
+                        environment.AssignJsValue(instruction.TargetSymbol, varValue);
                     }
                 }
             }

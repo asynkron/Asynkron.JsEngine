@@ -503,20 +503,20 @@ dotnet_diagnostic.IDE0036.severity = warning
 # dotnet_diagnostic.IDE0030.severity = suggestion
 # # IDE0031: Use null propagation
 # dotnet_diagnostic.IDE0031.severity = suggestion
-# # IDE0038: Use pattern matching to avoid is check followed by a cast (without variable)
-# dotnet_diagnostic.IDE0038.severity = suggestion
-# # IDE0044: Make field readonly
-# dotnet_diagnostic.IDE0044.severity = suggestion
-# # IDE0051: Remove unused private members
-# dotnet_diagnostic.IDE0051.severity = suggestion
-# # IDE0059: Unnecessary assignment to a value
-# dotnet_diagnostic.IDE0059.severity = suggestion
-# # IDE0060: Remove unused parameters
-# dotnet_diagnostic.IDE0060.severity = suggestion
-# # IDE0062: Make local function static
-# dotnet_diagnostic.IDE0062.severity = suggestion
-# # IDE0200: Lambda expression can be removed
-# dotnet_diagnostic.IDE0200.severity = suggestion
+# IDE0038: Use pattern matching to avoid is check followed by a cast (without variable)
+dotnet_diagnostic.IDE0038.severity = suggestion
+# IDE0044: Make field readonly
+dotnet_diagnostic.IDE0044.severity = suggestion
+# IDE0051: Remove unused private members
+dotnet_diagnostic.IDE0051.severity = suggestion
+# IDE0059: Unnecessary assignment to a value
+dotnet_diagnostic.IDE0059.severity = suggestion
+# IDE0060: Remove unused parameters
+dotnet_diagnostic.IDE0060.severity = suggestion
+# IDE0062: Make local function static
+dotnet_diagnostic.IDE0062.severity = suggestion
+# IDE0200: Lambda expression can be removed
+dotnet_diagnostic.IDE0200.severity = suggestion
 
 # # CA2016: Forward the 'CancellationToken' parameter to methods that take one
 # dotnet_diagnostic.CA2016.severity = suggestion
@@ -530,7 +530,6 @@ dotnet_diagnostic.CA1822.severity = silent
 dotnet_diagnostic.IDE0011.severity = silent
 # IDE0055: Fix formatting
 dotnet_diagnostic.IDE0055.severity = silent
-# IDE0060: Remove unused parameters
 dotnet_diagnostic.IDE0060.severity = silent
 # IDE0062: Make local function static
 dotnet_diagnostic.IDE0062.severity = silent

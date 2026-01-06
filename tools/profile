@@ -173,7 +173,9 @@ while [[ $i -lt ${#args[@]} ]]; do
   if [[ -z "$profile_key" ]]; then
     profile_key="$arg"
   else
-    profiler_args+=("$arg")
+    echo "Unexpected extra positional argument: $arg" >&2
+    echo "Usage: ./tools/profile <profile> [flags]" >&2
+    exit 1
   fi
   i=$((i + 1))
 done

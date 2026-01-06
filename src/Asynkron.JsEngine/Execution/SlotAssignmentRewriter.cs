@@ -30,6 +30,13 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private readonly int _mappedRootScopeId;
 
     /// <summary>
+    /// When true, we're re-stamping nested function instructions from an outer context.
+    /// In this mode, we skip overwriting identifiers that are already resolved to scopes
+    /// not on the current stack (i.e., inner function scopes).
+    /// </summary>
+    private bool _isRestampingNestedFunction;
+
+    /// <summary>
     /// Maps (scopeId, slotIndex) pairs to flat slot IDs for O(1) variable access.
     /// </summary>
     private readonly Dictionary<(int scopeId, int slotIndex), int> _flatSlotMap = new();
@@ -181,9 +188,19 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             _scopeStack.Push(enclosingScopeId);
         }
 
-        var result = RewriteInstruction(instruction);
-        RestoreStack(scopeSnapshot, []);
-        return result;
+        // Set the flag to indicate we're re-stamping nested function instructions.
+        // This prevents overwriting identifiers already resolved to inner scopes.
+        _isRestampingNestedFunction = true;
+        try
+        {
+            var result = RewriteInstruction(instruction);
+            return result;
+        }
+        finally
+        {
+            _isRestampingNestedFunction = false;
+            RestoreStack(scopeSnapshot, []);
+        }
     }
 
     public int GetSlotCountForScope(int mappedScopeId)
@@ -384,6 +401,29 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     protected override IdentifierExpression RewriteIdentifier(IdentifierExpression node)
     {
+        // When re-stamping nested function instructions, skip identifiers already resolved
+        // to inner scopes (not on the current stack). This prevents outer scope re-stamping
+        // from overwriting correctly resolved inner scope bindings.
+        if (_isRestampingNestedFunction && node.ScopeId >= 0 && node.SlotIndex >= 0)
+        {
+            // Check if the identifier's scope is on the current stack
+            var isOnStack = false;
+            foreach (var scopeId in _scopeStack)
+            {
+                if (scopeId == node.ScopeId)
+                {
+                    isOnStack = true;
+                    break;
+                }
+            }
+
+            // If resolved to a scope not on our stack, it's an inner scope - leave it alone
+            if (!isOnStack)
+            {
+                return node;
+            }
+        }
+
         if (TryResolve(node.Name, out var resolution))
         {
             var flatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex);

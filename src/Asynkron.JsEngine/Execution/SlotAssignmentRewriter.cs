@@ -263,6 +263,26 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
                 return instruction;
 
+            case BreakInstruction breakInstruction:
+                if (breakInstruction.TargetScopeId < 0)
+                {
+                    return breakInstruction;
+                }
+
+                var mappedBreakScope = RemapScopeId(breakInstruction.TargetScopeId);
+                PopToScope(mappedBreakScope);
+                return breakInstruction with { TargetScopeId = mappedBreakScope };
+
+            case ContinueInstruction continueInstruction:
+                if (continueInstruction.TargetScopeId < 0)
+                {
+                    return continueInstruction;
+                }
+
+                var mappedContinueScope = RemapScopeId(continueInstruction.TargetScopeId);
+                PopToScope(mappedContinueScope);
+                return continueInstruction with { TargetScopeId = mappedContinueScope };
+
             case StatementInstruction stmt:
                 return stmt with { Statement = Rewrite(stmt.Statement) };
 
@@ -565,6 +585,19 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             {
                 break;
             }
+        }
+    }
+
+    private void PopToScope(int targetScopeId)
+    {
+        if (targetScopeId < 0 || _scopeStack.Count <= 1)
+        {
+            return;
+        }
+
+        while (_scopeStack.Count > 1 && _scopeStack.Peek() != targetScopeId)
+        {
+            _scopeStack.Pop();
         }
     }
 

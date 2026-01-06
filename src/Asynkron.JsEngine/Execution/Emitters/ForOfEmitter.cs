@@ -130,11 +130,24 @@ internal static class ForOfEmitter
         }
 
         ctx.PushLoopScope(label, continueTarget, loopExitTarget, targetScopeId);
+        var pushedIterationScope = false;
+        if (iteratorPlan.IterationScopeId >= 0 &&
+            iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
+            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            ctx.PushScope(iteratorPlan.IterationScopeId);
+            pushedIterationScope = true;
+        }
         var iterationEntry = -1;
         var bodyBuilt = ctx.TryBuildStatement(iteratorPlan.Body, bodyNextTarget, out var bodyEntry, label);
         if (bodyBuilt)
         {
             bodyBuilt = ctx.TryBuildStatement(bindingStatement, bodyEntry, out iterationEntry, label);
+        }
+
+        if (pushedIterationScope)
+        {
+            ctx.PopScope(iteratorPlan.IterationScopeId);
         }
 
         ctx.PopLoopScope();

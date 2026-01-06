@@ -128,12 +128,28 @@ internal static class LoopEmitter
 
         // Body flows to CreateEnv (if present) or PostIteration (increment)
         var bodyNextTarget = createEnvIndex >= 0 ? createEnvIndex : postIterationEntry;
+        var pushedIterationScope = false;
+        if (plan.IterationScopeId >= 0 && !plan.PerIterationBindings.IsDefaultOrEmpty)
+        {
+            ctx.PushScope(plan.IterationScopeId);
+            pushedIterationScope = true;
+        }
+
         if (!ctx.TryBuildStatement(plan.Body, bodyNextTarget, out var bodyEntry, label))
         {
+            if (pushedIterationScope)
+            {
+                ctx.PopScope(plan.IterationScopeId);
+            }
             ctx.PopLoopScope();
             ctx.Rollback(instructionStart);
             entryIndex = -1;
             return false;
+        }
+
+        if (pushedIterationScope)
+        {
+            ctx.PopScope(plan.IterationScopeId);
         }
 
         ctx.PopLoopScope();

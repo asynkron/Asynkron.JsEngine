@@ -129,11 +129,14 @@ internal static class TryEmitter
         // 2. Emit catch body - use TryEmitBlock to properly handle block-scoped declarations
         // Per ECMAScript, the catch block body gets its own lexical environment for let/const,
         // separate from the catch parameter environment.
+        ctx.PushScope(catchScopeId);
         if (!BlockEmitter.TryEmitBlock(ctx, catchClause.Body, popCatchEnv, out var bodyEntry))
         {
+            ctx.PopScope(catchScopeId);
             catchEntry = -1;
             return false;
         }
+        ctx.PopScope(catchScopeId);
 
         // 3. Emit the appropriate catch instruction
         if (destructuringPattern is not null)

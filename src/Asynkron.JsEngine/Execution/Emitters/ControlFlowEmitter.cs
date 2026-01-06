@@ -162,7 +162,7 @@ internal static class ControlFlowEmitter
 
         // Push scope so that labeled break can be resolved during IR building.
         // ContinueTarget is -1 because continue is not valid for non-loop labeled statements.
-        ctx.PushLoopScope(labeled.Label, -1, breakableExitIndex, -1);
+        ctx.PushLoopScope(labeled.Label, -1, breakableExitIndex, ctx.CurrentScopeId);
 
         var bodyBuilt = ctx.TryBuildStatement(labeled.Statement, breakableExitIndex, out var bodyEntry);
         ctx.PopLoopScope();

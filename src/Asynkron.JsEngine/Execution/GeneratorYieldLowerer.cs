@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 
 #endregion
@@ -134,6 +135,13 @@ internal static class GeneratorYieldLowerer
                 if (TryRewriteYieldingDeclaration(statement, out var declarationRewrite))
                 {
                     builder.AddRange(declarationRewrite);
+                    changed = true;
+                    continue;
+                }
+
+                if (TryRewriteDestructuringWithYieldDefaults(statement, isStrict, out var destructuringRewrite))
+                {
+                    builder.AddRange(destructuringRewrite);
                     changed = true;
                     continue;
                 }
@@ -1428,6 +1436,561 @@ internal static class GeneratorYieldLowerer
                 declaration with { Declarators = [rightDeclarator], Kind = VariableKind.Let },
                 declaration with { Declarators = [finalDeclarator] }
             ];
+            return true;
+        }
+
+        /// <summary>
+        /// Rewrites variable declarations with destructuring patterns that contain yields in default values.
+        /// Transforms: let [a = yield 1, b = yield 2] = arr;
+        /// Into:
+        ///   let __temp = arr;
+        ///   let __iter = __temp[Symbol.iterator]();
+        ///   let __next0 = __iter.next();
+        ///   let __val0 = __next0.done ? undefined : __next0.value;
+        ///   let a;
+        ///   if (__val0 === undefined) { a = yield 1; } else { a = __val0; }
+        ///   ... (similar for b)
+        /// </summary>
+        private bool TryRewriteDestructuringWithYieldDefaults(
+            StatementNode statement,
+            bool isStrict,
+            out ImmutableArray<StatementNode> replacement)
+        {
+            replacement = default;
+
+            if (statement is not VariableDeclaration { Declarators.Length: 1 } declaration)
+            {
+                return false;
+            }
+
+            var declarator = declaration.Declarators[0];
+            if (declarator.Target is not (ArrayBinding or ObjectBinding))
+            {
+                return false;
+            }
+
+            // Check if the binding target contains yields in default values
+            if (!AstShapeAnalyzer.BindingTargetContainsYieldInDefaultValue(declarator.Target))
+            {
+                return false;
+            }
+
+            // We need an initializer to destructure
+            if (declarator.Initializer is null)
+            {
+                return false;
+            }
+
+            var statements = ImmutableArray.CreateBuilder<StatementNode>();
+
+            // Step 1: Evaluate the initializer into a temp variable
+            // let __temp = arr;
+            var tempSymbol = CreateResumeIdentifier();
+            statements.Add(new VariableDeclaration(
+                declaration.Source,
+                VariableKind.Let,
+                [new VariableDeclarator(declaration.Source, tempSymbol, declarator.Initializer)]));
+
+            // Step 2: Handle the destructuring pattern
+            switch (declarator.Target)
+            {
+                case ArrayBinding arrayBinding:
+                    if (!TryLowerArrayBindingWithYieldDefaults(
+                            arrayBinding,
+                            declaration.Kind,
+                            tempSymbol,
+                            statements,
+                            isStrict))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ObjectBinding objectBinding:
+                    if (!TryLowerObjectBindingWithYieldDefaults(
+                            objectBinding,
+                            declaration.Kind,
+                            tempSymbol,
+                            statements,
+                            isStrict))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                default:
+                    return false;
+            }
+
+            replacement = statements.ToImmutable();
+            return true;
+        }
+
+        /// <summary>
+        /// Lowers an array binding pattern with yield defaults into explicit iterator operations.
+        /// </summary>
+        private bool TryLowerArrayBindingWithYieldDefaults(
+            ArrayBinding arrayBinding,
+            VariableKind varKind,
+            IdentifierBinding sourceSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            // Step 1: Create the iterator
+            // let __iter = __temp[Symbol.iterator]();
+            var iterSymbol = CreateResumeIdentifier();
+            // Symbol.iterator access: get the iterator well-known symbol
+            var symbolIteratorAccess = new MemberExpression(
+                null,
+                new IdentifierExpression(null, Symbol.Intern("Symbol")),
+                new LiteralExpression(null, JsValue.FromString("iterator")),
+                false,
+                false);
+            var getIteratorCall = new CallExpression(
+                null,
+                new MemberExpression(
+                    null,
+                    new IdentifierExpression(null, sourceSymbol.Name),
+                    symbolIteratorAccess,
+                    true,  // computed: __temp[Symbol.iterator]
+                    false),
+                ImmutableArray<CallArgument>.Empty,
+                false);
+
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(null, iterSymbol, getIteratorCall)]));
+
+            // Step 2: Process each element
+            for (var i = 0; i < arrayBinding.Elements.Length; i++)
+            {
+                var element = arrayBinding.Elements[i];
+
+                // Handle elision (empty slot like [,a])
+                if (element.Target is null)
+                {
+                    // Just advance the iterator
+                    // let __skipN = __iter.next();
+                    var skipSymbol = CreateResumeIdentifier();
+                    var skipNextCall = new CallExpression(
+                        null,
+                        new MemberExpression(
+                            null,
+                            new IdentifierExpression(null, iterSymbol.Name),
+                            new LiteralExpression(null, JsValue.FromString("next")),
+                            false,
+                            false),
+                        ImmutableArray<CallArgument>.Empty,
+                        false);
+                    statements.Add(new VariableDeclaration(
+                        null,
+                        VariableKind.Let,
+                        [new VariableDeclarator(null, skipSymbol, skipNextCall)]));
+                    continue;
+                }
+
+                // Step 2a: Call iterator.next()
+                // let __nextN = __iter.next();
+                var nextSymbol = CreateResumeIdentifier();
+                var nextCall = new CallExpression(
+                    null,
+                    new MemberExpression(
+                        null,
+                        new IdentifierExpression(null, iterSymbol.Name),
+                        new LiteralExpression(null, JsValue.FromString("next")),
+                        false,
+                        false),
+                    ImmutableArray<CallArgument>.Empty,
+                    false);
+                statements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(null, nextSymbol, nextCall)]));
+
+                // Step 2b: Extract value: __valN = __nextN.done ? undefined : __nextN.value
+                var valSymbol = CreateResumeIdentifier();
+                var doneAccess = new MemberExpression(
+                    null,
+                    new IdentifierExpression(null, nextSymbol.Name),
+                    new LiteralExpression(null, JsValue.FromString("done")),
+                    false,
+                    false);
+                var valueAccess = new MemberExpression(
+                    null,
+                    new IdentifierExpression(null, nextSymbol.Name),
+                    new LiteralExpression(null, JsValue.FromString("value")),
+                    false,
+                    false);
+                var valConditional = new ConditionalExpression(
+                    null,
+                    doneAccess,
+                    new IdentifierExpression(null, Symbol.Intern("undefined")),
+                    valueAccess);
+                statements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(null, valSymbol, valConditional)]));
+
+                // Step 2c: Handle the binding target with default value
+                if (!TryLowerBindingTargetWithOptionalDefault(
+                        element.Target,
+                        element.DefaultValue,
+                        varKind,
+                        valSymbol,
+                        statements,
+                        isStrict))
+                {
+                    return false;
+                }
+            }
+
+            // Step 3: Handle rest element if present
+            if (arrayBinding.RestElement is not null)
+            {
+                // For rest element, collect remaining values into an array
+                // This is more complex - for now, return false to fall back to AST evaluation
+                // TODO: Implement rest element lowering
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Lowers an object binding pattern with yield defaults.
+        /// </summary>
+        private bool TryLowerObjectBindingWithYieldDefaults(
+            ObjectBinding objectBinding,
+            VariableKind varKind,
+            IdentifierBinding sourceSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            // Process each property
+            foreach (var prop in objectBinding.Properties)
+            {
+                // Step 1: Get the property value
+                // let __propVal = __temp.propertyName;
+                var propValSymbol = CreateResumeIdentifier();
+                // Use computed access for dynamic names, static access for literal names
+                var isComputed = prop.NameExpression is not null;
+                var propExpr = isComputed
+                    ? prop.NameExpression!
+                    : new LiteralExpression(null, JsValue.FromString(prop.Name));
+                var propertyAccess = new MemberExpression(
+                    null,
+                    new IdentifierExpression(null, sourceSymbol.Name),
+                    propExpr,
+                    isComputed,
+                    false);
+
+                statements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(null, propValSymbol, propertyAccess)]));
+
+                // Step 2: Handle the binding target with default value
+                if (!TryLowerBindingTargetWithOptionalDefault(
+                        prop.Target,
+                        prop.DefaultValue,
+                        varKind,
+                        propValSymbol,
+                        statements,
+                        isStrict))
+                {
+                    return false;
+                }
+            }
+
+            // Handle rest element if present
+            if (objectBinding.RestElement is not null)
+            {
+                // For rest element in objects, we need to collect remaining enumerable own properties
+                // This is complex - for now, return false to fall back to AST evaluation
+                // TODO: Implement rest element lowering
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Lowers a binding target with an optional default value.
+        /// If the default value contains a yield, generates:
+        ///   let targetName;
+        ///   if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
+        /// Otherwise, generates:
+        ///   let targetName = __val === undefined ? defaultExpr : __val;
+        /// </summary>
+        private bool TryLowerBindingTargetWithOptionalDefault(
+            BindingTarget target,
+            ExpressionNode? defaultValue,
+            VariableKind varKind,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            // Handle nested destructuring patterns recursively
+            switch (target)
+            {
+                case IdentifierBinding identifierBinding:
+                    return TryLowerIdentifierBindingWithDefault(
+                        identifierBinding,
+                        defaultValue,
+                        varKind,
+                        valueSymbol,
+                        statements,
+                        isStrict);
+
+                case ArrayBinding nestedArray:
+                    // For nested arrays, we need to first check if value is undefined and apply default
+                    // then destructure the result
+                    if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
+                    {
+                        // Create a temp for the resolved value
+                        var resolvedSymbol = CreateResumeIdentifier();
+
+                        // let resolvedSymbol;
+                        // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
+                        statements.Add(new VariableDeclaration(
+                            null,
+                            VariableKind.Let,
+                            [new VariableDeclarator(null, resolvedSymbol, null)]));
+
+                        // if (__val === undefined) { resolvedSymbol = yield expr; } else { resolvedSymbol = __val; }
+                        if (!EmitYieldDefaultConditional(
+                                resolvedSymbol,
+                                defaultValue,
+                                valueSymbol,
+                                statements,
+                                isStrict))
+                        {
+                            return false;
+                        }
+
+                        // Now destructure from resolvedSymbol
+                        return TryLowerArrayBindingWithYieldDefaults(
+                            nestedArray,
+                            varKind,
+                            resolvedSymbol,
+                            statements,
+                            isStrict);
+                    }
+                    else
+                    {
+                        // No yield in default - apply default inline if needed, then destructure
+                        var sourceForNested = valueSymbol;
+                        if (defaultValue is not null)
+                        {
+                            var resolvedSymbol = CreateResumeIdentifier();
+                            var conditional = new ConditionalExpression(
+                                null,
+                                new BinaryExpression(
+                                    null,
+                                    BinaryOperator.StrictEqual,
+                                    new IdentifierExpression(null, valueSymbol.Name),
+                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                                defaultValue,
+                                new IdentifierExpression(null, valueSymbol.Name));
+                            statements.Add(new VariableDeclaration(
+                                null,
+                                VariableKind.Let,
+                                [new VariableDeclarator(null, resolvedSymbol, conditional)]));
+                            sourceForNested = resolvedSymbol;
+                        }
+
+                        return TryLowerArrayBindingWithYieldDefaults(
+                            nestedArray,
+                            varKind,
+                            sourceForNested,
+                            statements,
+                            isStrict);
+                    }
+
+                case ObjectBinding nestedObject:
+                    // Similar handling for nested objects
+                    if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
+                    {
+                        var resolvedSymbol = CreateResumeIdentifier();
+                        // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
+                        statements.Add(new VariableDeclaration(
+                            null,
+                            VariableKind.Let,
+                            [new VariableDeclarator(null, resolvedSymbol, null)]));
+
+                        if (!EmitYieldDefaultConditional(
+                                resolvedSymbol,
+                                defaultValue,
+                                valueSymbol,
+                                statements,
+                                isStrict))
+                        {
+                            return false;
+                        }
+
+                        return TryLowerObjectBindingWithYieldDefaults(
+                            nestedObject,
+                            varKind,
+                            resolvedSymbol,
+                            statements,
+                            isStrict);
+                    }
+                    else
+                    {
+                        var sourceForNested = valueSymbol;
+                        if (defaultValue is not null)
+                        {
+                            var resolvedSymbol = CreateResumeIdentifier();
+                            var conditional = new ConditionalExpression(
+                                null,
+                                new BinaryExpression(
+                                    null,
+                                    BinaryOperator.StrictEqual,
+                                    new IdentifierExpression(null, valueSymbol.Name),
+                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                                defaultValue,
+                                new IdentifierExpression(null, valueSymbol.Name));
+                            statements.Add(new VariableDeclaration(
+                                null,
+                                VariableKind.Let,
+                                [new VariableDeclarator(null, resolvedSymbol, conditional)]));
+                            sourceForNested = resolvedSymbol;
+                        }
+
+                        return TryLowerObjectBindingWithYieldDefaults(
+                            nestedObject,
+                            varKind,
+                            sourceForNested,
+                            statements,
+                            isStrict);
+                    }
+
+                case AssignmentTargetBinding:
+                    // Assignment targets (like a.b or a[i]) in binding patterns are complex
+                    // Fall back to AST evaluation for now
+                    return false;
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// Lowers an identifier binding with an optional default value.
+        /// </summary>
+        private bool TryLowerIdentifierBindingWithDefault(
+            IdentifierBinding identifierBinding,
+            ExpressionNode? defaultValue,
+            VariableKind varKind,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            if (defaultValue is null)
+            {
+                // No default: just assign the value
+                // let targetName = __val;
+                statements.Add(new VariableDeclaration(
+                    null,
+                    varKind,
+                    [new VariableDeclarator(
+                        null,
+                        identifierBinding,
+                        new IdentifierExpression(null, valueSymbol.Name))]));
+                return true;
+            }
+
+            if (!AstShapeAnalyzer.ContainsYield(defaultValue))
+            {
+                // No yield in default: use conditional expression
+                // let targetName = __val === undefined ? defaultExpr : __val;
+                var conditional = new ConditionalExpression(
+                    null,
+                    new BinaryExpression(
+                        null,
+                        BinaryOperator.StrictEqual,
+                        new IdentifierExpression(null, valueSymbol.Name),
+                        new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                    defaultValue,
+                    new IdentifierExpression(null, valueSymbol.Name));
+
+                statements.Add(new VariableDeclaration(
+                    null,
+                    varKind,
+                    [new VariableDeclarator(null, identifierBinding, conditional)]));
+                return true;
+            }
+
+            // Has yield in default: use if statement
+            // let targetName;
+            // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(null, identifierBinding, null)]));
+
+            // if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
+            return EmitYieldDefaultConditional(
+                identifierBinding,
+                defaultValue,
+                valueSymbol,
+                statements,
+                isStrict);
+        }
+
+        /// <summary>
+        /// Emits an if statement that handles a yield in a default value:
+        /// if (__val === undefined) { targetName = yield expr; } else { targetName = __val; }
+        /// </summary>
+        private bool EmitYieldDefaultConditional(
+            IdentifierBinding targetBinding,
+            ExpressionNode defaultValue,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict)
+        {
+            // Handle yields in the default expression by extracting them
+            var defaultPrefixStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            var changed = false;
+            var rewrittenDefault = RewriteExpressionForComplexYields(defaultValue, defaultPrefixStatements, ref changed);
+
+            // Build the consequent (then) branch
+            var consequentStatements = ImmutableArray.CreateBuilder<StatementNode>();
+            consequentStatements.AddRange(defaultPrefixStatements);
+            consequentStatements.Add(new ExpressionStatement(
+                null,
+                new AssignmentExpression(
+                    null,
+                    targetBinding.Name,
+                    rewrittenDefault)));
+
+            var consequentBlock = new BlockStatement(null, consequentStatements.ToImmutable(), isStrict);
+
+            // Build the alternate (else) branch
+            var alternateBlock = new BlockStatement(
+                null,
+                [
+                    new ExpressionStatement(
+                        null,
+                        new AssignmentExpression(
+                            null,
+                            targetBinding.Name,
+                            new IdentifierExpression(null, valueSymbol.Name)))
+                ],
+                isStrict);
+
+            // Build the condition: __val === undefined
+            var condition = new BinaryExpression(
+                null,
+                BinaryOperator.StrictEqual,
+                new IdentifierExpression(null, valueSymbol.Name),
+                new IdentifierExpression(null, Symbol.Intern("undefined")));
+
+            // Create the if statement
+            statements.Add(new IfStatement(null, condition, consequentBlock, alternateBlock));
             return true;
         }
 

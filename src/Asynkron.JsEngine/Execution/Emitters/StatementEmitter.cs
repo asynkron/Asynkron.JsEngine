@@ -71,7 +71,9 @@ internal static class StatementEmitter
                     return TryEmitter.TryEmitTry(ctx, tryStatement, nextIndex, activeLabel, out entryIndex);
 
                 case ForEachStatement { Kind: ForEachKind.In } forInStatement:
-                    // For-in loops delegate to AST evaluator via StatementInstruction
+                    // AST fallback: for-in loops delegate to AST evaluator via StatementInstruction
+                    // Reason: No dedicated IR instructions for property enumeration
+                    // Tracking: #398, #416 (IR-only execution epic)
                     entryIndex = ctx.Append(new StatementInstruction(nextIndex, forInStatement));
                     return true;
 
@@ -109,6 +111,9 @@ internal static class StatementEmitter
                     // so the AST evaluator can handle labeled break/continue correctly
                     if (labeled.Statement is ForEachStatement { Kind: ForEachKind.In })
                     {
+                        // AST fallback: labeled for-in wrapper
+                        // Reason: Wraps the for-in AST fallback to preserve label semantics
+                        // Tracking: #398, #416 (IR-only execution epic)
                         entryIndex = ctx.Append(new StatementInstruction(nextIndex, labeled));
                         return true;
                     }
@@ -238,6 +243,9 @@ internal static class StatementEmitter
             !AstShapeAnalyzer.StatementContainsYield(forEachStatement.Body) &&
             !AstShapeAnalyzer.ContainsYield(forEachStatement.Iterable))
         {
+            // AST fallback: for-of with yield in binding target
+            // Reason: Conditional yield semantics in destructuring defaults
+            // Tracking: #398, #416 (IR-only execution epic)
             entryIndex = ctx.Append(new StatementInstruction(nextIndex, forEachStatement));
             return true;
         }
@@ -270,7 +278,9 @@ internal static class StatementEmitter
             return WithEmitter.TryEmitWith(ctx, withStatement, nextIndex, activeLabel, out entryIndex);
         }
 
-        // If no yield in body, emit as a simple statement instruction
+        // AST fallback: with statement (no yield in body)
+        // Reason: Dynamic scope semantics not yet supported in IR-only mode
+        // Tracking: #398, #416 (IR-only execution epic)
         entryIndex = ctx.Append(new StatementInstruction(nextIndex, withStatement));
         return true;
     }

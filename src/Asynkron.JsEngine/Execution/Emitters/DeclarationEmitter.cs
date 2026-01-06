@@ -71,6 +71,9 @@ internal static class DeclarationEmitter
         // the value is undefined. Wrap them as StatementInstruction.
         if (DeclarationContainsYieldInBindingTargetDefaults(declaration))
         {
+            // AST fallback: var decl with yield in binding target defaults
+            // Reason: Conditional yield semantics in destructuring defaults
+            // Tracking: #398, #416 (IR-only execution epic)
             entryIndex = ctx.Append(new StatementInstruction(nextIndex, declaration));
             return true;
         }

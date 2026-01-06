@@ -148,6 +148,14 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateExpression(JsEnvironment environment,
             EvaluationContext context)
         {
+#if DEBUG
+            // Guard: detect AST evaluation during IR-only execution (see #398, #415, #364)
+            if (EvaluationContext.AssertNoAstEvaluation)
+            {
+                throw new InvalidOperationException(
+                    $"AST evaluation invoked for {expression.GetType().Name} during IR execution");
+            }
+#endif
             return expression switch
             {
                 // Explicit if statements generate less IL than switch expressions

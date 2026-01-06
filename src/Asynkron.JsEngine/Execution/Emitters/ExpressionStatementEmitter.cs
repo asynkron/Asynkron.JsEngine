@@ -44,6 +44,9 @@ internal static class ExpressionStatementEmitter
         // Wrap them as StatementInstruction to use AST evaluation's state-saving.
         if (EmitContext.ExpressionContainsDestructuringWithYieldAnywhere(expressionStatement.Expression))
         {
+            // AST fallback: expression statement with yield in destructuring
+            // Reason: Conditional yield semantics in destructuring defaults/targets
+            // Tracking: #398, #416 (IR-only execution epic)
             entryIndex = ctx.Append(new StatementInstruction(nextIndex, expressionStatement));
             return true;
         }

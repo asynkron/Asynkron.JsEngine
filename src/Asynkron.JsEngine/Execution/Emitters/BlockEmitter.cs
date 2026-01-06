@@ -39,7 +39,9 @@ internal static class BlockEmitter
                 return TryEmitBlockWithEnvironment(ctx, block, hoistPlan, nextIndex, out entryIndex);
             }
 
-            // For blocks without yield/await, StatementInstruction is fine
+            // AST fallback: block with lexical bindings but no yield/await
+            // Reason: Environment creation without yield/await is simpler via AST eval
+            // Tracking: #398, #416 (IR-only execution epic)
             entryIndex = ctx.Append(new StatementInstruction(nextIndex, block));
             return true;
         }

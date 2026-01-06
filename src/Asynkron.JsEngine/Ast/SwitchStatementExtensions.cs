@@ -25,16 +25,17 @@ public static partial class TypedAstEvaluator
 
             var instantiationPlan = ((IAstCacheable<SwitchInstantiationPlan>)statement).GetOrCreateCache();
 
+            var isStrict = context.CurrentScope.IsStrict;
             // Create a lexical environment for the entire switch block
             // This environment is shared by all case clause bodies
-            var switchEnv = new JsEnvironment(environment, false, instantiationPlan.IsStrict);
+            var switchEnv = new JsEnvironment(environment, false, isStrict);
 
             // Push a scope context for the switch block
-            var scopeMode = instantiationPlan.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+            var scopeMode = isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
             using var scopeHandle = context.PushScope(ScopeKind.Block, scopeMode);
 
             // Hoist lexical declarations from all case bodies
-            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context);
+            SwitchStatement.InstantiateSwitchLexicalDeclarations(instantiationPlan, switchEnv, context, isStrict);
 
             // V = undefined (spec step 1)
             var completionValue = JsValue.Undefined;
@@ -108,7 +109,7 @@ public static partial class TypedAstEvaluator
         }
 
         private static void InstantiateSwitchLexicalDeclarations(SwitchInstantiationPlan plan, JsEnvironment switchEnv,
-            EvaluationContext context)
+            EvaluationContext context, bool isStrict)
         {
             foreach (var binding in plan.LexicalBindings)
             {
@@ -128,6 +129,8 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
+                // In strict mode, block-scoped function declarations are initialized at switch entry
+                // (mirrors block evaluation behavior).
                 var functionValue = funcBinding.Function.CreateFunctionValue(switchEnv, context,
                     skipInternalNameBinding: true);
                 switchEnv.DefineJsValue(

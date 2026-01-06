@@ -55,7 +55,6 @@ internal static class BlockEmitter
     private static bool TryEmitBlockWithEnvironment(
         EmitContext ctx,
         BlockStatement block,
-        // ReSharper disable once UnusedParameter.Local
         HoistPlan hoistPlan,
         int nextIndex,
         out int entryIndex)
@@ -65,12 +64,15 @@ internal static class BlockEmitter
         // Check if we can pool the environment (no closures or dynamic scope)
         var allowPooling = !DynamicScopeDetector.ContainsWithOrDirectEval(block) && !ContainsInnerFunctionExpression(block);
 
-        // Get scope info from the block (stamped by scope analysis)
-        var scopeId = block.ScopeId >= 0 ? block.ScopeId : -1;
-        var slotCount = block.SlotCount >= 0 ? block.SlotCount : 0;
-        var slotMap = block.SlotMap.IsEmpty
-            ? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance)
-            : block.SlotMap;
+        // Build slot map from hoistPlan.TopLevelLexicalNames at IR build time.
+        // This is necessary because scope analysis runs AFTER IR is built - we can't rely on
+        // block.SlotMap being populated yet. TopLevelLexicalNames contains all lexical bindings
+        // (let/const/class/function declarations) directly in this block.
+        var slotMap = BuildSlotMap(hoistPlan.TopLevelLexicalNames);
+        var slotCount = slotMap.Count;
+
+        // Allocate a scope ID for this block (will be remapped during scope analysis)
+        var scopeId = ctx.AllocateScopeId();
 
         // Build instructions bottom-up (reverse order):
         // 1. PopEnvironmentInstruction pointing to nextIndex
@@ -99,8 +101,30 @@ internal static class BlockEmitter
             scopeId,
             slotCount,
             slotMap,
-            allowPooling));
+            allowPooling,
+            SourceBlock: block));
 
         return true;
+    }
+
+    /// <summary>
+    /// Builds an immutable slot map from a set of lexical names.
+    /// Each symbol gets a sequential slot index starting from 0.
+    /// </summary>
+    private static ImmutableDictionary<Symbol, int> BuildSlotMap(HashSet<Symbol> lexicalNames)
+    {
+        if (lexicalNames.Count == 0)
+        {
+            return ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+        }
+
+        var builder = ImmutableDictionary.CreateBuilder<Symbol, int>(ReferenceEqualityComparer<Symbol>.Instance);
+        var slotIndex = 0;
+        foreach (var name in lexicalNames)
+        {
+            builder[name] = slotIndex++;
+        }
+
+        return builder.ToImmutable();
     }
 }

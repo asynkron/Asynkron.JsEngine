@@ -81,6 +81,7 @@ public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTe
 
         // First parse and inspect the AST
         var program = engine.ParseProgram("""
+            "use strict";
             function outer() {
                 {
                     let z = 42;
@@ -94,7 +95,7 @@ public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTe
             """);
 
         // Debug output
-        var outerDecl = program.Body[0] as FunctionDeclaration;
+        var outerDecl = program.Body.OfType<FunctionDeclaration>().FirstOrDefault();
         Output.WriteLine($"outer function found: {outerDecl != null}");
         if (outerDecl != null)
         {
@@ -198,7 +199,12 @@ public sealed class BlockScopeClosureTest(ITestOutputHelper output) : InternalTe
                     log.Message.Contains("TraceLookup") ||
                     log.Message.Contains("SyncFunctionInvoker") ||
                     log.Message.Contains("TryResolve") ||
-                    log.Message.Contains("Invoke.ALL"))
+                    log.Message.Contains("Invoke.ALL") ||
+                    log.Message.Contains("ENSURE_ENV") ||
+                    log.Message.Contains("CLOSURE_CHAIN") ||
+                    log.Message.Contains("[IR:") ||
+                    log.Message.Contains("[FUNC_DECL]") ||
+                    log.Message.Contains("PushEnv:"))
                 {
                     Output.WriteLine(log.Message);
                 }

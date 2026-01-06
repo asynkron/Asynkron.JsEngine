@@ -178,7 +178,8 @@ internal sealed class ScopeSlotCollector : AstVisitor
     private void EnterScope(int scopeId,
         ImmutableDictionary<Symbol, int> slotMap,
         ImmutableArray<Symbol> perIterationBindings,
-        int slotCount)
+        int slotCount,
+        BlockStatement? sourceBlock = null)
     {
         var info = GetOrCreateScopeInfo(scopeId);
         if (!slotMap.IsEmpty)
@@ -198,6 +199,13 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 AllocateSlotInScope(scopeId, binding);
                 info.LexicalBindings.Add(binding);
             }
+        }
+
+        // Register block-to-scopeId mapping if a source block was provided.
+        // This enables SlotAssignmentRewriter to stamp the BlockStatement with scope metadata.
+        if (sourceBlock is not null && !_blockScopeIds.ContainsKey(sourceBlock))
+        {
+            _blockScopeIds[sourceBlock] = scopeId;
         }
 
         if (slotCount > 0)
@@ -288,7 +296,7 @@ internal sealed class ScopeSlotCollector : AstVisitor
         switch (instruction)
         {
             case PushEnvironmentInstruction push:
-                EnterScope(push.ScopeId, push.SlotMap, push.PerIterationBindings, push.SlotCount);
+                EnterScope(push.ScopeId, push.SlotMap, push.PerIterationBindings, push.SlotCount, push.SourceBlock);
                 return;
 
             case PopEnvironmentInstruction pop:

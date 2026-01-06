@@ -465,81 +465,92 @@ internal sealed partial class ExecutionPlanBuilder
     private static List<Symbol> CollectHoistedFunctionSymbols(BlockStatement body)
     {
         var result = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var isStrict = body.IsStrict;
 
         foreach (var statement in body.Statements)
         {
-            CollectFromStatement(statement, result);
+            CollectFromStatement(statement, result, isStrict, false);
         }
 
         return result.ToList();
 
-        static void CollectFromStatement(StatementNode statement, HashSet<Symbol> sink)
+        static void CollectFromStatement(StatementNode statement, HashSet<Symbol> sink, bool isStrict, bool inBlockScope)
         {
             while (true)
             {
                 switch (statement)
                 {
                     case FunctionDeclaration funcDecl:
-                        sink.Add(funcDecl.Name);
+                        if (!isStrict || !inBlockScope)
+                        {
+                            sink.Add(funcDecl.Name);
+                        }
                         return;
                     case BlockStatement block:
                         foreach (var inner in block.Statements)
                         {
-                            CollectFromStatement(inner, sink);
+                            CollectFromStatement(inner, sink, isStrict, true);
                         }
 
                         return;
                     case IfStatement ifStatement:
-                        CollectFromStatement(ifStatement.Then, sink);
+                        CollectFromStatement(ifStatement.Then, sink, isStrict, true);
                         if (ifStatement.Else is { } elseBranch)
                         {
                             statement = elseBranch;
+                            inBlockScope = true;
                             continue;
                         }
 
                         return;
                     case WhileStatement whileStatement:
                         statement = whileStatement.Body;
+                        inBlockScope = true;
                         continue;
                     case DoWhileStatement doWhileStatement:
                         statement = doWhileStatement.Body;
+                        inBlockScope = true;
                         continue;
                     case ForStatement forStatement:
                         if (forStatement.Initializer is StatementNode initStmt)
                         {
-                            CollectFromStatement(initStmt, sink);
+                            CollectFromStatement(initStmt, sink, isStrict, true);
                         }
 
                         statement = forStatement.Body;
+                        inBlockScope = true;
                         continue;
                     case ForEachStatement forEachStatement:
                         statement = forEachStatement.Body;
+                        inBlockScope = true;
                         continue;
                     case SwitchStatement switchStatement:
                         foreach (var switchCase in switchStatement.Cases)
                         {
-                            CollectFromStatement(switchCase.Body, sink);
+                            CollectFromStatement(switchCase.Body, sink, isStrict, true);
                         }
 
                         return;
                     case TryStatement tryStatement:
-                        CollectFromStatement(tryStatement.TryBlock, sink);
+                        CollectFromStatement(tryStatement.TryBlock, sink, isStrict, true);
                         if (tryStatement.Catch is { Body: { } catchBody })
                         {
-                            CollectFromStatement(catchBody, sink);
+                            CollectFromStatement(catchBody, sink, isStrict, true);
                         }
 
                         if (tryStatement.Finally is { } finallyBody)
                         {
-                            CollectFromStatement(finallyBody, sink);
+                            CollectFromStatement(finallyBody, sink, isStrict, true);
                         }
 
                         return;
                     case LabeledStatement labeledStatement:
                         statement = labeledStatement.Statement;
+                        inBlockScope = true;
                         continue;
                     case WithStatement withStatement:
                         statement = withStatement.Body;
+                        inBlockScope = true;
                         continue;
                     default:
                         return;

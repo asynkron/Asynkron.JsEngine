@@ -147,25 +147,17 @@ public static partial class TypedAstEvaluator
                     continue;
                 }
 
-                // TEST: Log that we're instantiating a block function
-                System.Console.WriteLine($"InstantiateLexicalBlockFunctions: {functionDeclaration.Name.Name}");
-                System.Console.WriteLine($"  blockEnvironment.IsStrict={blockEnvironment.IsStrict}");
-                System.Console.WriteLine($"  blockEnvironment.Depth={blockEnvironment.Depth}");
-
                 // Pass skipInternalNameBinding: true so the function doesn't create an internal
                 // const binding for its name (the binding is handled by blockEnvironment.Define below).
                 var functionValue = functionDeclaration.Function.CreateFunctionValue(blockEnvironment, context,
                     skipInternalNameBinding: true);
-                
-                System.Console.WriteLine($"  Defining {functionDeclaration.Name.Name} in block environment");
+
                 blockEnvironment.DefineJsValue(
                     functionDeclaration.Name,
                     JsValue.FromObjectUnsafe(functionValue),
                     true,
                     isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
-                
-                System.Console.WriteLine($"  Check: blockEnvironment.HasBinding({functionDeclaration.Name.Name})={blockEnvironment.HasBinding(functionDeclaration.Name)}");
             }
         }
 

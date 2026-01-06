@@ -93,7 +93,11 @@ public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
 
     public int CompareTo(JsTemporalInstant? other)
     {
-        if (other is null) return 1;
+        if (other is null)
+        {
+            return 1;
+        }
+
         return EpochNanoseconds.CompareTo(other.EpochNanoseconds);
     }
 
@@ -119,7 +123,10 @@ public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
     {
         var dto = ToDateTimeOffset();
         var nanosPart = (int)(EpochNanoseconds % NanosecondsPerSecond);
-        if (nanosPart < 0) nanosPart += (int)NanosecondsPerSecond;
+        if (nanosPart < 0)
+        {
+            nanosPart += (int)NanosecondsPerSecond;
+        }
 
         // Format: YYYY-MM-DDTHH:mm:ss.nnnnnnnnnZ
         if (nanosPart == 0)
@@ -134,8 +141,16 @@ public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
 
     public static bool operator ==(JsTemporalInstant? left, JsTemporalInstant? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.EpochNanoseconds == right.EpochNanoseconds;
     }
 

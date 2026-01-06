@@ -391,9 +391,14 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         {
             var value = args.Count > 0 ? args[0] : JsValue.Undefined;
             if (isResolve)
+            {
                 nextPromise.Resolve(value);
+            }
             else
+            {
                 nextPromise.Reject(value);
+            }
+
             return JsValue.Undefined;
         }
     }

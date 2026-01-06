@@ -423,10 +423,7 @@ public static partial class TypedAstEvaluator
                         tryStatement.TryBlock.CollectLexicalNamesFromStatement(names);
                         if (tryStatement.Catch is { } catchClause)
                         {
-                            if (catchClause.Binding is not null)
-                            {
-                                catchClause.Binding.CollectSymbolsFromBinding(names);
-                            }
+                            catchClause.Binding?.CollectSymbolsFromBinding(names);
 
                             catchClause.Body.CollectLexicalNamesFromStatement(names);
                         }
@@ -499,9 +496,9 @@ public static partial class TypedAstEvaluator
                                     names.Add(identifierBinding.Name);
                                 }
                             }
-                            else if (catchClause.Binding is not null)
+                            else
                             {
-                                catchClause.Binding.CollectSymbolsFromBinding(names);
+                                catchClause.Binding?.CollectSymbolsFromBinding(names);
                             }
 
                             catchClause.Body.CollectCatchNamesFromStatement(names, simpleOnly);

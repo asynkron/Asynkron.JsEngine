@@ -140,8 +140,15 @@ public static partial class NumberHelper
     /// </summary>
     internal static string FormatToExponentialCore(double num, IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        if (double.IsNaN(num)) return "NaN";
-        if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+        if (double.IsNaN(num))
+        {
+            return "NaN";
+        }
+
+        if (double.IsInfinity(num))
+        {
+            return num > 0 ? "Infinity" : "-Infinity";
+        }
 
         string result;
         if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
@@ -172,8 +179,15 @@ public static partial class NumberHelper
             return num.ToString(CultureInfo.InvariantCulture);
         }
 
-        if (double.IsNaN(num)) return "NaN";
-        if (double.IsInfinity(num)) return num > 0 ? "Infinity" : "-Infinity";
+        if (double.IsNaN(num))
+        {
+            return "NaN";
+        }
+
+        if (double.IsInfinity(num))
+        {
+            return num > 0 ? "Infinity" : "-Infinity";
+        }
 
         if (!args[0].TryGetDouble(out var d))
         {

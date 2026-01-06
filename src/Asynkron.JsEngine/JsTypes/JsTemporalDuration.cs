@@ -159,8 +159,14 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
 
         foreach (var c in components)
         {
-            if (c > 0) hasPositive = true;
-            else if (c < 0) hasNegative = true;
+            if (c > 0)
+            {
+                hasPositive = true;
+            }
+            else if (c < 0)
+            {
+                hasNegative = true;
+            }
         }
 
         if (hasPositive && hasNegative)
@@ -172,8 +178,16 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
             return total >= 0 ? 1 : -1;
         }
 
-        if (hasPositive) return 1;
-        if (hasNegative) return -1;
+        if (hasPositive)
+        {
+            return 1;
+        }
+
+        if (hasNegative)
+        {
+            return -1;
+        }
+
         return 0;
     }
 
@@ -281,7 +295,11 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
 
     public bool Equals(JsTemporalDuration? other)
     {
-        if (other is null) return false;
+        if (other is null)
+        {
+            return false;
+        }
+
         return Years == other.Years &&
                Months == other.Months &&
                Weeks == other.Weeks &&
@@ -341,22 +359,38 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
         var absNanoseconds = Math.Abs(Nanoseconds);
 
         if (absYears != 0)
+        {
             sb.Append(CultureInfo.InvariantCulture, $"{absYears}Y");
+        }
+
         if (absMonths != 0)
+        {
             sb.Append(CultureInfo.InvariantCulture, $"{absMonths}M");
+        }
+
         if (absWeeks != 0)
+        {
             sb.Append(CultureInfo.InvariantCulture, $"{absWeeks}W");
+        }
+
         if (absDays != 0)
+        {
             sb.Append(CultureInfo.InvariantCulture, $"{absDays}D");
+        }
 
         if (absHours != 0 || absMinutes != 0 || absSeconds != 0 ||
             absMilliseconds != 0 || absMicroseconds != 0 || absNanoseconds != 0)
         {
             sb.Append('T');
             if (absHours != 0)
+            {
                 sb.Append(CultureInfo.InvariantCulture, $"{absHours}H");
+            }
+
             if (absMinutes != 0)
+            {
                 sb.Append(CultureInfo.InvariantCulture, $"{absMinutes}M");
+            }
 
             if (absSeconds != 0 || absMilliseconds != 0 || absMicroseconds != 0 || absNanoseconds != 0)
             {
@@ -388,8 +422,16 @@ public sealed class JsTemporalDuration : IEquatable<JsTemporalDuration>
 
     public static bool operator ==(JsTemporalDuration? left, JsTemporalDuration? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.Equals(right);
     }
 

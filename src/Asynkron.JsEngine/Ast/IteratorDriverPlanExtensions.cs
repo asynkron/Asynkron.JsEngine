@@ -701,7 +701,9 @@ public static partial class TypedAstEvaluator
     {
         var requiredSlots = plan.GetRequiredSlots();
         if (requiredSlots < 0)
+        {
             return;
+        }
 
         environment.InitializeSlots(requiredSlots, plan.IterationScopeId);
 

@@ -250,12 +250,19 @@ public static partial class TypedAstEvaluator
                         if (instructionKind == InstructionKind.Branch)
                         {
                             var result = HandleBranchFastPath(Unsafe.As<BranchInstruction>(instruction), environment, context, out var returnValue);
-                            if (result == InstructionResult.Return) return returnValue;
+                            if (result == InstructionResult.Return)
+                            {
+                                return returnValue;
+                            }
+
                             continue;
                         }
 
                         var loopResult = InstructionHandlers[(int)instructionKind](this, instruction, ref environment, context, out var loopReturnValue);
-                        if (loopResult == InstructionResult.Return) return loopReturnValue;
+                        if (loopResult == InstructionResult.Return)
+                        {
+                            return loopReturnValue;
+                        }
                     }
                 }
                 catch (ThrowSignal signal)

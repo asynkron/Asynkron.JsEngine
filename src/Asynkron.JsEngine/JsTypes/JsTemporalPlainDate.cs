@@ -220,13 +220,21 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
 
     public int CompareTo(JsTemporalPlainDate? other)
     {
-        if (other is null) return 1;
+        if (other is null)
+        {
+            return 1;
+        }
+
         return ToDateOnly().CompareTo(other.ToDateOnly());
     }
 
     public bool Equals(JsTemporalPlainDate? other)
     {
-        if (other is null) return false;
+        if (other is null)
+        {
+            return false;
+        }
+
         return Year == other.Year && Month == other.Month && Day == other.Day &&
                string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
@@ -256,8 +264,16 @@ public sealed class JsTemporalPlainDate(int year, int month, int day, string cal
 
     public static bool operator ==(JsTemporalPlainDate? left, JsTemporalPlainDate? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.Equals(right);
     }
 

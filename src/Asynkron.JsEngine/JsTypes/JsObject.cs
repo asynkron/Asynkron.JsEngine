@@ -569,23 +569,38 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private static bool IsArrayIndex(string name)
     {
         // Fast path: empty or single char check
-        if (name.Length == 0) return false;
+        if (name.Length == 0)
+        {
+            return false;
+        }
 
         // Check first char is digit
         var firstChar = name[0];
-        if (firstChar < '0' || firstChar > '9') return false;
+        if (firstChar < '0' || firstChar > '9')
+        {
+            return false;
+        }
 
         // Single digit is always valid
-        if (name.Length == 1) return true;
+        if (name.Length == 1)
+        {
+            return true;
+        }
 
         // Leading zero is only valid for "0" itself
-        if (firstChar == '0') return false;
+        if (firstChar == '0')
+        {
+            return false;
+        }
 
         // Check remaining chars are all digits
         for (var i = 1; i < name.Length; i++)
         {
             var c = name[i];
-            if (c < '0' || c > '9') return false;
+            if (c < '0' || c > '9')
+            {
+                return false;
+            }
         }
 
         // Validate it's within uint range (2^32 - 1)
@@ -1154,7 +1169,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     private void TrackArrayLengthChange(string name, PropertyDescriptor descriptor)
     {
-        if (!_trackArrayLength) return;
+        if (!_trackArrayLength)
+        {
+            return;
+        }
 
         if (string.Equals(name, "length", StringComparison.Ordinal))
         {

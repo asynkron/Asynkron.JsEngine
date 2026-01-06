@@ -68,7 +68,10 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         // Per spec: If len is 0, return false BEFORE calling ToIntegerOrInfinity on fromIndex
         if (length == 0)
@@ -78,7 +81,11 @@ public sealed partial class ArrayPrototype
 
         var fromIndexArg = args.Count > 1 ? args[1] : JsValue.FromDouble(0d);
         var fromIndex = ToIntegerOrInfinity(fromIndexArg, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         if (double.IsPositiveInfinity(fromIndex))
         {
             return new JsValue(false);
@@ -228,7 +235,11 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var parts = new List<string>((int)length);
 
         for (var i = 0; i < length; i++)
@@ -300,11 +311,18 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = target.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         var indexArg = args.GetArgument(0);
         var relativeIndex = ToIntegerOrInfinity(indexArg, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         if (double.IsPositiveInfinity(relativeIndex) || double.IsNegativeInfinity(relativeIndex))
         {
             return JsValue.Undefined;
@@ -363,7 +381,11 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var sourceLength = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var result = ArraySpeciesCreate(thisValue, 0, Realm);
         var newLength = FlattenIntoArray(result, accessor, sourceLength, 0, 1, callback, thisArg, Realm,
             "Array.prototype.flatMap");
@@ -479,7 +501,10 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         // Per spec: ArrayCreate throws RangeError if length > 2^32 - 1
         if (length > MaxConcreteArrayLength)
@@ -564,7 +589,10 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         var result = CreateCopyArray(length, Realm, MethodName);
         // Per spec: toReversed does NOT preserve holes. Use Get(O, from) which returns

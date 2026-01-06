@@ -250,7 +250,10 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private bool TryHandleContextThrow(EvaluationContext context, JsEnvironment environment)
         {
-            if (!context.IsThrow) return false;
+            if (!context.IsThrow)
+            {
+                return false;
+            }
 
             var thrownValue = context.FlowValue;
             context.Clear();

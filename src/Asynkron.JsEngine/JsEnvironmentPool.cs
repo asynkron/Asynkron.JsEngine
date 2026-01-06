@@ -31,7 +31,9 @@ internal readonly struct Pooled<T> : IDisposable where T : class
     {
         // No-op for default struct (Value is null)
         if (Value is not null)
+        {
             _returnAction?.Invoke(Value);
+        }
     }
 
     // Implicit conversion for convenience when passing to methods expecting T

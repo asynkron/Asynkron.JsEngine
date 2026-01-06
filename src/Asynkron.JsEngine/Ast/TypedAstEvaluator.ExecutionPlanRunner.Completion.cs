@@ -101,10 +101,7 @@ public static partial class TypedAstEvaluator
             // When we yield, we've saved the current environment (which may be inside a catch block).
             // On resume, we want to use that saved environment directly, not have it overwritten
             // by a stale RestoredEnvironmentFromTry that was set before the yield.
-            if (_tryCatchState is not null)
-            {
-                _tryCatchState.RestoredEnvironmentFromTry = null;
-            }
+            _tryCatchState?.RestoredEnvironmentFromTry = null;
 
             // Clear the context's source positions for the next yield
             context.LastYieldSourceStart = -1;

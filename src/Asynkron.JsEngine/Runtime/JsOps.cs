@@ -779,10 +779,14 @@ internal static class JsOps
     {
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
             return left.NumberValue > right.NumberValue;
+        }
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
+        }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
     }
@@ -792,10 +796,14 @@ internal static class JsOps
     {
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
             return left.NumberValue >= right.NumberValue;
+        }
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
+        }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
     }
@@ -806,10 +814,14 @@ internal static class JsOps
 
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
             return left.NumberValue < right.NumberValue;
+        }
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
+        }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
     }
@@ -820,10 +832,14 @@ internal static class JsOps
 
         // Fast path for comparing two numbers
         if (left.Kind == JsValueKind.Number && right.Kind == JsValueKind.Number)
+        {
             return left.NumberValue <= right.NumberValue;
+        }
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+        {
             return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
+        }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context);
     }

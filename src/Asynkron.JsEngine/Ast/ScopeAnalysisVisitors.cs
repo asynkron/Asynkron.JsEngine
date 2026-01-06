@@ -71,13 +71,19 @@ internal sealed class DynamicScopeDetector : AstVisitor
             if (parameter.DefaultValue is not null)
             {
                 detector.Visit(parameter.DefaultValue);
-                if (detector.Found) return true;
+                if (detector.Found)
+                {
+                    return true;
+                }
             }
 
             if (parameter.Pattern is not null)
             {
                 detector.Visit(parameter.Pattern);
-                if (detector.Found) return true;
+                if (detector.Found)
+                {
+                    return true;
+                }
             }
 
             detector.Reset();
@@ -251,7 +257,10 @@ internal sealed class InnerFunctionBlockDetector : AstVisitor
     {
         foreach (var member in node.Members)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (member.Function is not null)
             {

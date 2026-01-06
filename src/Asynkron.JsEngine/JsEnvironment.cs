@@ -171,7 +171,10 @@ public sealed class JsEnvironment : IRentable
     internal void Capture()
     {
         // Fast path: if already captured, ancestors are too
-        if (IsCaptured) return;
+        if (IsCaptured)
+        {
+            return;
+        }
 
         var current = this;
         while (current is not null && !current.IsCaptured)
@@ -343,12 +346,36 @@ public sealed class JsEnvironment : IRentable
             // Upgrade flags on existing slot so pre-initialized layouts (InitializeSlots)
             // can still become const/immutable/global-constant bindings.
             var flags = slot.Flags;
-            if (isConst) flags |= SlotFlags.Const;
-            if (isGlobalConstant) flags |= SlotFlags.GlobalConstant;
-            if (isLexicalBinding) flags |= SlotFlags.Lexical;
-            if (blocksFunctionScopeOverride) flags |= SlotFlags.BlocksFunctionScopeOverride;
-            if (canDelete) flags |= SlotFlags.CanDelete;
-            if (isImmutableBinding) flags |= SlotFlags.ImmutableBinding;
+            if (isConst)
+            {
+                flags |= SlotFlags.Const;
+            }
+
+            if (isGlobalConstant)
+            {
+                flags |= SlotFlags.GlobalConstant;
+            }
+
+            if (isLexicalBinding)
+            {
+                flags |= SlotFlags.Lexical;
+            }
+
+            if (blocksFunctionScopeOverride)
+            {
+                flags |= SlotFlags.BlocksFunctionScopeOverride;
+            }
+
+            if (canDelete)
+            {
+                flags |= SlotFlags.CanDelete;
+            }
+
+            if (isImmutableBinding)
+            {
+                flags |= SlotFlags.ImmutableBinding;
+            }
+
             slot.Flags = flags;
 
             // Can't overwrite global constants
@@ -397,11 +424,25 @@ public sealed class JsEnvironment : IRentable
 
             slot.Value = value;
             // Upgrade lexical flags if needed
-            if (isLexicalBinding) slot.Flags |= SlotFlags.Lexical;
-            if (blocksFunctionScopeOverride) slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
-            if (value.IsUninitialized) slot.Flags |= SlotFlags.Uninitialized;
+            if (isLexicalBinding)
+            {
+                slot.Flags |= SlotFlags.Lexical;
+            }
+
+            if (blocksFunctionScopeOverride)
+            {
+                slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
+            }
+
+            if (value.IsUninitialized)
+            {
+                slot.Flags |= SlotFlags.Uninitialized;
+            }
             // Clear uninitialized flag when setting an initialized value (TDZ completion)
-            if (!value.IsUninitialized) slot.Flags &= ~SlotFlags.Uninitialized;
+            if (!value.IsUninitialized)
+            {
+                slot.Flags &= ~SlotFlags.Uninitialized;
+            }
 
             if (_bindingObservers is not null)
             {
@@ -477,8 +518,16 @@ public sealed class JsEnvironment : IRentable
 
         // Store async export binding directly in slot - use HasSpecialBinding flag for fast detection
         var flags = SlotFlags.HasSpecialBinding;
-        if (isConst) flags |= SlotFlags.Const;
-        if (isLexical) flags |= SlotFlags.Lexical;
+        if (isConst)
+        {
+            flags |= SlotFlags.Const;
+        }
+
+        if (isLexical)
+        {
+            flags |= SlotFlags.Lexical;
+        }
+
         DefineSlot(name, JsValue.FromObjectUnsafe(new AsyncExportBinding(promise, isConst)), flags);
     }
 
@@ -644,8 +693,16 @@ public sealed class JsEnvironment : IRentable
         }
 
         var slotFlags = SlotFlags.None;
-        if (blocksFunctionScopeOverride) slotFlags |= SlotFlags.BlocksFunctionScopeOverride;
-        if (allowDelete) slotFlags |= SlotFlags.CanDelete;
+        if (blocksFunctionScopeOverride)
+        {
+            slotFlags |= SlotFlags.BlocksFunctionScopeOverride;
+        }
+
+        if (allowDelete)
+        {
+            slotFlags |= SlotFlags.CanDelete;
+        }
+
         scope.DefineSlot(name, initialValue, slotFlags);
         if (!isGlobalScope || globalThis is null || !shouldWriteGlobal)
         {
@@ -889,7 +946,10 @@ public sealed class JsEnvironment : IRentable
     /// </summary>
     internal IEnumerable<Symbol> GetBindingSymbols()
     {
-        if (_slots is null || _slotCount == 0) yield break;
+        if (_slots is null || _slotCount == 0)
+        {
+            yield break;
+        }
 
         var slots = _slots;
         var count = _slotCount;
@@ -2417,7 +2477,10 @@ public sealed class JsEnvironment : IRentable
     private void RemoveSlot(Symbol name)
     {
         var slots = _slots;
-        if (slots is null) return;
+        if (slots is null)
+        {
+            return;
+        }
 
         var count = _slotCount;
         for (var i = 0; i < count; i++)
@@ -2789,10 +2852,16 @@ public sealed class JsEnvironment : IRentable
                 for (var i = 0; i < current._slotCount; i++)
                 {
                     ref var slot = ref slots[i];
-                    if (slot.Name is null) continue;
+                    if (slot.Name is null)
+                    {
+                        continue;
+                    }
 
                     // Skip uninitialized TDZ bindings - they exist but can't be accessed
-                    if (slot.IsUninitialized) continue;
+                    if (slot.IsUninitialized)
+                    {
+                        continue;
+                    }
 
                     if (!result.ContainsKey(slot.Name.Name))
                     {
@@ -3186,7 +3255,11 @@ public sealed class JsEnvironment : IRentable
     private void ClearSlots()
     {
         var slots = _slots;
-        if (slots is null) return;
+        if (slots is null)
+        {
+            return;
+        }
+
         var count = _slotCount;
         for (var i = 0; i < count; i++)
         {
@@ -3617,13 +3690,41 @@ public sealed class JsEnvironment : IRentable
         bool uninitialized = false)
     {
         var flags = SlotFlags.None;
-        if (isConst) flags |= SlotFlags.Const;
-        if (isGlobalConstant) flags |= SlotFlags.GlobalConstant;
-        if (isLexical) flags |= SlotFlags.Lexical;
-        if (blocksFunctionScopeOverride) flags |= SlotFlags.BlocksFunctionScopeOverride;
-        if (canDelete) flags |= SlotFlags.CanDelete;
-        if (isImmutableBinding) flags |= SlotFlags.ImmutableBinding;
-        if (uninitialized) flags |= SlotFlags.Uninitialized;
+        if (isConst)
+        {
+            flags |= SlotFlags.Const;
+        }
+
+        if (isGlobalConstant)
+        {
+            flags |= SlotFlags.GlobalConstant;
+        }
+
+        if (isLexical)
+        {
+            flags |= SlotFlags.Lexical;
+        }
+
+        if (blocksFunctionScopeOverride)
+        {
+            flags |= SlotFlags.BlocksFunctionScopeOverride;
+        }
+
+        if (canDelete)
+        {
+            flags |= SlotFlags.CanDelete;
+        }
+
+        if (isImmutableBinding)
+        {
+            flags |= SlotFlags.ImmutableBinding;
+        }
+
+        if (uninitialized)
+        {
+            flags |= SlotFlags.Uninitialized;
+        }
+
         return flags;
     }
 

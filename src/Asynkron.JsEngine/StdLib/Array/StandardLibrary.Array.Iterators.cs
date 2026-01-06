@@ -38,7 +38,11 @@ public static partial class StandardLibrary
     /// </summary>
     private static JsObject? GetOrCreateArrayIteratorPrototype(RealmState? realm)
     {
-        if (realm is null) return null;
+        if (realm is null)
+        {
+            return null;
+        }
+
         return realm.ArrayIteratorPrototype ??= (JsObject)ArrayIteratorPrototype.CreatePrototype(realm);
     }
 
@@ -87,7 +91,11 @@ public static partial class StandardLibrary
 
             var evalContext = realm?.CreateContext();
             var length = (uint)Math.Min(Math.Max(ToLengthOrZero(lenVal, evalContext), 0), uint.MaxValue);
-            if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+            if (evalContext?.IsThrow == true)
+            {
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+
             if (index < length)
             {
                 // Projector now returns JsValue directly - no boxing

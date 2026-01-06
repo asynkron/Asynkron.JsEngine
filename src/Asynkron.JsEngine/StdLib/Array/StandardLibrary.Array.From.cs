@@ -97,7 +97,11 @@ public static partial class StandardLibrary
         var evalContext = realm?.CreateContext();
         var initialLengthValue = arrayLike.TryGetProperty("length", out var initialLenVal) ? initialLenVal : JsValue.FromDouble(0d);
         var initialLength = (long)ToLengthOrZero(initialLengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         if (initialLength > MaxConcreteArrayLength)
         {
             throw ThrowRangeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);
@@ -110,7 +114,11 @@ public static partial class StandardLibrary
         {
             var lengthValue = arrayLike.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
             var dynamicLength = (long)ToLengthOrZero(lengthValue, evalContext);
-            if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+            if (evalContext?.IsThrow == true)
+            {
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+
             if (dynamicLength > MaxConcreteArrayLength)
             {
                 throw ThrowRangeError("Array.from result exceeds 2^32 - 1 elements", realm: realm);

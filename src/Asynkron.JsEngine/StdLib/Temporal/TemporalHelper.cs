@@ -1718,7 +1718,10 @@ public static class TemporalHelper
     private static double GetNumberArg(IReadOnlyList<JsValue> args, int index)
     {
         if (index >= args.Count || args[index].IsUndefined)
+        {
             return 0;
+        }
+
         return JsOps.ToNumber(args[index]);
     }
 
@@ -1726,7 +1729,9 @@ public static class TemporalHelper
     {
         // Parse offset string like "+01:00", "-05:30", or "Z"
         if (string.IsNullOrEmpty(offset) || string.Equals(offset, "Z", StringComparison.Ordinal))
+        {
             return 0;
+        }
 
         var sign = 1;
         var start = 0;

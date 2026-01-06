@@ -15,7 +15,9 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     public JsTemporalPlainYearMonth(int year, int month, string calendar = "iso8601", int? referenceDay = null)
     {
         if (month is < 1 or > 12)
+        {
             throw new ArgumentOutOfRangeException(nameof(month), "Month must be 1-12");
+        }
 
         Year = year;
         Month = month;
@@ -62,7 +64,9 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
         // Handle format: YYYY-MM or YYYY-MM-DD (ignore day)
         var parts = isoString.Split('-');
         if (parts.Length < 2)
+        {
             throw new FormatException($"Invalid PlainYearMonth string: {isoString}");
+        }
 
         var year = int.Parse(parts[0], CultureInfo.InvariantCulture);
         var month = int.Parse(parts[1], CultureInfo.InvariantCulture);
@@ -137,21 +141,31 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
     public JsTemporalPlainDate ToPlainDate(int day)
     {
         if (day < 1 || day > DaysInMonth)
+        {
             throw new ArgumentOutOfRangeException(nameof(day), $"Day must be 1-{DaysInMonth} for {this}");
+        }
 
         return new JsTemporalPlainDate(Year, Month, day, Calendar);
     }
 
     public int CompareTo(JsTemporalPlainYearMonth? other)
     {
-        if (other is null) return 1;
+        if (other is null)
+        {
+            return 1;
+        }
+
         var yearCompare = Year.CompareTo(other.Year);
         return yearCompare != 0 ? yearCompare : Month.CompareTo(other.Month);
     }
 
     public bool Equals(JsTemporalPlainYearMonth? other)
     {
-        if (other is null) return false;
+        if (other is null)
+        {
+            return false;
+        }
+
         return Year == other.Year && Month == other.Month && string.Equals(Calendar, other.Calendar, StringComparison.Ordinal);
     }
 
@@ -180,8 +194,16 @@ public sealed class JsTemporalPlainYearMonth : IEquatable<JsTemporalPlainYearMon
 
     public static bool operator ==(JsTemporalPlainYearMonth? left, JsTemporalPlainYearMonth? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.Equals(right);
     }
 

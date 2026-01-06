@@ -57,7 +57,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var limitArg = args.Count > 0 ? args[0] : JsValue.Undefined;
         var evalContext = Realm?.CreateContext();
         var limit = ToIntegerOrInfinity(limitArg, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         if (limit < 0)
         {
@@ -77,7 +80,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var limitArg = args.Count > 0 ? args[0] : JsValue.Undefined;
         var evalContext = Realm?.CreateContext();
         var limit = ToIntegerOrInfinity(limitArg, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         if (limit < 0)
         {
@@ -342,7 +348,10 @@ public sealed partial class IteratorPrototype : JsPrototype
     private static double ToIntegerOrInfinity(JsValue value, EvaluationContext? context = null)
     {
         var number = JsOps.ToNumber(value, context);
-        if (context?.IsThrow == true) return double.NaN;
+        if (context?.IsThrow == true)
+        {
+            return double.NaN;
+        }
 
         if (double.IsNaN(number) || number == 0)
         {
@@ -434,7 +443,9 @@ public sealed partial class IteratorPrototype : JsPrototype
         public void EnsureNotExecuting()
         {
             if (IsExecuting)
+            {
                 throw StandardLibrary.ThrowTypeError("Generator is already executing", null, prototype.Realm);
+            }
         }
 
         public bool TryGetDoneResult(out JsValue result)
@@ -465,7 +476,10 @@ public sealed partial class IteratorPrototype : JsPrototype
                 {
                     Done = true;
                     if (InnerIterator is not null)
+                    {
                         IteratorClose(InnerIterator);
+                    }
+
                     IteratorClose(source);
                     return CreateIterResult(JsValue.Undefined, true);
                 }
@@ -490,7 +504,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var nextFunc = new HostFunction((_, _) =>
         {
             state.EnsureNotExecuting();
-            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
+            if (state.TryGetDoneResult(out var doneResult))
+            {
+                return doneResult;
+            }
 
             state.IsExecuting = true;
             try
@@ -539,7 +556,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var nextFunc = new HostFunction((_, _) =>
         {
             state.EnsureNotExecuting();
-            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
+            if (state.TryGetDoneResult(out var doneResult))
+            {
+                return doneResult;
+            }
 
             state.IsExecuting = true;
             try
@@ -594,7 +614,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var nextFunc = new HostFunction((_, _) =>
         {
             state.EnsureNotExecuting();
-            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
+            if (state.TryGetDoneResult(out var doneResult))
+            {
+                return doneResult;
+            }
 
             state.IsExecuting = true;
             try
@@ -644,7 +667,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var nextFunc = new HostFunction((_, _) =>
         {
             state.EnsureNotExecuting();
-            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
+            if (state.TryGetDoneResult(out var doneResult))
+            {
+                return doneResult;
+            }
 
             state.IsExecuting = true;
             try
@@ -694,7 +720,10 @@ public sealed partial class IteratorPrototype : JsPrototype
         var nextFunc = new HostFunction((_, _) =>
         {
             state.EnsureNotExecuting();
-            if (state.TryGetDoneResult(out var doneResult)) return doneResult;
+            if (state.TryGetDoneResult(out var doneResult))
+            {
+                return doneResult;
+            }
 
             state.IsExecuting = true;
             try

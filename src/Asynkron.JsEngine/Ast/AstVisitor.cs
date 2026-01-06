@@ -19,19 +19,31 @@ public abstract class AstVisitor
     // Entry points
     public virtual void Visit(StatementNode node)
     {
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
+
         VisitStatement(node);
     }
 
     public virtual void Visit(ExpressionNode node)
     {
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
+
         VisitExpression(node);
     }
 
     public virtual void Visit(BindingTarget node)
     {
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
+
         VisitBindingTarget(node);
     }
 
@@ -39,7 +51,10 @@ public abstract class AstVisitor
 
     protected virtual void VisitStatement(StatementNode statement)
     {
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
 
         switch (statement)
         {
@@ -128,7 +143,10 @@ public abstract class AstVisitor
 
     protected virtual void VisitExpression(ExpressionNode expression)
     {
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
 
         switch (expression)
         {
@@ -227,7 +245,11 @@ public abstract class AstVisitor
     {
         foreach (var stmt in node.Statements)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             VisitStatement(stmt);
         }
     }
@@ -254,7 +276,11 @@ public abstract class AstVisitor
     {
         foreach (var declarator in node.Declarators)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             VisitBindingTarget(declarator.Target);
             if (!ShouldStop && declarator.Initializer is not null)
             {
@@ -266,20 +292,33 @@ public abstract class AstVisitor
     protected virtual void VisitIfStatement(IfStatement node)
     {
         VisitExpression(node.Condition);
-        if (!ShouldStop) VisitStatement(node.Then);
-        if (!ShouldStop && node.Else is not null) VisitStatement(node.Else);
+        if (!ShouldStop)
+        {
+            VisitStatement(node.Then);
+        }
+
+        if (!ShouldStop && node.Else is not null)
+        {
+            VisitStatement(node.Else);
+        }
     }
 
     protected virtual void VisitWhileStatement(WhileStatement node)
     {
         VisitExpression(node.Condition);
-        if (!ShouldStop) VisitStatement(node.Body);
+        if (!ShouldStop)
+        {
+            VisitStatement(node.Body);
+        }
     }
 
     protected virtual void VisitDoWhileStatement(DoWhileStatement node)
     {
         VisitStatement(node.Body);
-        if (!ShouldStop) VisitExpression(node.Condition);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Condition);
+        }
     }
 
     protected virtual void VisitForStatement(ForStatement node)
@@ -308,8 +347,15 @@ public abstract class AstVisitor
     protected virtual void VisitForEachStatement(ForEachStatement node)
     {
         VisitBindingTarget(node.Target);
-        if (!ShouldStop) VisitExpression(node.Iterable);
-        if (!ShouldStop) VisitStatement(node.Body);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Iterable);
+        }
+
+        if (!ShouldStop)
+        {
+            VisitStatement(node.Body);
+        }
     }
 
     protected virtual void VisitTryStatement(TryStatement node)
@@ -340,7 +386,10 @@ public abstract class AstVisitor
 
         foreach (var caseNode in node.Cases)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (caseNode.Test is not null)
             {
@@ -362,7 +411,10 @@ public abstract class AstVisitor
     protected virtual void VisitWithStatement(WithStatement node)
     {
         VisitExpression(node.Object);
-        if (!ShouldStop) VisitStatement(node.Body);
+        if (!ShouldStop)
+        {
+            VisitStatement(node.Body);
+        }
     }
 
     protected virtual void VisitBreakStatement(BreakStatement node)
@@ -388,13 +440,19 @@ public abstract class AstVisitor
             VisitExpression(node.Definition.Extends);
         }
 
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
 
         VisitFunctionExpression(node.Definition.Constructor);
 
         foreach (var member in node.Definition.Members)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (member.IsComputed && member.ComputedName is not null)
             {
@@ -409,7 +467,11 @@ public abstract class AstVisitor
 
         foreach (var field in node.Definition.Fields)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             if (field.Initializer is not null)
             {
                 VisitExpression(field.Initializer);
@@ -418,7 +480,11 @@ public abstract class AstVisitor
 
         foreach (var staticBlock in node.Definition.StaticBlocks)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             VisitBlockStatement(staticBlock.Body);
         }
     }
@@ -489,7 +555,10 @@ public abstract class AstVisitor
     protected virtual void VisitBinaryExpression(BinaryExpression node)
     {
         VisitExpression(node.Left);
-        if (!ShouldStop) VisitExpression(node.Right);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Right);
+        }
     }
 
     protected virtual void VisitUnaryExpression(UnaryExpression node)
@@ -505,21 +574,38 @@ public abstract class AstVisitor
     protected virtual void VisitPropertyAssignmentExpression(PropertyAssignmentExpression node)
     {
         VisitExpression(node.Target);
-        if (!ShouldStop) VisitExpression(node.Property);
-        if (!ShouldStop) VisitExpression(node.Value);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Property);
+        }
+
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Value);
+        }
     }
 
     protected virtual void VisitIndexAssignmentExpression(IndexAssignmentExpression node)
     {
         VisitExpression(node.Target);
-        if (!ShouldStop) VisitExpression(node.Index);
-        if (!ShouldStop) VisitExpression(node.Value);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Index);
+        }
+
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Value);
+        }
     }
 
     protected virtual void VisitDestructuringAssignmentExpression(DestructuringAssignmentExpression node)
     {
         VisitBindingTarget(node.Target);
-        if (!ShouldStop) VisitExpression(node.Value);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Value);
+        }
     }
 
     protected virtual void VisitCallExpression(CallExpression node)
@@ -528,7 +614,11 @@ public abstract class AstVisitor
 
         foreach (var arg in node.Arguments)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             if (arg.Expression is not null)
             {
                 VisitExpression(arg.Expression);
@@ -548,21 +638,35 @@ public abstract class AstVisitor
     protected virtual void VisitConditionalExpression(ConditionalExpression node)
     {
         VisitExpression(node.Test);
-        if (!ShouldStop) VisitExpression(node.Consequent);
-        if (!ShouldStop) VisitExpression(node.Alternate);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Consequent);
+        }
+
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Alternate);
+        }
     }
 
     protected virtual void VisitSequenceExpression(SequenceExpression node)
     {
         VisitExpression(node.Left);
-        if (!ShouldStop) VisitExpression(node.Right);
+        if (!ShouldStop)
+        {
+            VisitExpression(node.Right);
+        }
     }
 
     protected virtual void VisitArrayExpression(ArrayExpression node)
     {
         foreach (var element in node.Elements)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             if (element.Expression is not null)
             {
                 VisitExpression(element.Expression);
@@ -574,7 +678,10 @@ public abstract class AstVisitor
     {
         foreach (var member in node.Members)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (member.Key is ExpressionNode keyExpr)
             {
@@ -607,7 +714,11 @@ public abstract class AstVisitor
 
         foreach (var arg in node.Arguments)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             if (arg.Expression is not null)
             {
                 VisitExpression(arg.Expression);
@@ -619,7 +730,10 @@ public abstract class AstVisitor
     {
         foreach (var parameter in node.Parameters)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (parameter.Pattern is not null)
             {
@@ -645,13 +759,19 @@ public abstract class AstVisitor
             VisitExpression(node.Definition.Extends);
         }
 
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
 
         VisitFunctionExpression(node.Definition.Constructor);
 
         foreach (var member in node.Definition.Members)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (member.IsComputed && member.ComputedName is not null)
             {
@@ -666,7 +786,11 @@ public abstract class AstVisitor
 
         foreach (var field in node.Definition.Fields)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             if (field.Initializer is not null)
             {
                 VisitExpression(field.Initializer);
@@ -675,7 +799,11 @@ public abstract class AstVisitor
 
         foreach (var staticBlock in node.Definition.StaticBlocks)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             VisitBlockStatement(staticBlock.Body);
         }
     }
@@ -684,7 +812,11 @@ public abstract class AstVisitor
     {
         foreach (var part in node.Parts)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             if (part.Expression is not null)
             {
                 VisitExpression(part.Expression);
@@ -697,7 +829,11 @@ public abstract class AstVisitor
         VisitExpression(node.Tag);
         foreach (var expr in node.Expressions)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
+
             VisitExpression(expr);
         }
     }
@@ -733,7 +869,10 @@ public abstract class AstVisitor
 
     protected virtual void VisitBindingTarget(BindingTarget target)
     {
-        if (ShouldStop) return;
+        if (ShouldStop)
+        {
+            return;
+        }
 
         switch (target)
         {
@@ -760,7 +899,10 @@ public abstract class AstVisitor
     {
         foreach (var element in node.Elements)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (element.Target is not null)
             {
@@ -783,7 +925,10 @@ public abstract class AstVisitor
     {
         foreach (var prop in node.Properties)
         {
-            if (ShouldStop) break;
+            if (ShouldStop)
+            {
+                break;
+            }
 
             if (prop.NameExpression is not null)
             {

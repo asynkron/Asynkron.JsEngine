@@ -29,17 +29,34 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
     {
         // Validate ranges
         if (hour is < 0 or > 23)
+        {
             throw new ArgumentOutOfRangeException(nameof(hour), "Hour must be 0-23");
+        }
+
         if (minute is < 0 or > 59)
+        {
             throw new ArgumentOutOfRangeException(nameof(minute), "Minute must be 0-59");
+        }
+
         if (second is < 0 or > 59)
+        {
             throw new ArgumentOutOfRangeException(nameof(second), "Second must be 0-59");
+        }
+
         if (millisecond is < 0 or > 999)
+        {
             throw new ArgumentOutOfRangeException(nameof(millisecond), "Millisecond must be 0-999");
+        }
+
         if (microsecond is < 0 or > 999)
+        {
             throw new ArgumentOutOfRangeException(nameof(microsecond), "Microsecond must be 0-999");
+        }
+
         if (nanosecond is < 0 or > 999)
+        {
             throw new ArgumentOutOfRangeException(nameof(nanosecond), "Nanosecond must be 0-999");
+        }
 
         Hour = hour;
         Minute = minute;
@@ -97,7 +114,9 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
         // Simple parsing - full implementation would handle more formats
         var parts = isoString.Split(':');
         if (parts.Length < 2)
+        {
             throw new FormatException($"Invalid PlainTime string: {isoString}");
+        }
 
         var hour = int.Parse(parts[0], CultureInfo.InvariantCulture);
         var minute = int.Parse(parts[1], CultureInfo.InvariantCulture);
@@ -243,13 +262,21 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
 
     public int CompareTo(JsTemporalPlainTime? other)
     {
-        if (other is null) return 1;
+        if (other is null)
+        {
+            return 1;
+        }
+
         return TotalNanoseconds.CompareTo(other.TotalNanoseconds);
     }
 
     public bool Equals(JsTemporalPlainTime? other)
     {
-        if (other is null) return false;
+        if (other is null)
+        {
+            return false;
+        }
+
         return TotalNanoseconds == other.TotalNanoseconds;
     }
 
@@ -283,8 +310,16 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
 
     public static bool operator ==(JsTemporalPlainTime? left, JsTemporalPlainTime? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.Equals(right);
     }
 

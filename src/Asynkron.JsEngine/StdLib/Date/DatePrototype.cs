@@ -29,7 +29,11 @@ public sealed partial class DatePrototype
         var ms = args.GetArgument(0);
         var evalContext = Realm?.CreateContext();
         var clipped = TimeClip(JsOps.ToNumber(ms, evalContext));
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         StoreInternalDateValue(obj, clipped);
         return clipped;
     }
@@ -214,7 +218,11 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var ms = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(time, Realm!, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -226,7 +234,11 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var ms = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(timeValue, Realm!, millisecond: ms, inputIsUtc: true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -239,9 +251,17 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var sec = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var ms = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : MsFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(time, Realm!, second: sec, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -253,9 +273,17 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var sec = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var ms = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : MsFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(timeValue, Realm!, second: sec, millisecond: ms, inputIsUtc: true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -268,11 +296,23 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var minute = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var sec = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : SecFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var ms = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : MsFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(time, Realm!, minute: minute, second: sec, millisecond: ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -284,11 +324,23 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var minute = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var sec = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : SecFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var ms = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : MsFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(timeValue, Realm!, minute: minute, second: sec, millisecond: ms,
             inputIsUtc: true);
         StoreInternalDateValue(obj, clipped);
@@ -302,13 +354,29 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var hour = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var minute = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : MinFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var sec = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : SecFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var ms = args.Count > 3 ? JsOps.ToNumber(args[3], evalContext) : MsFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(time, Realm!, hour, minute, sec, ms);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -320,13 +388,29 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var hour = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var minute = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : MinFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var sec = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : SecFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var ms = args.Count > 3 ? JsOps.ToNumber(args[3], evalContext) : MsFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = SetTimeComponents(timeValue, Realm!, hour, minute, sec,
             ms, true);
         StoreInternalDateValue(obj, clipped);
@@ -340,7 +424,11 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var newDt = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var day = MakeDay(YearFromTime(time), MonthFromTime(time), newDt);
         var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
@@ -353,7 +441,11 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var newDt = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var day = MakeDay(YearFromTime(timeValue), MonthFromTime(timeValue), newDt);
         var clipped = ApplyTimeClip(day, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
@@ -367,9 +459,17 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var month = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var dt = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : DateFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var day = MakeDay(YearFromTime(time), month, dt);
         var clipped = ApplyTimeClip(day, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
@@ -382,9 +482,17 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var month = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var dt = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : DateFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var day = MakeDay(YearFromTime(timeValue), month, dt);
         var clipped = ApplyTimeClip(day, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
@@ -398,11 +506,23 @@ public sealed partial class DatePrototype
         var time = LocalTimeMs(timeValue, Realm);
         var evalContext = Realm?.CreateContext();
         var year = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var month = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : MonthFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var date = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : DateFromTime(time);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = DateHelper.SetFullYear(year, month, date, time, Realm!, false);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -414,11 +534,23 @@ public sealed partial class DatePrototype
         var timeValue = RequireDateValue(thisValue, Realm, out var obj);
         var evalContext = Realm?.CreateContext();
         var year = JsOps.ToNumber(args.GetArgument(0), evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var month = args.Count > 1 ? JsOps.ToNumber(args[1], evalContext) : MonthFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var date = args.Count > 2 ? JsOps.ToNumber(args[2], evalContext) : DateFromTime(timeValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         var clipped = DateHelper.SetFullYear(year, month, date, timeValue, Realm!, true);
         StoreInternalDateValue(obj, clipped);
         return clipped;
@@ -526,7 +658,11 @@ public sealed partial class DatePrototype
         var yearArg = args.Count > 0 ? args[0] : JsValue.Undefined;
         var evalContext = Realm?.CreateContext();
         var y = JsOps.ToNumber(yearArg, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
+
         if (double.IsNaN(y))
         {
             StoreInternalDateValue(obj, double.NaN);

@@ -33,7 +33,9 @@ internal sealed record IteratorDriverPlan(
     public ImmutableDictionary<Symbol, int>? GetOrCreateSlotMap()
     {
         if (_cachedSlotMap is not null || _cachedRequiredSlots != -2)
+        {
             return _cachedSlotMap;
+        }
 
         BuildSlotMapCache();
         return _cachedSlotMap;
@@ -46,7 +48,9 @@ internal sealed record IteratorDriverPlan(
     public int GetRequiredSlots()
     {
         if (_cachedRequiredSlots != -2)
+        {
             return _cachedRequiredSlots;
+        }
 
         BuildSlotMapCache();
         return _cachedRequiredSlots;
@@ -73,12 +77,16 @@ internal sealed record IteratorDriverPlan(
                 : i;
             slotMapBuilder[bindings[i]] = slotIndex;
             if (slotIndex > maxSlotIndex)
+            {
                 maxSlotIndex = slotIndex;
+            }
         }
 
         var requiredSlots = Math.Max(IterationSlotCount, maxSlotIndex + 1);
         if (requiredSlots < 0)
+        {
             requiredSlots = maxSlotIndex + 1;
+        }
 
         _cachedRequiredSlots = requiredSlots;
         _cachedSlotMap = slotMapBuilder.ToImmutable();

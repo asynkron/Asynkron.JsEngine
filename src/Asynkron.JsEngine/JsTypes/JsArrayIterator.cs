@@ -68,7 +68,10 @@ internal sealed class JsArrayIterator : IJsObjectLike, IAsJsValue, IPrototypeAcc
 
         var evalContext = _realm?.CreateContext();
         var length = (uint)Math.Min(Math.Max(StandardLibrary.ToLengthOrZero(lenVal, evalContext), 0), uint.MaxValue);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         if (_index < length)
         {

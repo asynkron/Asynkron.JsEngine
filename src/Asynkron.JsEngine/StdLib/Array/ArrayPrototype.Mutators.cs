@@ -503,7 +503,10 @@ public sealed partial class ArrayPrototype
         var evalContext = Realm?.CreateContext();
         var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
         var length = (long)ToLengthOrZero(lengthValue, evalContext);
-        if (evalContext?.IsThrow == true) throw new ThrowSignal(evalContext.FlowValue);
+        if (evalContext?.IsThrow == true)
+        {
+            throw new ThrowSignal(evalContext.FlowValue);
+        }
 
         // Collect all values upfront - this is the "snapshot" approach required by ES spec
         // We need to materialize values before sorting because the comparator could mutate the array

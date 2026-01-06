@@ -156,7 +156,9 @@ public static partial class TypedAstEvaluator
             IJsCallable reject)
         {
             if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
+            {
                 return;
+            }
 
             var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
             AsyncInvokeWithTwoArgs(

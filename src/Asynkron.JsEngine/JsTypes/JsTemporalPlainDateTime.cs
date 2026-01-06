@@ -90,21 +90,29 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
         // Remove timezone suffix if present
         var bracketIndex = timePart.IndexOf('[');
         if (bracketIndex >= 0)
+        {
             timePart = timePart[..bracketIndex];
+        }
 
         if (timePart.EndsWith('Z'))
+        {
             timePart = timePart[..^1];
+        }
 
         var plusIndex = timePart.IndexOf('+');
         if (plusIndex >= 0)
+        {
             timePart = timePart[..plusIndex];
+        }
 
         var minusIndex = timePart.LastIndexOf('-');
         if (minusIndex > 0 && timePart[minusIndex - 1] != 'T')
         {
             // Check if it's an offset like -05:00
             if (minusIndex + 3 <= timePart.Length && timePart.Substring(minusIndex + 1).Contains(':'))
+            {
                 timePart = timePart[..minusIndex];
+            }
         }
 
         var date2 = JsTemporalPlainDate.From(datePart);
@@ -238,14 +246,22 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
 
     public int CompareTo(JsTemporalPlainDateTime? other)
     {
-        if (other is null) return 1;
+        if (other is null)
+        {
+            return 1;
+        }
+
         var dateCompare = Date.CompareTo(other.Date);
         return dateCompare != 0 ? dateCompare : Time.CompareTo(other.Time);
     }
 
     public bool Equals(JsTemporalPlainDateTime? other)
     {
-        if (other is null) return false;
+        if (other is null)
+        {
+            return false;
+        }
+
         return Date.Equals(other.Date) && Time.Equals(other.Time);
     }
 
@@ -271,15 +287,25 @@ public sealed class JsTemporalPlainDateTime : IEquatable<JsTemporalPlainDateTime
         var bracketIndex = datePart.IndexOf('[');
         var calendarAnnotation = bracketIndex >= 0 ? datePart[bracketIndex..] : "";
         if (bracketIndex >= 0)
+        {
             datePart = datePart[..bracketIndex];
+        }
 
         return $"{datePart}T{timePart}{calendarAnnotation}";
     }
 
     public static bool operator ==(JsTemporalPlainDateTime? left, JsTemporalPlainDateTime? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.Equals(right);
     }
 

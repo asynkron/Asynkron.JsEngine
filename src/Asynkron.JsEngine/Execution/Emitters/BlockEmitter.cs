@@ -50,9 +50,8 @@ internal static class BlockEmitter
     }
 
     /// <summary>
-    /// Builds a block that needs its own environment AND contains yield/await.
-    /// Instead of using StatementInstruction (which causes duplicate execution on resume),
-    /// we emit PushEnvironment + individual statements + PopEnvironment.
+    /// Builds a block that needs its own environment.
+    /// Emits PushEnvironment + individual statements + PopEnvironment for proper IR execution.
     /// </summary>
     private static bool TryEmitBlockWithEnvironment(
         EmitContext ctx,

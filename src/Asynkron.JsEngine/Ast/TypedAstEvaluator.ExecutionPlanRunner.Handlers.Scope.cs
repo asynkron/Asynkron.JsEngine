@@ -94,6 +94,7 @@ public static partial class TypedAstEvaluator
         {
             var instruction = Unsafe.As<PushEnvironmentInstruction>(instr);
             var hasIterationBindings = !instruction.PerIterationBindings.IsDefaultOrEmpty;
+            var iteratorDriverState = hasIterationBindings ? runner.IteratorStateRef.CurrentDriverState : null;
             var isSubsequentIteration =
                 hasIterationBindings &&
                 ((instruction.ScopeId >= 0 && environment.ScopeId == instruction.ScopeId) ||
@@ -103,6 +104,12 @@ public static partial class TypedAstEvaluator
                 instruction.AllowPooling &&
                 !instruction.PerIterationBindings.IsDefaultOrEmpty)
             {
+                if (iteratorDriverState is not null)
+                {
+                    iteratorDriverState.CurrentIterationEnvironment ??= environment;
+                    iteratorDriverState.LoopScopeEnvironment ??= environment.Enclosing;
+                }
+
                 runner._programCounter = instruction.Next;
                 returnValue = default;
                 return InstructionResult.Continue;
@@ -127,9 +134,10 @@ public static partial class TypedAstEvaluator
                 ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: runner._realmState.Logger)
                 : new JsEnvironment(loopScope, false, false, null, description);
 
-            if (instruction is { SlotCount: > 0, ScopeId: >= 0 })
+            if (instruction.ScopeId >= 0)
             {
-                newIterationEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
+                var slotCount = instruction.SlotCount >= 0 ? instruction.SlotCount : 0;
+                newIterationEnv.InitializeSlots(slotCount, instruction.ScopeId);
 
                 // Fast path: use pre-computed SlotNames array if available (avoids ImmutableDictionary iteration)
                 if (!instruction.SlotNames.IsDefaultOrEmpty)
@@ -200,6 +208,12 @@ public static partial class TypedAstEvaluator
             }
 
             runner.IteratorStateRef.ResumedWithEnvironment = null;
+
+            if (iteratorDriverState is not null && hasIterationBindings)
+            {
+                iteratorDriverState.CurrentIterationEnvironment = newIterationEnv;
+                iteratorDriverState.LoopScopeEnvironment ??= loopScope;
+            }
 
             // Eagerly populate flat slots for this scope (no dictionary lookup - mappings are on instruction)
             if (runner._flatSlots is not null && !instruction.FlatSlotMappings.IsDefaultOrEmpty)

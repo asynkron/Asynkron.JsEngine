@@ -3,6 +3,18 @@
 ## Why
 Isolate feature work from the main working directory; allows parallel branches and easy cleanup.
 
+## When to Use Worktrees
+**Always use a worktree for:**
+- Bug fixes (especially multi-file changes)
+- New features
+- Any task spawned to a background coder agent
+- Refactoring work
+
+**Skip worktrees only for:**
+- Single-line typo fixes
+- Documentation-only changes
+- Trivial config updates
+
 ## Create a Worktree
 ```bash
 git worktree add ../Asynkron.JsEngine-<feature> -b feature/<branch-name>
@@ -28,6 +40,34 @@ git branch -D feature/<branch-name>
 - `Asynkron.JsEngine-typing` (type narrowing)
 - `Asynkron.JsEngine-perf` (performance work)
 - `Asynkron.JsEngine-fix-123` (bug fix for issue #123)
+
+## Spawning Background Coder Agents
+When launching a background coder agent for a big task:
+
+1. **First create the worktree:**
+   ```bash
+   git worktree add ../Asynkron.JsEngine-fix-420 -b feature/fix-strict-mode-scoping
+   ```
+
+2. **Tell the agent to work in that directory** in your prompt:
+   ```
+   Work in the worktree at ../Asynkron.JsEngine-fix-420
+   When done, commit changes and create a PR (do NOT push to main directly)
+   ```
+
+3. **After agent completes**, review and merge the PR:
+   ```bash
+   gh pr merge --squash
+   ```
+
+4. **Cleanup:**
+   ```bash
+   git pull origin main
+   git worktree remove ../Asynkron.JsEngine-fix-420 --force
+   git branch -D feature/fix-strict-mode-scoping
+   ```
+
+This workflow ensures all big changes go through PR review.
 
 ## Quick Minimal Template (old flow)
 If you need a very quick setup, you can also:

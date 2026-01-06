@@ -3,6 +3,16 @@
 ## Rolling Next Steps
 - `continue.md` tracks in-progress priorities. When finishing items, remove them and add the new next steps.
 
+## Big Tasks: Use Worktrees
+For any non-trivial bug fix or feature (especially when spawning background coder agents):
+1. **Create a worktree** before starting work - see [how-to-worktrees.md](how-to-worktrees.md)
+2. Work in the isolated branch
+3. Push and create a PR for review
+4. Merge via PR (squash)
+5. Cleanup the worktree
+
+This ensures code review and avoids pushing directly to main.
+
 ## GitHub Issue Logging (persistent working memory)
 - Treat GitHub issues as the long-lived log of progress, research, and reasoning.
 - For each session, update an existing issue or create one if none fit.

@@ -100,6 +100,111 @@ jobs:
         reporter: dotnet-trx
         fail-on-error: true
 
+  test262:
+    permissions:
+      contents: read
+      checks: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - id: core-syntax
+            name: CoreSyntax
+            filter: >-
+              FullyQualifiedName~LanguageTests.ArgumentsObject|
+              FullyQualifiedName~LanguageTests.Asi|
+              FullyQualifiedName~LanguageTests.BlockScope|
+              FullyQualifiedName~LanguageTests.Comments|
+              FullyQualifiedName~LanguageTests.ComputedPropertyNames|
+              FullyQualifiedName~LanguageTests.Destructuring|
+              FullyQualifiedName~LanguageTests.DirectivePrologue|
+              FullyQualifiedName~LanguageTests.EvalCode|
+              FullyQualifiedName~LanguageTests.Export
+          - id: expressions
+            name: Expressions
+            filter: FullyQualifiedName~LanguageTests.Expressions
+          - id: functions-identifiers
+            name: FunctionsIdentifiers
+            filter: >-
+              FullyQualifiedName~LanguageTests.FunctionCode|
+              FullyQualifiedName~LanguageTests.FutureReservedWords|
+              FullyQualifiedName~LanguageTests.GlobalCode|
+              FullyQualifiedName~LanguageTests.IdentifierResolution|
+              FullyQualifiedName~LanguageTests.Identifiers
+          - id: imports-modules
+            name: ImportsModules
+            filter: >-
+              FullyQualifiedName~LanguageTests.Import|
+              FullyQualifiedName~LanguageTests.ModuleCode
+          - id: statements
+            name: Statements
+            filter: FullyQualifiedName~LanguageTests.Statements
+          - id: tokens-types
+            name: TokensTypes
+            filter: >-
+              FullyQualifiedName~LanguageTests.Keywords|
+              FullyQualifiedName~LanguageTests.LineTerminators|
+              FullyQualifiedName~LanguageTests.Literals|
+              FullyQualifiedName~LanguageTests.Punctuators|
+              FullyQualifiedName~LanguageTests.ReservedWords|
+              FullyQualifiedName~LanguageTests.RestParameters|
+              FullyQualifiedName~LanguageTests.SourceText|
+              FullyQualifiedName~LanguageTests.StatementList|
+              FullyQualifiedName~LanguageTests.Types|
+              FullyQualifiedName~LanguageTests.WhiteSpace
+    name: Test262 (${{ matrix.name }})
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+        
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+        
+    - name: Restore and Build
+      run: |
+        dotnet restore tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj
+        dotnet build tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj --configuration Release --no-restore
+        
+    - name: Test262 ${{ matrix.name }}
+      run: |
+        dotnet test tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj \
+          --configuration Release \
+          --verbosity normal \
+          --settings tests/Asynkron.JsEngine.Tests.Test262/LanguageTests.runsettings \
+          --filter "${{ matrix.filter }}" \
+          --logger "trx;LogFileName=test262-${{ matrix.id }}.trx" \
+          --results-directory TestResults
+      
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test262-results-${{ matrix.id }}
+        path: TestResults/*.trx
+        retention-days: 7
+        
+    - name: Publish test results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Test262-${{ matrix.name }}
+        path: 'TestResults/*.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
+
   test-summary:
     needs: test
     if: always()

@@ -21,6 +21,15 @@ public sealed class EvaluationContext(
     CancellationToken cancellationToken = default,
     ExecutionKind executionKind = ExecutionKind.Script) : IRentable
 {
+#if DEBUG
+    /// <summary>
+    ///     When set to true, any AST evaluation during IR execution will throw an
+    ///     InvalidOperationException. Used in tests to verify AST-free execution paths.
+    ///     Related to issues #398, #415, #364 (IR-only execution epic).
+    /// </summary>
+    internal static bool AssertNoAstEvaluation { get; set; }
+#endif
+
     private readonly Stack<Symbol> _functionNameHints = new();
 
     /// <summary>

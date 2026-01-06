@@ -17,7 +17,7 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class SlotAssignmentRewriter : AstRewriter
 {
     private readonly Dictionary<BlockStatement, int> _blockScopeIds;
-    private readonly Stack<int> _catchScopeStack = new();
+    private readonly Stack<int> _tryFrameCatchScopes = new();
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
     private readonly Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings;
     private readonly Dictionary<int, int> _reverseScopeIdRemap = new();
@@ -82,7 +82,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     public void RewriteInstructions(IList<ExecutionInstruction> instructions, int entryIndex)
     {
         _scopeStack.Clear();
-        _catchScopeStack.Clear();
+        _tryFrameCatchScopes.Clear();
         _scopeStack.Push(_mappedRootScopeId);
 
         var visited = new bool[instructions.Count];
@@ -100,16 +100,16 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         visited[index] = true;
 
         var scopeSnapshot = _scopeStack.ToArray();
-        var catchSnapshot = _catchScopeStack.ToArray();
+        var tryFrameSnapshot = _tryFrameCatchScopes.ToArray();
 
         foreach (var successor in instructions[index].GetSuccessors())
         {
-            RestoreStack(scopeSnapshot, catchSnapshot);
+            RestoreStack(scopeSnapshot, tryFrameSnapshot);
             RewriteFrom(successor, instructions, visited);
         }
     }
 
-    private void RestoreStack(int[] scopeSnapshot, int[] catchSnapshot)
+    private void RestoreStack(int[] scopeSnapshot, int[] tryFrameSnapshot)
     {
         _scopeStack.Clear();
         for (var i = scopeSnapshot.Length - 1; i >= 0; i--)
@@ -117,10 +117,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             _scopeStack.Push(scopeSnapshot[i]);
         }
 
-        _catchScopeStack.Clear();
-        for (var i = catchSnapshot.Length - 1; i >= 0; i--)
+        _tryFrameCatchScopes.Clear();
+        for (var i = tryFrameSnapshot.Length - 1; i >= 0; i--)
         {
-            _catchScopeStack.Push(catchSnapshot[i]);
+            _tryFrameCatchScopes.Push(tryFrameSnapshot[i]);
         }
     }
 
@@ -141,6 +141,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     public T StampNodeInScope<T>(T node, int scopeId) where T : AstNode
     {
         var scopeSnapshot = _scopeStack.ToArray();
+        var tryFrameSnapshot = _tryFrameCatchScopes.ToArray();
         _scopeStack.Clear();
         _scopeStack.Push(_mappedRootScopeId);
         if (scopeId != _mappedRootScopeId)
@@ -154,13 +155,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             ExpressionNode expr => (T)(AstNode)Rewrite(expr),
             _ => node
         };
-        RestoreStack(scopeSnapshot, []);
+        RestoreStack(scopeSnapshot, tryFrameSnapshot);
         return rewritten;
     }
 
     public bool TryResolveSlot(Symbol symbol, int mappedScopeId, out int slotIndex)
     {
         var scopeSnapshot = _scopeStack.ToArray();
+        var tryFrameSnapshot = _tryFrameCatchScopes.ToArray();
         _scopeStack.Clear();
         _scopeStack.Push(_mappedRootScopeId);
         if (mappedScopeId != _mappedRootScopeId)
@@ -170,7 +172,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
         var found = TryResolve(symbol, out var resolution) && resolution.slotIndex >= 0;
         slotIndex = found ? resolution.slotIndex : -1;
-        RestoreStack(scopeSnapshot, []);
+        RestoreStack(scopeSnapshot, tryFrameSnapshot);
         return found;
     }
 
@@ -181,6 +183,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     public ExecutionInstruction StampInstructionInScope(ExecutionInstruction instruction, int enclosingScopeId)
     {
         var scopeSnapshot = _scopeStack.ToArray();
+        var tryFrameSnapshot = _tryFrameCatchScopes.ToArray();
         _scopeStack.Clear();
         _scopeStack.Push(_mappedRootScopeId);
         if (enclosingScopeId != _mappedRootScopeId)
@@ -199,7 +202,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         finally
         {
             _isRestampingNestedFunction = false;
-            RestoreStack(scopeSnapshot, []);
+            RestoreStack(scopeSnapshot, tryFrameSnapshot);
         }
     }
 
@@ -212,6 +215,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         switch (instruction)
         {
+            case EnterTryInstruction:
+                _tryFrameCatchScopes.Push(-1);
+                return instruction;
+
             case PushEnvironmentInstruction push:
                 var mappedPushScope = RemapScopeId(push.ScopeId);
                 var lexical = GetLexicalBindings(mappedPushScope);
@@ -228,6 +235,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case PopEnvironmentInstruction pop:
                 var mappedPopScope = RemapScopeId(pop.ScopeId);
                 LeaveScope(mappedPopScope);
+                if (_tryFrameCatchScopes.Count > 0 && _tryFrameCatchScopes.Peek() == mappedPopScope)
+                {
+                    _tryFrameCatchScopes.Pop();
+                    _tryFrameCatchScopes.Push(-1);
+                }
                 return pop with { ScopeId = mappedPopScope };
 
             case EnterCatchInstruction enterCatch:
@@ -239,13 +251,21 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     SlotMap = GetSlotMap(mappedCatchScope)
                 };
                 _scopeStack.Push(mappedCatchScope);
-                _catchScopeStack.Push(mappedCatchScope);
+                if (_tryFrameCatchScopes.Count > 0)
+                {
+                    _tryFrameCatchScopes.Pop();
+                    _tryFrameCatchScopes.Push(mappedCatchScope);
+                }
                 return updatedCatch;
 
             case EnterCatchWithDestructuringInstruction enterCatchDestructure:
                 var mappedDestructureScope = RemapScopeId(enterCatchDestructure.ScopeId);
                 _scopeStack.Push(mappedDestructureScope);
-                _catchScopeStack.Push(mappedDestructureScope);
+                if (_tryFrameCatchScopes.Count > 0)
+                {
+                    _tryFrameCatchScopes.Pop();
+                    _tryFrameCatchScopes.Push(mappedDestructureScope);
+                }
                 var updatedDestructure = enterCatchDestructure with
                 {
                     ScopeId = mappedDestructureScope,
@@ -255,10 +275,23 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return updatedDestructure;
 
             case LeaveTryInstruction:
-                if (_catchScopeStack.Count > 0)
+                if (_tryFrameCatchScopes.Count > 0)
                 {
-                    var catchScopeId = _catchScopeStack.Pop();
-                    LeaveScope(catchScopeId);
+                    var catchScopeId = _tryFrameCatchScopes.Pop();
+                    var isOnStack = false;
+                    foreach (var scopeId in _scopeStack)
+                    {
+                        if (scopeId == catchScopeId)
+                        {
+                            isOnStack = true;
+                            break;
+                        }
+                    }
+
+                    if (isOnStack)
+                    {
+                        LeaveScope(catchScopeId);
+                    }
                 }
 
                 return instruction;

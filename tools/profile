@@ -146,19 +146,19 @@ while [[ $i -lt ${#args[@]} ]]; do
       i=$((i + 1))
       continue
       ;;
-    --jit-method|--jit-altjit-path|--jit-altjit-name|--input|--root|--root-mode|--calltree-depth|--calltree-width|--calltree-sibling-cutoff|--exception-type|--filter|--tfm|--theme|--timeline-width)
+    --jit-method|--jit-altjit-path|--jit-altjit-name|--input|--root|--root-mode|--calltree-depth|--calltree-width|--calltree-sibling-cutoff|--exception-type|--filter|--tfm|--theme|--timeline-width|--hot)
       if [[ $((i + 1)) -lt ${#args[@]} ]]; then
         profiler_args+=("$arg" "${args[$((i + 1))]}")
         i=$((i + 2))
         continue
       fi
       ;;
-    --jit-method=*|--jit-altjit-path=*|--jit-altjit-name=*|--input=*|--root=*|--root-mode=*|--calltree-depth=*|--calltree-width=*|--calltree-sibling-cutoff=*|--exception-type=*|--filter=*|--tfm=*|--theme=*|--timeline-width=*)
+    --jit-method=*|--jit-altjit-path=*|--jit-altjit-name=*|--input=*|--root=*|--root-mode=*|--calltree-depth=*|--calltree-width=*|--calltree-sibling-cutoff=*|--exception-type=*|--filter=*|--tfm=*|--theme=*|--timeline-width=*|--hot=*)
       profiler_args+=("$arg")
       i=$((i + 1))
       continue
       ;;
-    --jit-inline|--jit-disasm)
+    --jit-inline|--jit-disasm|--jit-disasm-hot)
       profiler_args+=("$arg")
       i=$((i + 1))
       continue

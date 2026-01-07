@@ -557,6 +557,321 @@ public sealed class TypedArrayResizableTests(ITestOutputHelper output) : Interna
                                  """);
     }
 
+    [Fact(Timeout = 20000)]
+    public async Task ForLoopResizableTypedArray_JsSmoke()
+    {
+        // Stress: JS indexed loop path (no iterator protocol).
+        // Enable with JSENGINE_STRESS_FORLOOP_RAB=1 (default iterations=200, else 1).
+        await using var engine = CreateEngine(() => new JsEngineOptions());
+        var iterations = IsEnvEnabled("JSENGINE_STRESS_FORLOOP_RAB") ? 200 : 1;
+
+        await engine.Evaluate($$"""
+                                 (function() {
+                                     function assertArrayEq(actual, expected, label) {
+                                         if (actual.length !== expected.length) {
+                                             throw new Error(label + " length mismatch " + actual.length + " vs " + expected.length);
+                                         }
+                                         for (var i = 0; i < actual.length; i++) {
+                                             if (actual[i] !== expected[i]) {
+                                                 throw new Error(label + " mismatch at " + i + ": " + actual[i] + " vs " + expected[i]);
+                                             }
+                                         }
+                                     }
+
+                                     function expectThrow(fn, label) {
+                                         var threw = false;
+                                         try {
+                                             fn();
+                                         } catch (e) {
+                                             threw = true;
+                                         }
+                                         if (!threw) {
+                                             throw new Error(label + " expected throw");
+                                         }
+                                     }
+
+                                     function createRab(byteLength, maxByteLength) {
+                                         return new ArrayBuffer(byteLength, { maxByteLength: maxByteLength });
+                                     }
+
+                                     function isBigIntArray(ta) {
+                                         if (typeof BigInt64Array !== "undefined" && ta instanceof BigInt64Array) {
+                                             return true;
+                                         }
+                                         if (typeof BigUint64Array !== "undefined" && ta instanceof BigUint64Array) {
+                                             return true;
+                                         }
+                                         return false;
+                                     }
+
+                                     function fill(ta) {
+                                         for (var i = 0; i < ta.length; i++) {
+                                             var value = i % 128;
+                                             ta[i] = isBigIntArray(ta) ? BigInt(value) : value;
+                                         }
+                                     }
+
+                                     function fillBuffer(rab, ctor) {
+                                         var writer = new ctor(rab);
+                                         fill(writer);
+                                     }
+
+                                     function collectAndResizeIndex(iterable, rab, resizeAfter, newByteLength) {
+                                         var values = [];
+                                         var resized = false;
+                                         for (var i = 0; i < iterable.length; i++) {
+                                             values.push(Number(iterable[i]));
+                                             if (!resized && values.length === resizeAfter) {
+                                                 rab.resize(newByteLength);
+                                                 resized = true;
+                                             }
+                                         }
+                                         return values;
+                                     }
+
+                                     function runOnce() {
+                                         var ctors = [
+                                             Uint8Array,
+                                             Int8Array,
+                                             Uint16Array,
+                                             Int16Array,
+                                             Uint32Array,
+                                             Int32Array,
+                                             Float32Array,
+                                             Float64Array,
+                                             Uint8ClampedArray
+                                         ];
+                                         if (typeof BigInt64Array !== "undefined") {
+                                             ctors.push(BigInt64Array);
+                                         }
+                                         if (typeof BigUint64Array !== "undefined") {
+                                             ctors.push(BigUint64Array);
+                                         }
+
+                                         for (var c = 0; c < ctors.length; c++) {
+                                             var ctor = ctors[c];
+                                             var elements = 10;
+                                             var offset = 2;
+                                             var byteLength = elements * ctor.BYTES_PER_ELEMENT;
+                                             var byteOffset = offset * ctor.BYTES_PER_ELEMENT;
+
+                                             var rab = createRab(byteLength, byteLength * 2);
+                                             var fixed = new ctor(rab, 0, 3);
+                                             fillBuffer(rab, ctor);
+                                             var fixedValues = collectAndResizeIndex(fixed, rab, 2, byteLength * 2);
+                                             assertArrayEq(fixedValues, [0, 1, 2], "fixed grow");
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var fixedOffset = new ctor(rab, byteOffset, 3);
+                                             fillBuffer(rab, ctor);
+                                             fixedValues = collectAndResizeIndex(fixedOffset, rab, 2, byteLength * 2);
+                                             assertArrayEq(fixedValues, [2, 3, 4], "fixed offset grow");
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var tracking = new ctor(rab);
+                                             fillBuffer(rab, ctor);
+                                             var values = collectAndResizeIndex(tracking, rab, 2, byteLength * 2);
+                                             if (values.length !== 20) {
+                                                 throw new Error("tracking grow length mismatch " + values.length);
+                                             }
+                                             for (var i = 0; i < 10; i++) {
+                                                 if (values[i] !== i) {
+                                                     throw new Error("tracking grow prefill mismatch at " + i);
+                                                 }
+                                             }
+                                             for (var j = 10; j < 20; j++) {
+                                                 if (values[j] !== 0) {
+                                                     throw new Error("tracking grow zero-fill mismatch at " + j);
+                                                 }
+                                             }
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var trackingOffset = new ctor(rab, byteOffset);
+                                             fillBuffer(rab, ctor);
+                                             values = collectAndResizeIndex(trackingOffset, rab, 2, byteLength * 2);
+                                             if (values.length !== 20 - offset) {
+                                                 throw new Error("tracking offset grow length mismatch " + values.length);
+                                             }
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var fixedShrink = new ctor(rab, 0, 3);
+                                             fillBuffer(rab, ctor);
+                                             values = collectAndResizeIndex(fixedShrink, rab, 2, 0);
+                                             assertArrayEq(values, [0, 1], "fixed shrink to zero");
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var trackingShrink = new ctor(rab);
+                                             fillBuffer(rab, ctor);
+                                             values = collectAndResizeIndex(trackingShrink, rab, 2, 0);
+                                             assertArrayEq(values, [0, 1], "tracking shrink to zero");
+                                         }
+                                     }
+
+                                     for (var run = 0; run < {{iterations}}; run++) {
+                                         runOnce();
+                                     }
+                                 })();
+                                 """);
+    }
+
+    [Fact(Timeout = 20000)]
+    public async Task ForOfResizableTypedArray_JsSmoke_Parity()
+    {
+        // Stress: JS for-of path using the same helper structure as ForLoopResizableTypedArray_JsSmoke.
+        // Enable with JSENGINE_STRESS_FOROF_RAB_PARITY=1 (default iterations=200, else 1).
+        await using var engine = CreateEngine(() => new JsEngineOptions());
+        var iterations = IsEnvEnabled("JSENGINE_STRESS_FOROF_RAB_PARITY") ? 200 : 1;
+
+        await engine.Evaluate($$"""
+                                 (function() {
+                                     function assertArrayEq(actual, expected, label) {
+                                         if (actual.length !== expected.length) {
+                                             throw new Error(label + " length mismatch " + actual.length + " vs " + expected.length);
+                                         }
+                                         for (var i = 0; i < actual.length; i++) {
+                                             if (actual[i] !== expected[i]) {
+                                                 throw new Error(label + " mismatch at " + i + ": " + actual[i] + " vs " + expected[i]);
+                                             }
+                                         }
+                                     }
+
+                                     function expectThrow(fn, label) {
+                                         var threw = false;
+                                         try {
+                                             fn();
+                                         } catch (e) {
+                                             threw = true;
+                                         }
+                                         if (!threw) {
+                                             throw new Error(label + " expected throw");
+                                         }
+                                     }
+
+                                     function createRab(byteLength, maxByteLength) {
+                                         return new ArrayBuffer(byteLength, { maxByteLength: maxByteLength });
+                                     }
+
+                                     function isBigIntArray(ta) {
+                                         if (typeof BigInt64Array !== "undefined" && ta instanceof BigInt64Array) {
+                                             return true;
+                                         }
+                                         if (typeof BigUint64Array !== "undefined" && ta instanceof BigUint64Array) {
+                                             return true;
+                                         }
+                                         return false;
+                                     }
+
+                                     function fill(ta) {
+                                         for (var i = 0; i < ta.length; i++) {
+                                             var value = i % 128;
+                                             ta[i] = isBigIntArray(ta) ? BigInt(value) : value;
+                                         }
+                                     }
+
+                                     function fillBuffer(rab, ctor) {
+                                         var writer = new ctor(rab);
+                                         fill(writer);
+                                     }
+
+                                     function collectAndResizeForOf(iterable, rab, resizeAfter, newByteLength) {
+                                         var values = [];
+                                         var resized = false;
+                                         for (var value of iterable) {
+                                             values.push(Number(value));
+                                             if (!resized && values.length === resizeAfter) {
+                                                 rab.resize(newByteLength);
+                                                 resized = true;
+                                             }
+                                         }
+                                         return values;
+                                     }
+
+                                     function runOnce() {
+                                         var ctors = [
+                                             Uint8Array,
+                                             Int8Array,
+                                             Uint16Array,
+                                             Int16Array,
+                                             Uint32Array,
+                                             Int32Array,
+                                             Float32Array,
+                                             Float64Array,
+                                             Uint8ClampedArray
+                                         ];
+                                         if (typeof BigInt64Array !== "undefined") {
+                                             ctors.push(BigInt64Array);
+                                         }
+                                         if (typeof BigUint64Array !== "undefined") {
+                                             ctors.push(BigUint64Array);
+                                         }
+
+                                         for (var c = 0; c < ctors.length; c++) {
+                                             var ctor = ctors[c];
+                                             var elements = 10;
+                                             var offset = 2;
+                                             var byteLength = elements * ctor.BYTES_PER_ELEMENT;
+                                             var byteOffset = offset * ctor.BYTES_PER_ELEMENT;
+
+                                             var rab = createRab(byteLength, byteLength * 2);
+                                             var fixed = new ctor(rab, 0, 3);
+                                             fillBuffer(rab, ctor);
+                                             var fixedValues = collectAndResizeForOf(fixed, rab, 2, byteLength * 2);
+                                             assertArrayEq(fixedValues, [0, 1, 2], "fixed grow");
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var fixedOffset = new ctor(rab, byteOffset, 3);
+                                             fillBuffer(rab, ctor);
+                                             fixedValues = collectAndResizeForOf(fixedOffset, rab, 2, byteLength * 2);
+                                             assertArrayEq(fixedValues, [2, 3, 4], "fixed offset grow");
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var tracking = new ctor(rab);
+                                             fillBuffer(rab, ctor);
+                                             var values = collectAndResizeForOf(tracking, rab, 2, byteLength * 2);
+                                             if (values.length !== 20) {
+                                                 throw new Error("tracking grow length mismatch " + values.length);
+                                             }
+                                             for (var i = 0; i < 10; i++) {
+                                                 if (values[i] !== i) {
+                                                     throw new Error("tracking grow prefill mismatch at " + i);
+                                                 }
+                                             }
+                                             for (var j = 10; j < 20; j++) {
+                                                 if (values[j] !== 0) {
+                                                     throw new Error("tracking grow zero-fill mismatch at " + j);
+                                                 }
+                                             }
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var trackingOffset = new ctor(rab, byteOffset);
+                                             fillBuffer(rab, ctor);
+                                             values = collectAndResizeForOf(trackingOffset, rab, 2, byteLength * 2);
+                                             if (values.length !== 20 - offset) {
+                                                 throw new Error("tracking offset grow length mismatch " + values.length);
+                                             }
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var fixedShrink = new ctor(rab, 0, 3);
+                                             fillBuffer(rab, ctor);
+                                             expectThrow(function() {
+                                                 collectAndResizeForOf(fixedShrink, rab, 2, 0);
+                                             }, "fixed shrink to zero");
+
+                                             rab = createRab(byteLength, byteLength * 2);
+                                             var trackingShrink = new ctor(rab);
+                                             fillBuffer(rab, ctor);
+                                             values = collectAndResizeForOf(trackingShrink, rab, 2, 0);
+                                             assertArrayEq(values, [0, 1], "tracking shrink to zero");
+                                         }
+                                     }
+
+                                     for (var run = 0; run < {{iterations}}; run++) {
+                                         runOnce();
+                                     }
+                                 })();
+                                 """);
+    }
+
     private static List<double> CollectValuesWithResize(
         TypedArrayBase typedArray,
         JsArrayBuffer buffer,

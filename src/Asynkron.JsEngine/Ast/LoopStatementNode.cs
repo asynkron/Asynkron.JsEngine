@@ -30,12 +30,9 @@ public abstract record LoopStatementNode(SourceReference? Source) : StatementNod
         return AstCache.GetOrCreate(ref _cachedPlan, this, static self =>
         {
             var isStrict = self.Body is BlockStatement { IsStrict: true };
-            if (!LoopNormalizer.TryNormalize(self, isStrict, out var plan, out var failureReason))
-            {
-                throw new NotSupportedException(failureReason ?? $"Failed to normalize {self.LoopTypeName} loop.");
-            }
-
-            return plan;
+            return !LoopNormalizer.TryNormalize(self, isStrict, out var plan, out var failureReason)
+                ? throw new NotSupportedException(failureReason ?? $"Failed to normalize {self.LoopTypeName} loop.")
+                : plan;
         });
     }
 }

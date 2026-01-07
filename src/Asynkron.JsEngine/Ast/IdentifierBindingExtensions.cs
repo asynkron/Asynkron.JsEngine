@@ -54,14 +54,10 @@ public static partial class TypedAstEvaluator
                         // Runtime evaluation of `var` without an initializer is a no-op;
                         // bindings are created during declaration instantiation. If the
                         // binding was removed (e.g., deletable eval var), do not recreate it.
-                        if (environment.HasFunctionScopedBinding(identifier.Name))
-                        {
-                            return;
-                        }
-
-                        if (skipBlockedBindingLookup)
-                        {
-                        }
+                        // if (environment.HasFunctionScopedBinding(identifier.Name))
+                        // {
+                        //     return;
+                        // }
 
                         return;
                     }
@@ -75,9 +71,7 @@ public static partial class TypedAstEvaluator
                         break;
                     }
 
-                    var assignedBlockedBinding = skipBlockedBindingLookup
-                        ? false
-                        : environment.TryAssignBlockedBinding(identifier.Name, value);
+                    var assignedBlockedBinding = !skipBlockedBindingLookup && environment.TryAssignBlockedBinding(identifier.Name, value);
 
                     environment.EnsureFunctionScopedVarBinding(identifier.Name, context);
 
@@ -90,9 +84,9 @@ public static partial class TypedAstEvaluator
                 }
             case BindingMode.DefineParameter:
                 // Parameters are created before defaults run (see the pre-pass in BindFunctionParameters),
-                // so by the time we bind the value the slot should already exist and still be
+                // so by the time we bind the value, the slot should already exist and still be
                 // uninitialized. Assign into it to preserve the TDZ throw on reads during
-                // initializer evaluation, and fall back to Define only if the slot was not
+                // initializer evaluation and fall back to Define only if the slot was not
                 // created (defensive).
                 if (environment.HasBinding(identifier.Name))
                 {

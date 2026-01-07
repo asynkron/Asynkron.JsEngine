@@ -195,13 +195,8 @@ internal sealed class HoistPlan
                         }
                     }
 
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
-
-                    break;
+                    statement = forStatement.Body;
+                    continue;
 
                 case ForEachStatement forEachStatement:
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
@@ -289,13 +284,8 @@ internal sealed class HoistPlan
                     continue;
 
                 case ForStatement forStatement:
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
-
-                    break;
+                    statement = forStatement.Body;
+                    continue;
 
                 case ForEachStatement forEachStatement:
                     statement = forEachStatement.Body;
@@ -371,13 +361,8 @@ internal sealed class HoistPlan
                     continue;
 
                 case ForStatement forStatement:
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
-
-                    break;
+                    statement = forStatement.Body;
+                    continue;
 
                 case ForEachStatement forEachStatement:
                     statement = forEachStatement.Body;

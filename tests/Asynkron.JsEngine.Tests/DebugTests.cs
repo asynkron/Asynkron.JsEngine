@@ -16,7 +16,7 @@ public sealed class DebugTests
 
                      """;
 
-        // Execute and get debug message
+        // Execute and get the debug message
         await engine.Evaluate(source);
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
@@ -47,7 +47,7 @@ public sealed class DebugTests
 
         var debugMessage = await engine.DebugMessages().ReadAsync();
 
-        // Verify loop counter is captured with correct value
+        // Verify loop counter is captured with the correct value
         Assert.True(debugMessage.Variables.ContainsKey("i"));
         Assert.Equal(5d, debugMessage.Variables["i"]);
     }
@@ -106,13 +106,13 @@ public sealed class DebugTests
         Assert.True(debugMessage.Variables.ContainsKey("localVar"));
         Assert.Equal("local", debugMessage.Variables["localVar"]);
 
-        // Should also capture global variable due to scope chain
+        // Should also capture global variable due to the scope chain
         Assert.True(debugMessage.Variables.ContainsKey("globalVar"));
         Assert.Equal("global", debugMessage.Variables["globalVar"]);
     }
 
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
-    // The feature is implemented correctly and the test passes when run individually.
+    // The feature is implemented correctly, and the test passes when run individually.
     [Fact(Timeout = 2000)]
     public async Task DebugFunction_CapturesNestedScopes()
     {
@@ -213,8 +213,8 @@ public sealed class DebugTests
         // The innermost frame should have the highest depth
         Assert.NotEmpty(debugMessage.CallStack);
 
-        // First frame in the list is the innermost
-        var innermostFrame = debugMessage.CallStack.First();
+        // The first frame in the list is the innermost
+        var innermostFrame = debugMessage.CallStack[0];
         Assert.True(innermostFrame.Depth >= 0);
 
         // Frames should be ordered from innermost to outermost

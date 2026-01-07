@@ -135,19 +135,11 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            // Fast path: execute single statement directly without block overhead
+            // Fast path: execute a single statement directly without block overhead
             // Note: We do NOT pass loopLabel to inner statements - the block evaluation doesn't either.
             // Inner loops get their own labels via LabeledStatement. Passing our loopLabel would cause
             // inner loops to incorrectly handle labeled breaks/continues meant for the outer loop.
-            JsValue bodyResult;
-            if (singleStatement is not null)
-            {
-                bodyResult = singleStatement.EvaluateStatementJsValue(iterationEnvironment, context);
-            }
-            else
-            {
-                bodyResult = plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
-            }
+            var bodyResult = singleStatement?.EvaluateStatementJsValue(iterationEnvironment, context) ?? plan.Body.EvaluateStatementJsValue(iterationEnvironment, context, loopLabel);
 
             // Apply UpdateEmpty semantics (ES spec 13.7.3.6 step 2.f):
             // Only update the completion value if body returned a non-empty value.
@@ -347,7 +339,7 @@ public static partial class TypedAstEvaluator
                 return currentIterationEnvironment;
             }
 
-            const int StackAllocLimit = 8;
+            const int stackAllocLimit = 8;
 
             var outerEnvironment = currentIterationEnvironment.Enclosing ?? currentIterationEnvironment;
 
@@ -368,8 +360,8 @@ public static partial class TypedAstEvaluator
             var valueSpan = rentedValues.AsSpan(0, count);
 
             bool[]? rentedConstFlags = null;
-            var constFlagSpan = count <= StackAllocLimit
-                ? stackalloc bool[StackAllocLimit]
+            var constFlagSpan = count <= stackAllocLimit
+                ? stackalloc bool[stackAllocLimit]
                 : (rentedConstFlags = ArrayPool<bool>.Shared.Rent(count)).AsSpan(0, count);
 
             for (var i = 0; i < count; i++)
@@ -542,12 +534,7 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        if (plan.Condition is not null && DynamicScopeDetector.ContainsDirectEval(plan.Condition))
-        {
-            return true;
-        }
-
-        return false;
+        return DynamicScopeDetector.ContainsDirectEval(plan.Condition);
     }
 
     /// <summary>

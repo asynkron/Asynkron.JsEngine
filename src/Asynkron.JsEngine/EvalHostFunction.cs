@@ -682,13 +682,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                             declarator.Target.CollectSymbolsFromBinding(names);
                         }
 
-                        if (forStatement.Body is not null)
-                        {
-                            statement = forStatement.Body;
-                            continue;
-                        }
-
-                        break;
+                        statement = forStatement.Body;
+                        continue;
                     }
                 case ForEachStatement { DeclarationKind: VariableKind.Var } forEach:
                     forEach.Target.CollectSymbolsFromBinding(names);
@@ -807,13 +802,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         return true;
                     }
 
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
+                    statement = forStatement.Body;
+                    continue;
 
-                    break;
                 case ForEachStatement forEachStatement:
                     if (forEachStatement.DeclarationKind is not null &&
                         BindingContainsStrictReserved(forEachStatement.Target))
@@ -977,13 +968,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         CollectVarFunctionsFromStatement(initDecl, functions, true);
                     }
 
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
+                    statement = forStatement.Body;
+                    continue;
 
-                    break;
                 case ForEachStatement forEachStatement:
                     statement = forEachStatement.Body;
                     continue;
@@ -1127,11 +1114,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     iterationDepth++;
                     continue;
                 case ForStatement forStatement:
-                    if (forStatement.Body is null)
-                    {
-                        return false;
-                    }
-
                     statement = forStatement.Body;
                     iterationDepth++;
                     continue;
@@ -2626,13 +2608,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
                     }
 
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
+                    statement = forStatement.Body;
+                    continue;
 
-                    break;
                 case ForEachStatement forEachStatement:
                     if (forEachStatement.DeclarationKind is VariableKind.Let or VariableKind.Const
                         or VariableKind.Using or VariableKind.AwaitUsing)
@@ -2820,12 +2798,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
                 case DoWhileStatement doWhileStatement:
                     var doBody = FindInvalidPrivateNameInStatement(doWhileStatement.Body, availableScopes);
-                    if (doBody is not null)
-                    {
-                        return doBody;
-                    }
-
-                    return FindInvalidPrivateNameInExpression(doWhileStatement.Condition, availableScopes);
+                    return doBody ?? FindInvalidPrivateNameInExpression(doWhileStatement.Condition, availableScopes);
 
                 case ForStatement forStatement:
                     if (forStatement.Initializer is ExpressionStatement initExpr)
@@ -2863,13 +2836,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
                     }
 
-                    if (forStatement.Body is not null)
-                    {
-                        statement = forStatement.Body;
-                        continue;
-                    }
-
-                    return null;
+                    statement = forStatement.Body;
+                    continue;
 
                 case ForEachStatement forEachStatement:
                     var iterableResult = FindInvalidPrivateNameInExpression(forEachStatement.Iterable, availableScopes);
@@ -2924,13 +2892,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         }
                     }
 
-                    if (tryStatement.Finally is not null)
+                    if (tryStatement.Finally is null)
                     {
-                        statement = tryStatement.Finally;
-                        continue;
+                        return null;
                     }
 
-                    return null;
+                    statement = tryStatement.Finally;
+                    continue;
 
                 case WithStatement withStatement:
                     var withObj = FindInvalidPrivateNameInExpression(withStatement.Object, availableScopes);

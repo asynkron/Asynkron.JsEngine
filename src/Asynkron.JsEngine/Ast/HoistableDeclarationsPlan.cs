@@ -52,10 +52,7 @@ internal sealed class HoistableDeclarationsPlan
                         return new HoistableDeclarationsPlan(true);
                     }
 
-                    if (forStatement.Body is not null)
-                    {
-                        stack.Push(forStatement.Body);
-                    }
+                    stack.Push(forStatement.Body);
 
                     break;
                 case ForEachStatement forEachStatement:

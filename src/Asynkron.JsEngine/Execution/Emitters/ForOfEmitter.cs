@@ -111,78 +111,18 @@ internal static class ForOfEmitter
             iteratorInstructions.ValueSlotIndex);
         var targetScopeId = iteratorPlan.IterationScopeId >= 0 ? iteratorPlan.IterationScopeId : -1;
 
-        // For per-iteration bindings, we need to POP the iteration environment at the END of each
-        // iteration body, BEFORE going back to ITER_MOVE_NEXT. This ensures the environment stack
-        // stays balanced and we return to the correct scope for the next iteration.
-        var bodyNextTarget = iteratorInstructions.MoveNextIndex;
-        var continueTarget = iteratorInstructions.MoveNextIndex;
-        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
+        if (!LoopEmitterHelpers.TryBuildLoopBody(ctx, iteratorPlan, iteratorPlan.Body, bindingStatement,
+                label, iteratorInstructions.MoveNextIndex, loopExitTarget, targetScopeId, lexicalBindings,
+                instructionStart, out var loopBodyResult))
         {
-            // Create POP_ENV that goes to ITER_MOVE_NEXT - body will flow to this
-            var popEnvForContinue = ctx.Append(new PopEnvironmentInstruction(
-                iteratorPlan.IterationScopeId,
-                iteratorPlan.CanReuseIterationEnvironment,
-                iteratorInstructions.MoveNextIndex));
-            bodyNextTarget = popEnvForContinue;
-            continueTarget = popEnvForContinue;
-        }
-
-        ctx.PushLoopScope(label, continueTarget, loopExitTarget, targetScopeId);
-        var pushedIterationScope = false;
-        if (iteratorPlan.IterationScopeId >= 0 &&
-            iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            ctx.PushScope(iteratorPlan.IterationScopeId);
-            pushedIterationScope = true;
-        }
-        var iterationEntry = -1;
-        var bodyBuilt = ctx.TryBuildStatement(iteratorPlan.Body, bodyNextTarget, out var bodyEntry, label);
-        if (bodyBuilt)
-        {
-            bodyBuilt = ctx.TryBuildStatement(bindingStatement, bodyEntry, out iterationEntry, label);
-        }
-
-        if (pushedIterationScope)
-        {
-            ctx.PopScope(iteratorPlan.IterationScopeId);
-        }
-
-        ctx.PopLoopScope();
-
-        if (!bodyBuilt)
-        {
-            ctx.Rollback(instructionStart);
             entryIndex = -1;
             return false;
         }
 
-        // For lexical declarations (let/const), emit PushEnvironmentInstruction
-        // to create fresh per-iteration bindings. This ensures closures capture separate values.
-        var loopEntry = iterationEntry;
-        if (iteratorPlan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-            !iteratorPlan.PerIterationBindings.IsDefaultOrEmpty)
-        {
-            var slotMap =
-                EmitContext.BuildSlotMap(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
-            var slotNames =
-                EmitContext.BuildSlotNames(iteratorPlan.PerIterationBindings, iteratorPlan.PerIterationSlotIndices);
-
-            var createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
-                iterationEntry,
-                iteratorPlan.PerIterationBindings,
-                iteratorPlan.IterationScopeId,
-                iteratorPlan.IterationSlotCount,
-                slotMap,
-                iteratorPlan.CanReuseIterationEnvironment,
-                lexicalBindings,
-                SlotNames: slotNames));
-            loopEntry = createEnvIndex;
-        }
+        var continueTarget = loopBodyResult.ContinueTarget;
 
         // Wire up the MoveNext to point to the loop entry (env instruction or body)
-        IteratorInstructionTemplate.Wire(iteratorInstructions, loopEntry, ctx.Instructions);
+        IteratorInstructionTemplate.Wire(iteratorInstructions, loopBodyResult.LoopEntry, ctx.Instructions);
 
         // BreakableEnter - pushes context to runtime stack for break/continue from AST-evaluated code.
         // Default is ResetsCompletionValue - loops need runtime to reset completion value per ES spec.

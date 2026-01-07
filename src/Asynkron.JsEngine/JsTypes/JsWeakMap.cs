@@ -95,7 +95,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public JsWeakMap Set(JsValue key, JsValue value)
     {
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsWeakCollectionHelpers.ExtractWeakKeyObject(key);
 
         // WeakMap only accepts objects as keys
         if (keyObj == null)
@@ -138,7 +138,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public JsValue Get(JsValue key)
     {
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsWeakCollectionHelpers.ExtractWeakKeyObject(key);
 
         if (keyObj == null)
         {
@@ -158,7 +158,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Has(JsValue key)
     {
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsWeakCollectionHelpers.ExtractWeakKeyObject(key);
         return keyObj != null && _entries.TryGetValue(keyObj, out _);
     }
 
@@ -168,70 +168,8 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Delete(JsValue key)
     {
-        var keyObj = ExtractKeyObject(key);
+        var keyObj = JsWeakCollectionHelpers.ExtractWeakKeyObject(key);
         return keyObj != null && _entries.Remove(keyObj);
     }
 
-    /// <summary>
-    ///     Extracts the object reference from a JsValue for use as a WeakMap key.
-    ///     Returns null if the value is not a valid weak key (primitives, null, undefined).
-    /// </summary>
-    private static object? ExtractKeyObject(JsValue key)
-    {
-        // Fast path: primitives can't be weak keys
-        if (key.IsNull || key.IsUndefined || key.IsString || key.IsNumber || key.IsBoolean)
-        {
-            return null;
-        }
-
-        // Extract the object directly from the JsValue
-        var obj = key.ObjectValue;
-
-        // Handle potentially boxed JsValue (shouldn't happen normally)
-        while (obj is JsValue nested)
-        {
-            obj = nested.ObjectValue;
-        }
-
-        return IsObject(obj) ? obj : null;
-    }
-
-    /// <summary>
-    ///     Checks if a value is considered an object for WeakMap purposes.
-    ///     In JavaScript, objects, arrays, functions, etc. are valid, but primitives are not.
-    /// </summary>
-    private static bool IsObject(object? value)
-    {
-        if (value == null)
-        {
-            return false;
-        }
-
-        // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
-        {
-            return false;
-        }
-
-        // Check if it's a reference type that can be used as a WeakMap key
-        // Strings are reference types in .NET but are treated as primitives in JavaScript
-        if (value is string)
-        {
-            return false;
-        }
-
-        // Value types (numbers, bools, etc.) are not valid WeakMap keys
-        if (value.GetType().IsValueType)
-        {
-            return false;
-        }
-
-        // Symbol is a special case - not allowed as WeakMap key
-        if (value is JsSymbol)
-        {
-            return false;
-        }
-
-        return true;
-    }
 }

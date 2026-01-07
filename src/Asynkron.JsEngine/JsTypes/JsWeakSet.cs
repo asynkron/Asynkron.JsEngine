@@ -96,7 +96,7 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public JsWeakSet Add(JsValue value)
     {
-        var obj = ExtractKeyObject(value);
+        var obj = JsWeakCollectionHelpers.ExtractWeakKeyObject(value);
 
         // WeakSet only accepts objects as values
         if (obj == null)
@@ -118,7 +118,7 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Has(JsValue value)
     {
-        var obj = ExtractKeyObject(value);
+        var obj = JsWeakCollectionHelpers.ExtractWeakKeyObject(value);
         return obj != null && _values.TryGetValue(obj, out _);
     }
 
@@ -128,70 +128,8 @@ public sealed class JsWeakSet : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     /// </summary>
     public bool Delete(JsValue value)
     {
-        var obj = ExtractKeyObject(value);
+        var obj = JsWeakCollectionHelpers.ExtractWeakKeyObject(value);
         return obj != null && _values.Remove(obj);
     }
 
-    /// <summary>
-    ///     Extracts the object reference from a JsValue for use as a WeakSet value.
-    ///     Returns null if the value is not a valid weak value (primitives, null, undefined).
-    /// </summary>
-    private static object? ExtractKeyObject(JsValue value)
-    {
-        // Fast path: primitives can't be weak values
-        if (value.IsNull || value.IsUndefined || value.IsString || value.IsNumber || value.IsBoolean)
-        {
-            return null;
-        }
-
-        // Extract the object directly from the JsValue
-        var obj = value.ObjectValue;
-
-        // Handle potentially boxed JsValue (shouldn't happen normally)
-        while (obj is JsValue nested)
-        {
-            obj = nested.ObjectValue;
-        }
-
-        return IsObject(obj) ? obj : null;
-    }
-
-    /// <summary>
-    ///     Checks if a value is considered an object for WeakSet purposes.
-    ///     In JavaScript, objects, arrays, functions, etc. are valid, but primitives are not.
-    /// </summary>
-    private static bool IsObject(object? value)
-    {
-        if (value == null)
-        {
-            return false;
-        }
-
-        // Check for undefined symbol
-        if (value is Symbol sym && ReferenceEquals(sym, Symbol.Undefined))
-        {
-            return false;
-        }
-
-        // Check if it's a reference type that can be used as a WeakSet value
-        // Strings are reference types in .NET but are treated as primitives in JavaScript
-        if (value is string)
-        {
-            return false;
-        }
-
-        // Value types (numbers, bools, etc.) are not valid WeakSet values
-        if (value.GetType().IsValueType)
-        {
-            return false;
-        }
-
-        // Symbol is a special case - not allowed as WeakSet value
-        if (value is JsSymbol)
-        {
-            return false;
-        }
-
-        return true;
-    }
 }

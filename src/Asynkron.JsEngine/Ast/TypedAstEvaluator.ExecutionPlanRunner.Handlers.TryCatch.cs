@@ -115,30 +115,14 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<EnterCatchInstruction>(instr);
             runner.ResetCompletionValue();
 
-            var thrownValue = JsValue.Undefined;
-            if (runner.TryCatchStateRef.TryStack.Count > 0)
-            {
-                thrownValue = runner.TryCatchStateRef.TryStack.Peek().ThrownValue;
-            }
-
-            var catchEnv = new JsEnvironment(
-                environment,
-                false,
-                environment.IsStrict,
-                null,
-                "catch");
-
-            if (instruction.SlotCount > 0)
-            {
-                catchEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
-            }
+            var thrownValue = PrepareCatchEnvironment(runner, ref environment,
+                instruction.SlotCount, instruction.ScopeId, out var catchEnv);
 
             if (instruction.CatchParameterSymbol is { } param)
             {
                 catchEnv.DefineJsValue(param, thrownValue, false, isLexicalBinding: true);
             }
 
-            environment = catchEnv;
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
@@ -154,23 +138,8 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<EnterCatchWithDestructuringInstruction>(instr);
             runner.ResetCompletionValue();
 
-            var thrownValue = JsValue.Undefined;
-            if (runner.TryCatchStateRef.TryStack.Count > 0)
-            {
-                thrownValue = runner.TryCatchStateRef.TryStack.Peek().ThrownValue;
-            }
-
-            var catchEnv = new JsEnvironment(
-                environment,
-                false,
-                environment.IsStrict,
-                null,
-                "catch");
-
-            if (instruction.SlotCount > 0)
-            {
-                catchEnv.InitializeSlots(instruction.SlotCount, instruction.ScopeId);
-            }
+            var thrownValue = PrepareCatchEnvironment(runner, ref environment,
+                instruction.SlotCount, instruction.ScopeId, out var catchEnv);
 
             instruction.BindingPattern.DefineBindingTarget(thrownValue, catchEnv, context, false);
 
@@ -195,6 +164,35 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        private static JsValue PrepareCatchEnvironment(
+            ExecutionPlanRunner runner,
+            ref JsEnvironment environment,
+            int slotCount,
+            int scopeId,
+            out JsEnvironment catchEnv)
+        {
+            var thrownValue = JsValue.Undefined;
+            if (runner.TryCatchStateRef.TryStack.Count > 0)
+            {
+                thrownValue = runner.TryCatchStateRef.TryStack.Peek().ThrownValue;
+            }
+
+            catchEnv = new JsEnvironment(
+                environment,
+                false,
+                environment.IsStrict,
+                null,
+                "catch");
+
+            if (slotCount > 0)
+            {
+                catchEnv.InitializeSlots(slotCount, scopeId);
+            }
+
+            environment = catchEnv;
+            return thrownValue;
         }
 
         private static InstructionResult HandleEndFinally(

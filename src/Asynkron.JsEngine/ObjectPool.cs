@@ -32,6 +32,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
                 {
                     ((IRentable)item).Activate(logger);
                 }
+                PoolDebug.MarkLeased(item);
                 return item;
             }
         }
@@ -41,6 +42,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
         {
             ((IRentable)newItem).Activate(logger);
         }
+        PoolDebug.MarkLeased(newItem);
         return newItem;
     }
 
@@ -51,6 +53,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
         {
             ((IRentable)item).Reset(logger);
         }
+        PoolDebug.MarkReturned(item);
 
         var items = _items;
         for (var i = 0; i < items.Length; i++)

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -78,6 +79,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     {
         get
         {
+            AssertOwnership(nameof(AsJsValue));
             // Initialize the cached value's ObjectValue on first access
             // The cached value persists across pool rentals since 'this' doesn't change
             if (_cachedJsValue.ObjectValue is null)
@@ -94,6 +96,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
 
     public bool TryGetProperty(string name, out JsValue value)
     {
+        AssertOwnership(nameof(TryGetProperty));
         switch (name)
         {
             case "value":
@@ -110,6 +113,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
 
     public void SetProperty(string name, JsValue value)
     {
+        AssertOwnership(nameof(SetProperty));
         switch (name)
         {
             case "value":
@@ -123,6 +127,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
     {
+        AssertOwnership(nameof(GetOwnPropertyDescriptor));
         return name switch
         {
             "value" => new PropertyDescriptor
@@ -145,16 +150,19 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
+        AssertOwnership(nameof(GetOwnPropertyNames));
         return PropertyNames;
     }
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
+        AssertOwnership(nameof(GetEnumerablePropertyNames));
         return PropertyNames;
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
+        AssertOwnership(nameof(DefineProperty));
         // Iterator results don't typically support defineProperty, but handle value/done
         if (descriptor.HasValue)
         {
@@ -174,7 +182,11 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
 
     public bool Delete(string name)
     {
+        AssertOwnership(nameof(Delete));
         // Don't allow deletion of value/done properties
         return false;
     }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 }

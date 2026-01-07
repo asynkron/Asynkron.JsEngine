@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
@@ -225,6 +226,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal JsValue GetIdentifier(JsEnvironment environment, Symbol name)
     {
+        AssertOwnership(nameof(GetIdentifier));
         return AllowIdentifierCache
             ? environment.GetIdentifierJsValueDirect(name, this)
             : environment.GetIdentifierJsValueWithScope(name, this);
@@ -233,6 +235,7 @@ public sealed class EvaluationContext(
     internal bool TryResolveAssignmentSlot(AssignmentExpression expression, JsEnvironment environment,
         out CachedSlotTarget cached)
     {
+        AssertOwnership(nameof(TryResolveAssignmentSlot));
         if (_assignmentSlotCache is not null &&
             _assignmentSlotCache.TryGetValue(expression, out var cachedMaybe))
         {
@@ -286,12 +289,14 @@ public sealed class EvaluationContext(
 
     public ImmutableArray<PrivateNameScope> CapturePrivateNameScopes()
     {
+        AssertOwnership(nameof(CapturePrivateNameScopes));
         // Stack enumerates from top to bottom; reverse to preserve outer-to-inner order.
         return [.. _privateNameScopes.Reverse()];
     }
 
     public string? ResolvePrivateNameKey(string lexeme)
     {
+        AssertOwnership(nameof(ResolvePrivateNameKey));
         foreach (var scope in _privateNameScopes)
         {
             if (scope.TryGetKey(lexeme, out var key))
@@ -305,6 +310,7 @@ public sealed class EvaluationContext(
 
     public IDisposable PushScope(ScopeKind kind, ScopeMode mode)
     {
+        AssertOwnership(nameof(PushScope));
         var frame = new ScopeFrame(kind, mode);
         _scopeStack.Push(frame);
         return ScopeHandle.Rent(_scopeStack);
@@ -312,11 +318,13 @@ public sealed class EvaluationContext(
 
     public void MarkThisUninitialized()
     {
+        AssertOwnership(nameof(MarkThisUninitialized));
         IsThisInitialized = false;
     }
 
     public void MarkThisInitialized()
     {
+        AssertOwnership(nameof(MarkThisInitialized));
         IsThisInitialized = true;
     }
 
@@ -325,6 +333,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void ThrowIfCancellationRequested()
     {
+        AssertOwnership(nameof(ThrowIfCancellationRequested));
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -333,17 +342,20 @@ public sealed class EvaluationContext(
     /// </summary>
     public void PushLabel(Symbol label)
     {
+        AssertOwnership(nameof(PushLabel));
         _labelStack.Push(label);
     }
 
     public IDisposable EnterPrivateNameScope(PrivateNameScope scope)
     {
+        AssertOwnership(nameof(EnterPrivateNameScope));
         _privateNameScopes.Push(scope);
         return new StackPopHandle<PrivateNameScope>(_privateNameScopes);
     }
 
     public IDisposable EnterPrivateNameScopes(IReadOnlyList<PrivateNameScope> scopes)
     {
+        AssertOwnership(nameof(EnterPrivateNameScopes));
         foreach (var scope in scopes)
         {
             _privateNameScopes.Push(scope);
@@ -354,12 +366,14 @@ public sealed class EvaluationContext(
 
     public IDisposable EnterClassFieldInitializer()
     {
+        AssertOwnership(nameof(EnterClassFieldInitializer));
         _classFieldInitializerDepth++;
         return new ClassFieldInitializerHandle(this);
     }
 
     public IDisposable EnterFunctionNameHint(Symbol name)
     {
+        AssertOwnership(nameof(EnterFunctionNameHint));
         _functionNameHints.Push(name);
         return new StackPopHandle<Symbol>(_functionNameHints);
     }
@@ -369,6 +383,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void PopLabel()
     {
+        AssertOwnership(nameof(PopLabel));
         if (_labelStack.Count > 0)
         {
             _labelStack.Pop();
@@ -381,6 +396,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetReturn(JsValue value)
     {
+        AssertOwnership(nameof(SetReturn));
         IsReturn = true;
         _returnValue = value;
     }
@@ -390,6 +406,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetBreak(Symbol? label = null)
     {
+        AssertOwnership(nameof(SetBreak));
         CurrentSignal = new BreakCompletionSignal(label);
     }
 
@@ -398,6 +415,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetContinue(Symbol? label = null)
     {
+        AssertOwnership(nameof(SetContinue));
         CurrentSignal = new ContinueCompletionSignal(label);
     }
 
@@ -406,6 +424,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetThrow(JsValue value)
     {
+        AssertOwnership(nameof(SetThrow));
         IsReturn = false; // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = new ThrowFlowCompletionSignal(value);
     }
@@ -415,6 +434,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetPendingAwait()
     {
+        AssertOwnership(nameof(SetPendingAwait));
         IsReturn = false; // Clear return state so FlowValue uses CurrentSignal
         CurrentSignal = PendingAwaitCompletionSignal.Instance;
     }
@@ -424,6 +444,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void SetYield(JsValue value, int yieldIndex)
     {
+        AssertOwnership(nameof(SetYield));
         LastYieldIndex = yieldIndex;
         CurrentSignal = new YieldCompletionSignal(value);
     }
@@ -434,6 +455,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool TryClearContinue(Symbol? label)
     {
+        AssertOwnership(nameof(TryClearContinue));
         if (CurrentSignal is not ContinueCompletionSignal continueSignal)
         {
             return false;
@@ -456,6 +478,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public bool TryClearBreak(Symbol? label)
     {
+        AssertOwnership(nameof(TryClearBreak));
         if (CurrentSignal is not BreakCompletionSignal breakSignal)
         {
             return false;
@@ -478,6 +501,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void ClearReturn()
     {
+        AssertOwnership(nameof(ClearReturn));
         IsReturn = false;
         _returnValue = default;
     }
@@ -487,6 +511,7 @@ public sealed class EvaluationContext(
     /// </summary>
     public void Clear()
     {
+        AssertOwnership(nameof(Clear));
         IsReturn = false;
         _returnValue = default;
         CurrentSignal = null;
@@ -498,6 +523,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public CompletionState SaveCompletionState()
     {
+        AssertOwnership(nameof(SaveCompletionState));
         return new CompletionState(IsReturn, _returnValue, CurrentSignal);
     }
 
@@ -507,6 +533,7 @@ public sealed class EvaluationContext(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RestoreCompletionState(in CompletionState state)
     {
+        AssertOwnership(nameof(RestoreCompletionState));
         IsReturn = state.IsReturn;
         _returnValue = state.ReturnValue;
         CurrentSignal = state.Signal;
@@ -534,6 +561,7 @@ public sealed class EvaluationContext(
     /// </summary>
     internal void Reset()
     {
+        AssertOwnership(nameof(Reset));
         _labelStack.Clear();
         _privateNameScopes.Clear();
         _scopeStack.Clear();
@@ -557,16 +585,19 @@ public sealed class EvaluationContext(
 
     internal void PushClassFieldInitializer(PendingClassFieldInitialization initializer)
     {
+        AssertOwnership(nameof(PushClassFieldInitializer));
         _pendingClassFieldInitializers.Push(initializer);
     }
 
     internal bool TryPopClassFieldInitializer(out PendingClassFieldInitialization initializer)
     {
+        AssertOwnership(nameof(TryPopClassFieldInitializer));
         return _pendingClassFieldInitializers.TryPop(out initializer);
     }
 
     internal void RemovePendingClassFieldInitializer(object function)
     {
+        AssertOwnership(nameof(RemovePendingClassFieldInitializer));
         if (_pendingClassFieldInitializers.Count == 0)
         {
             return;
@@ -669,5 +700,11 @@ public sealed class EvaluationContext(
             _scopes = null;
             _disposed = false;
         }
+
+        [Conditional("DEBUG")]
+        internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
     }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 }

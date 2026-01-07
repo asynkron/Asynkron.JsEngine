@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,7 @@ namespace Asynkron.JsEngine.Execution;
 internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAsJsValue
 {
     private JsValue _cachedJsValue;
+    internal int PoolLeaseId { get; private set; }
 
     public IJsObjectLike? IteratorObject { get; set; }
     public IEnumerator<JsValue>? Enumerator { get; set; }
@@ -118,7 +120,68 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         LoopScopeEnvironment = null;
         IteratorClosed = false;
         HasEnteredLoop = false;
+        PoolLeaseId = 0;
     }
+
+    internal void MarkLeased(int leaseId)
+    {
+        if (!PoolGuard.Enabled)
+        {
+            return;
+        }
+
+        if (PoolLeaseId != 0)
+        {
+            throw new InvalidOperationException("IteratorDriverState double lease detected.");
+        }
+
+        PoolLeaseId = leaseId;
+    }
+
+    internal void MarkReturned()
+    {
+        if (!PoolGuard.Enabled)
+        {
+            return;
+        }
+
+        if (PoolLeaseId == 0)
+        {
+            throw new InvalidOperationException("IteratorDriverState returned without an active lease.");
+        }
+
+        PoolLeaseId = 0;
+    }
+
+    internal void AssertLease(int expectedLeaseId, string usage)
+    {
+        if (!PoolGuard.Enabled)
+        {
+            return;
+        }
+
+        if (PoolLeaseId != expectedLeaseId)
+        {
+            throw new InvalidOperationException(
+                $"IteratorDriverState lease mismatch for {usage}. expected={expectedLeaseId} actual={PoolLeaseId}");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void MarkLeasedDebug()
+    {
+        PoolDebug.MarkLeased(this);
+    }
+
+    [Conditional("DEBUG")]
+    internal void MarkReturnedDebug()
+    {
+        PoolDebug.MarkReturned(this);
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage)
+        => PoolDebug.AssertOwned(this, usage);
 }
 
 /// <summary>
@@ -131,12 +194,19 @@ internal static class IteratorDriverStatePool
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static IteratorDriverState Rent()
     {
-        return Pool.Rent();
+        var state = Pool.Rent();
+        if (PoolGuard.Enabled)
+        {
+            state.MarkLeased(PoolGuard.NextLeaseId());
+        }
+
+        return state;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Return(IteratorDriverState state)
     {
+        state.MarkReturned();
         Pool.Return(state);
     }
 }

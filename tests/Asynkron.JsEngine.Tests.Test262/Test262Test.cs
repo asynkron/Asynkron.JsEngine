@@ -14,6 +14,21 @@ public abstract partial class Test262Test
 {
     private static readonly ConcurrentDictionary<string, ProgramNode> HarnessProgramCache =
         new(StringComparer.Ordinal);
+    private const string DisableHarnessCacheEnvVar = "JSENGINE_TEST262_DISABLE_HARNESS_CACHE";
+    private const string DisableBaseRealmEnvVar = "JSENGINE_TEST262_DISABLE_BASE_REALM";
+
+    private static bool IsEnvEnabled(string name)
+    {
+        var setting = Environment.GetEnvironmentVariable(name);
+        if (string.IsNullOrWhiteSpace(setting))
+        {
+            return false;
+        }
+
+        return !string.Equals(setting, "0", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(setting, "false", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(setting, "off", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static readonly ConcurrentDictionary<string, string> SharedModuleSourceCache =
         new(StringComparer.OrdinalIgnoreCase);
@@ -136,6 +151,20 @@ try {
 
     private static ProgramNode GetHarnessProgram(string source)
     {
+        if (IsEnvEnabled(DisableHarnessCacheEnvVar))
+        {
+            var parserEngine = new JsEngine();
+            try
+            {
+                return parserEngine.ParseProgram(source);
+            }
+            catch (ParseException ex)
+            {
+                throw new ThrowSignal(
+                    StandardLibrary.CreateSyntaxError(ex.Message, realm: parserEngine.RealmState));
+            }
+        }
+
         return HarnessProgramCache.GetOrAdd(source, static s =>
         {
             var parserEngine = new JsEngine();
@@ -173,12 +202,17 @@ try {
             ? new TestLogger(minLogLevel: LogLevel.Debug, maxLogCount: 200000)
             : null;
 
-        var engine = BaseRealmSnapshot.UseSnapshot
+        var useSnapshot = BaseRealmSnapshot.UseSnapshot && !IsEnvEnabled(DisableBaseRealmEnvVar);
+        var engine = useSnapshot
             ? BaseRealmSnapshot.Instance.Value.CreateEngine(new JsEngineOptions
             {
                 Logger = logger,
+                AllowScriptSlotAnalysis = false,
             })
-            : new JsEngine(new JsEngineOptions { Logger = logger }) { ExecutionTimeout = TimeSpan.FromSeconds(10) };
+            : new JsEngine(new JsEngineOptions { Logger = logger, AllowScriptSlotAnalysis = false })
+            {
+                ExecutionTimeout = TimeSpan.FromSeconds(10)
+            };
 
         if (file.Flags.Contains("raw"))
         {

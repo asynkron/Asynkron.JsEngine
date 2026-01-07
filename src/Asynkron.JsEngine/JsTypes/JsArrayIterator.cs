@@ -77,6 +77,13 @@ internal sealed class JsArrayIterator : IJsObjectLike, IAsJsValue, IPrototypeAcc
         {
             var valueJs = ProjectIteratorValue();
             _index++;
+            if (_accessor is TypedArrayBase typedArray && typedArray.Buffer.Resizable)
+            {
+                var result = new IteratorResultObject(valueJs, false);
+                result.Capture();
+                return result.AsJsValue;
+            }
+
             return IteratorResultObjectPool.Rent(valueJs, false).AsJsValue;
         }
 

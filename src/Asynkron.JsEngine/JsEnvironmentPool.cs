@@ -70,6 +70,10 @@ internal static class JsEnvironmentPool
         var env = Pool.Rent(logger);
         env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description,
             isParameterEnvironment, isBodyEnvironment);
+        if (PoolGuard.Enabled)
+        {
+            env.MarkLeased(PoolGuard.NextLeaseId());
+        }
 
         // Use cached delegate when no logger to avoid closure allocation
         var returnAction = logger is null
@@ -89,6 +93,7 @@ internal static class JsEnvironmentPool
             return;
         }
 
+        environment.MarkReturned();
         Pool.Return(environment, logger);
     }
 }

@@ -1222,13 +1222,10 @@ public static partial class TypedAstEvaluator
                         return thrownDuringBinding;
                     }
 
-                    if (_hasHoistableDeclarations)
-                    {
-                        _function.Body.HoistVarDeclarations(executionEnvironment, context,
-                            lexicalNames: lexicalNames,
-                            catchParameterNames: catchParameterNames,
-                            simpleCatchParameterNames: simpleCatchParameterNames);
-                    }
+                    _function.Body.HoistVarDeclarations(executionEnvironment, context,
+                        lexicalNames: lexicalNames,
+                        catchParameterNames: catchParameterNames,
+                        simpleCatchParameterNames: simpleCatchParameterNames);
 
                     if (_hasFunctionNameEnvironment &&
                         _function.Name is { } hoistedName &&

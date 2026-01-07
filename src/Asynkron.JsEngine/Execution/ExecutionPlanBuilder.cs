@@ -39,6 +39,8 @@ internal sealed partial class ExecutionPlanBuilder
     private int _rootScopeId;
     private int _withScopeSlotCounter;
     private int _yieldStarStateCounter;
+    private readonly Dictionary<ForEachStatement, IteratorDriverPlan> _iteratorPlanOverrides =
+        new(ReferenceEqualityComparer<ForEachStatement>.Instance);
 
     private ExecutionPlanBuilder()
     {
@@ -255,7 +257,7 @@ internal sealed partial class ExecutionPlanBuilder
         return analysis!;
     }
 
-    private static void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)
+    private void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)
     {
         var collector = new ForEachCollector();
         collector.Visit(function.Body);
@@ -272,42 +274,24 @@ internal sealed partial class ExecutionPlanBuilder
                     ..plan.PerIterationBindings
                         .Select(binding => rewriter.TryResolveSlot(binding, mappedScopeId, out var idx) ? idx : -1)
                 ];
-            if (!ReferenceEquals(stampedBody, plan.Body))
+            var updatedPlan = plan with
             {
-                UpdateCachedIteratorPlan(forEach, plan, stampedBody, mappedScopeId, mappedSlotCount,
-                    perIterationSlotIndices);
-            }
-            else if (plan.IterationScopeId != mappedScopeId ||
-                     plan.IterationSlotCount != mappedSlotCount ||
-                     (!perIterationSlotIndices.IsDefaultOrEmpty &&
-                      perIterationSlotIndices != plan.PerIterationSlotIndices))
-            {
-                UpdateCachedIteratorPlan(forEach, plan, plan.Body, mappedScopeId, mappedSlotCount,
-                    perIterationSlotIndices);
-            }
+                Body = stampedBody,
+                IterationScopeId = mappedScopeId,
+                IterationSlotCount = mappedSlotCount >= 0 ? mappedSlotCount : plan.IterationSlotCount,
+                PerIterationSlotIndices = perIterationSlotIndices.IsDefaultOrEmpty
+                    ? plan.PerIterationSlotIndices
+                    : perIterationSlotIndices
+            };
+            _iteratorPlanOverrides[forEach] = updatedPlan;
         }
     }
 
-    private static void UpdateCachedIteratorPlan(
-        ForEachStatement forEach,
-        IteratorDriverPlan existingPlan,
-        BlockStatement stampedBody,
-        int mappedScopeId,
-        int mappedSlotCount,
-        ImmutableArray<int> mappedSlotIndices)
+    internal IteratorDriverPlan GetIteratorPlan(ForEachStatement statement)
     {
-        var updatedPlan = existingPlan with
-        {
-            Body = stampedBody,
-            IterationScopeId = mappedScopeId,
-            IterationSlotCount = mappedSlotCount >= 0 ? mappedSlotCount : existingPlan.IterationSlotCount,
-            PerIterationSlotIndices = mappedSlotIndices.IsDefaultOrEmpty
-                ? existingPlan.PerIterationSlotIndices
-                : mappedSlotIndices
-        };
-        var cacheField = typeof(ForEachStatement)
-            .GetField("_cachedPlan", BindingFlags.Instance | BindingFlags.NonPublic);
-        cacheField?.SetValue(forEach, updatedPlan);
+        return _iteratorPlanOverrides.TryGetValue(statement, out var plan)
+            ? plan
+            : ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
     }
 
     /// <summary>

@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Reflection;
-using Asynkron.JsEngine.Ast;
-using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine;
-using Asynkron.JsEngine.StdLib;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
+using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 using Test262Harness;
 
@@ -148,7 +148,6 @@ try {
 }
 ";
 
-
     private static ProgramNode GetHarnessProgram(string source)
     {
         if (IsEnvEnabled(DisableHarnessCacheEnvVar))
@@ -237,16 +236,16 @@ try {
             return "";
         });
 
-            // Create $262 object for Test262 compatibility
-            var obj262 = new JsObject
+        // Create $262 object for Test262 compatibility
+        var obj262 = new JsObject
+        {
+            // evalScript function
+            ["evalScript"] = new HostFunction(args => args.Count switch
             {
-                // evalScript function
-                ["evalScript"] = new HostFunction(args => args.Count switch
-                {
-                    > 1 => throw new InvalidOperationException("only script parsing supported"),
-                    > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
-                    _ => JsValue.Undefined,
-                }),
+                > 1 => throw new InvalidOperationException("only script parsing supported"),
+                > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
+                _ => JsValue.Undefined,
+            }),
 
             // createRealm function - not fully implemented but needed for compatibility
             ["createRealm"] = new HostFunction(_ =>

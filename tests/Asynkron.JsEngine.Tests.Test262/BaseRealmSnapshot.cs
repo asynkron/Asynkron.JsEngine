@@ -292,7 +292,7 @@ internal sealed class BaseRealmSnapshot
                 _map[original] = clone;
             }
             Func<string, bool>? shouldSkipKey = skipExcludedGlobals
-                ? key => _excludedGlobals.Contains(key)
+                ? _excludedGlobals.Contains
                 : null;
             clone.CloneFromSnapshot(original, CloneValue, CloneDescriptor, shouldSkipKey, _newRealm);
 

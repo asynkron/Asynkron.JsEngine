@@ -26,8 +26,6 @@ public static class AstTestHelpers
 
         var constantFolded = new TypedConstantExpressionTransformer().Transform(parsed);
 
-
-
         return new AstPipelineResult(parsed, constantFolded, constantFolded);
     }
 

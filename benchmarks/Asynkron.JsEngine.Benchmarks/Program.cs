@@ -150,7 +150,7 @@ switch (benchmarkType)
         break;
 }
 
-async Task TestAsyncBehavior()
+static async Task TestAsyncBehavior()
 {
     var code = @"
         let finalResult = 0;

@@ -59,7 +59,9 @@ public class EvaluationOverheadBenchmarks
     {
         await _reusableEngine.DisposeAsync();
         if (_engine != null)
+        {
             await _engine.DisposeAsync();
+        }
     }
 
     [IterationSetup]

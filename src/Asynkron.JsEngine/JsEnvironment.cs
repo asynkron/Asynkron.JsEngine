@@ -422,10 +422,12 @@ public sealed class JsEnvironment : IRentable
             throw new InvalidOperationException($"Var binding missing function scope ({usage}). name={name.Name}");
         }
 
-        if (HasOwnLexicalBinding(name))
+        // Check for collision in the function scope, not current environment.
+        // Current env might be an object environment (e.g., 'with' statement).
+        if (functionScope.HasOwnLexicalBinding(name))
         {
             throw new InvalidOperationException(
-                $"Var binding collided with lexical binding ({usage}). name={name.Name} scopeId={ScopeId}");
+                $"Var binding collided with lexical binding ({usage}). name={name.Name} scopeId={functionScope.ScopeId}");
         }
     }
 

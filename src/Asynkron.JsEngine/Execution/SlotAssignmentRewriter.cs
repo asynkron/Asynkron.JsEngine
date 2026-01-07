@@ -212,6 +212,22 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     public ExecutionInstruction RewriteInstruction(ExecutionInstruction instruction)
     {
+        if (_isRestampingNestedFunction)
+        {
+            switch (instruction)
+            {
+                case EnterTryInstruction:
+                case LeaveTryInstruction:
+                case PushEnvironmentInstruction:
+                case PopEnvironmentInstruction:
+                case EnterCatchInstruction:
+                case EnterCatchWithDestructuringInstruction:
+                case BreakInstruction:
+                case ContinueInstruction:
+                    return instruction;
+            }
+        }
+
         switch (instruction)
         {
             case EnterTryInstruction:
@@ -453,27 +469,10 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     protected override IdentifierExpression RewriteIdentifier(IdentifierExpression node)
     {
-        // When re-stamping nested function instructions, skip identifiers already resolved
-        // to inner scopes (not on the current stack). This prevents outer scope re-stamping
-        // from overwriting correctly resolved inner scope bindings.
+        // When re-stamping nested function instructions, don't touch identifiers already resolved.
         if (_isRestampingNestedFunction && node.ScopeId >= 0 && node.SlotIndex >= 0)
         {
-            // Check if the identifier's scope is on the current stack
-            var isOnStack = false;
-            foreach (var scopeId in _scopeStack)
-            {
-                if (scopeId == node.ScopeId)
-                {
-                    isOnStack = true;
-                    break;
-                }
-            }
-
-            // If resolved to a scope not on our stack, it's an inner scope - leave it alone
-            if (!isOnStack)
-            {
-                return node;
-            }
+            return node;
         }
 
         if (TryResolve(node.Name, out var resolution))
@@ -635,6 +634,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
     private int RemapScopeId(int scopeId)
     {
+        if (_isRestampingNestedFunction)
+        {
+            return scopeId;
+        }
+
         if (_scopeIdRemap.TryGetValue(scopeId, out var mapped))
         {
             return mapped;

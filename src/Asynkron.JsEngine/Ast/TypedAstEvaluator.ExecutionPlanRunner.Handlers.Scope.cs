@@ -131,6 +131,10 @@ public static partial class TypedAstEvaluator
             var newIterationEnv = allowPooling
                 ? JsEnvironmentPool.Rent(loopScope, false, false, null, description, logger: runner._realmState.Logger)
                 : new JsEnvironment(loopScope, false, false, null, description);
+            if (!allowPooling)
+            {
+                newIterationEnv.MarkLeasedDebug();
+            }
 
             if (instruction.ScopeId >= 0)
             {

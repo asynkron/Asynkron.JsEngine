@@ -110,8 +110,7 @@ internal static class SwitchEmitter
                 {
                     foreach (var declarator in varDecl.Declarators)
                     {
-                        CollectBindingSymbols(declarator.Target, hoistedSymbols, hoistedDeclarators, statement.Source,
-                            varDecl.Kind);
+                        CollectBindingSymbols(declarator.Target, hoistedSymbols, hoistedDeclarators, statement.Source);
                     }
                 }
             }
@@ -306,7 +305,7 @@ internal static class SwitchEmitter
     /// Collects binding symbols from a binding target for switch scope hoisting.
     /// Creates uninitialized declarators for each identifier.
     /// </summary>
-    private static void CollectBindingSymbols(BindingTarget target, HashSet<Symbol> seenSymbols, ImmutableArray<VariableDeclarator>.Builder declarators, SourceReference? source, VariableKind kind)
+    private static void CollectBindingSymbols(BindingTarget target, HashSet<Symbol> seenSymbols, ImmutableArray<VariableDeclarator>.Builder declarators, SourceReference? source)
     {
         while (true)
         {
@@ -325,7 +324,7 @@ internal static class SwitchEmitter
                     {
                         if (element.Target is not null)
                         {
-                            CollectBindingSymbols(element.Target, seenSymbols, declarators, source, kind);
+                            CollectBindingSymbols(element.Target, seenSymbols, declarators, source);
                         }
                     }
 
@@ -339,7 +338,7 @@ internal static class SwitchEmitter
                 case ObjectBinding objectBinding:
                     foreach (var property in objectBinding.Properties)
                     {
-                        CollectBindingSymbols(property.Target, seenSymbols, declarators, source, kind);
+                        CollectBindingSymbols(property.Target, seenSymbols, declarators, source);
                     }
 
                     if (objectBinding.RestElement is not null)

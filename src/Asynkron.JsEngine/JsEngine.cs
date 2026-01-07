@@ -2103,7 +2103,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
             else if (t.IsCanceled)
             {
-                RealmState.Logger?.LogWarning("[TrackPendingAsyncWork] Tracked task was canceled.");
+                RealmState.Logger?.LogWarning("[TrackPendingAsyncWork] Tracked task was canceled");
             }
 
             // Task completed - decrement the counter
@@ -2139,7 +2139,7 @@ public sealed class JsEngine : IAsyncDisposable
                 }
                 catch (StackOverflowException)
                 {
-                    RealmState.Logger?.LogError("[ProcessEventQueue] Stack overflow occurred in event queue task.");
+                    RealmState.Logger?.LogError("[ProcessEventQueue] Stack overflow occurred in event queue task");
                 }
                 catch (Exception ex)
                 {
@@ -4185,7 +4185,6 @@ public sealed class JsEngine : IAsyncDisposable
         ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict, false);
         foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
         {
-            var value = moduleEnv.GetJsValue(symbol);
             exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
         }
     }

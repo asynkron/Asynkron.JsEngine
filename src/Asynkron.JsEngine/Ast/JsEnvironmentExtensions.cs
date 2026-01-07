@@ -226,7 +226,7 @@ public static partial class TypedAstEvaluator
                     environment.GetHashCode());
                 environment.AssignJsValue(Symbol.Super,
                     JsValue.FromObjectUnsafe(new SuperBinding(binding.Constructor, binding.Prototype,
-                        binding.thisValue, true)));
+                        binding.ThisValue, true)));
             }
 
             logger?.LogInformation("ThisInitialized updated to {Initialized} env={Env}",

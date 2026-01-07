@@ -89,7 +89,6 @@ if (!File.Exists(scriptPath))
 var script = File.ReadAllText(scriptPath);
 var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
 var iterations = profile.Iterations > 0 ? profile.Iterations : 1;
-var isAsync = string.Equals(profile.Mode, "async", StringComparison.OrdinalIgnoreCase);
 
 var traceRealm = false;
 var runsForAverage = iterations;

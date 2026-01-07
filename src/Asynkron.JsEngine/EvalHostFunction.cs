@@ -325,7 +325,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         CollectVarDeclaredNames(program.Body, varDeclaredNames, isStrictEval, false);
         var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
         var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
-        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, isStrictEval, false);
+        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, false);
         if (isStrictEval && ContainsStrictReservedBinding(program.Body))
         {
             throw StandardLibrary.ThrowSyntaxError(
@@ -917,13 +917,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static List<FunctionDeclaration> CollectVarFunctionDeclarations(
         ImmutableArray<StatementNode> statements,
-        bool isStrict,
         bool inBlockScope)
     {
         var functions = new List<FunctionDeclaration>();
         foreach (var statement in statements)
         {
-            CollectVarFunctionsFromStatement(statement, functions, isStrict, inBlockScope);
+            CollectVarFunctionsFromStatement(statement, functions, inBlockScope);
         }
 
         return functions;
@@ -932,7 +931,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private static void CollectVarFunctionsFromStatement(
         StatementNode statement,
         List<FunctionDeclaration> functions,
-        bool isStrict,
         bool inBlockScope)
     {
         while (true)
@@ -951,12 +949,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case BlockStatement block:
                     foreach (var inner in block.Statements)
                     {
-                        CollectVarFunctionsFromStatement(inner, functions, isStrict, true);
+                        CollectVarFunctionsFromStatement(inner, functions, true);
                     }
 
                     break;
                 case IfStatement ifStatement:
-                    CollectVarFunctionsFromStatement(ifStatement.Then, functions, isStrict, true);
+                    CollectVarFunctionsFromStatement(ifStatement.Then, functions, true);
                     if (ifStatement.Else is { } elseBranch)
                     {
                         statement = elseBranch;
@@ -976,7 +974,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case ForStatement forStatement:
                     if (forStatement.Initializer is VariableDeclaration { Kind: VariableKind.Var } initDecl)
                     {
-                        CollectVarFunctionsFromStatement(initDecl, functions, isStrict, true);
+                        CollectVarFunctionsFromStatement(initDecl, functions, true);
                     }
 
                     if (forStatement.Body is not null)
@@ -992,15 +990,15 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 case SwitchStatement switchStatement:
                     foreach (var switchCase in switchStatement.Cases)
                     {
-                        CollectVarFunctionsFromStatement(switchCase.Body, functions, isStrict, true);
+                        CollectVarFunctionsFromStatement(switchCase.Body, functions, true);
                     }
 
                     break;
                 case TryStatement tryStatement:
-                    CollectVarFunctionsFromStatement(tryStatement.TryBlock, functions, isStrict, true);
+                    CollectVarFunctionsFromStatement(tryStatement.TryBlock, functions, true);
                     if (tryStatement.Catch is { Body: not null } catchClause)
                     {
-                        CollectVarFunctionsFromStatement(catchClause.Body, functions, isStrict, true);
+                        CollectVarFunctionsFromStatement(catchClause.Body, functions, true);
                     }
 
                     if (tryStatement.Finally is { } finallyBlock)

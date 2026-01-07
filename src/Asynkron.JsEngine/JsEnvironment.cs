@@ -3327,8 +3327,7 @@ public sealed class JsEnvironment : IRentable
         IsLexical = 4,
         BlocksFunctionScopeOverride = 8,
         CanDelete = 16,
-        IsImmutableBinding = 32,
-        HasSpecialBinding = 64 // When set, _value holds ISpecialBinding
+        IsImmutableBinding = 32 // When set, _value holds ISpecialBinding
     }
 
     /// <summary>

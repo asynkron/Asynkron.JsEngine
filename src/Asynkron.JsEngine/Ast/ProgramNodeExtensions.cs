@@ -512,7 +512,7 @@ public static partial class TypedAstEvaluator
         // Dynamic scope constructs (with/eval) require dictionary-based lookups; skip IR/slot stamping.
         if (hasDynamicScope)
         {
-            context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval).");
+            context.RealmState.Logger?.LogInformation("Skipping IR path due to dynamic scope (with/eval)");
             var dynamicResult = programBlock.EvaluateStatementJsValue(executionEnvironment, context);
             if (context.IsThrow)
             {
@@ -554,7 +554,7 @@ public static partial class TypedAstEvaluator
         else
         {
             context.RealmState.Logger?.LogInformation(
-                "Script IR building failed: {Reason}. Using AST walking.",
+                "Script IR building failed: {Reason}. Using AST walking",
                 scriptPlanCache?.FailureReason ?? "unknown");
         }
 

@@ -235,102 +235,7 @@ public static partial class TypedAstEvaluator
         return expression.IsAnonymousFunctionDefinitionNode();
     }
 
-    private static bool ContainsDirectEvalCall(this ExpressionNode expression)
-    {
-        while (true)
-        {
-            switch (expression)
-            {
-                case CallExpression { IsOptional: false, Callee: IdentifierExpression { Name.Name: "eval" } }:
-                    return true;
-                case CallExpression call:
-                    if (call.Callee.ContainsDirectEvalCall())
-                    {
-                        return true;
-                    }
-
-                    foreach (var arg in call.Arguments)
-                    {
-                        if (arg.Expression.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case BinaryExpression binary:
-                    return binary.Left.ContainsDirectEvalCall() || binary.Right.ContainsDirectEvalCall();
-                case ConditionalExpression cond:
-                    return cond.Test.ContainsDirectEvalCall() || cond.Consequent.ContainsDirectEvalCall() ||
-                           cond.Alternate.ContainsDirectEvalCall();
-                case MemberExpression member:
-                    return member.Target.ContainsDirectEvalCall() || member.Property.ContainsDirectEvalCall();
-                case UnaryExpression unary:
-                    expression = unary.Operand;
-                    continue;
-                case SequenceExpression seq:
-                    return seq.Left.ContainsDirectEvalCall() || seq.Right.ContainsDirectEvalCall();
-                case ArrayExpression array:
-                    foreach (var element in array.Elements)
-                    {
-                        if (element.Expression is not null && element.Expression.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case ObjectExpression obj:
-                    foreach (var member in obj.Members)
-                    {
-                        if (member.Value is not null && member.Value.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-
-                        if (member.Function is not null && member.Function.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case TemplateLiteralExpression template:
-                    foreach (var part in template.Parts)
-                    {
-                        if (part.Expression is not null && part.Expression.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case TaggedTemplateExpression tagged:
-                    if (tagged.Tag.ContainsDirectEvalCall() || tagged.StringsArray.ContainsDirectEvalCall() ||
-                        tagged.RawStringsArray.ContainsDirectEvalCall())
-                    {
-                        return true;
-                    }
-
-                    foreach (var expr in tagged.Expressions)
-                    {
-                        if (expr.ContainsDirectEvalCall())
-                        {
-                            return true;
-                        }
-                    }
-
-                    return false;
-                case FunctionExpression:
-                    // Direct eval inside nested functions does not affect the parameter scope we are validating here.
-                    return false;
-                default:
-                    return false;
-            }
-        }
-    }
-
-    internal static bool IsAnonymousFunctionDefinitionNode(this ExpressionNode node)
+    private static bool IsAnonymousFunctionDefinitionNode(this ExpressionNode node)
     {
         // Per ES spec, sequence expressions (comma operator) do not qualify for name inference
         // e.g., `const x = (0, function() {})` should not infer name
@@ -387,17 +292,18 @@ public static partial class TypedAstEvaluator
                             $"Super constructor is not available in this context.{context.GetSourceInfo(superExpression.Source)}");
                     }
 
-                    var superThis = ReferenceEquals(binding.thisValue, JsEnvironment.Uninitialized)
+                    var superThis = binding.ThisValue.IsUninitialized
                         ? JsValue.Undefined
-                        : binding.thisValue;
+                        : binding.ThisValue;
+
                     return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
                 }
             case MemberExpression { Target: SuperExpression } member:
                 {
                     var (memberValue, binding) = member.ResolveSuperMember(environment, context);
                     return context.ShouldStopEvaluation
-                        ? (JsValue.Undefined, binding.thisValue, true)
-                        : (memberValue, binding.thisValue, false);
+                        ? (JsValue.Undefined, thisValue: binding.ThisValue, true)
+                        : (memberValue, thisValue: binding.ThisValue, false);
                 }
             case MemberExpression member:
                 {

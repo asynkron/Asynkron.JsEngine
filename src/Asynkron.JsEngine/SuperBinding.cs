@@ -20,7 +20,7 @@ public sealed class SuperBinding(
 
     public IJsPropertyAccessor? Prototype { get; } = prototype;
 
-    public JsValue thisValue { get; } = thisValue;
+    public JsValue ThisValue { get; } = thisValue;
     public bool IsThisInitialized { get; } = isThisInitialized;
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -32,7 +32,7 @@ public sealed class SuperBinding(
             {
                 if (descriptor.Get is { } getter)
                 {
-                    var result = getter.Invoke([], thisValue);
+                    var result = getter.Invoke([], ThisValue);
                     value = result;
                     return true;
                 }
@@ -63,7 +63,7 @@ public sealed class SuperBinding(
             {
                 if (descriptor.Get is { } getter)
                 {
-                    var result = getter.Invoke([], thisValue);
+                    var result = getter.Invoke([], ThisValue);
                     value = result;
                     return true;
                 }
@@ -105,7 +105,7 @@ public sealed class SuperBinding(
             var descriptor = objectLike.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is { } setter)
             {
-                setter.Invoke(new SingleValueArgs(value), thisValue);
+                setter.Invoke(new SingleValueArgs(value), ThisValue);
                 usedSetter = true;
                 return true;
             }
@@ -116,14 +116,14 @@ public sealed class SuperBinding(
             var descriptor = ctorObject.GetOwnPropertyDescriptor(name);
             if (descriptor?.Set is { } setter)
             {
-                setter.Invoke(new SingleValueArgs(value), thisValue);
+                setter.Invoke(new SingleValueArgs(value), ThisValue);
                 usedSetter = true;
                 return true;
             }
         }
 
         // Set on the receiver (thisValue) - this is where strict mode matters
-        if (thisValue.TryGetObject<IJsObjectLike>(out var thisObject))
+        if (ThisValue.TryGetObject<IJsObjectLike>(out var thisObject))
         {
             // Check if the object is frozen or the property is non-writable
             if (thisObject.IsFrozen)
@@ -146,7 +146,7 @@ public sealed class SuperBinding(
             return true;
         }
 
-        if (thisValue.TryGetObject<IJsPropertyAccessor>(out var receiver))
+        if (ThisValue.TryGetObject<IJsPropertyAccessor>(out var receiver))
         {
             receiver.SetProperty(name, value);
             return true;

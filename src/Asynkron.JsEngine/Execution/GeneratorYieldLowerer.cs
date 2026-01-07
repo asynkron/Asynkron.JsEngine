@@ -1,5 +1,6 @@
 #region
 
+using System;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
@@ -1774,13 +1775,17 @@ internal static class GeneratorYieldLowerer
                             return false;
                         }
 
-                        // Now destructure from resolvedSymbol
-                        return TryLowerArrayBindingWithYieldDefaults(
-                            nestedArray,
-                            varKind,
-                            resolvedSymbol,
+                        return TryHandleNestedBindingWithYieldDefault(
+                            defaultValue,
+                            valueSymbol,
                             statements,
-                            isStrict);
+                            isStrict,
+                            resolved => TryLowerArrayBindingWithYieldDefaults(
+                                nestedArray,
+                                varKind,
+                                resolved,
+                                statements,
+                                isStrict));
                     }
                     else
                     {
@@ -1815,12 +1820,17 @@ internal static class GeneratorYieldLowerer
                             return false;
                         }
 
-                        return TryLowerObjectBindingWithYieldDefaults(
-                            nestedObject,
-                            varKind,
-                            resolvedSymbol,
+                        return TryHandleNestedBindingWithYieldDefault(
+                            defaultValue,
+                            valueSymbol,
                             statements,
-                            isStrict);
+                            isStrict,
+                            resolved => TryLowerObjectBindingWithYieldDefaults(
+                                nestedObject,
+                                varKind,
+                                resolved,
+                                statements,
+                                isStrict));
                     }
                     else
                     {
@@ -1932,6 +1942,32 @@ internal static class GeneratorYieldLowerer
             }
 
             return sourceForNested;
+        }
+
+        private bool TryHandleNestedBindingWithYieldDefault(
+            ExpressionNode defaultValue,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements,
+            bool isStrict,
+            Func<IdentifierBinding, bool> nestedLowering)
+        {
+            var resolvedSymbol = CreateResumeIdentifier();
+            statements.Add(new VariableDeclaration(
+                null,
+                VariableKind.Let,
+                [new VariableDeclarator(null, resolvedSymbol, null)]));
+
+            if (!EmitYieldDefaultConditional(
+                    resolvedSymbol,
+                    defaultValue,
+                    valueSymbol,
+                    statements,
+                    isStrict))
+            {
+                return false;
+            }
+
+            return nestedLowering(resolvedSymbol);
         }
 
         /// <summary>

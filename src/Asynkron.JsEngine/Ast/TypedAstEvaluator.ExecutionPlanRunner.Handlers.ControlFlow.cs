@@ -66,39 +66,13 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BreakInstruction>(instr);
-            if (runner.HandleAbruptCompletion(AbruptKind.Break, instruction.TargetIndex))
-            {
-                if (runner._programCounter == runner._currentInstructionIndex && runner.TryCatchStateRef.TryStack.Count > 0)
-                {
-                    var frame = runner.TryCatchStateRef.TryStack.Peek();
-                    if (frame.EndFinallyIndex >= 0)
-                    {
-                        runner._programCounter = frame.EndFinallyIndex;
-                    }
-                }
-
-                returnValue = default;
-                return InstructionResult.Continue;
-            }
-
-            if (instruction.TargetScopeId >= 0)
-            {
-                var targetScopeId = instruction.TargetScopeId;
-                var walkEnv = environment;
-                while (walkEnv.ScopeId != targetScopeId && walkEnv.Enclosing != null)
-                {
-                    walkEnv = walkEnv.Enclosing;
-                }
-
-                if (walkEnv.ScopeId == targetScopeId)
-                {
-                    environment = walkEnv;
-                }
-            }
-
-            runner._programCounter = instruction.TargetIndex;
-            returnValue = default;
-            return InstructionResult.Continue;
+            return HandleAbruptControlJump(
+                runner,
+                instruction.TargetIndex,
+                instruction.TargetScopeId,
+                AbruptKind.Break,
+                ref environment,
+                out returnValue);
         }
 
         private static InstructionResult HandleContinue(
@@ -109,7 +83,24 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ContinueInstruction>(instr);
-            if (runner.HandleAbruptCompletion(AbruptKind.Continue, instruction.TargetIndex))
+            return HandleAbruptControlJump(
+                runner,
+                instruction.TargetIndex,
+                instruction.TargetScopeId,
+                AbruptKind.Continue,
+                ref environment,
+                out returnValue);
+        }
+
+        private static InstructionResult HandleAbruptControlJump(
+            ExecutionPlanRunner runner,
+            int targetIndex,
+            int targetScopeId,
+            AbruptKind abruptKind,
+            ref JsEnvironment environment,
+            out JsValue returnValue)
+        {
+            if (runner.HandleAbruptCompletion(abruptKind, targetIndex))
             {
                 if (runner._programCounter == runner._currentInstructionIndex && runner.TryCatchStateRef.TryStack.Count > 0)
                 {
@@ -124,9 +115,8 @@ public static partial class TypedAstEvaluator
                 return InstructionResult.Continue;
             }
 
-            if (instruction.TargetScopeId >= 0)
+            if (targetScopeId >= 0)
             {
-                var targetScopeId = instruction.TargetScopeId;
                 var walkEnv = environment;
                 while (walkEnv.ScopeId != targetScopeId && walkEnv.Enclosing != null)
                 {
@@ -139,7 +129,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            runner._programCounter = instruction.TargetIndex;
+            runner._programCounter = targetIndex;
             returnValue = default;
             return InstructionResult.Continue;
         }

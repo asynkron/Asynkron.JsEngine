@@ -314,6 +314,157 @@ public sealed class JsEnvironment : IRentable
     internal void AssertOwnership(string usage)
         => PoolDebug.AssertOwned(this, usage);
 
+    [Conditional("DEBUG")]
+    internal void AssertSlotIndexValid(int slotIndex, string usage)
+    {
+        if (_slots is null || slotIndex < 0 || slotIndex >= _slotCount)
+        {
+            throw new InvalidOperationException(
+                $"Slot index out of range ({usage}). slotIndex={slotIndex} slotCount={_slotCount}");
+        }
+
+        if (_slots[slotIndex].Name is null)
+        {
+            throw new InvalidOperationException(
+                $"Slot name missing ({usage}). slotIndex={slotIndex} scopeId={ScopeId}");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertSlotSymbols(ImmutableArray<Symbol> slotSymbols, string usage)
+    {
+        if (slotSymbols.IsDefaultOrEmpty || _slots is null)
+        {
+            return;
+        }
+
+        if (_slotCount < slotSymbols.Length)
+        {
+            throw new InvalidOperationException(
+                $"SlotSymbols length exceeds slot count ({usage}). symbols={slotSymbols.Length} slots={_slotCount}");
+        }
+
+        for (var i = 0; i < slotSymbols.Length; i++)
+        {
+            if (!ReferenceEquals(_slots[i].Name, slotSymbols[i]))
+            {
+                throw new InvalidOperationException(
+                    $"SlotSymbols mismatch ({usage}). index={i} expected={slotSymbols[i].Name} actual={_slots[i].Name?.Name ?? \"<null>\"}");
+            }
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertSlotMapLayout(ImmutableDictionary<Symbol, int> slotMap, string usage)
+    {
+        if (slotMap.IsEmpty || _slots is null)
+        {
+            return;
+        }
+
+        foreach (var (symbol, index) in slotMap)
+        {
+            if (index < 0 || index >= _slotCount)
+            {
+                throw new InvalidOperationException(
+                    $"SlotMap index out of range ({usage}). name={symbol.Name} slotIndex={index} slotCount={_slotCount}");
+            }
+
+            if (!ReferenceEquals(_slots[index].Name, symbol))
+            {
+                throw new InvalidOperationException(
+                    $"SlotMap name mismatch ({usage}). slotIndex={index} expected={symbol.Name} actual={_slots[index].Name?.Name ?? \"<null>\"}");
+            }
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertIterationLayout(
+        int expectedScopeId,
+        int requiredSlots,
+        ImmutableDictionary<Symbol, int>? slotMap,
+        string usage)
+    {
+        if (expectedScopeId >= 0 && ScopeId != expectedScopeId)
+        {
+            throw new InvalidOperationException(
+                $"Iteration scope mismatch ({usage}). expectedScopeId={expectedScopeId} actualScopeId={ScopeId}");
+        }
+
+        if (requiredSlots > 0 && _slotCount < requiredSlots)
+        {
+            throw new InvalidOperationException(
+                $"Iteration slot count too small ({usage}). required={requiredSlots} actual={_slotCount}");
+        }
+
+        if (slotMap is not null)
+        {
+            AssertSlotMapLayout(slotMap, usage);
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertHasBinding(Symbol name, string usage)
+    {
+        if (!HasBinding(name))
+        {
+            throw new InvalidOperationException(
+                $"Missing binding ({usage}). name={name.Name} scopeId={ScopeId}");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertVarBindingScope(Symbol name, string usage)
+    {
+        var functionScope = GetFunctionScope();
+        if (!functionScope.IsFunctionScope)
+        {
+            throw new InvalidOperationException($"Var binding missing function scope ({usage}). name={name.Name}");
+        }
+
+        if (HasOwnLexicalBinding(name))
+        {
+            throw new InvalidOperationException(
+                $"Var binding collided with lexical binding ({usage}). name={name.Name} scopeId={ScopeId}");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertScopeChain(string usage)
+    {
+        // Floyd cycle detection
+        var slow = this;
+        var fast = this;
+        while (fast?.Enclosing is not null)
+        {
+            slow = slow.Enclosing!;
+            fast = fast.Enclosing?.Enclosing;
+            if (ReferenceEquals(slow, fast))
+            {
+                throw new InvalidOperationException($"Scope chain cycle detected ({usage}).");
+            }
+        }
+
+        var current = this;
+        var depth = 0;
+        while (current is not null)
+        {
+            depth++;
+            if (depth > MaxDepth)
+            {
+                throw new InvalidOperationException($"Scope chain exceeded max depth ({usage}). depth={depth}");
+            }
+
+            var next = current.Enclosing;
+            if (ReferenceEquals(next, current))
+            {
+                throw new InvalidOperationException($"Scope chain self reference detected ({usage}).");
+            }
+
+            current = next;
+        }
+    }
+
     /// <summary>
     ///     Called when environment is rented from pool.
     ///     Implements IRentable.Activate().
@@ -959,6 +1110,7 @@ public sealed class JsEnvironment : IRentable
 
     internal bool HasBinding(Symbol name)
     {
+        AssertScopeChain(nameof(HasBinding));
         var current = this;
         var hops = 0;
         const int maxLookupDepth = 10_000;
@@ -2860,6 +3012,7 @@ public sealed class JsEnvironment : IRentable
 
     internal bool HasFunctionScopedBinding(Symbol name)
     {
+        AssertScopeChain(nameof(HasFunctionScopedBinding));
         var scope = GetFunctionScope();
         ref var slot = ref scope.TryGetSlotRef(name);
         return !Unsafe.IsNullRef(ref slot) && !slot.IsLexical;
@@ -2867,6 +3020,7 @@ public sealed class JsEnvironment : IRentable
 
     internal JsEnvironment GetFunctionScope()
     {
+        AssertScopeChain(nameof(GetFunctionScope));
         if (_varEnvironmentOverride is not null)
         {
             return _varEnvironmentOverride.GetFunctionScope();
@@ -2884,6 +3038,7 @@ public sealed class JsEnvironment : IRentable
 
     internal JsEnvironment GetVarEnvironment()
     {
+        AssertScopeChain(nameof(GetVarEnvironment));
         return _varEnvironmentOverride ?? GetFunctionScope();
     }
 
@@ -3454,6 +3609,7 @@ public sealed class JsEnvironment : IRentable
         }
 
         LayoutId = layoutId;
+        AssertSlotSymbols(slotSymbols, nameof(ResetSlotLayoutForPlan));
     }
 
     /// <summary>
@@ -3535,6 +3691,8 @@ public sealed class JsEnvironment : IRentable
 
             _slotCount = Math.Max(_slotCount, count);
         }
+
+        AssertSlotMapLayout(slotMap, nameof(SetSlotMap));
     }
 
     /// <summary>
@@ -3880,6 +4038,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref JsValue GetSlotRef(int slotIndex)
     {
+        AssertSlotIndexValid(slotIndex, nameof(GetSlotRef));
         return ref _slots![slotIndex].Value;
     }
 
@@ -3901,6 +4060,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void SetSlotDirect(int slotIndex, JsValue value)
     {
+        AssertSlotIndexValid(slotIndex, nameof(SetSlotDirect));
         ref var slot = ref _slots![slotIndex];
         slot.Value = value;
         // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
@@ -3918,6 +4078,7 @@ public sealed class JsEnvironment : IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryResolveSlot(Symbol name, int scopeId, int slotIndex, out JsEnvironment? targetEnv)
     {
+        AssertScopeChain(nameof(TryResolveSlot));
         if (scopeId < 0 || slotIndex < 0)
         {
             targetEnv = null;

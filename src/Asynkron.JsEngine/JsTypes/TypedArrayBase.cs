@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -283,6 +284,41 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
 
         value = JsValue.Undefined;
         return false;
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertInvariants(string usage)
+    {
+        if (_buffer.IsDetached || IsDetachedOrOutOfBounds())
+        {
+            return;
+        }
+
+        if (_byteOffset < 0 || _byteOffset > _buffer.ByteLength)
+        {
+            throw new InvalidOperationException(
+                $"TypedArray offset out of range ({usage}). offset={_byteOffset} bufferLength={_buffer.ByteLength}");
+        }
+
+        if (_byteOffset % _bytesPerElement != 0)
+        {
+            throw new InvalidOperationException(
+                $"TypedArray offset not aligned ({usage}). offset={_byteOffset} bpe={_bytesPerElement}");
+        }
+
+        var byteLength = ByteLength;
+        var length = Length;
+        if (byteLength != length * _bytesPerElement)
+        {
+            throw new InvalidOperationException(
+                $"TypedArray length mismatch ({usage}). length={length} byteLength={byteLength} bpe={_bytesPerElement}");
+        }
+
+        if (_byteOffset + byteLength > _buffer.ByteLength)
+        {
+            throw new InvalidOperationException(
+                $"TypedArray range exceeds buffer ({usage}). offset={_byteOffset} byteLength={byteLength} bufferLength={_buffer.ByteLength}");
+        }
     }
 
     public bool TryGetProperty(string name, out JsValue value)

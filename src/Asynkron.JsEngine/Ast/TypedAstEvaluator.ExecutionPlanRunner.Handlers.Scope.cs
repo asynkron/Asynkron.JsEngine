@@ -105,6 +105,7 @@ public static partial class TypedAstEvaluator
                 {
                     iteratorDriverState.CurrentIterationEnvironment ??= environment;
                     iteratorDriverState.LoopScopeEnvironment ??= environment.Enclosing;
+                    iteratorDriverState.AssertIterationEnvironmentState(nameof(HandlePushEnvironment));
                 }
 
                 runner._programCounter = instruction.Next;
@@ -210,11 +211,13 @@ public static partial class TypedAstEvaluator
             {
                 iteratorDriverState.CurrentIterationEnvironment = newIterationEnv;
                 iteratorDriverState.LoopScopeEnvironment ??= loopScope;
+                iteratorDriverState.AssertIterationEnvironmentState(nameof(HandlePushEnvironment));
             }
 
             // Eagerly populate flat slots for this scope (no dictionary lookup - mappings are on instruction)
             if (runner._flatSlots is not null && !instruction.FlatSlotMappings.IsDefaultOrEmpty)
             {
+                runner.AssertFlatSlotMappings(instruction.ScopeId, instruction.FlatSlotMappings, newIterationEnv);
                 foreach (var (slotIndex, flatSlotId) in instruction.FlatSlotMappings)
                 {
                     runner._flatSlots[flatSlotId] = new JsVariable(newIterationEnv, slotIndex);

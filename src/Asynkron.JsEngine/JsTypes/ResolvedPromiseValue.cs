@@ -148,9 +148,11 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
             resolved.AssertOwnership(nameof(Invoke));
             // For a resolved promise, catch() is equivalent to then(undefined, onRejected)
             // Since we're resolved, we just pass through the value
+            var resolvedValue = resolved._value;
             var nextPromise = new JsPromise(engine);
             engine.QueueMicrotask(
-                ResolvedPromisePassthroughMicrotask.Rent(resolved._value, nextPromise));
+                ResolvedPromisePassthroughMicrotask.Rent(resolvedValue, nextPromise));
+            resolved.Return();
             return JsValue.FromJsPromise(nextPromise);
         }
     }
@@ -164,19 +166,21 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
         {
             resolved.AssertOwnership(nameof(Invoke));
             var onFinally = args.Count > 0 ? args[0] : JsValue.Undefined;
+            var resolvedValue = resolved._value;
             var nextPromise = new JsPromise(engine);
 
             if (onFinally.TryGetCallable(out var finallyCallback))
             {
                 engine.QueueMicrotask(
-                    ResolvedPromiseFinallyMicrotask.Rent(finallyCallback, resolved._value, nextPromise));
+                    ResolvedPromiseFinallyMicrotask.Rent(finallyCallback, resolvedValue, nextPromise));
             }
             else
             {
                 engine.QueueMicrotask(
-                    ResolvedPromisePassthroughMicrotask.Rent(resolved._value, nextPromise));
+                    ResolvedPromisePassthroughMicrotask.Rent(resolvedValue, nextPromise));
             }
 
+            resolved.Return();
             return JsValue.FromJsPromise(nextPromise);
         }
     }

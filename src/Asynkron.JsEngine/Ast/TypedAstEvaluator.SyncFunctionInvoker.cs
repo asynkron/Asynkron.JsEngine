@@ -989,21 +989,21 @@ public static partial class TypedAstEvaluator
                     _ => thisValue.ObjectValue
                 };
 
-                    if (IsClassConstructor &&
-                        ReferenceEquals(boundThis, Symbol.Undefined) &&
-                        !newTarget.IsUndefined)
-                    {
-                        var constructedThis = CreateConstructedThis(newTarget, RealmState);
+                if (IsClassConstructor &&
+                    ReferenceEquals(boundThis, Symbol.Undefined) &&
+                    !newTarget.IsUndefined)
+                {
+                    var constructedThis = CreateConstructedThis(newTarget, RealmState);
 
-                        RealmState.Logger?.LogInformation(
-                            "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
-                            _function.Name?.Name ?? "<anonymous>",
-                            DescribeValue(constructedThis),
-                            DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
-                            newTarget.Kind);
+                    RealmState.Logger?.LogInformation(
+                        "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
+                        _function.Name?.Name ?? "<anonymous>",
+                        DescribeValue(constructedThis),
+                        DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
+                        newTarget.Kind);
 
-                        boundThis = constructedThis;
-                    }
+                    boundThis = constructedThis;
+                }
 
                 if (!_isStrict)
                 {

@@ -181,8 +181,7 @@ public static partial class TypedAstEvaluator
                 instruction.FinallyIndex,
                 instruction.EndFinallyIndex,
                 environment,
-                instruction.LoopContinueTarget,
-                instruction.LoopBreakTarget);
+                instruction.LoopContinueTarget);
             if (instruction.CatchSlotSymbol is { } slot && !environment.HasBinding(slot))
             {
                 environment.DefineJsValue(slot, JsValue.Undefined);

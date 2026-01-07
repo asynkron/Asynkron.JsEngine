@@ -70,8 +70,7 @@ public static partial class TypedAstEvaluator
             int finallyIndex,
             int endFinallyIndex,
             JsEnvironment entryEnvironment,
-            int loopContinueTarget = -1,
-            int loopBreakTarget = -1)
+            int loopContinueTarget = -1)
         {
             public int HandlerIndex { get; } = handlerIndex;
             public Symbol? CatchSlotSymbol { get; } = catchSlotSymbol;

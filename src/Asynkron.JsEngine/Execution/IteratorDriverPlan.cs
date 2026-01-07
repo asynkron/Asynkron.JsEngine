@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 
 #endregion
@@ -21,9 +22,10 @@ internal sealed record IteratorDriverPlan(
     ImmutableArray<Symbol> PerIterationBindings = default,
     bool CanReuseIterationEnvironment = false)
 {
+    private sealed record SlotMapCache(int RequiredSlots, ImmutableDictionary<Symbol, int>? SlotMap);
+
     // Cached slot map and required slot count - computed once, reused every iteration
-    private ImmutableDictionary<Symbol, int>? _cachedSlotMap;
-    private int _cachedRequiredSlots = -2; // -2 = not computed, -1 = no slots needed
+    private SlotMapCache? _slotMapCache;
 
     /// <summary>
     /// Gets or creates the cached slot map for iteration environments.
@@ -32,13 +34,14 @@ internal sealed record IteratorDriverPlan(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ImmutableDictionary<Symbol, int>? GetOrCreateSlotMap()
     {
-        if (_cachedSlotMap is not null || _cachedRequiredSlots != -2)
+        var cached = Volatile.Read(ref _slotMapCache);
+        if (cached is not null)
         {
-            return _cachedSlotMap;
+            return cached.SlotMap;
         }
 
         BuildSlotMapCache();
-        return _cachedSlotMap;
+        return _slotMapCache?.SlotMap;
     }
 
     /// <summary>
@@ -47,21 +50,27 @@ internal sealed record IteratorDriverPlan(
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetRequiredSlots()
     {
-        if (_cachedRequiredSlots != -2)
+        var cached = Volatile.Read(ref _slotMapCache);
+        if (cached is not null)
         {
-            return _cachedRequiredSlots;
+            return cached.RequiredSlots;
         }
 
         BuildSlotMapCache();
-        return _cachedRequiredSlots;
+        return _slotMapCache?.RequiredSlots ?? -2;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void BuildSlotMapCache()
     {
+        if (Volatile.Read(ref _slotMapCache) is not null)
+        {
+            return;
+        }
+
         if (IterationScopeId < 0 || PerIterationBindings.IsDefaultOrEmpty)
         {
-            _cachedRequiredSlots = -1;
+            Interlocked.CompareExchange(ref _slotMapCache, new SlotMapCache(-1, null), null);
             return;
         }
 
@@ -88,7 +97,7 @@ internal sealed record IteratorDriverPlan(
             requiredSlots = maxSlotIndex + 1;
         }
 
-        _cachedRequiredSlots = requiredSlots;
-        _cachedSlotMap = slotMapBuilder.ToImmutable();
+        var cache = new SlotMapCache(requiredSlots, slotMapBuilder.ToImmutable());
+        Interlocked.CompareExchange(ref _slotMapCache, cache, null);
     }
 }

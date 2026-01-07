@@ -162,6 +162,8 @@ public static partial class TypedAstEvaluator
                 runner.ForInStateRef.CurrentDriverState = driverState;
             }
 
+            driverState.AssertOwnership("for-in driver state");
+
             // Get JsVariables directly from driverState (O(1) access)
             var stateVar = driverState.StateVariable;
             var valueVar = driverState.ValueVariable;

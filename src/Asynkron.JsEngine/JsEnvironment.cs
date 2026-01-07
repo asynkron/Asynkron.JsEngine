@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -113,6 +114,8 @@ public sealed class JsEnvironment : IRentable
     /// -1 means not set (use fallback to dictionary lookup).
     /// </summary>
     internal int ScopeId { get; set; } = -1;
+    internal int PoolLeaseId { get; private set; }
+    internal bool IsLeased { get; private set; }
 
     internal static string FormatScopeIdForLog(int scopeId)
     {
@@ -249,6 +252,68 @@ public sealed class JsEnvironment : IRentable
         LayoutId = -1;
     }
 
+    internal void MarkLeased(int leaseId)
+    {
+        if (!PoolGuard.Enabled)
+        {
+            return;
+        }
+
+        if (IsLeased)
+        {
+            throw new InvalidOperationException("JsEnvironment double lease detected.");
+        }
+
+        IsLeased = true;
+        PoolLeaseId = leaseId;
+    }
+
+    internal void MarkReturned()
+    {
+        if (!PoolGuard.Enabled)
+        {
+            return;
+        }
+
+        if (!IsLeased)
+        {
+            throw new InvalidOperationException("JsEnvironment returned without an active lease.");
+        }
+
+        IsLeased = false;
+        PoolLeaseId = 0;
+    }
+
+    internal void AssertLease(int expectedLeaseId, string usage)
+    {
+        if (!PoolGuard.Enabled)
+        {
+            return;
+        }
+
+        if (!IsLeased || PoolLeaseId != expectedLeaseId)
+        {
+            throw new InvalidOperationException(
+                $"JsEnvironment lease mismatch for {usage}. expected={expectedLeaseId} actual={PoolLeaseId}");
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void MarkLeasedDebug()
+    {
+        PoolDebug.MarkLeased(this);
+    }
+
+    [Conditional("DEBUG")]
+    internal void MarkReturnedDebug()
+    {
+        PoolDebug.MarkReturned(this);
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage)
+        => PoolDebug.AssertOwned(this, usage);
+
     /// <summary>
     ///     Called when environment is rented from pool.
     ///     Implements IRentable.Activate().
@@ -323,6 +388,8 @@ public sealed class JsEnvironment : IRentable
         Depth = (enclosing?.Depth ?? 0) + 1;
         _thisValue = default;
         _hasThisValue = false;
+        IsLeased = false;
+        PoolLeaseId = 0;
     }
 
     /// <summary>

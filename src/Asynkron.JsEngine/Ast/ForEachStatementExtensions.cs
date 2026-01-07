@@ -9,6 +9,8 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private const string DisableForOfLoopEnvPoolVar = "JSENGINE_DISABLE_FOROF_LOOP_ENV_POOL";
+
     private static JsValue EvaluateForEachJsValue(this ForEachStatement statement, JsEnvironment environment,
         EvaluationContext context, Symbol? loopLabel)
     {
@@ -88,9 +90,13 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        // Pool handles captured environments (closures mark them, pool ignores on return)
-        using var pooledLoopEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop", logger: logger);
-        JsEnvironment loopEnvironment = pooledLoopEnv;
+        var useLoopPool = !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+        using var pooledLoopEnv = useLoopPool
+            ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop", logger: logger)
+            : default;
+        JsEnvironment loopEnvironment = useLoopPool
+            ? pooledLoopEnv
+            : new JsEnvironment(environment, false, false, statement.Source, "for-each-loop");
 
         if (statement.Kind == ForEachKind.Of)
         {
@@ -214,11 +220,15 @@ public static partial class TypedAstEvaluator
                 context.RealmState);
         }
 
-        // Pool handles captured environments (closures mark them, pool ignores on return)
-        using var pooledLoopEnv = JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop",
-            logger: logger);
+        var useLoopPool = !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
+        using var pooledLoopEnv = useLoopPool
+            ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
+            : default;
+        var loopEnvironment = useLoopPool
+            ? pooledLoopEnv.Value!
+            : new JsEnvironment(environment, false, false, statement.Source, "for-await-of loop");
 
-        return ExecuteIteratorWithFastPath(statement, iterableJs, pooledLoopEnv, environment, context, loopLabel);
+        return ExecuteIteratorWithFastPath(statement, iterableJs, loopEnvironment, environment, context, loopLabel);
     }
 
     private static JsValue ExecuteIteratorWithFastPath(
@@ -282,4 +292,5 @@ public static partial class TypedAstEvaluator
 
         throw StandardLibrary.ThrowTypeError("Value is not iterable", context, context.RealmState);
     }
+
 }

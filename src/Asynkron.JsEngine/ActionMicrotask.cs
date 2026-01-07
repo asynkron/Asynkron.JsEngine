@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine;
@@ -23,6 +24,7 @@ internal sealed class ActionMicrotask : IMicrotask, IRentable
 
     public void Execute()
     {
+        AssertOwnership(nameof(Execute));
         var action = _action!;
         try
         {
@@ -41,4 +43,7 @@ internal sealed class ActionMicrotask : IMicrotask, IRentable
         _action = null;
         Epoch = 0;
     }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 }

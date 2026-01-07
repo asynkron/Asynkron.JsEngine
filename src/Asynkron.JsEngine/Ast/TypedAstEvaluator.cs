@@ -906,18 +906,6 @@ public static partial class TypedAstEvaluator
         {
             var objValue = jsValue.ObjectValue;
 
-            // Fast path for TypedArray - uses pooled enumerator
-            if (objValue is TypedArrayBase typedArray)
-            {
-                if (typedArray.IsDetachedOrOutOfBounds())
-                {
-                    throw typedArray.CreateOutOfBoundsTypeError();
-                }
-
-                enumerator = TypedArrayPooledEnumerator.Rent(typedArray);
-                return true;
-            }
-
             // Try iterator protocol on property accessor (must be before IEnumerable fallback
             // because JsArray implements IEnumerable<JsValue> but needs iterator protocol for
             // tests that modify Array.prototype[Symbol.iterator])

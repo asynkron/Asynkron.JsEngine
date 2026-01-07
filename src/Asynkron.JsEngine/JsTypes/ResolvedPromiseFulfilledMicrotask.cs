@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -28,6 +29,7 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask, IRentable
 
     public void Execute()
     {
+        AssertOwnership(nameof(Execute));
         var callback = _callback!;
         var value = _value;
         var nextPromise = _nextPromise!;
@@ -64,4 +66,7 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask, IRentable
         _nextPromise = null;
         Epoch = 0;
     }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 }

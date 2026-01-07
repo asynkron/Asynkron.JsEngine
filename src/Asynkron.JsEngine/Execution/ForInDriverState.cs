@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Microsoft.Extensions.Logging;
@@ -41,6 +42,9 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// The loop scope environment captured at ForInInit time.
     /// </summary>
     public JsEnvironment? LoopScopeEnvironment { get; set; }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
     public ref readonly JsValue AsJsValue
     {

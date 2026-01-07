@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -37,6 +38,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Return()
     {
+        AssertOwnership(nameof(Return));
         _value = default;
         _engine = null;
         Pool.Return(this);
@@ -46,6 +48,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     {
         get
         {
+            AssertOwnership(nameof(AsJsValue));
             if (_cachedJsValue.ObjectValue is null)
             {
                 _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
@@ -56,6 +59,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
 
     public bool TryGetProperty(string name, out JsValue value)
     {
+        AssertOwnership(nameof(TryGetProperty));
         switch (name)
         {
             case "then":
@@ -76,13 +80,24 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
 
     public void SetProperty(string name, JsValue value)
     {
+        AssertOwnership(nameof(SetProperty));
         // ResolvedPromiseValue is immutable - property sets are ignored
     }
 
     /// <summary>
     ///     Gets the resolved value.
     /// </summary>
-    internal JsValue Value => _value;
+    internal JsValue Value
+    {
+        get
+        {
+            AssertOwnership(nameof(Value));
+            return _value;
+        }
+    }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
     /// <summary>
     ///     Lightweight 'then' method for resolved promises.
@@ -91,6 +106,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     {
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
+            resolved.AssertOwnership(nameof(Invoke));
             var onFulfilled = args.Count > 0 ? args[0] : JsValue.Undefined;
 
             // Capture value before returning to pool (JsValue is a struct, so this is a copy)
@@ -129,6 +145,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     {
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
+            resolved.AssertOwnership(nameof(Invoke));
             // For a resolved promise, catch() is equivalent to then(undefined, onRejected)
             // Since we're resolved, we just pass through the value
             var nextPromise = new JsPromise(engine);
@@ -145,6 +162,7 @@ internal sealed class ResolvedPromiseValue : IJsPropertyAccessor, IAsJsValue
     {
         public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
         {
+            resolved.AssertOwnership(nameof(Invoke));
             var onFinally = args.Count > 0 ? args[0] : JsValue.Undefined;
             var nextPromise = new JsPromise(engine);
 

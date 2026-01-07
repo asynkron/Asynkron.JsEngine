@@ -1,6 +1,7 @@
 #region
 
 using System.Collections;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 
@@ -37,7 +38,11 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
     public JsValue Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _current;
+        get
+        {
+            AssertOwnership(nameof(Current));
+            return _current;
+        }
     }
 
     object IEnumerator.Current => _current;
@@ -45,6 +50,7 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
+        AssertOwnership(nameof(MoveNext));
         var typedArray = _typedArray;
         if (typedArray is null)
         {
@@ -68,6 +74,9 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
         return true;
 
     }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
     void IRentable.Activate(ILogger? logger) { }
 

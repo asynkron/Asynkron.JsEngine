@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -188,6 +189,7 @@ public static partial class TypedAstEvaluator
 
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
+                AssertOwnership(nameof(Invoke));
                 var executor = _executor!;
                 var resolve = _resolve!;
                 var reject = _reject!;
@@ -264,6 +266,9 @@ public static partial class TypedAstEvaluator
 
                 return (fulfilled, rejected);
             }
+
+            [Conditional("DEBUG")]
+            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,11 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
     public JsValue Current
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _current;
+        get
+        {
+            AssertOwnership(nameof(Current));
+            return _current;
+        }
     }
 
     object IEnumerator.Current => _current;
@@ -42,6 +47,7 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool MoveNext()
     {
+        AssertOwnership(nameof(MoveNext));
         var value = _value;
         if (value is null || _index >= value.Length)
         {
@@ -52,6 +58,9 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
 
         return true;
     }
+
+    [Conditional("DEBUG")]
+    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
     void IRentable.Activate(ILogger? logger) { }
 

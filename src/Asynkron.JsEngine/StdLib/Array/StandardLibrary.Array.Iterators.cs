@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
@@ -100,6 +101,13 @@ public static partial class StandardLibrary
                 // Projector now returns JsValue directly - no boxing
                 var valueJs = projector(index);
                 index++;
+                if (typedAccessor is not null && typedAccessor.Buffer.Resizable)
+                {
+                    var result = new IteratorResultObject(valueJs, false);
+                    result.Capture();
+                    return result.AsJsValue;
+                }
+
                 return IteratorResultObjectPool.Rent(valueJs, false).AsJsValue;
             }
 

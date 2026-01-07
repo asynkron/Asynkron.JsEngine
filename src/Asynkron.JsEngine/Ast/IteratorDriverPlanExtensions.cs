@@ -12,6 +12,8 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private const string DisableForOfReuseEnvVar = "JSENGINE_DISABLE_FOROF_ITER_ENV_REUSE";
+
     /// <summary>
     /// Rents an iteration environment from the pool with slots initialized.
     /// Avoids Func&lt;JsEnvironment&gt; lambda allocation.
@@ -90,6 +92,8 @@ public static partial class TypedAstEvaluator
         state.Enumerator = enumerator;
         state.IsAsyncIterator = plan.Kind == IteratorDriverKind.Await;
         state.NextMethod = iterator?.GetIteratorNextCallable(context);
+        var stateLeaseId = PoolGuard.Enabled ? state.PoolLeaseId : 0;
+        var loopEnvLeaseId = PoolGuard.Enabled ? loopEnvironment.PoolLeaseId : 0;
 
         // OPTIMIZATION: Check if we can use the fast slot path for simple identifier bindings
         // This avoids dictionary-based AssignLoopBinding and SyncIterationSlots per iteration
@@ -114,7 +118,8 @@ public static partial class TypedAstEvaluator
         var cachedLetConstVariable = default(JsVariable);
         var canReuseLetConstEnv = canUseSlotFastPath &&
                                   plan.DeclarationKind is VariableKind.Let or VariableKind.Const &&
-                                  plan.CanReuseIterationEnvironment;
+                                  plan.CanReuseIterationEnvironment &&
+                                  !IsEnvEnabled(DisableForOfReuseEnvVar);
         var letConstFirstIterationDone = false; // Track if we've done the first iteration setup
         var logger = context.RealmState.Logger;
         if (canReuseLetConstEnv)
@@ -126,6 +131,9 @@ public static partial class TypedAstEvaluator
                     description: "for-each-iteration-reused");
             cachedLetConstVariable = new JsVariable(reusableIterationEnvironment, fastPathSlotIndex);
         }
+        var reusableEnvLeaseId = PoolGuard.Enabled && reusableIterationEnvironment is not null
+            ? reusableIterationEnvironment.PoolLeaseId
+            : 0;
 
         // FAST PATH: Try tight loop for simple accumulator patterns like: for (const n of arr) { sum += n; }
         // This avoids calling EvaluateStatementJsValue per iteration
@@ -152,6 +160,27 @@ public static partial class TypedAstEvaluator
         {
             while (!context.ShouldStopEvaluation)
             {
+                if (stateLeaseId != 0)
+                {
+                    state.AssertLease(stateLeaseId, "for-of iterator state");
+                }
+
+                if (loopEnvLeaseId != 0)
+                {
+                    loopEnvironment.AssertLease(loopEnvLeaseId, "for-of loop environment");
+                }
+
+                if (reusableEnvLeaseId != 0 && reusableIterationEnvironment is not null)
+                {
+                    reusableIterationEnvironment.AssertLease(reusableEnvLeaseId, "for-of reusable iteration env");
+                }
+                state.AssertOwnership("for-of iterator state");
+                loopEnvironment.AssertOwnership("for-of loop environment");
+                if (reusableIterationEnvironment is not null)
+                {
+                    reusableIterationEnvironment.AssertOwnership("for-of reusable iteration env");
+                }
+
                 context.ThrowIfCancellationRequested();
 
                 object? nextResult = null;
@@ -705,5 +734,18 @@ public static partial class TypedAstEvaluator
         {
             environment.SetSlotMap(slotMap);
         }
+    }
+
+    private static bool IsEnvEnabled(string name)
+    {
+        var setting = Environment.GetEnvironmentVariable(name);
+        if (string.IsNullOrWhiteSpace(setting))
+        {
+            return false;
+        }
+
+        return !string.Equals(setting, "0", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(setting, "false", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(setting, "off", StringComparison.OrdinalIgnoreCase);
     }
 }

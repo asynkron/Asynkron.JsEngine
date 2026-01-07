@@ -2499,7 +2499,7 @@ public sealed class JsEngine : IAsyncDisposable
         return JsValue.Undefined;
     }
 
-    private JsValue DynamicImport(
+    internal ImportPhase GetImportPhase() => ImportPhase.Module;
         IReadOnlyList<JsValue> args,
         EvaluationContext? context,
         ImportPhase phase,

@@ -144,19 +144,20 @@ internal static class JsOps
             return result.NumberValue;
         }
 
-        if (result.IsBigInt)
+        if (!result.IsBigInt)
         {
-            // Per ECMAScript spec, ToNumber on BigInt throws TypeError
-            var error = StandardLibrary.CreateTypeError("Cannot convert a BigInt value to a number", context, context?.RealmState);
-            if (context is null)
-            {
-                throw new ThrowSignal(error);
-            }
-            context.SetThrow(error);
             return double.NaN;
         }
 
+        // Per ECMAScript spec, ToNumber on BigInt throws TypeError
+        var error = StandardLibrary.CreateTypeError("Cannot convert a BigInt value to a number", context, context?.RealmState);
+        if (context is null)
+        {
+            throw new ThrowSignal(error);
+        }
+        context.SetThrow(error);
         return double.NaN;
+
     }
 
     /// <summary>

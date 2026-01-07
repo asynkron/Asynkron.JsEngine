@@ -256,7 +256,7 @@ public static partial class TypedAstEvaluator
             _programCounter = resumeTarget;
         }
 
-        private bool HandleAbruptCompletion(AbruptKind kind, object? /* intentional */ value, JsEnvironment environment)
+        private bool HandleAbruptCompletion(AbruptKind kind, object? /* intentional */ value)
         {
             // Clear any previous restored environment
             TryCatchStateRef.RestoredEnvironmentFromTry = null;
@@ -349,12 +349,12 @@ public static partial class TypedAstEvaluator
         /// <summary>
         /// JsValue overload - boxes the JsValue which is better than ToObject() as it preserves type info.
         /// </summary>
-        private bool HandleAbruptCompletionJsValue(AbruptKind kind, JsValue value, JsEnvironment environment)
+        private bool HandleAbruptCompletionJsValue(AbruptKind kind, JsValue value)
         {
             // Boxing JsValue is preferred over ToObject() because:
             // 1. It preserves the JsValue type information
             // 2. Downstream code can detect "is JsValue" and unbox efficiently
-            return HandleAbruptCompletion(kind, value, environment);
+            return HandleAbruptCompletion(kind, value);
         }
 
         /// <summary>

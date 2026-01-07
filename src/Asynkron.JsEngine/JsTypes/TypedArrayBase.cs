@@ -277,9 +277,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
                 value = GetValueForIndex(index);
                 return true;
             }
-
-            value = JsValue.Undefined;
-            return false;
         }
 
         value = JsValue.Undefined;

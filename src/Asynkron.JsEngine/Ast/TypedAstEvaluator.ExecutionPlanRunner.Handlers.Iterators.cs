@@ -54,7 +54,7 @@ public static partial class TypedAstEvaluator
                         return InstructionResult.Continue;
                     }
 
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, closeThrown.ThrownValue))
                     {
                         runner._programCounter = instruction.Next;
                         returnValue = default;
@@ -108,7 +108,7 @@ public static partial class TypedAstEvaluator
             {
                 var initThrown = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, initThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, initThrown))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;

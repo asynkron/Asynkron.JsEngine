@@ -312,6 +312,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
     {
         if (string.IsNullOrEmpty(currency))
         {
+            // ReSharper disable once DuplicatedStatements
             return 2;
         }
 

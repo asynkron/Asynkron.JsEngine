@@ -101,8 +101,7 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
-    private static void IteratorClose(this IJsObjectLike iterator, EvaluationContext context, bool preserveExistingThrow = false,
-        JsValue existingThrowOverride = default)
+    private static void IteratorClose(this IJsObjectLike iterator, EvaluationContext context, bool preserveExistingThrow = false)
     {
         var savedSignal = preserveExistingThrow ? context.CurrentSignal : null;
         context.RealmState.Logger?.LogInformation(

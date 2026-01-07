@@ -700,9 +700,6 @@ public sealed class EvaluationContext(
             _scopes = null;
             _disposed = false;
         }
-
-        [Conditional("DEBUG")]
-        internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
     }
 
     [Conditional("DEBUG")]

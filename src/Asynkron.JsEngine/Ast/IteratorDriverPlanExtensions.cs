@@ -293,8 +293,7 @@ public static partial class TypedAstEvaluator
 
                     if (state.IteratorObject is not null && !iteratorDone)
                     {
-                        state.IteratorObject.IteratorClose(context, true,
-                            thrown);
+                        state.IteratorObject.IteratorClose(context, true);
 
                         if (context.IsThrow)
                         {

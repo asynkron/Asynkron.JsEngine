@@ -52,7 +52,7 @@ public sealed partial class ProxyConstructor(IJsObjectLike prototype, RealmState
         var container = new JsObject();
         container.SetProperty("proxy", JsValue.FromJsProxy(proxy));
 
-        container.SetHostedProperty("revoke", (__, _) =>
+        container.SetHostedProperty("revoke", (_, _) =>
         {
             proxy.Handler = null;
             return JsValue.Undefined;

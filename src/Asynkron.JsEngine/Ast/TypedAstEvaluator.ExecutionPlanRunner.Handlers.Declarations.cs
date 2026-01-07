@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
             {
                 var classThrown = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, classThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, classThrown))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -109,7 +109,7 @@ public static partial class TypedAstEvaluator
             {
                 var varThrown = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, varThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, varThrown))
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
@@ -127,7 +127,7 @@ public static partial class TypedAstEvaluator
             {
                 var varReturnValue = context.FlowValue;
                 context.ClearReturn();
-                if (!runner.HandleAbruptCompletion(AbruptKind.Return, varReturnValue, environment))
+                if (!runner.HandleAbruptCompletion(AbruptKind.Return, varReturnValue))
                 {
                     returnValue = runner.CompleteReturn(varReturnValue);
                     return InstructionResult.Return;
@@ -214,7 +214,7 @@ public static partial class TypedAstEvaluator
             {
                 var thrown = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
@@ -232,7 +232,7 @@ public static partial class TypedAstEvaluator
             {
                 var returnVal = context.FlowValue;
                 context.ClearReturn();
-                if (!runner.HandleAbruptCompletion(AbruptKind.Return, returnVal, environment))
+                if (!runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
                 {
                     returnValue = runner.CompleteReturn(returnVal);
                     return InstructionResult.Return;

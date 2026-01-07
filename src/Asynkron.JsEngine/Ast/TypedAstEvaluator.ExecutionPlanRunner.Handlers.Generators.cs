@@ -40,7 +40,7 @@ public static partial class TypedAstEvaluator
                 {
                     var thrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -103,7 +103,7 @@ public static partial class TypedAstEvaluator
             {
                 var thrownPayload = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownPayload, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownPayload))
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
@@ -121,7 +121,7 @@ public static partial class TypedAstEvaluator
             {
                 var resumeReturnValue = context.FlowValue;
                 context.ClearReturn();
-                if (runner.HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Return, resumeReturnValue))
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
@@ -177,14 +177,14 @@ public static partial class TypedAstEvaluator
                 switch (pendingKind)
                 {
                     case AbruptKind.Throw
-                        when runner.HandleAbruptCompletion(AbruptKind.Throw, pendingValue, environment):
+                        when runner.HandleAbruptCompletion(AbruptKind.Throw, pendingValue):
                         returnValue = default;
                         return InstructionResult.Continue;
                     case AbruptKind.Throw:
                         runner.TryCatchStateRef.TryStack.Clear();
                         throw new ThrowSignal(pendingValue);
                     case AbruptKind.Return when runner.HandleAbruptCompletion(AbruptKind.Return,
-                        pendingValue, environment):
+                        pendingValue):
                         returnValue = default;
                         return InstructionResult.Continue;
                     case AbruptKind.Return:
@@ -210,7 +210,7 @@ public static partial class TypedAstEvaluator
                 {
                     var thrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -226,7 +226,7 @@ public static partial class TypedAstEvaluator
                 {
                     var thrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -288,7 +288,7 @@ public static partial class TypedAstEvaluator
                     yieldStarState.State = null;
                     yieldStarState.AwaitingResume = false;
                     environment.AssignJsValue(instruction.StateSlotSymbol, JsValue.Null);
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                     {
                         break;
                     }
@@ -323,7 +323,7 @@ public static partial class TypedAstEvaluator
 
                     if (pendingKind == AbruptKind.Throw)
                     {
-                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, abruptValue, environment))
+                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, abruptValue))
                         {
                             break;
                         }
@@ -332,7 +332,7 @@ public static partial class TypedAstEvaluator
                         throw new ThrowSignal(abruptValue);
                     }
 
-                    if (runner.HandleAbruptCompletion(AbruptKind.Return, abruptValue, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Return, abruptValue))
                     {
                         break;
                     }

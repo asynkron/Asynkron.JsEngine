@@ -504,34 +504,45 @@ internal sealed class VarNameCollector : AstVisitor
 
     private void CollectBindingNames(BindingTarget target)
     {
-        switch (target)
+        while (true)
         {
-            case IdentifierBinding id:
-                _names!.Add(id.Name);
-                break;
-            case ArrayBinding array:
-                foreach (var element in array.Elements)
-                {
-                    if (element.Target is not null)
+            switch (target)
+            {
+                case IdentifierBinding id:
+                    _names!.Add(id.Name);
+                    break;
+                case ArrayBinding array:
+                    foreach (var element in array.Elements)
                     {
-                        CollectBindingNames(element.Target);
+                        if (element.Target is not null)
+                        {
+                            CollectBindingNames(element.Target);
+                        }
                     }
-                }
-                if (array.RestElement is not null)
-                {
-                    CollectBindingNames(array.RestElement);
-                }
-                break;
-            case ObjectBinding obj:
-                foreach (var prop in obj.Properties)
-                {
-                    CollectBindingNames(prop.Target);
-                }
-                if (obj.RestElement is not null)
-                {
-                    CollectBindingNames(obj.RestElement);
-                }
-                break;
+
+                    if (array.RestElement is not null)
+                    {
+                        target = array.RestElement;
+                        continue;
+                    }
+
+                    break;
+                case ObjectBinding obj:
+                    foreach (var prop in obj.Properties)
+                    {
+                        CollectBindingNames(prop.Target);
+                    }
+
+                    if (obj.RestElement is not null)
+                    {
+                        target = obj.RestElement;
+                        continue;
+                    }
+
+                    break;
+            }
+
+            break;
         }
     }
 

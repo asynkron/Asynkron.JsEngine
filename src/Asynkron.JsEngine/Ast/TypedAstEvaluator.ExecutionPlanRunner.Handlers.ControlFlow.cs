@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BreakInstruction>(instr);
-            if (runner.HandleAbruptCompletion(AbruptKind.Break, instruction.TargetIndex, environment))
+            if (runner.HandleAbruptCompletion(AbruptKind.Break, instruction.TargetIndex))
             {
                 if (runner._programCounter == runner._currentInstructionIndex && runner.TryCatchStateRef.TryStack.Count > 0)
                 {
@@ -109,7 +109,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ContinueInstruction>(instr);
-            if (runner.HandleAbruptCompletion(AbruptKind.Continue, instruction.TargetIndex, environment))
+            if (runner.HandleAbruptCompletion(AbruptKind.Continue, instruction.TargetIndex))
             {
                 if (runner._programCounter == runner._currentInstructionIndex && runner.TryCatchStateRef.TryStack.Count > 0)
                 {
@@ -164,7 +164,7 @@ public static partial class TypedAstEvaluator
             {
                 var pendingThrow = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, pendingThrow, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, pendingThrow))
                 {
                     if (runner._programCounter == runner._currentInstructionIndex)
                     {
@@ -187,7 +187,7 @@ public static partial class TypedAstEvaluator
 
             var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
 
-            if (runner.HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal, environment))
+            if (runner.HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal))
             {
                 if (wasInsideScheduledFinally)
                 {
@@ -244,7 +244,7 @@ public static partial class TypedAstEvaluator
             {
                 var thrownValue = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;

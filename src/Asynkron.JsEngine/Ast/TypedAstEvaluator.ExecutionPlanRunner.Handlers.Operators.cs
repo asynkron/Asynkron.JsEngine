@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
                 {
                     var binThrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -57,7 +57,7 @@ public static partial class TypedAstEvaluator
                 {
                     var binThrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -158,7 +158,7 @@ public static partial class TypedAstEvaluator
             {
                 var incThrown = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, incThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, incThrown))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -193,7 +193,7 @@ public static partial class TypedAstEvaluator
                 {
                     var incFlowThrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, incFlowThrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -325,7 +325,7 @@ public static partial class TypedAstEvaluator
             {
                 var compThrown = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, compThrown, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, compThrown))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -371,7 +371,7 @@ public static partial class TypedAstEvaluator
                 {
                     var compRhsThrown = context.FlowValue;
                     context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown, environment))
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, compRhsThrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;

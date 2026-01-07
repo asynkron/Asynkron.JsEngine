@@ -275,7 +275,7 @@ public static partial class TypedAstEvaluator
                         context.Clear();
                     }
 
-                    if (HandleAbruptCompletion(AbruptKind.Throw, signal.ThrownValue, environment))
+                    if (HandleAbruptCompletion(AbruptKind.Throw, signal.ThrownValue))
                     {
                         // A catch block will handle this - continue execution from the catch handler
                         if (_programCounter == _currentInstructionIndex)

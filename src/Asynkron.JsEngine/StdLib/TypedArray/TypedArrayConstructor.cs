@@ -41,6 +41,8 @@ public sealed partial class TypedArrayConstructor(IJsObjectLike prototype, Realm
         {
             if (!newTarget.IsUndefined)
             {
+
+                // ReSharper disable once DuplicatedStatements
                 throw ThrowTypeError("TypedArray is not a constructor", realm: Realm);
             }
 

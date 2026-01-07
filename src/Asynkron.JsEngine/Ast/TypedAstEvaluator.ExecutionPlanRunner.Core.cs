@@ -193,23 +193,22 @@ public static partial class TypedAstEvaluator
 
             // For class constructors, apply ES spec [[Construct]] semantics:
             // If the return value is not an object, return `this` instead.
-            if (_callable is SyncFunctionInvoker syncInvoker && syncInvoker.IsClassConstructor)
+            if (_callable is not SyncFunctionInvoker syncInvoker || !syncInvoker.IsClassConstructor)
             {
-                if (returnValue.IsObject)
-                {
-                    return returnValue;
-                }
-
-                // Otherwise, return `this` from the execution environment.
-                // The execution environment was set up with the correct `this` value by the caller.
-                if (_executionEnvironment is not null &&
-                    _executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
-                {
-                    return thisValue;
-                }
-
-                // Fallback: return the raw value (should not happen for well-formed constructors).
                 return returnValue;
+            }
+
+            if (returnValue.IsObject)
+            {
+                return returnValue;
+            }
+
+            // Otherwise, return `this` from the execution environment.
+            // The execution environment was set up with the correct `this` value by the caller.
+            if (_executionEnvironment is not null &&
+                _executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
+            {
+                return thisValue;
             }
 
             return returnValue;

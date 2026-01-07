@@ -90,12 +90,6 @@ public static partial class TypedAstEvaluator
             public int LoopContinueTarget { get; } = loopContinueTarget;
 
             /// <summary>
-            /// For for-of loops: the break target index. When a break targets this index,
-            /// the finally should be scheduled via LeaveTry flow (exiting the loop).
-            /// </summary>
-            public int LoopBreakTarget { get; } = loopBreakTarget;
-
-            /// <summary>
             /// The environment that was active when entering the try block.
             /// Used to restore scope when jumping to catch/finally handlers.
             /// </summary>

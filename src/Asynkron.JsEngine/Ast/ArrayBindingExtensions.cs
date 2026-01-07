@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static Symbol? GetArrayPatternStateKey(ArrayBinding binding)
+    private static Symbol GetArrayPatternStateKey(ArrayBinding binding)
     {
         if (binding.Source is null)
         {
@@ -385,7 +385,7 @@ public static partial class TypedAstEvaluator
 
             if (iterator is not null && !iteratorThrew && !iteratorDone)
             {
-                CloseIterator(true, signal.ThrownValue);
+                CloseIterator(true);
             }
 
             throw;
@@ -426,7 +426,7 @@ public static partial class TypedAstEvaluator
 
         return;
 
-        void CloseIterator(bool preserveExistingThrow, JsValue existingThrowOverride = default)
+        void CloseIterator(bool preserveExistingThrow)
         {
             if (iterator is null)
             {
@@ -435,7 +435,7 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                iterator.IteratorClose(context, preserveExistingThrow, existingThrowOverride);
+                iterator.IteratorClose(context, preserveExistingThrow);
             }
             catch (ThrowSignal)
             {

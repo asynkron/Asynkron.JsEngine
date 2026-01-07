@@ -16,7 +16,6 @@ public sealed class JsTemporalInstant(BigInteger epochNanoseconds)
 {
     private const long NanosecondsPerMillisecond = 1_000_000L;
     private const long NanosecondsPerSecond = 1_000_000_000L;
-    private const long NanosecondsPerMinute = 60L * NanosecondsPerSecond;
 
     // Unix epoch: 1970-01-01T00:00:00Z
     private static readonly DateTimeOffset UnixEpoch = DateTimeOffset.UnixEpoch;

@@ -33,7 +33,7 @@ public static partial class TypedAstEvaluator
             {
                 var thrownWith = context.FlowValue;
                 context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownWith, environment))
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownWith))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;

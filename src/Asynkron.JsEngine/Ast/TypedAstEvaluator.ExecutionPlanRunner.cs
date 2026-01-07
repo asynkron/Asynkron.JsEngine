@@ -122,12 +122,10 @@ public static partial class TypedAstEvaluator
                 }
 
                 // awaitedValueSync is already JsValue
-                if (!TryAwaitPromise(awaitedValueSync, context, out var resolvedSync))
-                {
-                    return resolvedSync;
-                }
+                TryAwaitPromise(awaitedValueSync, context, out var resolvedSync);
 
                 return resolvedSync;
+
             }
 
             // Async-aware mode: use per-site await state so we don't re-run
@@ -246,7 +244,7 @@ public static partial class TypedAstEvaluator
         /// Returns true if the throw was handled and the caller should continue the loop.
         /// Throws ThrowSignal if the throw could not be handled.
         /// </summary>
-        private bool TryHandleContextThrow(EvaluationContext context, JsEnvironment environment)
+        private bool TryHandleContextThrow(EvaluationContext context)
         {
             if (!context.IsThrow)
             {
@@ -255,7 +253,7 @@ public static partial class TypedAstEvaluator
 
             var thrownValue = context.FlowValue;
             context.Clear();
-            if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+            if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue))
             {
                 return true;
             }
@@ -291,7 +289,7 @@ public static partial class TypedAstEvaluator
             {
                 var thrown = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, thrown, environment))
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrown))
                 {
                     if (_programCounter == _currentInstructionIndex)
                     {
@@ -309,7 +307,7 @@ public static partial class TypedAstEvaluator
             {
                 var returnSignalValue = context.FlowValue;
                 context.ClearReturn();
-                if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue, environment))
+                if (!HandleAbruptCompletion(AbruptKind.Return, returnSignalValue))
                 {
                     return (SignalAction.Return, CompleteReturn(returnSignalValue));
                 }
@@ -379,7 +377,7 @@ public static partial class TypedAstEvaluator
             {
                 var thrownValue = context.FlowValue;
                 context.Clear();
-                if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue, environment))
+                if (HandleAbruptCompletion(AbruptKind.Throw, thrownValue))
                 {
                     suspendResult = JsValue.Undefined;
                     return false;
@@ -459,7 +457,7 @@ public static partial class TypedAstEvaluator
             }
 
             // Check for throw
-            if (TryHandleContextThrow(context, environment))
+            if (TryHandleContextThrow(context))
             {
                 returnValue = default;
                 return InstructionResult.Continue;
@@ -497,7 +495,7 @@ public static partial class TypedAstEvaluator
                     ? AbruptKind.Return
                     : AbruptKind.Throw;
 
-                if (HandleAbruptCompletion(abruptKind, payload, environment))
+                if (HandleAbruptCompletion(abruptKind, payload))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
@@ -528,7 +526,7 @@ public static partial class TypedAstEvaluator
                     var typeError = StandardLibrary.CreateTypeError(
                         "Iterator result is not an object",
                         context, context.RealmState);
-                    if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                    if (HandleAbruptCompletion(AbruptKind.Throw, typeError))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -692,8 +690,7 @@ public static partial class TypedAstEvaluator
                 if (forAwaitResumeKind == ResumePayloadKind.Throw)
                 {
                     // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
-                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload,
-                            environment))
+                    if (HandleAbruptCompletion(AbruptKind.Throw, forAwaitResumePayload))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -706,8 +703,7 @@ public static partial class TypedAstEvaluator
                 if (forAwaitResumeKind == ResumePayloadKind.Return)
                 {
                     // forAwaitResumePayload is already JsValue, no need to box with .ToObject()
-                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload,
-                            environment))
+                    if (HandleAbruptCompletion(AbruptKind.Return, forAwaitResumePayload))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
@@ -771,7 +767,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var thrownAwait = context.FlowValue;
                                 context.Clear();
-                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait, environment))
+                                if (HandleAbruptCompletion(AbruptKind.Throw, thrownAwait))
                                 {
                                     returnValue = default;
                                     return InstructionResult.Continue;
@@ -802,7 +798,7 @@ public static partial class TypedAstEvaluator
                         var typeError = StandardLibrary.CreateTypeError(
                             "Iterator result is not an object", context,
                             context.RealmState);
-                        if (HandleAbruptCompletion(AbruptKind.Throw, typeError, environment))
+                        if (HandleAbruptCompletion(AbruptKind.Throw, typeError))
                         {
                             returnValue = default;
                             return InstructionResult.Continue;

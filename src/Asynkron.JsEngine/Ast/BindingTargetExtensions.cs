@@ -9,6 +9,9 @@ public static partial class TypedAstEvaluator
     private static void AssignLoopBinding(this BindingTarget target, JsValue value, JsEnvironment loopEnvironment,
         JsEnvironment outerEnvironment, EvaluationContext context, VariableKind? declarationKind)
     {
+        loopEnvironment.AssertOwnership(nameof(AssignLoopBinding));
+        outerEnvironment.AssertOwnership(nameof(AssignLoopBinding));
+        context.AssertOwnership(nameof(AssignLoopBinding));
         if (declarationKind is null)
         {
             target.AssignBindingTarget(value, outerEnvironment, context);
@@ -217,6 +220,8 @@ public static partial class TypedAstEvaluator
         bool allowNameInference = true,
         bool skipBlockedBindingLookup = false)
     {
+        environment.AssertOwnership(nameof(ApplyBindingTarget));
+        context.AssertOwnership(nameof(ApplyBindingTarget));
         switch (target)
         {
             case IdentifierBinding identifier:

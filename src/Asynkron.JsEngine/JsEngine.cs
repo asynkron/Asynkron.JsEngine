@@ -2500,6 +2500,8 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     internal ImportPhase GetImportPhase() => ImportPhase.Module;
+
+    private JsValue DynamicImport(
         IReadOnlyList<JsValue> args,
         EvaluationContext? context,
         ImportPhase phase,
@@ -4343,7 +4345,7 @@ public sealed class JsEngine : IAsyncDisposable
         internal bool HasAsyncDependency { get; set; }
     }
 
-    private enum ImportPhase
+    public enum ImportPhase
     {
         Module,
         Defer,

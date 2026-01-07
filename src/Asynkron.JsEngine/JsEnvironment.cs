@@ -320,7 +320,7 @@ public sealed class JsEnvironment : IRentable
         if (_slots is null || slotIndex < 0 || slotIndex >= _slotCount)
         {
             throw new InvalidOperationException(
-                $"Slot index out of range ({usage}). slotIndex={slotIndex} slotCount={_slotCount}");
+                $"Slot index out of range ({usage}). slotIndex={slotIndex} slotCount={_slotCount} scopeId={ScopeId}");
         }
 
         if (_slots[slotIndex].Name is null)

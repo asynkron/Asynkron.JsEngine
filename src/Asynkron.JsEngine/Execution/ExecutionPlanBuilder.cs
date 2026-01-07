@@ -169,15 +169,22 @@ internal sealed partial class ExecutionPlanBuilder
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
         // Post-process: stamp FlatSlotMappings on PushEnvironmentInstructions for O(1) access at runtime
-        if (flatSlotMappings is { Count: > 0 })
+        // Also clear stale mappings when flat slots are not used (instructions can be reused across builds).
+        for (var i = 0; i < Instructions.Count; i++)
         {
-            for (var i = 0; i < Instructions.Count; i++)
+            if (Instructions[i] is not PushEnvironmentInstruction push)
             {
-                if (Instructions[i] is PushEnvironmentInstruction push &&
-                    flatSlotMappings.TryGetValue(push.ScopeId, out var scopeMappings))
-                {
-                    Instructions[i] = push with { FlatSlotMappings = scopeMappings };
-                }
+                continue;
+            }
+
+            if (flatSlotMappings is { Count: > 0 } &&
+                flatSlotMappings.TryGetValue(push.ScopeId, out var scopeMappings))
+            {
+                Instructions[i] = push with { FlatSlotMappings = scopeMappings };
+            }
+            else if (!push.FlatSlotMappings.IsDefaultOrEmpty)
+            {
+                Instructions[i] = push with { FlatSlotMappings = default };
             }
         }
 
@@ -266,14 +273,23 @@ internal sealed partial class ExecutionPlanBuilder
         {
             var plan = ((IAstCacheable<IteratorDriverPlan>)forEach).GetOrCreateCache();
             var mappedScopeId = rewriter.MapScopeId(plan.IterationScopeId);
-            var stampedBody = (BlockStatement)rewriter.StampNodeInScope(plan.Body, mappedScopeId);
-            var mappedSlotCount = rewriter.GetSlotCountForScope(mappedScopeId);
             var perIterationSlotIndices = plan.PerIterationBindings.IsDefaultOrEmpty
                 ? plan.PerIterationSlotIndices
                 : [
                     ..plan.PerIterationBindings
                         .Select(binding => rewriter.TryResolveSlot(binding, mappedScopeId, out var idx) ? idx : -1)
                 ];
+            var hasResolvedSlot = perIterationSlotIndices.Any(idx => idx >= 0);
+            var planHasResolvedSlot = !plan.PerIterationSlotIndices.IsDefaultOrEmpty &&
+                                      plan.PerIterationSlotIndices.Any(idx => idx >= 0);
+            if (!hasResolvedSlot && planHasResolvedSlot)
+            {
+                _iteratorPlanOverrides[forEach] = plan;
+                continue;
+            }
+
+            var stampedBody = (BlockStatement)rewriter.StampNodeInScope(plan.Body, mappedScopeId);
+            var mappedSlotCount = rewriter.GetSlotCountForScope(mappedScopeId);
             var updatedPlan = plan with
             {
                 Body = stampedBody,
@@ -284,6 +300,7 @@ internal sealed partial class ExecutionPlanBuilder
                     : perIterationSlotIndices
             };
             _iteratorPlanOverrides[forEach] = updatedPlan;
+            UpdateCachedIteratorPlan(forEach, updatedPlan);
         }
     }
 
@@ -404,6 +421,19 @@ internal sealed partial class ExecutionPlanBuilder
         else
         {
             Debug.WriteLine("[UpdateCachedExecutionPlan] ERROR: Field not found");
+        }
+    }
+
+    private static void UpdateCachedIteratorPlan(ForEachStatement statement, IteratorDriverPlan stampedPlan)
+    {
+        var cacheField = typeof(ForEachStatement)
+            .GetField("_cachedPlan", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (cacheField is not null)
+        {
+            var slotMapCacheField = typeof(IteratorDriverPlan)
+                .GetField("_slotMapCache", BindingFlags.Instance | BindingFlags.NonPublic);
+            slotMapCacheField?.SetValue(stampedPlan, null);
+            cacheField.SetValue(statement, stampedPlan);
         }
     }
 

@@ -103,9 +103,14 @@ public static partial class TypedAstEvaluator
             {
                 if (iteratorDriverState is not null)
                 {
-                    iteratorDriverState.CurrentIterationEnvironment ??= environment;
-                    iteratorDriverState.LoopScopeEnvironment ??= environment.Enclosing;
-                    iteratorDriverState.AssertIterationEnvironmentState(nameof(HandlePushEnvironment));
+                    // Only update if this is the iterator's own loop, not a nested for-let loop
+                    if (iteratorDriverState.LoopScopeEnvironment is null ||
+                        ReferenceEquals(iteratorDriverState.LoopScopeEnvironment, environment.Enclosing))
+                    {
+                        iteratorDriverState.CurrentIterationEnvironment ??= environment;
+                        iteratorDriverState.LoopScopeEnvironment ??= environment.Enclosing;
+                        iteratorDriverState.AssertIterationEnvironmentState(nameof(HandlePushEnvironment));
+                    }
                 }
 
                 runner._programCounter = instruction.Next;
@@ -213,9 +218,15 @@ public static partial class TypedAstEvaluator
 
             if (iteratorDriverState is not null)
             {
-                iteratorDriverState.CurrentIterationEnvironment = newIterationEnv;
-                iteratorDriverState.LoopScopeEnvironment ??= loopScope;
-                iteratorDriverState.AssertIterationEnvironmentState(nameof(HandlePushEnvironment));
+                // Only update if this is the iterator's own loop, not a nested for-let loop.
+                // A nested loop would have a different loopScope (the outer loop's iteration env).
+                if (iteratorDriverState.LoopScopeEnvironment is null ||
+                    ReferenceEquals(iteratorDriverState.LoopScopeEnvironment, loopScope))
+                {
+                    iteratorDriverState.CurrentIterationEnvironment = newIterationEnv;
+                    iteratorDriverState.LoopScopeEnvironment ??= loopScope;
+                    iteratorDriverState.AssertIterationEnvironmentState(nameof(HandlePushEnvironment));
+                }
             }
 
             // Eagerly populate flat slots for this scope (no dictionary lookup - mappings are on instruction)

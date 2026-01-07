@@ -234,18 +234,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             if (index < str.Length)
             {
                 var first = str[index];
-                string charValue;
-                if (char.IsHighSurrogate(first) && index + 1 < str.Length &&
-                    char.IsLowSurrogate(str[index + 1]))
-                {
-                    charValue = str.Substring(index, 2);
-                    index += 2;
-                }
-                else
-                {
-                    charValue = first.ToString();
-                    index++;
-                }
+                var charValue = StringHelper.ReadCodePoint(str, ref index);
 
                 result.SetProperty("value", (JsValue)charValue);
                 result.SetProperty("done", false);

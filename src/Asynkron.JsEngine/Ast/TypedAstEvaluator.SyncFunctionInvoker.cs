@@ -765,19 +765,7 @@ public static partial class TypedAstEvaluator
                             // if thisValue is undefined (same logic as in the AST execution path)
                             if (!newTarget.IsUndefined && effectiveThisValue.IsUndefined)
                             {
-                                var constructedThis = new JsObject { RealmState = RealmState };
-                                if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
-                                    JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype",
-                                        out var protoVal) &&
-                                    protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
-                                {
-                                    constructedThis.SetPrototype(protoAccessor);
-                                }
-                                else if (RealmState.ObjectPrototype is { } defaultProto)
-                                {
-                                    constructedThis.SetPrototype(defaultProto);
-                                }
-
+                                var constructedThis = CreateConstructedThis(newTarget, RealmState);
                                 constructorThisValue = JsValue.FromObjectUnsafe(constructedThis);
                                 instanceToInit = constructedThis;
                             }
@@ -1001,32 +989,21 @@ public static partial class TypedAstEvaluator
                     _ => thisValue.ObjectValue
                 };
 
-                if (IsClassConstructor &&
-                    ReferenceEquals(boundThis, Symbol.Undefined) &&
-                    !newTarget.IsUndefined)
-                {
-                    var constructedThis = new JsObject { RealmState = RealmState };
-                    if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
-                        JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype",
-                            out var protoVal) &&
-                        protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+                    if (IsClassConstructor &&
+                        ReferenceEquals(boundThis, Symbol.Undefined) &&
+                        !newTarget.IsUndefined)
                     {
-                        constructedThis.SetPrototype(protoAccessor);
-                    }
-                    else if (RealmState.ObjectPrototype is { } defaultProto)
-                    {
-                        constructedThis.SetPrototype(defaultProto);
-                    }
+                        var constructedThis = CreateConstructedThis(newTarget, RealmState);
 
-                    RealmState.Logger?.LogInformation(
-                        "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        DescribeValue(constructedThis),
-                        DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
-                        newTarget.Kind);
+                        RealmState.Logger?.LogInformation(
+                            "ctor: synthesized receiver func={Function} receiver={Receiver} proto={Proto} newTargetKind={NewTargetKind}",
+                            _function.Name?.Name ?? "<anonymous>",
+                            DescribeValue(constructedThis),
+                            DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
+                            newTarget.Kind);
 
-                    boundThis = constructedThis;
-                }
+                        boundThis = constructedThis;
+                    }
 
                 if (!_isStrict)
                 {
@@ -2352,5 +2329,30 @@ public static partial class TypedAstEvaluator
                 }
             }
         }
+    }
+
+    private static JsObject CreateConstructedThis(JsValue newTarget, RealmState realmState)
+    {
+        var constructedThis = new JsObject { RealmState = realmState };
+        if (!TryApplyNewTargetPrototype(constructedThis, newTarget) &&
+            realmState.ObjectPrototype is { } defaultProto)
+        {
+            constructedThis.SetPrototype(defaultProto);
+        }
+
+        return constructedThis;
+    }
+
+    private static bool TryApplyNewTargetPrototype(JsObject constructedThis, JsValue newTarget)
+    {
+        if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
+            JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype", out var protoVal) &&
+            protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+        {
+            constructedThis.SetPrototype(protoAccessor);
+            return true;
+        }
+
+        return false;
     }
 }

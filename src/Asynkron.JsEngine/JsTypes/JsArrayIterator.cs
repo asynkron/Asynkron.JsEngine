@@ -55,12 +55,14 @@ internal sealed class JsArrayIterator : IJsObjectLike, IAsJsValue, IPrototypeAcc
         }
 
         // Check for detached typed arrays
-        if (_accessor is TypedArrayBase typedAccessor && typedAccessor.IsDetachedOrOutOfBounds())
+        var typedArray = _accessor as TypedArrayBase;
+        if (typedArray is not null)
         {
-            throw typedAccessor.CreateOutOfBoundsTypeError();
-        }
-        if (_accessor is TypedArrayBase typedArray)
-        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
             typedArray.AssertInvariants(nameof(Next));
         }
 

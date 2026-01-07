@@ -349,7 +349,7 @@ public sealed class JsEnvironment : IRentable
             if (!ReferenceEquals(_slots[i].Name, slotSymbols[i]))
             {
                 throw new InvalidOperationException(
-                    $"SlotSymbols mismatch ({usage}). index={i} expected={slotSymbols[i].Name} actual={_slots[i].Name?.Name ?? \"<null>\"}");
+                    $"SlotSymbols mismatch ({usage}). index={i} expected={slotSymbols[i].Name} actual={_slots[i].Name?.Name ?? "<null>"}");
             }
         }
     }
@@ -373,7 +373,7 @@ public sealed class JsEnvironment : IRentable
             if (!ReferenceEquals(_slots[index].Name, symbol))
             {
                 throw new InvalidOperationException(
-                    $"SlotMap name mismatch ({usage}). slotIndex={index} expected={symbol.Name} actual={_slots[index].Name?.Name ?? \"<null>\"}");
+                    $"SlotMap name mismatch ({usage}). slotIndex={index} expected={symbol.Name} actual={_slots[index].Name?.Name ?? "<null>"}");
             }
         }
     }

@@ -1754,27 +1754,6 @@ internal static class GeneratorYieldLowerer
                     // then destructure the result
                     if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
                     {
-                        // Create a temp for the resolved value
-                        var resolvedSymbol = CreateResumeIdentifier();
-
-                        // let resolvedSymbol;
-                        // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
-                        statements.Add(new VariableDeclaration(
-                            null,
-                            VariableKind.Let,
-                            [new VariableDeclarator(null, resolvedSymbol, null)]));
-
-                        // if (__val === undefined) { resolvedSymbol = yield expr; } else { resolvedSymbol = __val; }
-                        if (!EmitYieldDefaultConditional(
-                                resolvedSymbol,
-                                defaultValue,
-                                valueSymbol,
-                                statements,
-                                isStrict))
-                        {
-                            return false;
-                        }
-
                         return TryHandleNestedBindingWithYieldDefault(
                             defaultValue,
                             valueSymbol,
@@ -1803,23 +1782,6 @@ internal static class GeneratorYieldLowerer
                     // Similar handling for nested objects
                     if (defaultValue is not null && AstShapeAnalyzer.ContainsYield(defaultValue))
                     {
-                        var resolvedSymbol = CreateResumeIdentifier();
-                        // Note: Always use Let for uninitialized temporaries (const x; is invalid JS)
-                        statements.Add(new VariableDeclaration(
-                            null,
-                            VariableKind.Let,
-                            [new VariableDeclarator(null, resolvedSymbol, null)]));
-
-                        if (!EmitYieldDefaultConditional(
-                                resolvedSymbol,
-                                defaultValue,
-                                valueSymbol,
-                                statements,
-                                isStrict))
-                        {
-                            return false;
-                        }
-
                         return TryHandleNestedBindingWithYieldDefault(
                             defaultValue,
                             valueSymbol,

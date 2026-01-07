@@ -540,3 +540,70 @@ static ExecutionPlanRunner()
 ```
 
 **Why:** Faster than switch statement for many cases. Enables direct delegate invocation.
+
+### Object Pooling
+
+**Files:** `ObjectPool.cs`, `IRentable.cs`, `JsEnvironmentPool.cs`, `IteratorDriverStatePool.cs`
+
+Frequently allocated objects are pooled to reduce GC pressure. This is critical for hot paths like loop iterations.
+
+**Pooled types:**
+- `JsEnvironment` - execution scopes (created per function call, loop iteration)
+- `IteratorDriverState` - for-of loop state (iterator object, enumerator)
+- `ForInDriverState` - for-in loop state (property keys)
+- Various enumerators (`JsArrayPooledEnumerator`, `StringPooledEnumerator`, etc.)
+
+**IRentable interface:**
+
+All poolable objects implement this:
+
+```csharp
+internal interface IRentable
+{
+    void Activate(ILogger? logger = null);  // Called on rent
+    void Reset(ILogger? logger = null);     // Called on return
+}
+```
+
+**ObjectPool<T>:**
+
+Lock-free fixed-size array pool using `Interlocked.CompareExchange`:
+
+```csharp
+internal sealed class ObjectPool<T>(int size, Func<T> factory) where T : class
+{
+    public T Rent(ILogger? logger = null)
+    {
+        // Try to find available item via CAS
+        // If pool exhausted, create new via factory
+    }
+
+    public void Return(T item, ILogger? logger = null)
+    {
+        // Reset item, try to return via CAS
+        // If pool full, item is abandoned to GC
+    }
+}
+```
+
+**Pooled<T> wrapper:**
+
+RAII pattern ensures objects are returned:
+
+```csharp
+using var envHandle = JsEnvironmentPool.Rent(enclosing, isFunctionScope, isStrict);
+var env = envHandle.Value;
+// ... use env ...
+// Automatically returned on dispose
+```
+
+**Why pooling matters:**
+
+In a tight loop like `for (let i = 0; i < 1000000; i++)`:
+- Each iteration creates a new block scope (`JsEnvironment`)
+- Without pooling: 1M allocations, heavy GC pressure
+- With pooling: ~32 allocations (pool size), objects reused
+
+**Debug invariants:**
+
+Pooling bugs (double-lease, use-after-return) are caught by debug assertions. See `how-to-debugging.md` for details on `PoolDebug` and `PoolGuard`.

@@ -38,6 +38,7 @@ dotnet_diagnostic.MA0049.severity = none
 
 # Disable TODO comment warnings - we use TODOs extensively for tracking work
 dotnet_diagnostic.MA0026.severity = none
+# Disable XML comment warnings
 dotnet_diagnostic.MA0025.severity = none
 
 # File name doesn't need to match every type name (multiple types per file is OK)
@@ -48,15 +49,15 @@ dotnet_diagnostic.CA1823.severity = warning
 # Unused private code 
 dotnet_diagnostic.CA1801.severity = warning
 # Unused private members 
-dotnet_diagnostic.CA1823.severity = suggestion
+dotnet_diagnostic.CA1823.severity = warning
 # Unused parameters 
-dotnet_diagnostic.RCS1163.severity = suggestion
+dotnet_diagnostic.RCS1163.severity = warning
 
 # Unreachable code - some debug code is intentionally unreachable
-dotnet_diagnostic.CS0162.severity = suggestion
+dotnet_diagnostic.CS0162.severity = warning
 
 # Unused fields - may be used for future work or debugging
-dotnet_diagnostic.CS0169.severity = suggestion
+dotnet_diagnostic.CS0169.severity = warning
 
 # Method complexity - downgrade to suggestion, we have some complex evaluator methods
 dotnet_diagnostic.MA0061.severity = suggestion

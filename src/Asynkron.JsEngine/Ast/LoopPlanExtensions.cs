@@ -778,9 +778,9 @@ public static partial class TypedAstEvaluator
         return DynamicScopeDetector.ContainsWithOrDirectEval(synthetic);
     }
 
-        /// <summary>
-        /// Extracts accumulator slot info from a compound assignment expression (s += i, s -= i, s *= i).
-        /// </summary>
+    /// <summary>
+    /// Extracts accumulator slot info from a compound assignment expression (s += i, s -= i, s *= i).
+    /// </summary>
     private static bool TryExtractAccumulatorPattern(this LoopPlan _,
         AssignmentExpression assignExpr,
         IdentifierExpression loopVarId,
@@ -794,62 +794,62 @@ public static partial class TypedAstEvaluator
         accumSlotIndex = -1;
         operation = default;
 
-            // Must be compound assignment
-            if (!assignExpr.IsCompoundAssignment)
-            {
-                return false;
-            }
+        // Must be compound assignment
+        if (!assignExpr.IsCompoundAssignment)
+        {
+            return false;
+        }
 
-            // Get the accumulator slot info from the assignment target
-            if (assignExpr.ScopeId < 0 || assignExpr.SlotIndex < 0)
-            {
-                return false;
-            }
+        // Get the accumulator slot info from the assignment target
+        if (assignExpr.ScopeId < 0 || assignExpr.SlotIndex < 0)
+        {
+            return false;
+        }
 
-            // For compound assignment s <op>= i, the Value is a BinaryExpression (s <op> i)
-            if (assignExpr.Value is not BinaryExpression binaryExpr)
-            {
-                return false;
-            }
+        // For compound assignment s <op>= i, the Value is a BinaryExpression (s <op> i)
+        if (assignExpr.Value is not BinaryExpression binaryExpr)
+        {
+            return false;
+        }
 
-            // Determine operation type
-            operation = binaryExpr.Operator switch
-            {
-                BinaryOperator.Add => FastLoopOperation.Add,
-                BinaryOperator.Subtract => FastLoopOperation.Subtract,
-                BinaryOperator.Multiply => FastLoopOperation.Multiply,
-                _ => (FastLoopOperation)(-1)
-            };
+        // Determine operation type
+        operation = binaryExpr.Operator switch
+        {
+            BinaryOperator.Add => FastLoopOperation.Add,
+            BinaryOperator.Subtract => FastLoopOperation.Subtract,
+            BinaryOperator.Multiply => FastLoopOperation.Multiply,
+            _ => (FastLoopOperation)(-1)
+        };
 
-            if ((int)operation < 0)
-            {
-                return false;
-            }
+        if ((int)operation < 0)
+        {
+            return false;
+        }
 
-            // Left of the operation should be the accumulator (same as target)
-            if (binaryExpr.Left is not IdentifierExpression accumIdExpr ||
-                !ReferenceEquals(accumIdExpr.Name, assignExpr.Target))
-            {
-                return false;
-            }
+        // Left of the operation should be the accumulator (same as target)
+        if (binaryExpr.Left is not IdentifierExpression accumIdExpr ||
+            !ReferenceEquals(accumIdExpr.Name, assignExpr.Target))
+        {
+            return false;
+        }
 
-            // Right of the operation should be the loop variable
-            if (binaryExpr.Right is not IdentifierExpression rhsId ||
-                !ReferenceEquals(rhsId.Name, loopVarId.Name))
-            {
-                return false;
-            }
+        // Right of the operation should be the loop variable
+        if (binaryExpr.Right is not IdentifierExpression rhsId ||
+            !ReferenceEquals(rhsId.Name, loopVarId.Name))
+        {
+            return false;
+        }
 
-            accumulatorName = assignExpr.Target;
-            accumScopeId = assignExpr.ScopeId;
-            accumSlotIndex = assignExpr.SlotIndex;
+        accumulatorName = assignExpr.Target;
+        accumScopeId = assignExpr.ScopeId;
+        accumSlotIndex = assignExpr.SlotIndex;
         return true;
     }
 
-        /// <summary>
-        /// Executes the tight numeric loop with pre-resolved slot references.
-        /// Supports all comparison operators, increment/decrement, and arithmetic operations.
-        /// </summary>
+    /// <summary>
+    /// Executes the tight numeric loop with pre-resolved slot references.
+    /// Supports all comparison operators, increment/decrement, and arithmetic operations.
+    /// </summary>
     private static bool ExecuteFastNumericLoop(this LoopPlan _,
         IdentifierExpression loopVarId,
         Symbol accumulatorName,
@@ -865,71 +865,71 @@ public static partial class TypedAstEvaluator
     {
         result = JsValue.Undefined;
 
-            // Pre-resolve slots
-            if (!environment.TryResolveSlot(loopVarId.Name, loopVarId.ScopeId, loopVarId.SlotIndex,
-                    out var loopVarEnv) ||
-                loopVarEnv is null)
+        // Pre-resolve slots
+        if (!environment.TryResolveSlot(loopVarId.Name, loopVarId.ScopeId, loopVarId.SlotIndex,
+                out var loopVarEnv) ||
+            loopVarEnv is null)
+        {
+            return false;
+        }
+
+        if (!environment.TryResolveSlot(accumulatorName, accumScopeId, accumSlotIndex, out var accumEnv) ||
+            accumEnv is null)
+        {
+            return false;
+        }
+
+        ref var loopVarRef = ref loopVarEnv.GetSlotRef(loopVarId.SlotIndex);
+        ref var accumRef = ref accumEnv.GetSlotRef(accumSlotIndex);
+
+        var lastValue = JsValue.Undefined;
+
+        // Select the appropriate tight loop based on comparison and operation
+        if (conditionAfterBody)
+        {
+            // do-while: execute body first, then check condition
+            do
             {
-                return false;
-            }
+                var i = loopVarRef.NumberValue;
+                var s = accumRef.NumberValue;
 
-            if (!environment.TryResolveSlot(accumulatorName, accumScopeId, accumSlotIndex, out var accumEnv) ||
-                accumEnv is null)
-            {
-                return false;
-            }
-
-            ref var loopVarRef = ref loopVarEnv.GetSlotRef(loopVarId.SlotIndex);
-            ref var accumRef = ref accumEnv.GetSlotRef(accumSlotIndex);
-
-            var lastValue = JsValue.Undefined;
-
-            // Select the appropriate tight loop based on comparison and operation
-            if (conditionAfterBody)
-            {
-                // do-while: execute body first, then check condition
-                do
+                var newAccum = operation switch
                 {
-                    var i = loopVarRef.NumberValue;
-                    var s = accumRef.NumberValue;
+                    FastLoopOperation.Add => s + i,
+                    FastLoopOperation.Subtract => s - i,
+                    FastLoopOperation.Multiply => s * i,
+                    _ => s + i
+                };
 
-                    var newAccum = operation switch
-                    {
-                        FastLoopOperation.Add => s + i,
-                        FastLoopOperation.Subtract => s - i,
-                        FastLoopOperation.Multiply => s * i,
-                        _ => s + i
-                    };
-
-                    accumRef = new JsValue(newAccum);
-                    lastValue = accumRef;
-                    loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
-                } while (CheckCondition(loopVarRef.NumberValue, limit, comparison));
-            }
-            else
+                accumRef = new JsValue(newAccum);
+                lastValue = accumRef;
+                loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
+            } while (CheckCondition(loopVarRef.NumberValue, limit, comparison));
+        }
+        else
+        {
+            // while/for: check condition first
+            while (CheckCondition(loopVarRef.NumberValue, limit, comparison))
             {
-                // while/for: check condition first
-                while (CheckCondition(loopVarRef.NumberValue, limit, comparison))
+                var i = loopVarRef.NumberValue;
+                var s = accumRef.NumberValue;
+
+                var newAccum = operation switch
                 {
-                    var i = loopVarRef.NumberValue;
-                    var s = accumRef.NumberValue;
+                    FastLoopOperation.Add => s + i,
+                    FastLoopOperation.Subtract => s - i,
+                    FastLoopOperation.Multiply => s * i,
+                    _ => s + i
+                };
 
-                    var newAccum = operation switch
-                    {
-                        FastLoopOperation.Add => s + i,
-                        FastLoopOperation.Subtract => s - i,
-                        FastLoopOperation.Multiply => s * i,
-                        _ => s + i
-                    };
-
-                    accumRef = new JsValue(newAccum);
-                    lastValue = accumRef;
-                    loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
-                }
+                accumRef = new JsValue(newAccum);
+                lastValue = accumRef;
+                loopVarRef = new JsValue(isIncrement ? i + 1 : i - 1);
             }
+        }
 
-            result = lastValue;
-            return true;
+        result = lastValue;
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

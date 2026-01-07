@@ -176,10 +176,7 @@ public static partial class TypedAstEvaluator
                 }
                 state.AssertOwnership("for-of iterator state");
                 loopEnvironment.AssertOwnership("for-of loop environment");
-                if (reusableIterationEnvironment is not null)
-                {
-                    reusableIterationEnvironment.AssertOwnership("for-of reusable iteration env");
-                }
+                reusableIterationEnvironment?.AssertOwnership("for-of reusable iteration env");
 
                 context.ThrowIfCancellationRequested();
 
@@ -584,7 +581,6 @@ public static partial class TypedAstEvaluator
         }
 
         var useSlotAccess = false;
-
 
         // Pre-resolve accumulator - try slot first, then dictionary fallback for top-level code
         JsEnvironment? accumEnv;

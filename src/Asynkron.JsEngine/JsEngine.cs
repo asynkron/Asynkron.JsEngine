@@ -320,7 +320,7 @@ public sealed class JsEngine : IAsyncDisposable
     }
 
     internal int PromiseCallDepth { get; set; }
-    internal int MaxCallDepth { get; set; } = 1000;
+    internal int MaxCallDepth { get; } = 1000;
 
     /// <summary>
     ///     Maximum wall-clock time to allow a single evaluation to run before failing.

@@ -37,18 +37,8 @@ public static partial class TypedAstEvaluator
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
-            var instance = new AsyncGeneratorInvoker(
-                _function,
-                _closure,
-                arguments,
-                thisValue,
-                this,
-                RealmState,
-                _isLexicallyStrict,
-                _hasFunctionNameEnvironment,
-                _homeObject,
-                PrivateNameScope,
-                _capturedPrivateNameScopes);
+            var context = CreateInvocationContext(arguments, thisValue);
+            var instance = context.CreateAsyncGeneratorInvoker();
             instance.Initialize();
             return (JsValue)instance.CreateAsyncIteratorObject();
         }

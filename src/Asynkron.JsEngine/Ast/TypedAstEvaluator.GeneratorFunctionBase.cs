@@ -547,7 +547,13 @@ public static partial class TypedAstEvaluator
         /// </summary>
         protected ExecutionPlanRunner CreateRunner(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
-            return new ExecutionPlanRunner(
+            var context = CreateInvocationContext(arguments, thisValue);
+            return context.CreateRunner();
+        }
+
+        protected GeneratorInvocationContext CreateInvocationContext(IReadOnlyList<JsValue> arguments, JsValue thisValue)
+        {
+            return new GeneratorInvocationContext(
                 _function,
                 _closure,
                 arguments,
@@ -558,6 +564,79 @@ public static partial class TypedAstEvaluator
                 _hasFunctionNameEnvironment,
                 _homeObject,
                 PrivateNameScope,
+                _capturedPrivateNameScopes);
+        }
+    }
+
+    private readonly struct GeneratorInvocationContext
+    {
+        private readonly FunctionExpression _function;
+        private readonly JsEnvironment _closure;
+        private readonly IReadOnlyList<JsValue> _arguments;
+        private readonly JsValue _thisValue;
+        private readonly IJsCallable _callable;
+        private readonly RealmState _realmState;
+        private readonly bool _isLexicallyStrict;
+        private readonly bool _hasFunctionNameEnvironment;
+        private readonly IJsObjectLike? _homeObject;
+        private readonly PrivateNameScope? _privateNameScope;
+        private readonly ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes;
+
+        public GeneratorInvocationContext(
+            FunctionExpression function,
+            JsEnvironment closure,
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
+            IJsCallable callable,
+            RealmState realmState,
+            bool isLexicallyStrict,
+            bool hasFunctionNameEnvironment,
+            IJsObjectLike? homeObject,
+            PrivateNameScope? privateNameScope,
+            ImmutableArray<PrivateNameScope> capturedPrivateNameScopes)
+        {
+            _function = function;
+            _closure = closure;
+            _arguments = arguments;
+            _thisValue = thisValue;
+            _callable = callable;
+            _realmState = realmState;
+            _isLexicallyStrict = isLexicallyStrict;
+            _hasFunctionNameEnvironment = hasFunctionNameEnvironment;
+            _homeObject = homeObject;
+            _privateNameScope = privateNameScope;
+            _capturedPrivateNameScopes = capturedPrivateNameScopes;
+        }
+
+        public ExecutionPlanRunner CreateRunner()
+        {
+            return new ExecutionPlanRunner(
+                _function,
+                _closure,
+                _arguments,
+                _thisValue,
+                _callable,
+                _realmState,
+                _isLexicallyStrict,
+                _hasFunctionNameEnvironment,
+                _homeObject,
+                _privateNameScope,
+                _capturedPrivateNameScopes);
+        }
+
+        public AsyncGeneratorInvoker CreateAsyncGeneratorInvoker()
+        {
+            return new AsyncGeneratorInvoker(
+                _function,
+                _closure,
+                _arguments,
+                _thisValue,
+                _callable,
+                _realmState,
+                _isLexicallyStrict,
+                _hasFunctionNameEnvironment,
+                _homeObject,
+                _privateNameScope,
                 _capturedPrivateNameScopes);
         }
     }

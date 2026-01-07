@@ -1785,26 +1785,7 @@ internal static class GeneratorYieldLowerer
                     else
                     {
                         // No yield in default - apply default inline if needed, then destructure
-                        var sourceForNested = valueSymbol;
-                        if (defaultValue is not null)
-                        {
-                            var resolvedSymbol = CreateResumeIdentifier();
-                            var conditional = new ConditionalExpression(
-                                null,
-                                new BinaryExpression(
-                                    null,
-                                    BinaryOperator.StrictEqual,
-                                    new IdentifierExpression(null, valueSymbol.Name),
-                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
-                                defaultValue,
-                                new IdentifierExpression(null, valueSymbol.Name));
-                            statements.Add(new VariableDeclaration(
-                                null,
-                                VariableKind.Let,
-                                [new VariableDeclarator(null, resolvedSymbol, conditional)]));
-                            sourceForNested = resolvedSymbol;
-                        }
-
+                        var sourceForNested = PrepareDefaultValueSource(defaultValue, valueSymbol, statements);
                         return TryLowerArrayBindingWithYieldDefaults(
                             nestedArray,
                             varKind,
@@ -1843,26 +1824,7 @@ internal static class GeneratorYieldLowerer
                     }
                     else
                     {
-                        var sourceForNested = valueSymbol;
-                        if (defaultValue is not null)
-                        {
-                            var resolvedSymbol = CreateResumeIdentifier();
-                            var conditional = new ConditionalExpression(
-                                null,
-                                new BinaryExpression(
-                                    null,
-                                    BinaryOperator.StrictEqual,
-                                    new IdentifierExpression(null, valueSymbol.Name),
-                                    new IdentifierExpression(null, Symbol.Intern("undefined"))),
-                                defaultValue,
-                                new IdentifierExpression(null, valueSymbol.Name));
-                            statements.Add(new VariableDeclaration(
-                                null,
-                                VariableKind.Let,
-                                [new VariableDeclarator(null, resolvedSymbol, conditional)]));
-                            sourceForNested = resolvedSymbol;
-                        }
-
+                        var sourceForNested = PrepareDefaultValueSource(defaultValue, valueSymbol, statements);
                         return TryLowerObjectBindingWithYieldDefaults(
                             nestedObject,
                             varKind,
@@ -1942,6 +1904,34 @@ internal static class GeneratorYieldLowerer
                 valueSymbol,
                 statements,
                 isStrict);
+        }
+
+        private IdentifierBinding PrepareDefaultValueSource(
+            ExpressionNode? defaultValue,
+            IdentifierBinding valueSymbol,
+            ImmutableArray<StatementNode>.Builder statements)
+        {
+            var sourceForNested = valueSymbol;
+            if (defaultValue is not null)
+            {
+                var resolvedSymbol = CreateResumeIdentifier();
+                var conditional = new ConditionalExpression(
+                    null,
+                    new BinaryExpression(
+                        null,
+                        BinaryOperator.StrictEqual,
+                        new IdentifierExpression(null, valueSymbol.Name),
+                        new IdentifierExpression(null, Symbol.Intern("undefined"))),
+                    defaultValue,
+                    new IdentifierExpression(null, valueSymbol.Name));
+                statements.Add(new VariableDeclaration(
+                    null,
+                    VariableKind.Let,
+                    [new VariableDeclarator(null, resolvedSymbol, conditional)]));
+                sourceForNested = resolvedSymbol;
+            }
+
+            return sourceForNested;
         }
 
         /// <summary>

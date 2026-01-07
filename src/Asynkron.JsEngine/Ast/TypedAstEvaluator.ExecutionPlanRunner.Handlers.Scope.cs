@@ -258,8 +258,11 @@ public static partial class TypedAstEvaluator
                 var envToPop = environment;
                 environment = environment.Enclosing!;
 
-                // Always return to pool - pool ignores captured environments
-                JsEnvironmentPool.Return(envToPop, runner._realmState.Logger);
+                // Only return to pool if the environment was rented from pool
+                if (instruction.AllowPooling)
+                {
+                    JsEnvironmentPool.Return(envToPop, runner._realmState.Logger);
+                }
             }
 
             runner._programCounter = instruction.Next;

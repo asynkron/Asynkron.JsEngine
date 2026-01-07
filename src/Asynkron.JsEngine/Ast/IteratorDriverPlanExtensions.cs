@@ -692,6 +692,12 @@ public static partial class TypedAstEvaluator
             return;
         }
 
+        iterationEnvironment.AssertIterationLayout(
+            driverPlan.IterationScopeId,
+            driverPlan.GetRequiredSlots(),
+            driverPlan.GetOrCreateSlotMap(),
+            nameof(SyncIterationSlots));
+
         var slotIndices = driverPlan.PerIterationSlotIndices;
         var bindingNames = driverPlan.PerIterationBindings;
         var count = Math.Min(slotIndices.Length, bindingNames.Length);

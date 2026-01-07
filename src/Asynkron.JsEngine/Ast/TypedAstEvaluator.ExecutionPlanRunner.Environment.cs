@@ -271,6 +271,7 @@ public static partial class TypedAstEvaluator
             }
 
             _flatSlots = new JsVariable[_plan.FlatSlotCount];
+            AssertFlatSlotsInitialized();
             PopulateFlatSlotsForScope(_plan.RootScopeId, _executionEnvironment);
 
             // Walk closure chain to populate flat slots for captured variables

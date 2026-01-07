@@ -59,6 +59,10 @@ internal sealed class JsArrayIterator : IJsObjectLike, IAsJsValue, IPrototypeAcc
         {
             throw typedAccessor.CreateOutOfBoundsTypeError();
         }
+        if (_accessor is TypedArrayBase typedArray)
+        {
+            typedArray.AssertInvariants(nameof(Next));
+        }
 
         // Get length as JsValue, avoiding boxing from ternary expression
         if (!_accessor.TryGetProperty("length", out var lenVal))

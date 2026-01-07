@@ -182,6 +182,17 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     [Conditional("DEBUG")]
     internal void AssertOwnership(string usage)
         => PoolDebug.AssertOwned(this, usage);
+
+    [Conditional("DEBUG")]
+    internal void AssertIterationEnvironmentState(string usage)
+    {
+        if (CurrentIterationEnvironment is not null && LoopScopeEnvironment is not null &&
+            !ReferenceEquals(CurrentIterationEnvironment.Enclosing, LoopScopeEnvironment))
+        {
+            throw new InvalidOperationException(
+                $"Iteration environment mismatch ({usage}). current.Enclosing != loopScope");
+        }
+    }
 }
 
 /// <summary>

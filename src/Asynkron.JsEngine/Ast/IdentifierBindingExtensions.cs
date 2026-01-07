@@ -18,6 +18,10 @@ public static partial class TypedAstEvaluator
     {
         environment.AssertOwnership(nameof(ApplyIdentifierBinding));
         context.AssertOwnership(nameof(ApplyIdentifierBinding));
+        if (mode == BindingMode.Assign && environment.HasLexicalBinding(identifier.Name))
+        {
+            environment.AssertHasBinding(identifier.Name, nameof(ApplyIdentifierBinding));
+        }
         if (allowNameInference && value is
             { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
         {
@@ -44,6 +48,7 @@ public static partial class TypedAstEvaluator
                 break;
             case BindingMode.DefineVar:
                 {
+                    environment.AssertVarBindingScope(identifier.Name, nameof(ApplyIdentifierBinding));
                     if (!hasInitializer)
                     {
                         // Runtime evaluation of `var` without an initializer is a no-op;

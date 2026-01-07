@@ -57,6 +57,8 @@ internal sealed class TypedArrayPooledEnumerator : IEnumerator<JsValue>, IRentab
             return false;
         }
 
+        typedArray.AssertInvariants(nameof(MoveNext));
+
         // Check length and bounds on each iteration - buffer may be resized during iteration
         if (_index >= typedArray.Length)
         {

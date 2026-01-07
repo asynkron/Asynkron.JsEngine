@@ -16,6 +16,8 @@ public static partial class TypedAstEvaluator
         bool allowNameInference,
         bool skipBlockedBindingLookup = false)
     {
+        environment.AssertOwnership(nameof(ApplyIdentifierBinding));
+        context.AssertOwnership(nameof(ApplyIdentifierBinding));
         if (allowNameInference && value is
             { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
         {

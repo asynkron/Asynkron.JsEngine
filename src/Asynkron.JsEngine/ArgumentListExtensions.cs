@@ -13,6 +13,19 @@ internal static class ArgumentListExtensions
         return index < args.Count ? args[index] : JsValue.Undefined;
     }
 
+    public static T? GetOrDefault<T>(this IReadOnlyList<JsValue> args, int index) where T : class
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+
+        if (index >= args.Count)
+        {
+            return null;
+        }
+
+        args[index].TryUnwrap(out T? value);
+        return value;
+    }
+
     /// <summary>
     /// Returns a zero-copy slice starting at the given offset.
     /// </summary>

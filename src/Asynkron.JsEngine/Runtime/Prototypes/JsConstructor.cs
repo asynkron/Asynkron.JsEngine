@@ -41,6 +41,22 @@ public abstract class JsConstructor(IJsObjectLike prototype, RealmState realm)
         return instance;
     }
 
+    /// <summary>
+    ///     Builds a default instance when the constructor does not need to observe <c>thisValue</c>.
+    ///     Derived constructors can call this to reuse the shared prototype wiring and realm initialization logic.
+    /// </summary>
+    protected JsValue CreateDefaultInstance()
+    {
+        var obj = PrepareThisObject(JsValue.Undefined, assignPrototype: false);
+        if (obj.Prototype is null)
+        {
+            obj.SetPrototype(Prototype);
+        }
+
+        obj.RealmState ??= Realm;
+        return new JsValue(obj);
+    }
+
     protected abstract JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args);
 
     protected virtual void ConfigureConstructor(HostFunction constructor)

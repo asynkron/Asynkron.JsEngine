@@ -15,12 +15,6 @@ public sealed partial class ShadowRealmConstructor(IJsObjectLike prototype, Real
     {
         // TODO: Implement ShadowRealm constructor
         // Creates a new ShadowRealm with an isolated global environment
-        var obj = PrepareThisObject(JsValue.Undefined, false);
-        if (Prototype is not null && obj.Prototype is null)
-        {
-            obj.SetPrototype(Prototype);
-        }
-        obj.RealmState ??= Realm;
-        return new JsValue(obj);
+        return CreateDefaultInstance();
     }
 }

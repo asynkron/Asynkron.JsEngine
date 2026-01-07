@@ -52,7 +52,7 @@ internal static class DeclarationEmitter
 
     /// <summary>
     /// Try to emit IR for a variable declaration.
-    /// Handles yield initializers, binding target defaults, and falls back to StatementInstruction when needed.
+    /// Handles yield initializers, binding target defaults, and falls back to ComplexVariableDeclarationInstruction when needed.
     /// </summary>
     public static bool TryEmitVariableDeclaration(
         EmitContext ctx,

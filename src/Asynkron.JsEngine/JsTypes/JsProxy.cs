@@ -23,6 +23,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private readonly RealmState? _realm;
 
     // Cached JsValues to avoid repeated struct creation
+    // ReSharper disable once ReplaceWithFieldKeyword
     private readonly JsValue _cachedJsValue;
     private readonly JsValue _targetJsValue;
     private JsValue _handlerJsValue;
@@ -67,7 +68,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <inheritdoc />
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
 
-    public bool IsExtensible => Target is IExtensibilityControl extensibility ? extensibility.IsExtensible : true;
+    public bool IsExtensible => Target is not IExtensibilityControl extensibility || extensibility.IsExtensible;
 
     public void PreventExtensions()
     {
@@ -86,12 +87,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _ = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
             realm: _realm);
 
-        if (Target is not IJsCallable callableTarget)
-        {
-            throw StandardLibrary.ThrowTypeError("Proxy target is not callable", realm: _realm);
-        }
-
-        return callableTarget.Invoke(arguments, thisValue);
+        return Target is not IJsCallable callableTarget ? throw StandardLibrary.ThrowTypeError("Proxy target is not callable", realm: _realm) : callableTarget.Invoke(arguments, thisValue);
     }
 
     public JsObject? Prototype => _meta.Prototype;
@@ -386,7 +382,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             var resultObj = result.AsObject();
-            if (resultObj is not not (null and not not null))
+            if (resultObj is null)
             {
                 throw StandardLibrary.ThrowTypeError(
                     "Proxy getPrototypeOf trap must return an object or null",
@@ -411,27 +407,27 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private static IEnumerable<object?> ExtractKeys(JsValue trapResult)
     {
-        if (trapResult.IsObject)
+        if (!trapResult.IsObject)
         {
-            if (trapResult.TryGetObject<JsArray>(out var jsArray))
-            {
-                foreach (var item in jsArray.Items)
-                {
-                    yield return item;
-                }
+            yield break;
+        }
 
-                yield break;
+        if (trapResult.TryGetObject<JsArray>(out var jsArray))
+        {
+            foreach (var item in jsArray.Items)
+            {
+                yield return item;
             }
 
-            var obj = trapResult.AsObject();
-            if (obj is IEnumerable enumerable)
-            {
-                foreach (var item in enumerable)
-                {
-                    yield return item;
-                }
+            yield break;
+        }
 
-                yield break;
+        var obj = trapResult.AsObject();
+        if (obj is IEnumerable enumerable)
+        {
+            foreach (var item in enumerable)
+            {
+                yield return item;
             }
         }
     }

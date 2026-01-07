@@ -255,13 +255,13 @@ internal sealed partial class ExecutionPlanBuilder
         // Stamp iterator driver bodies (executed via AST) with slot metadata so identifiers resolve to slots.
         StampIteratorBodies(function, rewriter);
 
-        if (EngineFeatureFlags.EnableNestedSlotStamping && analysis is not null)
+        if (EngineFeatureFlags.EnableNestedSlotStamping)
         {
             StampNestedFunctionBodies(function, rewriter, analysis);
         }
 
         Debug.Assert(analysis is not null);
-        return analysis!;
+        return analysis;
     }
 
     private void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)
@@ -288,7 +288,7 @@ internal sealed partial class ExecutionPlanBuilder
                 continue;
             }
 
-            var stampedBody = (BlockStatement)rewriter.StampNodeInScope(plan.Body, mappedScopeId);
+            var stampedBody = rewriter.StampNodeInScope(plan.Body, mappedScopeId);
             var mappedSlotCount = rewriter.GetSlotCountForScope(mappedScopeId);
             var updatedPlan = plan with
             {
@@ -302,13 +302,6 @@ internal sealed partial class ExecutionPlanBuilder
             _iteratorPlanOverrides[forEach] = updatedPlan;
             UpdateCachedIteratorPlan(forEach, updatedPlan);
         }
-    }
-
-    internal IteratorDriverPlan GetIteratorPlan(ForEachStatement statement)
-    {
-        return _iteratorPlanOverrides.TryGetValue(statement, out var plan)
-            ? plan
-            : ((IAstCacheable<IteratorDriverPlan>)statement).GetOrCreateCache();
     }
 
     /// <summary>
@@ -338,7 +331,7 @@ internal sealed partial class ExecutionPlanBuilder
                 Debug.WriteLine("[StampNestedFunctionBodies] Nested plan failed, stamping body AST");
                 // If we can't build an execution plan, stamp the body AST for AST-based evaluation
                 var mappedScopeId = rewriter.MapScopeId(scopeId);
-                var stampedBody = (BlockStatement)rewriter.StampNodeInScope(funcExpr.Body, mappedScopeId);
+                var stampedBody = rewriter.StampNodeInScope(funcExpr.Body, mappedScopeId);
                 if (!ReferenceEquals(stampedBody, funcExpr.Body))
                 {
                     UpdateFunctionBody(funcExpr, stampedBody);
@@ -531,7 +524,7 @@ internal sealed partial class ExecutionPlanBuilder
                         statement = doWhileStatement.Body;
                         continue;
                     case ForStatement forStatement:
-                        if (forStatement.Initializer is StatementNode initStmt)
+                        if (forStatement.Initializer is { } initStmt)
                         {
                             CollectFromStatement(initStmt, sink, isStrict, inBlockScope);
                         }
@@ -604,12 +597,7 @@ internal sealed partial class ExecutionPlanBuilder
     {
         // Stamp the identifier expression with slot info for O(1) access
         // ScopeId = 0 means the function's primary scope where execution plan slots live
-        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol) with
-        {
-            SlotIndex = valueSlotIndex,
-            ScopeId = 0,
-            ScopeDepth = 0
-        };
+        var valueExpression = new IdentifierExpression(plan.Body.Source, valueSymbol) { SlotIndex = valueSlotIndex, ScopeId = 0, ScopeDepth = 0 };
         StatementNode bindingStatement;
 
         if (plan.DeclarationKind is null)

@@ -8,7 +8,7 @@ using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 
-internal static class IntlUtilities
+internal static partial class IntlUtilities
 {
     private const long MaxArrayLikeLength = 9007199254740991L;
 
@@ -57,21 +57,13 @@ internal static class IntlUtilities
     private static readonly Lazy<HashSet<string>> AvailableLocales = new(BuildAvailableLocales);
     private static readonly Lazy<string> DefaultLocale = new(DetermineDefaultLocale);
 
-    private static readonly Regex LanguageTagRegex = new(
-        @"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex LanguageTagRegex = MyRegex();
 
-    private static readonly Regex DuplicateSingletonRegex = new(
-        @"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex DuplicateSingletonRegex = MyRegex1();
 
-    private static readonly Regex DuplicateVariantRegex = new(
-        @"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex DuplicateVariantRegex = MyRegex2();
 
-    private static readonly Regex TransformKeyRegex = new(
-        @"^[a-z][0-9]$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TransformKeyRegex = MyRegex3();
 
     static IntlUtilities()
     {
@@ -1158,4 +1150,13 @@ internal static class IntlUtilities
         public HashSet<string> Members { get; } = members;
         public Dictionary<string, string> Lookup { get; } = lookup;
     }
+
+    [GeneratedRegex(@"^(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*(-((u((-([a-z0-9][a-z](-[a-z0-9]{3,8})*))+|((-([a-z0-9]{3,8}))+(-([a-z0-9][a-z](-[a-z0-9]{3,8})*))*)))|(t((-(([a-z]{2,3}|[a-z]{5,8})(-([a-z]{4}))?(-([a-z]{2}|[0-9]{3}))?(-([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3})))*)(-([a-z][0-9](-[a-z0-9]{3,8})+))*)|(-([a-z][0-9](-[a-z0-9]{3,8})+))+))|(([0-9]|[a-sv-wy-z])(-[a-z0-9]{2,8})+)))*(-(x(-[a-z0-9]{1,8})+))?)$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"-([0-9]|[a-wy-z])-(.*-)?\1(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"([a-z0-9]{2,8}-)+([a-z0-9]{5,8}|(?:[0-9][a-z0-9]{3}))-([a-z0-9]{2,8}-)*\2(?![a-z0-9])", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"^[a-z][0-9]$", RegexOptions.IgnoreCase | RegexOptions.Compiled, "sv-SE")]
+    private static partial Regex MyRegex3();
 }

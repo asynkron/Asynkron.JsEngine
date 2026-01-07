@@ -201,141 +201,141 @@ public static partial class TypedAstEvaluator
                 switch (expression)
                 {
                     case IdentifierExpression ident:
-                    {
-                        return ReferenceEquals(ident.Name, parameterName);
-                    }
-                    case AssignmentExpression assign:
-                    {
-                        return ReferenceEquals(assign.Target, parameterName) ||
-                               DefaultReferencesParameter(assign.Value, parameterName);
-                    }
-                    case BinaryExpression binary:
-                    {
-                        return DefaultReferencesParameter(binary.Left, parameterName) ||
-                               DefaultReferencesParameter(binary.Right, parameterName);
-                    }
-                    case ConditionalExpression cond:
-                    {
-                        return DefaultReferencesParameter(cond.Test, parameterName) ||
-                               DefaultReferencesParameter(cond.Consequent, parameterName) ||
-                               DefaultReferencesParameter(cond.Alternate, parameterName);
-                    }
-                    case CallExpression call:
-                    {
-                        if (DefaultReferencesParameter(call.Callee, parameterName))
                         {
-                            return true;
+                            return ReferenceEquals(ident.Name, parameterName);
                         }
-
-                        foreach (var arg in call.Arguments)
+                    case AssignmentExpression assign:
                         {
-                            if (DefaultReferencesParameter(arg.Expression, parameterName))
+                            return ReferenceEquals(assign.Target, parameterName) ||
+                                   DefaultReferencesParameter(assign.Value, parameterName);
+                        }
+                    case BinaryExpression binary:
+                        {
+                            return DefaultReferencesParameter(binary.Left, parameterName) ||
+                                   DefaultReferencesParameter(binary.Right, parameterName);
+                        }
+                    case ConditionalExpression cond:
+                        {
+                            return DefaultReferencesParameter(cond.Test, parameterName) ||
+                                   DefaultReferencesParameter(cond.Consequent, parameterName) ||
+                                   DefaultReferencesParameter(cond.Alternate, parameterName);
+                        }
+                    case CallExpression call:
+                        {
+                            if (DefaultReferencesParameter(call.Callee, parameterName))
                             {
                                 return true;
                             }
-                        }
 
-                        return false;
-                    }
+                            foreach (var arg in call.Arguments)
+                            {
+                                if (DefaultReferencesParameter(arg.Expression, parameterName))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        }
 
                     case MemberExpression member:
-                    {
-                        return DefaultReferencesParameter(member.Target, parameterName) ||
-                               DefaultReferencesParameter(member.Property, parameterName);
-                    }
+                        {
+                            return DefaultReferencesParameter(member.Target, parameterName) ||
+                                   DefaultReferencesParameter(member.Property, parameterName);
+                        }
                     case UnaryExpression unary:
-                    {
-                        expression = unary.Operand;
-                        continue;
-                    }
+                        {
+                            expression = unary.Operand;
+                            continue;
+                        }
                     case SequenceExpression seq:
-                    {
-                        return DefaultReferencesParameter(seq.Left, parameterName) ||
-                               DefaultReferencesParameter(seq.Right, parameterName);
-                    }
+                        {
+                            return DefaultReferencesParameter(seq.Left, parameterName) ||
+                                   DefaultReferencesParameter(seq.Right, parameterName);
+                        }
                     case ArrayExpression arr:
-                    {
-                        foreach (var element in arr.Elements)
                         {
-                            if (element.Expression is not null &&
-                                DefaultReferencesParameter(element.Expression, parameterName))
+                            foreach (var element in arr.Elements)
                             {
-                                return true;
+                                if (element.Expression is not null &&
+                                    DefaultReferencesParameter(element.Expression, parameterName))
+                                {
+                                    return true;
+                                }
                             }
-                        }
 
-                        return false;
-                    }
+                            return false;
+                        }
                     case ObjectExpression obj:
-                    {
-                        foreach (var member in obj.Members)
                         {
-                            if (member.Value is not null && DefaultReferencesParameter(member.Value, parameterName))
+                            foreach (var member in obj.Members)
                             {
-                                return true;
+                                if (member.Value is not null && DefaultReferencesParameter(member.Value, parameterName))
+                                {
+                                    return true;
+                                }
+
+                                if (member.Function is not null &&
+                                    DefaultReferencesParameter(member.Function, parameterName))
+                                {
+                                    return true;
+                                }
                             }
 
-                            if (member.Function is not null &&
-                                DefaultReferencesParameter(member.Function, parameterName))
-                            {
-                                return true;
-                            }
+                            return false;
                         }
-
-                        return false;
-                    }
                     case TemplateLiteralExpression template:
-                    {
-                        foreach (var part in template.Parts)
                         {
-                            if (part.Expression is not null &&
-                                DefaultReferencesParameter(part.Expression, parameterName))
+                            foreach (var part in template.Parts)
                             {
-                                return true;
+                                if (part.Expression is not null &&
+                                    DefaultReferencesParameter(part.Expression, parameterName))
+                                {
+                                    return true;
+                                }
                             }
-                        }
 
-                        return false;
-                    }
+                            return false;
+                        }
                     case TaggedTemplateExpression tagged:
-                    {
-                        if (DefaultReferencesParameter(tagged.Tag, parameterName) ||
-                            DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
-                            DefaultReferencesParameter(tagged.RawStringsArray, parameterName))
                         {
-                            return true;
-                        }
-
-                        foreach (var expr in tagged.Expressions)
-                        {
-                            if (DefaultReferencesParameter(expr, parameterName))
+                            if (DefaultReferencesParameter(tagged.Tag, parameterName) ||
+                                DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
+                                DefaultReferencesParameter(tagged.RawStringsArray, parameterName))
                             {
                                 return true;
                             }
-                        }
 
-                        return false;
-                    }
+                            foreach (var expr in tagged.Expressions)
+                            {
+                                if (DefaultReferencesParameter(expr, parameterName))
+                                {
+                                    return true;
+                                }
+                            }
+
+                            return false;
+                        }
                     case YieldExpression { Expression: not null } yieldExpression:
-                    {
-                        expression = yieldExpression.Expression;
-                        continue;
-                    }
+                        {
+                            expression = yieldExpression.Expression;
+                            continue;
+                        }
                     case AwaitExpression awaitExpression:
-                    {
-                        expression = awaitExpression.Expression;
-                        continue;
-                    }
+                        {
+                            expression = awaitExpression.Expression;
+                            continue;
+                        }
                     case FunctionExpression:
-                    {
-                        // Nested functions have their own scope; references to the parameter name
-                        // do not count towards self-referential defaults here.
-                        return false;
-                    }
+                        {
+                            // Nested functions have their own scope; references to the parameter name
+                            // do not count towards self-referential defaults here.
+                            return false;
+                        }
                     default:
-                    {
-                        return false;
-                    }
+                        {
+                            return false;
+                        }
                 }
             }
         }

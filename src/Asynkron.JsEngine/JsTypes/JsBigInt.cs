@@ -26,7 +26,6 @@ public sealed class JsBigInt(BigInteger value) : IEquatable<JsBigInt>
 
     public static JsBigInt Zero => new(BigInteger.Zero);
     public static JsBigInt One => new(BigInteger.One);
-    public static JsBigInt MinusOne => new(BigInteger.MinusOne);
 
     public bool Equals(JsBigInt? other)
     {

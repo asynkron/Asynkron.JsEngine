@@ -24,7 +24,6 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
-    private JsObject? _jsObject;
 
     /// <summary>
     ///     The epoch in which this promise's handler processing was scheduled.
@@ -34,11 +33,6 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
     // JsObject is now created lazily to avoid allocation when not needed
 
-    // Debug helpers for instrumentation
-    internal int DebugHandlerCount => _handlers?.Count ?? 0;
-    internal string DebugState => _state.ToString();
-    internal int DebugId => RuntimeHelpers.GetHashCode(this);
-
     /// <summary>
     ///     Gets the underlying JsObject for property access.
     ///     Created lazily to avoid allocation when only internal promise machinery is used.
@@ -47,12 +41,14 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     {
         get
         {
-            if (_jsObject is null)
+            if (field is not null)
             {
-                _jsObject = new JsObject();
-                _jsObject.SetPromiseSlot(this);
+                return field;
             }
-            return _jsObject;
+
+            field = new JsObject();
+            field.SetPromiseSlot(this);
+            return field;
         }
     }
 
@@ -263,13 +259,14 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
                         $"Exceeded maximum call depth of {_engine.MaxCallDepth} while resolving promise callbacks.");
                 }
 
-                if (_state == PromiseState.Fulfilled)
+                switch (_state)
                 {
-                    ProcessFulfilledHandler(onFulfilled, nextPromise);
-                }
-                else if (_state == PromiseState.Rejected)
-                {
-                    ProcessRejectedHandler(onRejected, nextPromise);
+                    case PromiseState.Fulfilled:
+                        ProcessFulfilledHandler(onFulfilled, nextPromise);
+                        break;
+                    case PromiseState.Rejected:
+                        ProcessRejectedHandler(onRejected, nextPromise);
+                        break;
                 }
             }
             catch (Exception ex)

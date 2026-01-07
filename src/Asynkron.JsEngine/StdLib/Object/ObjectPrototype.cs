@@ -249,7 +249,7 @@ public sealed partial class ObjectPrototype
             return JsValue.False;
         }
 
-        var cursor = objectLike as object;
+        object? cursor = objectLike;
         while (TryGetPrototype(cursor, out var proto))
         {
             if (thisValue.TryGetObject<object>(out var thisObj) && ReferenceEquals(proto, thisObj))

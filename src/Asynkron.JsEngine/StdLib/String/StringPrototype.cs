@@ -632,7 +632,7 @@ public sealed partial class StringPrototype
         }
 
         var regex = ToRegExpValue(searchValue, string.Empty, false);
-        var execResult = regex.Global ? (IAsJsValue?)regex.MatchAll(value) : regex.Exec(value);
+        IAsJsValue? execResult = regex.Global ? regex.MatchAll(value) : regex.Exec(value);
         return execResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(execResult);
     }
 

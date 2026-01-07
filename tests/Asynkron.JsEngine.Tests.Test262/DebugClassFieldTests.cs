@@ -164,7 +164,7 @@ public class DebugClassFieldTests
                                                       """);
 
         var check = AssertPlainObject(invariantSnapshot, "intercalated harness snapshot");
-        string JoinKeys(object? value) =>
+        static string JoinKeys(object? value) =>
             value switch
             {
                 JsArray array => string.Join(",", array.Items),

@@ -197,7 +197,7 @@ public sealed class JsEngine : IAsyncDisposable
         SetGlobal("AggregateError", ErrorHelper.CreateErrorConstructor(RealmState, "AggregateError"));
 
         // Register Promise constructor
-        var promiseConstructor = (IJsCallable)PromiseConstructor.CreateConstructor(RealmState);
+        IJsCallable? promiseConstructor = PromiseConstructor.CreateConstructor(RealmState);
         SetGlobal("Promise", promiseConstructor);
         RealmState.PromiseConstructor = promiseConstructor;
 

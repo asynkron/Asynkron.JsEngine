@@ -204,7 +204,7 @@ async Task EvaluateAsync(JsEngine engine, ProgramNode parsed)
     {
         await engine.Evaluate(parsed).WaitAsync(TimeSpan.FromSeconds(15));
     }
-    catch(Exception x)
+    catch (Exception x)
     {
         Console.WriteLine("Error: " + x);
     }

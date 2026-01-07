@@ -435,7 +435,6 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             return CreateIterResult(JsValue.Undefined, true);
         }
 
-        isExecuting = true;
         try
         {
             return action();

@@ -104,18 +104,18 @@ internal static class MapSetIterationHelper
         var iterator = new JsObject { RealmState = realm };
         var index = 0;
 
-            iterator.SetHostedProperty("next", (_, _) =>
+        iterator.SetHostedProperty("next", (_, _) =>
+        {
+            if (index >= str.Length)
             {
-                if (index >= str.Length)
-                {
-                    return IteratorResultObject.DoneUndefined.AsJsValue;
-                }
+                return IteratorResultObject.DoneUndefined.AsJsValue;
+            }
 
-                // Iterate by code point to handle surrogate pairs correctly.
-                var charValue = StringHelper.ReadCodePoint(str, ref index);
+            // Iterate by code point to handle surrogate pairs correctly.
+            var charValue = StringHelper.ReadCodePoint(str, ref index);
 
-                return IteratorResultObject.Create(new JsValue(charValue), false);
-            });
+            return IteratorResultObject.Create(new JsValue(charValue), false);
+        });
 
         iterator.SetHostedProperty(SymbolKeys.Iterator, (_, _) => iterator);
         return iterator;

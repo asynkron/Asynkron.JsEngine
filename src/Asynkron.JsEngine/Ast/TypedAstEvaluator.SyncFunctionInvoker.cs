@@ -33,7 +33,6 @@ public static partial class TypedAstEvaluator
         private readonly FunctionExpression _function;
         private readonly string _functionDescription;
         private readonly bool _hasFunctionNameEnvironment;
-        private readonly bool _hasHoistableDeclarations;
         private readonly bool _hasParameterExpressions;
         private readonly bool _isStrict;
         private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
@@ -90,7 +89,7 @@ public static partial class TypedAstEvaluator
             _isConstructorEnabled = isConstructorFunction;
             var hoistPlan = ((IAstCacheable<HoistPlan>)function.Body).GetOrCreateCache();
             var bodyLexicalNames = hoistPlan.LexicalNames;
-            _hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
+            var hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
                 .GetOrCreateCache()
                 .HasHoistableDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
@@ -113,7 +112,7 @@ public static partial class TypedAstEvaluator
                                    !_wasAsyncFunction &&
                                    !_hasParameterExpressions &&
                                    hoistPlan.LexicalTemplate.Length == 0 &&
-                                   !_hasHoistableDeclarations &&
+                                   !hasHoistableDeclarations &&
                                    _allowIdentifierCache &&
                                    hasSimpleParams;
 
@@ -378,7 +377,7 @@ public static partial class TypedAstEvaluator
             // Provide minimal Function.prototype-style helpers for typed
             // functions so patterns like fn.call/apply/bind work for code
             // emitted by tools like Babel/regenerator.
-            var callable = (IJsCallable)this;
+            IJsCallable callable = this;
             switch (name)
             {
                 case "call":
@@ -1088,7 +1087,7 @@ public static partial class TypedAstEvaluator
                     if (IsClassConstructor)
                     {
                         var runtimeCtorPrototype =
-                            (this as IPrototypeAccessorProvider)?.PrototypeAccessor ?? Prototype;
+                            (this as IPrototypeAccessorProvider).PrototypeAccessor ?? Prototype;
                         if (runtimeCtorPrototype is IJsEnvironmentAwareCallable ctorLike)
                         {
                             runtimeSuperConstructor = ctorLike;
@@ -1906,7 +1905,7 @@ public static partial class TypedAstEvaluator
             out JsEnvironment functionEnvironment)
         {
             var scopeMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
-            context = RealmState.RentContext(ScopeKind.Function, scopeMode, true);
+            context = RealmState.RentContext(ScopeKind.Function, scopeMode);
             context.AllowIdentifierCache = _allowIdentifierCache;
             context.CallDepth = callingContext.CallDepth;
             context.MaxCallDepth = callingContext.MaxCallDepth;
@@ -1917,7 +1916,7 @@ public static partial class TypedAstEvaluator
         }
 
         /// <summary>
-        /// Binds parameters from argument list to slots (fast path) or dictionary (fallback).
+        /// Binds parameters from the argument list to slots (fast path) or dictionary (fallback).
         /// Handles closure dictionary binding when needed.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

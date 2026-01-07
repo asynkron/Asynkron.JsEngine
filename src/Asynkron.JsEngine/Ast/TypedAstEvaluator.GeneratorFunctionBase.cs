@@ -145,7 +145,7 @@ public static partial class TypedAstEvaluator
 
             // Handle call/apply/bind specially BEFORE looking them up in prototype chain
             // This ensures generator functions get proper constructor semantics for bound functions
-            var callable = (IJsCallable)this;
+            IJsCallable callable = this;
             switch (name)
             {
                 case "call":

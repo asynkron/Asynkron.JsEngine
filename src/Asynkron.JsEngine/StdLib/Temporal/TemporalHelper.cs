@@ -728,7 +728,7 @@ public static class TemporalHelper
             var date = GetPlainDate(thisValue);
             var arg = args.GetArgument(0);
             string timeZone;
-            JsTemporalPlainTime time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
+            var time = new JsTemporalPlainTime(0, 0, 0, 0, 0, 0);
 
             if (arg.TryGetObject<IJsPropertyAccessor>(out var accessor) && accessor is not null)
             {

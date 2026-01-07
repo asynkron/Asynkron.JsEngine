@@ -201,18 +201,27 @@ public static partial class TypedAstEvaluator
                 switch (expression)
                 {
                     case IdentifierExpression ident:
+                    {
                         return ReferenceEquals(ident.Name, parameterName);
+                    }
                     case AssignmentExpression assign:
+                    {
                         return ReferenceEquals(assign.Target, parameterName) ||
                                DefaultReferencesParameter(assign.Value, parameterName);
+                    }
                     case BinaryExpression binary:
+                    {
                         return DefaultReferencesParameter(binary.Left, parameterName) ||
                                DefaultReferencesParameter(binary.Right, parameterName);
+                    }
                     case ConditionalExpression cond:
+                    {
                         return DefaultReferencesParameter(cond.Test, parameterName) ||
                                DefaultReferencesParameter(cond.Consequent, parameterName) ||
                                DefaultReferencesParameter(cond.Alternate, parameterName);
+                    }
                     case CallExpression call:
+                    {
                         if (DefaultReferencesParameter(call.Callee, parameterName))
                         {
                             return true;
@@ -227,17 +236,25 @@ public static partial class TypedAstEvaluator
                         }
 
                         return false;
+                    }
 
                     case MemberExpression member:
+                    {
                         return DefaultReferencesParameter(member.Target, parameterName) ||
                                DefaultReferencesParameter(member.Property, parameterName);
+                    }
                     case UnaryExpression unary:
+                    {
                         expression = unary.Operand;
                         continue;
+                    }
                     case SequenceExpression seq:
+                    {
                         return DefaultReferencesParameter(seq.Left, parameterName) ||
                                DefaultReferencesParameter(seq.Right, parameterName);
+                    }
                     case ArrayExpression arr:
+                    {
                         foreach (var element in arr.Elements)
                         {
                             if (element.Expression is not null &&
@@ -248,7 +265,9 @@ public static partial class TypedAstEvaluator
                         }
 
                         return false;
+                    }
                     case ObjectExpression obj:
+                    {
                         foreach (var member in obj.Members)
                         {
                             if (member.Value is not null && DefaultReferencesParameter(member.Value, parameterName))
@@ -264,7 +283,9 @@ public static partial class TypedAstEvaluator
                         }
 
                         return false;
+                    }
                     case TemplateLiteralExpression template:
+                    {
                         foreach (var part in template.Parts)
                         {
                             if (part.Expression is not null &&
@@ -275,7 +296,9 @@ public static partial class TypedAstEvaluator
                         }
 
                         return false;
+                    }
                     case TaggedTemplateExpression tagged:
+                    {
                         if (DefaultReferencesParameter(tagged.Tag, parameterName) ||
                             DefaultReferencesParameter(tagged.StringsArray, parameterName) ||
                             DefaultReferencesParameter(tagged.RawStringsArray, parameterName))
@@ -292,18 +315,27 @@ public static partial class TypedAstEvaluator
                         }
 
                         return false;
+                    }
                     case YieldExpression { Expression: not null } yieldExpression:
+                    {
                         expression = yieldExpression.Expression;
                         continue;
+                    }
                     case AwaitExpression awaitExpression:
+                    {
                         expression = awaitExpression.Expression;
                         continue;
+                    }
                     case FunctionExpression:
+                    {
                         // Nested functions have their own scope; references to the parameter name
                         // do not count towards self-referential defaults here.
                         return false;
+                    }
                     default:
+                    {
                         return false;
+                    }
                 }
             }
         }
@@ -339,7 +371,7 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
-    internal static IJsCallable CreateFunctionValue(this FunctionExpression functionExpression, JsEnvironment environment,
+    private static IJsCallable CreateFunctionValue(this FunctionExpression functionExpression, JsEnvironment environment,
         EvaluationContext context,
         bool isConstructorFunction = true,
         bool skipInternalNameBinding = false)
@@ -431,21 +463,23 @@ public static partial class TypedAstEvaluator
 
         // Store the function in the functionNameEnvironment's slot 0 for self-reference
         // Also register in dictionary with isImmutableBinding=true so eval'd code can detect immutability
-        if (functionNameEnvironment is not null)
+        if (functionNameEnvironment is null)
         {
-            // Store in slot if slots are initialized (with scope analysis)
-            if (functionNameEnvironment._slots is not null && functionNameEnvironment._slotCount > 0)
-            {
-                functionNameEnvironment._slots[0].Value = JsValue.FromObjectUnsafe(callable);
-            }
-
-            // Register as immutable binding in dictionary for eval compatibility and fallback lookup
-            // Per ES spec 9.2.10, function name binding is immutable:
-            // - strict mode: assignment throws TypeError
-            // - non-strict mode: assignment is silently ignored
-            functionNameEnvironment.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
-                isLexicalBinding: true, blocksFunctionScopeOverride: true, isImmutableBinding: true);
+            return callable;
         }
+
+        // Store in slot if slots are initialized (with scope analysis)
+        if (functionNameEnvironment._slots is not null && functionNameEnvironment._slotCount > 0)
+        {
+            functionNameEnvironment._slots[0].Value = JsValue.FromObjectUnsafe(callable);
+        }
+
+        // Register as immutable binding in dictionary for eval compatibility and fallback lookup
+        // Per ES spec 9.2.10, function name binding is immutable:
+        // - strict mode: assignment throws TypeError
+        // - non-strict mode: assignment is silently ignored
+        functionNameEnvironment.DefineJsValue(functionExpression.Name!, JsValue.FromObjectUnsafe(callable),
+            isLexicalBinding: true, blocksFunctionScopeOverride: true, isImmutableBinding: true);
 
         return callable;
     }

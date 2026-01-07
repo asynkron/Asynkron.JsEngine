@@ -225,7 +225,7 @@ public sealed class JsTemporalPlainTime : IEquatable<JsTemporalPlainTime>, IComp
     public JsTemporalPlainTime Round(string smallestUnit)
     {
         var nanos = TotalNanoseconds;
-        long divisor = smallestUnit switch
+        var divisor = smallestUnit switch
         {
             "hour" or "hours" => NanosecondsPerHour,
             "minute" or "minutes" => NanosecondsPerMinute,

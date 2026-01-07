@@ -537,7 +537,7 @@ public static class TemporalHelper
 
             // Convert to total nanoseconds, round, then convert back
             var totalNanos = duration.Total("nanoseconds");
-            double divisor = smallestUnit switch
+            var divisor = smallestUnit switch
             {
                 "year" or "years" => 31_556_952_000_000_000.0,
                 "month" or "months" => 2_629_746_000_000_000.0,
@@ -1298,7 +1298,7 @@ public static class TemporalHelper
 
             // Round by rounding the epoch nanoseconds
             var nanos = zdt.Instant.EpochNanoseconds;
-            long divisor = smallestUnit switch
+            var divisor = smallestUnit switch
             {
                 "hour" or "hours" => 3600_000_000_000L,
                 "minute" or "minutes" => 60_000_000_000L,

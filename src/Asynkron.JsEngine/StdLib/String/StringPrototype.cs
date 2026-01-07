@@ -1512,9 +1512,9 @@ public sealed partial class StringPrototype
         var str = ResolveString(thisValue);
 
         // Check for lone surrogates
-        for (int i = 0; i < str.Length; i++)
+        for (var i = 0; i < str.Length; i++)
         {
-            char c = str[i];
+            var c = str[i];
 
             // Check if it's a high surrogate (0xD800-0xDBFF)
             if (char.IsHighSurrogate(c))
@@ -1545,9 +1545,9 @@ public sealed partial class StringPrototype
         const char replacementChar = '\uFFFD';
         var sb = new StringBuilder(str.Length);
 
-        for (int i = 0; i < str.Length; i++)
+        for (var i = 0; i < str.Length; i++)
         {
-            char c = str[i];
+            var c = str[i];
 
             // Check if it's a high surrogate
             if (char.IsHighSurrogate(c))

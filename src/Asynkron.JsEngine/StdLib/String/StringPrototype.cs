@@ -678,21 +678,9 @@ public sealed partial class StringPrototype
             throw ThrowTypeError("First argument to String.prototype.startsWith must not be a regular expression", context, Realm);
         }
 
-        var searchStr = JsOps.ToJsString(searchArg, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
+        var searchStr = ResolveSearchString(searchArg, context);
         var len = value.Length;
-
-        // ToIntegerOrInfinity on position
-        var posArg = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var pos = ToIntegerOrInfinity(posArg, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
+        var pos = ResolvePositionArgument(args, context);
 
         // Clamp position
         int start;
@@ -795,21 +783,9 @@ public sealed partial class StringPrototype
             throw ThrowTypeError("First argument to String.prototype.includes must not be a regular expression", context, Realm);
         }
 
-        var searchStr = JsOps.ToJsString(searchArg, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
-
+        var searchStr = ResolveSearchString(searchArg, context);
         var len = value.Length;
-
-        // ToIntegerOrInfinity on position
-        var posArg = args.Count > 1 ? args[1] : JsValue.Undefined;
-        var pos = ToIntegerOrInfinity(posArg, context);
-        if (context?.IsThrow == true)
-        {
-            throw new ThrowSignal(context.FlowValue);
-        }
+        var pos = ResolvePositionArgument(args, context);
 
         // Clamp position
         int start;
@@ -1606,5 +1582,28 @@ public sealed partial class StringPrototype
 
         // Use invariant culture as default (JavaScript behavior)
         return CultureInfo.InvariantCulture;
+    }
+
+    private static string ResolveSearchString(JsValue searchArg, EvaluationContext? context)
+    {
+        var searchStr = JsOps.ToJsString(searchArg, context);
+        ThrowIfContextThrew(context);
+        return searchStr;
+    }
+
+    private static double ResolvePositionArgument(IReadOnlyList<JsValue> args, EvaluationContext? context, int index = 1)
+    {
+        var posArg = args.Count > index ? args[index] : JsValue.Undefined;
+        var pos = ToIntegerOrInfinity(posArg, context);
+        ThrowIfContextThrew(context);
+        return pos;
+    }
+
+    private static void ThrowIfContextThrew(EvaluationContext? context)
+    {
+        if (context?.IsThrow == true)
+        {
+            throw new ThrowSignal(context.FlowValue);
+        }
     }
 }

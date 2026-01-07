@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
 #endregion
@@ -132,22 +133,13 @@ public static partial class TypedAstEvaluator
         {
             // Regular path: use ref ternary for variable access
             JsValue incCurrentValue;
-            ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
-                ? ref runner._flatSlots[flatSlotId]
-                : ref Unsafe.NullRef<JsVariable>());
-            var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
-
-            // Check for const assignment - must throw TypeError
-            if (useFlatSlot && variable.IsConst)
-            {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
-                    realm: runner._realmState));
-            }
+            var variable = FlatSlotAccessor.Create(runner, flatSlotId);
+            variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
+            var useFlatSlot = variable.UseFlatSlot;
 
             if (useFlatSlot)
             {
-                incCurrentValue = variable.Read();
+                incCurrentValue = variable.Variable.Read();
             }
             else
             {
@@ -226,7 +218,7 @@ public static partial class TypedAstEvaluator
             // Fast path: use flat slot for O(1) write when available
             if (useFlatSlot)
             {
-                variable.Write(incNewJsValue);
+                variable.Variable.Write(incNewJsValue);
             }
             else
             {
@@ -299,22 +291,13 @@ public static partial class TypedAstEvaluator
         {
             // Regular path: use ref ternary for variable access
             JsValue compCurrentValue;
-            ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
-                ? ref runner._flatSlots[flatSlotId]
-                : ref Unsafe.NullRef<JsVariable>());
-            var useFlatSlot = !Unsafe.IsNullRef(ref variable) && variable.IsValid;
-
-            // Check for const assignment - must throw TypeError
-            if (useFlatSlot && variable.IsConst)
-            {
-                throw new ThrowSignal(StandardLibrary.CreateTypeError(
-                    $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
-                    realm: runner._realmState));
-            }
+            var variable = FlatSlotAccessor.Create(runner, flatSlotId);
+            variable.EnsureAssignable(instruction.TargetSymbol, runner._realmState);
+            var useFlatSlot = variable.UseFlatSlot;
 
             if (useFlatSlot)
             {
-                compCurrentValue = variable.Read();
+                compCurrentValue = variable.Variable.Read();
             }
             else
             {
@@ -398,7 +381,7 @@ public static partial class TypedAstEvaluator
             // Fast path: use flat slot for O(1) write when available
             if (useFlatSlot)
             {
-                variable.Write(compResult);
+                variable.Variable.Write(compResult);
             }
             else
             {
@@ -413,6 +396,35 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        private ref struct FlatSlotAccessor
+        {
+            private FlatSlotAccessor(ref JsVariable variable) => _variable = ref variable;
+
+            private readonly ref JsVariable _variable;
+
+            public static FlatSlotAccessor Create(ExecutionPlanRunner runner, int flatSlotId)
+            {
+                ref var variable = ref (flatSlotId >= 0 && runner._flatSlots is not null
+                    ? ref runner._flatSlots[flatSlotId]
+                    : ref Unsafe.NullRef<JsVariable>());
+                return new FlatSlotAccessor(ref variable);
+            }
+
+            public bool UseFlatSlot => !Unsafe.IsNullRef(ref _variable) && _variable.IsValid;
+
+            public ref JsVariable Variable => ref _variable;
+
+            public void EnsureAssignable(Symbol targetSymbol, RealmState realmState)
+            {
+                if (UseFlatSlot && _variable.IsConst)
+                {
+                    throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                        $"Assignment to constant variable '{targetSymbol.Name}'.",
+                        realm: realmState));
+                }
+            }
         }
     }
 }

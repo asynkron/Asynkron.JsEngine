@@ -233,7 +233,6 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
             var result = new JsObject();
             if (index < str.Length)
             {
-                var first = str[index];
                 var charValue = StringHelper.ReadCodePoint(str, ref index);
 
                 result.SetProperty("value", (JsValue)charValue);

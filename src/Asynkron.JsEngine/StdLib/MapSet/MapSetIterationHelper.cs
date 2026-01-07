@@ -112,7 +112,6 @@ internal static class MapSetIterationHelper
                 }
 
                 // Iterate by code point to handle surrogate pairs correctly.
-                var first = str[index];
                 var charValue = StringHelper.ReadCodePoint(str, ref index);
 
                 return IteratorResultObject.Create(new JsValue(charValue), false);

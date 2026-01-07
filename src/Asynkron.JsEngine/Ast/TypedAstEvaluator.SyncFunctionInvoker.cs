@@ -1913,29 +1913,7 @@ public static partial class TypedAstEvaluator
 
             functionEnvironment =
                 RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
-            functionEnvironment.ScopeId = _function.ScopeId;
-            functionEnvironment.SetSlotMap(_function.SlotMap);
-            if (_function.SlotCount > 0)
-            {
-                functionEnvironment.InitializeSlots(_function.SlotCount);
-            }
-
-            JsValue boundThisValue;
-            if (IsArrowFunction)
-            {
-                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
-            }
-            else if (_isStrict)
-            {
-                boundThisValue = thisValue;
-            }
-            else
-            {
-                boundThisValue = CoerceThisValueForNonStrict(thisValue);
-            }
-
-            functionEnvironment._thisValue = boundThisValue;
-            functionEnvironment._hasThisValue = true;
+            InitializeFunctionEnvironmentForThis(functionEnvironment, thisValue);
         }
 
         /// <summary>
@@ -1966,6 +1944,33 @@ public static partial class TypedAstEvaluator
                     env.DefineParameterFast(_parameterNames[i], value);
                 }
             }
+        }
+
+        private void InitializeFunctionEnvironmentForThis(JsEnvironment functionEnvironment, JsValue thisValue)
+        {
+            functionEnvironment.ScopeId = _function.ScopeId;
+            functionEnvironment.SetSlotMap(_function.SlotMap);
+            if (_function.SlotCount > 0)
+            {
+                functionEnvironment.InitializeSlots(_function.SlotCount);
+            }
+
+            JsValue boundThisValue;
+            if (IsArrowFunction)
+            {
+                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
+            }
+            else if (_isStrict)
+            {
+                boundThisValue = thisValue;
+            }
+            else
+            {
+                boundThisValue = CoerceThisValueForNonStrict(thisValue);
+            }
+
+            functionEnvironment._thisValue = boundThisValue;
+            functionEnvironment._hasThisValue = true;
         }
 
         /// <summary>
@@ -2234,35 +2239,7 @@ public static partial class TypedAstEvaluator
                 ? RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
-            // Initialize slots for O(1) variable access when scope analysis provided slot count
-            // Always set ScopeId since we use it as indicator for _thisValue validity
-            functionEnvironment.ScopeId = _function.ScopeId;
-            functionEnvironment.SetSlotMap(_function.SlotMap);
-            if (_function.SlotCount > 0)
-            {
-                functionEnvironment.InitializeSlots(_function.SlotCount);
-            }
-
-            // Bind this - keep as JsValue to avoid unnecessary boxing/unboxing
-            JsValue boundThisValue;
-            if (IsArrowFunction)
-            {
-                boundThisValue = _lexicalThis.IsUndefined ? JsValue.Undefined : _lexicalThis;
-            }
-            else if (_isStrict)
-            {
-                // In strict mode, this is passed through unchanged - null/undefined stay as-is
-                boundThisValue = thisValue;
-            }
-            else
-            {
-                // In sloppy mode: null/undefined become global object, primitives get boxed
-                boundThisValue = CoerceThisValueForNonStrict(thisValue);
-            }
-
-            // Bind this using fast field access (avoids dictionary allocation)
-            functionEnvironment._thisValue = boundThisValue;
-            functionEnvironment._hasThisValue = true;
+            InitializeFunctionEnvironmentForThis(functionEnvironment, thisValue);
 
             BindParametersFromList(functionEnvironment, arguments);
 
@@ -2289,23 +2266,25 @@ public static partial class TypedAstEvaluator
                 {
                     var thrown = context.FlowValue;
                     context.Clear();
-                    if (callingContext is not null)
+                    if (callingContext is null)
                     {
-                        callingContext.SetThrow(thrown);
-                        return thrown;
+                        throw new ThrowSignal(thrown);
                     }
 
-                    throw new ThrowSignal(thrown);
+                    callingContext.SetThrow(thrown);
+                    return thrown;
+
                 }
 
-                if (context.IsReturn)
+                if (!context.IsReturn)
                 {
-                    var value = context.FlowValue;
-                    context.ClearReturn();
-                    return value; // FlowValue already returns JsValue, no need to wrap
+                    return JsValue.Undefined;
                 }
 
-                return JsValue.Undefined;
+                var value = context.FlowValue;
+                context.ClearReturn();
+                return value; // FlowValue already returns JsValue, no need to wrap
+
             }
             catch (ThrowSignal signal)
             {
@@ -2345,14 +2324,15 @@ public static partial class TypedAstEvaluator
 
     private static bool TryApplyNewTargetPrototype(JsObject constructedThis, JsValue newTarget)
     {
-        if (newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) &&
-            JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype", out var protoVal) &&
-            protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
+        if (!newTarget.TryGetObject<IJsPropertyAccessor>(out var prototypeSource) ||
+            !JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(prototypeSource), "prototype", out var protoVal) ||
+            !protoVal.TryGetObject<IJsPropertyAccessor>(out var protoAccessor))
         {
-            constructedThis.SetPrototype(protoAccessor);
-            return true;
+            return false;
         }
 
-        return false;
+        constructedThis.SetPrototype(protoAccessor);
+        return true;
+
     }
 }

@@ -27,7 +27,7 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask, IRentabl
 
     public void Execute()
     {
-        AssertOwnership(nameof(Execute));
+        PoolDebug.AssertOwned(this, nameof(Execute));
         var value = _value;
         var nextPromise = _nextPromise!;
 
@@ -43,9 +43,6 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask, IRentabl
         _nextPromise = null;
         Epoch = 0;
     }
-
-    [Conditional("DEBUG")]
-    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 }
 
 /// <summary>
@@ -74,7 +71,7 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask, IRentable
 
     public void Execute()
     {
-        AssertOwnership(nameof(Execute));
+        PoolDebug.AssertOwned(this, nameof(Execute));
         var callback = _callback!;
         var value = _value;
         var nextPromise = _nextPromise!;
@@ -107,7 +104,4 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask, IRentable
         _nextPromise = null;
         Epoch = 0;
     }
-
-    [Conditional("DEBUG")]
-    internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 }

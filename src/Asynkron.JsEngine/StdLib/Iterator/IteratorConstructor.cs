@@ -1,5 +1,6 @@
 #region
 
+using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -269,19 +270,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         var isExecuting = false;
 
         var nextFunc = new HostFunction((_, args) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
-            }
-
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
-            try
+            ExecuteIteratorCommand(shortCircuitIfDone: true, done, ref isExecuting, realm, () =>
             {
                 if (!underlying.TryGetProperty("next", out var nextProp) ||
                     !nextProp.TryGetObject<IJsCallable>(out var nextMethod) ||
@@ -302,22 +291,10 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 }
 
                 return result;
-            }
-            finally
-            {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
+            }), isConstructor: false);
 
         var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
-            }
-
-            isExecuting = true;
-            try
+            ExecuteIteratorCommand(shortCircuitIfDone: false, done, ref isExecuting, realm, () =>
             {
                 done = true;
                 if (underlying.TryGetProperty("return", out var returnProp) &&
@@ -328,12 +305,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 }
 
                 return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
+            }), isConstructor: false);
 
         wrapper.SetProperty("next", (JsValue)nextFunc);
         wrapper.SetProperty("return", (JsValue)returnFunc);
@@ -363,19 +335,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         var isExecuting = false;
 
         var nextFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
-            }
-
-            if (done)
-            {
-                return CreateIterResult(JsValue.Undefined, true);
-            }
-
-            isExecuting = true;
-            try
+            ExecuteIteratorCommand(shortCircuitIfDone: true, done, ref isExecuting, realm, () =>
             {
                 while (true)
                 {
@@ -410,22 +370,10 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                     var nextIterable = iterables[iterableIndex++];
                     currentIterator = GetIteratorFromIterable(nextIterable);
                 }
-            }
-            finally
-            {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
+            }), isConstructor: false);
 
         var returnFunc = new HostFunction((_, _) =>
-        {
-            if (isExecuting)
-            {
-                throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
-            }
-
-            isExecuting = true;
-            try
+            ExecuteIteratorCommand(shortCircuitIfDone: false, done, ref isExecuting, realm, () =>
             {
                 done = true;
                 if (currentIterator is not null &&
@@ -444,12 +392,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                 }
 
                 return CreateIterResult(JsValue.Undefined, true);
-            }
-            finally
-            {
-                isExecuting = false;
-            }
-        }, isConstructor: false);
+            }), isConstructor: false);
 
         iterator.SetProperty("next", (JsValue)nextFunc);
         iterator.SetProperty("return", (JsValue)returnFunc);
@@ -473,6 +416,34 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         result.SetProperty("value", value);
         result.SetProperty("done", done);
         return new JsValue(result);
+    }
+
+    private static JsValue ExecuteIteratorCommand(
+        bool shortCircuitIfDone,
+        bool done,
+        ref bool isExecuting,
+        RealmState? realm,
+        Func<JsValue> action)
+    {
+        if (isExecuting)
+        {
+            throw StandardLibrary.ThrowTypeError("Generator is already executing", null, realm);
+        }
+
+        if (shortCircuitIfDone && done)
+        {
+            return CreateIterResult(JsValue.Undefined, true);
+        }
+
+        isExecuting = true;
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            isExecuting = false;
+        }
     }
 
     #endregion

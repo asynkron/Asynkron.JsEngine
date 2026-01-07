@@ -44,20 +44,7 @@ public static partial class TypedAstEvaluator
 
             var executor = new HostFunction((_, execArgs) =>
             {
-                IJsCallable? resolve = null;
-                IJsCallable? reject = null;
-
-                if (execArgs.Count >= 1 && execArgs[0].TryUnwrap(out IJsCallable? res))
-                {
-                    resolve = res;
-                }
-
-                if (execArgs.Count >= 2 && execArgs[1].TryUnwrap(out IJsCallable? rej))
-                {
-                    reject = rej;
-                }
-
-                if (resolve is null || reject is null)
+                if (!TryGetExecutorCallbacks(execArgs, out var resolve, out var reject))
                 {
                     return JsValue.Undefined;
                 }

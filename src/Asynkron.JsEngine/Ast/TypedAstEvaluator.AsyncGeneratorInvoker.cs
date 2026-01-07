@@ -1,7 +1,9 @@
 #region
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Runtime;
+using JetBrains.Annotations;
 
 #endregion
 
@@ -9,6 +11,16 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
+    private static bool TryGetExecutorCallbacks(
+        IReadOnlyList<JsValue> execArgs,
+        [NotNullWhen(true)] out IJsCallable? resolve,
+        [NotNullWhen(true)] out IJsCallable? reject)
+    {
+        resolve = execArgs.GetOrDefault<IJsCallable>(0);
+        reject = execArgs.GetOrDefault<IJsCallable>(1);
+        return resolve is not null && reject is not null;
+    }
+
     private sealed class AsyncGeneratorInvoker(
         FunctionExpression function,
         JsEnvironment closure,
@@ -86,20 +98,7 @@ public static partial class TypedAstEvaluator
 
             var executor = new HostFunction((_, execArgs) =>
             {
-                IJsCallable? resolve = null;
-                IJsCallable? reject = null;
-
-                if (execArgs.Count >= 1 && execArgs[0].TryUnwrap(out IJsCallable? res))
-                {
-                    resolve = res;
-                }
-
-                if (execArgs.Count >= 2 && execArgs[1].TryUnwrap(out IJsCallable? rej))
-                {
-                    reject = rej;
-                }
-
-                if (resolve is null || reject is null)
+                if (!TryGetExecutorCallbacks(execArgs, out var resolve, out var reject))
                 {
                     return JsValue.Undefined;
                 }

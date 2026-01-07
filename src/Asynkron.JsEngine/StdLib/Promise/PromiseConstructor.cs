@@ -298,19 +298,11 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             return new JsValue(resultPromise.JsObject);
         }
 
-        for (var i = 0; i < array.Items.Count; i++)
-        {
-            var item = array.Items[i];
-            if (TryGetThenMethod(item, out var thenCallable))
-            {
-                var thenArgs = new[] { (JsValue)CreateResolve(i), (JsValue)CreateReject(i) };
-                thenCallable.Invoke(thenArgs, item);
-            }
-            else
-            {
-                Resolve(i, item, false);
-            }
-        }
+        IteratePromiseArray(
+            array,
+            index => (JsValue)CreateResolve(index),
+            index => (JsValue)CreateReject(index),
+            (index, item) => Resolve(index, item, false));
 
         return new JsValue(resultPromise.JsObject);
 
@@ -381,19 +373,11 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             return new JsValue(resultPromise.JsObject);
         }
 
-        for (var i = 0; i < array.Items.Count; i++)
-        {
-            var item = array.Items[i];
-            if (TryGetThenMethod(item, out var thenCallable))
-            {
-                var thenArgs = new[] { (JsValue)CreateResolve(), (JsValue)CreateReject() };
-                thenCallable.Invoke(thenArgs, item);
-            }
-            else
-            {
-                Resolve(item);
-            }
-        }
+        IteratePromiseArray(
+            array,
+            _ => (JsValue)CreateResolve(),
+            _ => (JsValue)CreateReject(),
+            (_, item) => Resolve(item));
 
         return new JsValue(resultPromise.JsObject);
 
@@ -442,6 +426,28 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             if (remaining == 0)
             {
                 resultPromise.Reject(JsValue.FromObjectUnsafe(CreateAggregateError(errors)));
+            }
+        }
+    }
+
+    private static void IteratePromiseArray(
+        JsArray array,
+        Func<int, JsValue> createResolve,
+        Func<int, JsValue> createReject,
+        Action<int, JsValue> resolveDirect)
+    {
+        var items = array.Items;
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+            if (TryGetThenMethod(item, out var thenCallable))
+            {
+                var thenArgs = new[] { createResolve(index), createReject(index) };
+                thenCallable.Invoke(thenArgs, item);
+            }
+            else
+            {
+                resolveDirect(index, item);
             }
         }
     }

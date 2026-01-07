@@ -15,12 +15,6 @@ public sealed partial class FinalizationRegistryConstructor(IJsObjectLike protot
     {
         // TODO: Implement FinalizationRegistry constructor
         // Creates a new FinalizationRegistry instance with a cleanup callback
-        var obj = PrepareThisObject(JsValue.Undefined, false);
-        if (Prototype is not null && obj.Prototype is null)
-        {
-            obj.SetPrototype(Prototype);
-        }
-        obj.RealmState ??= Realm;
-        return new JsValue(obj);
+        return CreateDefaultInstance();
     }
 }

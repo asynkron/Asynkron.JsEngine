@@ -542,7 +542,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Called when context is rented from pool.
     /// </summary>
-    void IRentable.Activate(ILogger? logger)
+    void IRentable.OnRent(ILogger? logger)
     {
         logger?.LogInformation("EvaluationContext.Activate");
     }
@@ -550,7 +550,7 @@ public sealed class EvaluationContext(
     /// <summary>
     ///     Resets the context for reuse. Clears all stacks and signals.
     /// </summary>
-    void IRentable.Reset(ILogger? logger)
+    void IRentable.OnReturn(ILogger? logger)
     {
         logger?.LogInformation("EvaluationContext.Reset");
         Reset();
@@ -693,9 +693,9 @@ public sealed class EvaluationContext(
             Pool.Return(this);
         }
 
-        void IRentable.Activate(ILogger? logger) { }
+        void IRentable.OnRent(ILogger? logger) { }
 
-        void IRentable.Reset(ILogger? logger)
+        void IRentable.OnReturn(ILogger? logger)
         {
             _scopes = null;
             _disposed = false;

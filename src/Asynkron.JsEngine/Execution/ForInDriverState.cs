@@ -62,7 +62,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// <summary>
     /// Called when state is rented from pool.
     /// </summary>
-    void IRentable.Activate(ILogger? logger)
+    void IRentable.OnRent(ILogger? logger)
     {
         logger?.LogInformation("ForInDriverState.Activate");
     }
@@ -71,7 +71,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// Resets the state for reuse from pool.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Reset(ILogger? logger = null)
+    public void OnReturn(ILogger? logger = null)
     {
         logger?.LogInformation("ForInDriverState.Reset");
         PropertyKeys.Clear();
@@ -94,7 +94,7 @@ internal static class ForInDriverStatePool
     {
         var state = Pool.Rent();
         // CRITICAL: Reset ALL state before use - pooled objects must be fully clean
-        state.Reset(null);
+        state.OnReturn(null);
         return state;
     }
 

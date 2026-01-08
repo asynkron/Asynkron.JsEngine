@@ -57,9 +57,9 @@ internal sealed class ResolvedPromiseFulfilledMicrotask : IMicrotask, IRentable
         }
     }
 
-    public void Activate(ILogger? logger) { }
+    public void OnRent(ILogger? logger) { }
 
-    public void Reset(ILogger? logger)
+    public void OnReturn(ILogger? logger)
     {
         _callback = null;
         _value = JsValue.Undefined;

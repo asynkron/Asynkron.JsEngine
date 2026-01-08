@@ -30,7 +30,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
             {
                 if (IsRentable)
                 {
-                    ((IRentable)item).Activate(logger);
+                    ((IRentable)item).OnRent(logger);
                 }
                 PoolDebug.MarkLeased(item);
                 return item;
@@ -40,7 +40,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
         var newItem = factory();
         if (IsRentable)
         {
-            ((IRentable)newItem).Activate(logger);
+            ((IRentable)newItem).OnRent(logger);
         }
         PoolDebug.MarkLeased(newItem);
         return newItem;
@@ -51,7 +51,7 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
     {
         if (IsRentable)
         {
-            ((IRentable)item).Reset(logger);
+            ((IRentable)item).OnReturn(logger);
         }
         PoolDebug.MarkReturned(item);
 

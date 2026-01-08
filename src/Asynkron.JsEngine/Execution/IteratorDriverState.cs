@@ -96,7 +96,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     /// <summary>
     /// Called when state is rented from pool.
     /// </summary>
-    void IRentable.Activate(ILogger? logger)
+    void IRentable.OnRent(ILogger? logger)
     {
         logger?.LogInformation("IteratorDriverState.Activate");
     }
@@ -105,7 +105,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     /// Resets the state for reuse from pool.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Reset(ILogger? logger = null)
+    public void OnReturn(ILogger? logger = null)
     {
         logger?.LogInformation("IteratorDriverState.Reset");
         IteratorObject = null;
@@ -207,7 +207,7 @@ internal static class IteratorDriverStatePool
     {
         var state = Pool.Rent();
         // CRITICAL: Reset ALL state before use - pooled objects must be fully clean
-        state.Reset(null);
+        state.OnReturn(null);
         if (PoolGuard.Enabled)
         {
             state.MarkLeased(PoolGuard.NextLeaseId());

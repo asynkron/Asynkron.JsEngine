@@ -62,9 +62,9 @@ internal sealed class StringPooledEnumerator : IEnumerator<JsValue>, IRentable
     [Conditional("DEBUG")]
     internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
-    void IRentable.Activate(ILogger? logger) { }
+    void IRentable.OnRent(ILogger? logger) { }
 
-    void IRentable.Reset(ILogger? logger) => Reset();
+    void IRentable.OnReturn(ILogger? logger) => Reset();
 
     public void Reset()
     {

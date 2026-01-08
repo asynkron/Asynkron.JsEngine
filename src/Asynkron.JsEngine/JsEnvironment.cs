@@ -244,14 +244,13 @@ public sealed class JsEnvironment : IRentable
         IsBodyEnvironment = isBodyEnvironment;
         IsArrowFunctionEnvironment = false;
         IsCaptured = false;
-        // Reset slot-based state - return slots array to pool
-        JsSlotArrayPool.Return(_slots);
         _slots = null;
         _slotCount = 0;
         ScopeId = -1;
         LayoutId = -1;
     }
 
+    [Conditional("DEBUG")]
     internal void MarkLeased(int leaseId)
     {
         if (!PoolGuard.Enabled)
@@ -268,6 +267,7 @@ public sealed class JsEnvironment : IRentable
         PoolLeaseId = leaseId;
     }
 
+    [Conditional("DEBUG")]
     internal void MarkReturned()
     {
         if (!PoolGuard.Enabled)
@@ -284,6 +284,7 @@ public sealed class JsEnvironment : IRentable
         PoolLeaseId = 0;
     }
 
+    [Conditional("DEBUG")]
     internal void AssertLease(int expectedLeaseId, string usage)
     {
         if (!PoolGuard.Enabled)
@@ -331,7 +332,7 @@ public sealed class JsEnvironment : IRentable
     }
 
     [Conditional("DEBUG")]
-    internal void AssertSlotSymbols(ImmutableArray<Symbol> slotSymbols, string usage)
+    private void AssertSlotSymbols(ImmutableArray<Symbol> slotSymbols, string usage)
     {
         if (slotSymbols.IsDefaultOrEmpty || _slots is null)
         {
@@ -355,7 +356,7 @@ public sealed class JsEnvironment : IRentable
     }
 
     [Conditional("DEBUG")]
-    internal void AssertSlotMapLayout(ImmutableDictionary<Symbol, int> slotMap, string usage)
+    private void AssertSlotMapLayout(ImmutableDictionary<Symbol, int> slotMap, string usage)
     {
         if (slotMap.IsEmpty || _slots is null)
         {
@@ -471,7 +472,7 @@ public sealed class JsEnvironment : IRentable
     ///     Called when environment is rented from pool.
     ///     Implements IRentable.Activate().
     /// </summary>
-    void IRentable.Activate(ILogger? logger)
+    void IRentable.OnRent(ILogger? logger)
     {
         logger?.LogInformation("JsEnvironment.Activate description={Description}", _description);
     }
@@ -480,10 +481,11 @@ public sealed class JsEnvironment : IRentable
     ///     Resets the environment to a neutral state for pool return.
     ///     Implements IRentable.Reset().
     /// </summary>
-    void IRentable.Reset(ILogger? logger)
+    void IRentable.OnReturn(ILogger? logger)
     {
         logger?.LogInformation("JsEnvironment.Reset description={Description}", _description);
-        Reset(null, false, false);
+        JsSlotArrayPool.Return(_slots);
+        //TODO: anything else?
     }
 
     /// <summary>

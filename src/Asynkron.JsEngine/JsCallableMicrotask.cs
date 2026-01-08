@@ -36,9 +36,9 @@ internal sealed class JsCallableMicrotask : IMicrotask, IRentable
         }
     }
 
-    public void Activate(ILogger? logger) { }
+    public void OnRent(ILogger? logger) { }
 
-    public void Reset(ILogger? logger)
+    public void OnReturn(ILogger? logger)
     {
         _callback = null;
         Epoch = 0;

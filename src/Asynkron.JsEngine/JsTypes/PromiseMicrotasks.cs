@@ -34,9 +34,9 @@ internal sealed class ResolvedPromisePassthroughMicrotask : IMicrotask, IRentabl
         Pool.Return(this);
     }
 
-    public void Activate(ILogger? logger) { }
+    public void OnRent(ILogger? logger) { }
 
-    public void Reset(ILogger? logger)
+    public void OnReturn(ILogger? logger)
     {
         _value = JsValue.Undefined;
         _nextPromise = null;
@@ -94,9 +94,9 @@ internal sealed class ResolvedPromiseFinallyMicrotask : IMicrotask, IRentable
         }
     }
 
-    public void Activate(ILogger? logger) { }
+    public void OnRent(ILogger? logger) { }
 
-    public void Reset(ILogger? logger)
+    public void OnReturn(ILogger? logger)
     {
         _callback = null;
         _value = JsValue.Undefined;

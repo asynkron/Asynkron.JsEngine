@@ -106,16 +106,7 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var initThrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, initThrown))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(initThrown);
+                return HandleIteratorInitThrowSlow(runner, context, out returnValue);
             }
 
             var iteratorState = CreateIteratorDriverState(iterableValue, instruction.IteratorKind, context);
@@ -155,6 +146,24 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleIteratorInitThrowSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var initThrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, initThrown))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(initThrown);
         }
 
 #if NO_INLINING

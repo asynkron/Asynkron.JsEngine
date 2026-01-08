@@ -42,6 +42,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleClassDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -61,16 +62,7 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var classThrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, classThrown))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(classThrown);
+                return HandleClassDeclarationThrowSlow(runner, context, out returnValue);
             }
 
             environment.DefineJsValue(instruction.Declaration.Name, classValue,
@@ -81,6 +73,25 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleClassDeclarationThrowSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var classThrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, classThrown))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(classThrown);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleSimpleVariableDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -106,51 +117,17 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var varThrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, varThrown))
-                {
-                    if (runner._programCounter == runner._currentInstructionIndex)
-                    {
-                        runner._programCounter = instruction.Next;
-                    }
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(varThrown);
+                return HandleSimpleVariableDeclarationThrowSlow(runner, instruction, context, out returnValue);
             }
 
             if (context.IsReturn)
             {
-                var varReturnValue = context.FlowValue;
-                context.ClearReturn();
-                if (!runner.HandleAbruptCompletion(AbruptKind.Return, varReturnValue))
-                {
-                    returnValue = runner.CompleteReturn(varReturnValue);
-                    return InstructionResult.Return;
-                }
-
-                if (runner._programCounter == runner._currentInstructionIndex)
-                {
-                    runner._programCounter = instruction.Next;
-                }
-                returnValue = default;
-                return InstructionResult.Continue;
+                return HandleSimpleVariableDeclarationReturnSlow(runner, instruction, context, out returnValue);
             }
 
             if (context.IsYield)
             {
-                var varYieldedValue = context.FlowValue;
-                var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
-                runner.RecordYield(context, environment);
-                context.Clear();
-                runner._state = GeneratorState.Suspended;
-                returnValue = varIteratorResultObject is not null
-                    ? JsValue.FromObjectUnsafe(varIteratorResultObject)
-                    : CreateIteratorResult(varYieldedValue, false);
-                return InstructionResult.Return;
+                return HandleSimpleVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
             }
 
             if (instruction.VarKind == VariableKind.Var)
@@ -190,6 +167,71 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSimpleVariableDeclarationThrowSlow(
+            ExecutionPlanRunner runner,
+            SimpleVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var varThrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, varThrown))
+            {
+                if (runner._programCounter == runner._currentInstructionIndex)
+                {
+                    runner._programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(varThrown);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSimpleVariableDeclarationReturnSlow(
+            ExecutionPlanRunner runner,
+            SimpleVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var varReturnValue = context.FlowValue;
+            context.ClearReturn();
+            if (!runner.HandleAbruptCompletion(AbruptKind.Return, varReturnValue))
+            {
+                returnValue = runner.CompleteReturn(varReturnValue);
+                return InstructionResult.Return;
+            }
+
+            if (runner._programCounter == runner._currentInstructionIndex)
+            {
+                runner._programCounter = instruction.Next;
+            }
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleSimpleVariableDeclarationYieldSlow(
+            ExecutionPlanRunner runner,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var varYieldedValue = context.FlowValue;
+            var varIteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+            runner.RecordYield(context, environment);
+            context.Clear();
+            runner._state = GeneratorState.Suspended;
+            returnValue = varIteratorResultObject is not null
+                ? JsValue.FromObjectUnsafe(varIteratorResultObject)
+                : CreateIteratorResult(varYieldedValue, false);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleComplexVariableDeclaration(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -211,32 +253,35 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var thrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
-                {
-                    if (runner._programCounter == runner._currentInstructionIndex)
-                    {
-                        runner._programCounter = instruction.Next;
-                    }
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(thrown);
+                return HandleComplexVariableDeclarationThrowSlow(runner, instruction, context, out returnValue);
             }
 
             if (context.IsReturn)
             {
-                var returnVal = context.FlowValue;
-                context.ClearReturn();
-                if (!runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
-                {
-                    returnValue = runner.CompleteReturn(returnVal);
-                    return InstructionResult.Return;
-                }
+                return HandleComplexVariableDeclarationReturnSlow(runner, instruction, context, out returnValue);
+            }
 
+            if (context.IsYield)
+            {
+                return HandleComplexVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleComplexVariableDeclarationThrowSlow(
+            ExecutionPlanRunner runner,
+            ComplexVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var thrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+            {
                 if (runner._programCounter == runner._currentInstructionIndex)
                 {
                     runner._programCounter = instruction.Next;
@@ -245,22 +290,49 @@ public static partial class TypedAstEvaluator
                 return InstructionResult.Continue;
             }
 
-            if (context.IsYield)
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrown);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleComplexVariableDeclarationReturnSlow(
+            ExecutionPlanRunner runner,
+            ComplexVariableDeclarationInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var returnVal = context.FlowValue;
+            context.ClearReturn();
+            if (!runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
             {
-                var yieldedValue = context.FlowValue;
-                var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
-                runner.RecordYield(context, environment);
-                context.Clear();
-                runner._state = GeneratorState.Suspended;
-                returnValue = iteratorResultObject is not null
-                    ? JsValue.FromObjectUnsafe(iteratorResultObject)
-                    : CreateIteratorResult(yieldedValue, false);
+                returnValue = runner.CompleteReturn(returnVal);
                 return InstructionResult.Return;
             }
 
-            runner._programCounter = instruction.Next;
+            if (runner._programCounter == runner._currentInstructionIndex)
+            {
+                runner._programCounter = instruction.Next;
+            }
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleComplexVariableDeclarationYieldSlow(
+            ExecutionPlanRunner runner,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var yieldedValue = context.FlowValue;
+            var iteratorResultObject = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+            runner.RecordYield(context, environment);
+            context.Clear();
+            runner._state = GeneratorState.Suspended;
+            returnValue = iteratorResultObject is not null
+                ? JsValue.FromObjectUnsafe(iteratorResultObject)
+                : CreateIteratorResult(yieldedValue, false);
+            return InstructionResult.Return;
         }
     }
 }

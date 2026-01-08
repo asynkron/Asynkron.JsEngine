@@ -13,6 +13,7 @@ public static partial class TypedAstEvaluator
     private sealed partial class ExecutionPlanRunner
     {
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleEnterWith(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -31,16 +32,7 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var thrownWith = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownWith))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(thrownWith);
+                return HandleEnterWithThrowSlow(runner, context, out returnValue);
             }
 
             if (TryConvertToWithBindingObject(objValueJs, context, out var withObject))
@@ -55,6 +47,24 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleEnterWithThrowSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var thrownWith = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownWith))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrownWith);
         }
 
         private static InstructionResult HandleLeaveWith(

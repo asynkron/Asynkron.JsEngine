@@ -1,0 +1,28 @@
+name: QuickDup
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quickdup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: false
+
+      - name: Install QuickDup
+        run: go install github.com/asynkron/Asynkron.QuickDup/cmd/quickdup@v0.2.0
+
+      - name: Run QuickDup
+        run: quickdup -path src/Asynkron.JsEngine -ext .cs -exclude 'obj,bin' -timeout 60 --github-annotations --git-diff origin/${{ github.base_ref || 'main' }} --no-cache

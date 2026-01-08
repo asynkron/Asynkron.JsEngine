@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
 
         // Conditionally rent TDZ environment for lexical declarations
         using var pooledTdzEnv = hasLexicalDeclaration
-            ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
             : default;
         var iterableEnvironment = hasLexicalDeclaration ? pooledTdzEnv.Value! : environment;
 
@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
 
         var useLoopPool = !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
         using var pooledLoopEnv = useLoopPool
-            ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-loop", logger: logger)
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-loop", logger: logger)
             : default;
         JsEnvironment loopEnvironment = useLoopPool
             ? pooledLoopEnv
@@ -192,7 +192,7 @@ public static partial class TypedAstEvaluator
 
         // Conditionally rent TDZ environment for lexical declarations
         using var pooledTdzEnv = hasLexicalDeclaration
-            ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-each-head-tdz", logger: logger)
             : default;
         var iterableEnvironment = hasLexicalDeclaration ? pooledTdzEnv.Value! : environment;
 
@@ -222,7 +222,7 @@ public static partial class TypedAstEvaluator
 
         var useLoopPool = !IsEnvEnabled(DisableForOfLoopEnvPoolVar);
         using var pooledLoopEnv = useLoopPool
-            ? JsEnvironmentPool.Rent(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
+            ? JsEnvironmentPool.RentScoped(environment, false, false, statement.Source, "for-await-of loop", logger: logger)
             : default;
         var loopEnvironment = useLoopPool
             ? pooledLoopEnv.Value!

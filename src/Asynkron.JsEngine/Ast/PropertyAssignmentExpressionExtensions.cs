@@ -35,7 +35,7 @@ public static partial class TypedAstEvaluator
             // to ensure ReferenceError is thrown if this is uninitialized before any side effects occur
             if (!context.IsThisInitialized)
             {
-                throw environment.CreateSuperReferenceError(context, null);
+                throw environment.CreateSuperReferenceError(context);
             }
 
             var propertyKeyJs = superPropertyExpression.EvaluateExpression(environment, context);

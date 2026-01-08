@@ -45,8 +45,12 @@ dotnet_diagnostic.MA0025.severity = none
 dotnet_diagnostic.MA0048.severity = none
 
 
-dotnet_diagnostic.RCS1093.severity = none
+dotnet_diagnostic.RCS1093.severity = error
+
+# Exception ctors - disable
 dotnet_diagnostic.RCS1194.severity = none
+
+# Add parenthesis when needed for clarity - disable
 dotnet_diagnostic.RCS1123.severity = none
 
 # Unused field/parameter warnings 

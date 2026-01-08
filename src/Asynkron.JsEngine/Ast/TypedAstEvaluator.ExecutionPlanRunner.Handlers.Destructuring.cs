@@ -23,6 +23,7 @@ public static partial class TypedAstEvaluator
             public IEnumerator<JsValue>? Enumerator;
             public IJsCallable? NextMethod;
             public bool Done;
+            private bool _disposed;
 
             public (JsValue Value, bool Done) Next(EvaluationContext context)
             {
@@ -68,6 +69,8 @@ public static partial class TypedAstEvaluator
 
             public void Dispose()
             {
+                if (_disposed) return;
+                _disposed = true;
                 Enumerator?.Dispose();
                 Enumerator = null;
             }

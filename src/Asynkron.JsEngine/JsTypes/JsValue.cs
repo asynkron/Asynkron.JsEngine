@@ -348,6 +348,45 @@ public readonly struct JsValue : IEquatable<JsValue>
         get => Kind == JsValueKind.Unit;
     }
 
+    /// <summary>
+    /// True if this value stores its data in NumberValue (Boolean or Number).
+    /// Uses range check: (uint)(Kind - Boolean) &lt;= 1, which the JIT optimizes to a single comparison.
+    /// </summary>
+    public bool IsNumberLike
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => IsKindNumberLike(Kind);
+    }
+
+    /// <summary>
+    /// True if this value uses the heap-allocated ObjectValue field (String, Symbol, Object, Unit, Uninitialized).
+    /// Note: BigInt also uses ObjectValue but is not included in this check.
+    /// Uses range check: Kind >= String, which the JIT optimizes to a single comparison.
+    /// </summary>
+    public bool IsHeapValue
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => IsKindHeapValue(Kind);
+    }
+
+    /// <summary>
+    /// Static helper to check if a kind stores its data in NumberValue (Boolean or Number).
+    /// Uses range check: (uint)(kind - Boolean) &lt;= 1, which the JIT optimizes to a single comparison.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsKindNumberLike(JsValueKind kind)
+        => (uint)(kind - JsValueKind.Boolean) <= 1;
+
+    /// <summary>
+    /// Static helper to check if a kind uses the heap-allocated ObjectValue field.
+    /// Covers: String, Symbol, Object, Unit, Uninitialized.
+    /// Note: BigInt also uses ObjectValue but is not included in this check.
+    /// Uses range check: kind >= String, which the JIT optimizes to a single comparison.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsKindHeapValue(JsValueKind kind)
+        => kind >= JsValueKind.String;
+
     #endregion
 
     #region Value Accessors

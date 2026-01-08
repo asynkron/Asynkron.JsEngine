@@ -54,12 +54,8 @@ internal static class MapSetIterationHelper
     internal static void Iterate(JsValue iterable, RealmState realm, string operation, Action<JsValue> onValue)
     {
         var iterator = GetIterator(iterable, realm, operation);
-        while (true)
+        while (TryIteratorStep(iterator, realm, operation, out var value))
         {
-            if (!TryIteratorStep(iterator, realm, operation, out var value))
-            {
-                break;
-            }
 
             try
             {

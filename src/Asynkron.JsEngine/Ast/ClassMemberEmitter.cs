@@ -35,9 +35,9 @@ internal static class ClassMemberEmitter
         var descriptor = new PropertyDescriptor
         {
             Value = callable,
-            Writable = member.IsPrivate ? false : true,
+            Writable = !member.IsPrivate,
             Enumerable = false,
-            Configurable = member.IsPrivate ? false : true
+            Configurable = !member.IsPrivate
         };
 
         if (member.IsStatic)

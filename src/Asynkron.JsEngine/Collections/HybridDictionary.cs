@@ -9,11 +9,12 @@ using System.Runtime.CompilerServices;
 namespace Asynkron.JsEngine.Collections;
 
 /// <summary>
+/// <para>
 /// A dictionary optimized for small object storage (typical JS objects).
 /// Uses a simple array-based storage for objects with few properties (cutover at 9 items),
 /// then switches to a full Dictionary when the object grows beyond that threshold.
-///
-/// Based on Jint's HybridDictionary optimization - most JS objects have &lt; 5 properties.
+/// </para>
+/// <para>Based on Jint's HybridDictionary optimization - most JS objects have &lt; 5 properties.</para>
 /// </summary>
 public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
 {

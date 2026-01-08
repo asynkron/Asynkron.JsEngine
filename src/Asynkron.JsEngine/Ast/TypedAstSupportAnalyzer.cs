@@ -412,12 +412,7 @@ internal static class TypedAstSupportAnalyzer
                         }
                     }
 
-                    if (arrayBinding.RestElement is not null && !IsSupportedBinding(arrayBinding.RestElement))
-                    {
-                        return false;
-                    }
-
-                    return true;
+                    return arrayBinding.RestElement is null || IsSupportedBinding(arrayBinding.RestElement);
                 case ObjectBinding objectBinding:
                     foreach (var property in objectBinding.Properties)
                     {
@@ -432,12 +427,7 @@ internal static class TypedAstSupportAnalyzer
                         }
                     }
 
-                    if (objectBinding.RestElement is not null && !IsSupportedBinding(objectBinding.RestElement))
-                    {
-                        return false;
-                    }
-
-                    return true;
+                    return objectBinding.RestElement is null || IsSupportedBinding(objectBinding.RestElement);
                 case AssignmentTargetBinding assignmentTargetBinding:
                     return VisitExpression(assignmentTargetBinding.Expression);
                 default:

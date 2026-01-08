@@ -179,7 +179,7 @@ public sealed class JsEnvironment : IRentable
         }
 
         var current = this;
-        while (current is not null && !current.IsCaptured)
+        while (current?.IsCaptured == false)
         {
             current.IsCaptured = true;
             current = current.Enclosing;
@@ -2850,12 +2850,7 @@ public sealed class JsEnvironment : IRentable
             candidate.GetOwnPropertyDescriptor(propertyName);
         }
 
-        if (IsBlockedByUnscopables(target, propertyName, out _))
-        {
-            return false;
-        }
-
-        return true;
+        return !IsBlockedByUnscopables(target, propertyName, out _);
     }
 
     private static bool HasProperty(IJsObjectLike target, string name)

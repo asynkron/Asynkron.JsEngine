@@ -731,7 +731,7 @@ public static partial class TypedAstEvaluator
         environment.InitializeSlots(requiredSlots, plan.IterationScopeId);
 
         var slotMap = plan.GetOrCreateSlotMap();
-        if (slotMap is not null && !slotMap.IsEmpty)
+        if (slotMap?.IsEmpty == false)
         {
             environment.SetSlotMap(slotMap);
         }

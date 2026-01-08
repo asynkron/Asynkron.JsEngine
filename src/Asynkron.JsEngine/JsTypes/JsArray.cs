@@ -103,12 +103,15 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.HasNumericDescriptorKeys();
 
     /// <summary>
+    /// <para>
     /// Returns an enumerator that iterates through the array elements.
     /// This provides a fast path for for-of loops, avoiding iterator result object allocations.
     /// Per ES spec, length is checked on each iteration to handle array modifications during iteration.
-    ///
+    /// </para>
+    /// <para>
     /// WARNING: Only use this if HasCustomIndexedProperties is false. GetElement bypasses
     /// property descriptors and won't invoke custom getters.
+    /// </para>
     /// </summary>
     public IEnumerator<JsValue> GetEnumerator()
     {

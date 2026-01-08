@@ -329,10 +329,7 @@ public static partial class TypedAstEvaluator
                     compRhsValue = runner._flatSlots[rhsIdent.FlatSlotId].Read();
                     break;
                 case IdentifierExpression { SlotIndex: >= 0, ScopeId: >= 0 } rhsIdent:
-                    if (environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
-                    {
-                    }
-                    else
+                    if (!environment.TryReadIdentifierWithSlot(rhsIdent, context, out compRhsValue))
                     {
                         compRhsValue = rhsIdent.EvaluateExpression(environment, context);
                     }

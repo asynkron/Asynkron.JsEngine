@@ -1,6 +1,3 @@
-#region
-
-#endregion
 
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 

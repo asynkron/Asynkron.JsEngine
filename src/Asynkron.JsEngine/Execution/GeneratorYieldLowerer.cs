@@ -2467,12 +2467,7 @@ internal static class GeneratorYieldLowerer
                         }
                     }
 
-                    if (arrayBinding.RestElement is not null && BindingTargetContainsYield(arrayBinding.RestElement))
-                    {
-                        return true;
-                    }
-
-                    return false;
+                    return arrayBinding.RestElement is not null && BindingTargetContainsYield(arrayBinding.RestElement);
 
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
@@ -2493,12 +2488,7 @@ internal static class GeneratorYieldLowerer
                         }
                     }
 
-                    if (objectBinding.RestElement is not null && BindingTargetContainsYield(objectBinding.RestElement))
-                    {
-                        return true;
-                    }
-
-                    return false;
+                    return objectBinding.RestElement is not null && BindingTargetContainsYield(objectBinding.RestElement);
 
                 case AssignmentTargetBinding assignmentTarget:
                     // Check if the expression (e.g., x[yield] or x[yield + 1]) contains a yield
@@ -2530,13 +2520,8 @@ internal static class GeneratorYieldLowerer
                         }
                     }
 
-                    if (arrayBinding.RestElement is not null &&
-                        BindingTargetContainsYieldInAssignmentTarget(arrayBinding.RestElement))
-                    {
-                        return true;
-                    }
-
-                    return false;
+                    return arrayBinding.RestElement is not null &&
+                        BindingTargetContainsYieldInAssignmentTarget(arrayBinding.RestElement);
 
                 case ObjectBinding objectBinding:
                     foreach (var prop in objectBinding.Properties)
@@ -2548,13 +2533,8 @@ internal static class GeneratorYieldLowerer
                         }
                     }
 
-                    if (objectBinding.RestElement is not null &&
-                        BindingTargetContainsYieldInAssignmentTarget(objectBinding.RestElement))
-                    {
-                        return true;
-                    }
-
-                    return false;
+                    return objectBinding.RestElement is not null &&
+                        BindingTargetContainsYieldInAssignmentTarget(objectBinding.RestElement);
 
                 case AssignmentTargetBinding assignmentTarget:
                     // Check if this assignment target's expression contains a yield

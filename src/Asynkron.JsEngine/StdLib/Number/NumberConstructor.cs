@@ -252,13 +252,14 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
     }
 
     /// <summary>
+    /// <para>
     /// Per ES2024 21.1.1.1 Number(value):
     /// 1. If value is not present, return +0.
     /// 2. Let n be ToNumeric(value).
     /// 3. If n is a BigInt, let n be ℝ(n) (the mathematical value converted to Number).
     /// 4. Return n.
-    ///
-    /// This differs from ToNumber which throws TypeError for BigInt.
+    /// </para>
+    /// <para>This differs from ToNumber which throws TypeError for BigInt.</para>
     /// </summary>
     private static double ToNumberAllowingBigInt(JsValue value)
     {

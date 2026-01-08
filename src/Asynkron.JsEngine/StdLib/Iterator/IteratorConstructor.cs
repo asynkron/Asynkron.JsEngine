@@ -177,12 +177,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
         if (!value.TryGetObject(out var obj) || obj is null)
         {
             // Strings are iterable
-            if (value.TryGetString(out _))
-            {
-                return true;
-            }
-
-            return false;
+            return value.TryGetString(out _);
         }
 
         // Check for Symbol.iterator

@@ -117,8 +117,8 @@ public static partial class TypedAstEvaluator
                 if (!executionEnvironment.HasBinding(lexicalName))
                 {
                     var isConst = lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexicalBinding: true,
-                        blocksFunctionScopeOverride: true, isConst: isConst);
+                    executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
+isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
             }
 

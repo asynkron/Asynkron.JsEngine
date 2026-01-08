@@ -681,12 +681,8 @@ public static partial class TypedAstEvaluator
                         _capturedPrivateNameScopes);
                     return executor.Execute();
                 }
-                catch (ThrowSignal signal)
+                catch (ThrowSignal signal) when (callingContext is not null)
                 {
-                    if (callingContext is null)
-                    {
-                        throw;
-                    }
 
                     callingContext.SetThrow(signal.ThrownValue);
                     return signal.ThrownValue;
@@ -1223,8 +1219,8 @@ public static partial class TypedAstEvaluator
                         if (!executionEnvironment.HasBinding(lexicalName))
                         {
                             var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
-                            executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isLexicalBinding: true,
-                                blocksFunctionScopeOverride: true, isConst: isConst);
+                            executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
+isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         }
                     }
 
@@ -1737,7 +1733,7 @@ public static partial class TypedAstEvaluator
                 "InitInstance complete: ctor={Ctor} instance={Instance} keys={Keys}",
                 _function.Name?.Name ?? "<anonymous>",
                 DescribeValue(instance),
-                string.Join(',', instance.GetOwnPropertyKeysInOrder().Select(static k => k.ToString())));
+                string.Join(',', instance.GetOwnPropertyKeysInOrder().Select(static k => k)));
         }
 
         private static string DescribePrototype(object? proto)

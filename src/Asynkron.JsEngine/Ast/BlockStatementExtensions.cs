@@ -114,8 +114,8 @@ public static partial class TypedAstEvaluator
                     if (!scope.HasBinding(classDecl.Name))
                     {
                         // Class declarations create mutable bindings (like let), not const
-                        scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isLexicalBinding: true,
-                            blocksFunctionScopeOverride: true, isConst: false);
+                        scope.DefineJsValue(classDecl.Name, JsValue.Uninitialized, isConst: false,
+isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     }
 
                     break;
@@ -160,7 +160,7 @@ public static partial class TypedAstEvaluator
                 case IdentifierBinding id:
                     if (!blockEnvironment.HasBinding(id.Name))
                     {
-                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isLexicalBinding: true, blocksFunctionScopeOverride: true, isConst: isConst);
+                        blockEnvironment.DefineJsValue(id.Name, JsValue.Uninitialized, isConst: isConst, isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     }
 
                     break;

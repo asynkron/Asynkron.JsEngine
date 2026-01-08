@@ -228,7 +228,7 @@ internal readonly struct AssignmentReference
                 // Writes to eval/arguments in strict mode throw SyntaxError
                 throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
                     "Assignment to eval or arguments is not allowed in strict mode.",
-                    _context!,
+                    _context,
                     _context!.RealmState));
             default:
                 throw new InvalidOperationException($"Unknown reference kind: {_kind}");
@@ -243,7 +243,7 @@ internal readonly struct AssignmentReference
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -264,7 +264,7 @@ internal readonly struct AssignmentReference
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -283,7 +283,7 @@ internal readonly struct AssignmentReference
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }
@@ -294,7 +294,7 @@ internal readonly struct AssignmentReference
         if (_isStrict && IsStrictRestrictedName(_name!))
         {
             throw new ThrowSignal(StandardLibrary.CreateSyntaxError(
-                "Assignment to eval or arguments is not allowed in strict mode.", _context!,
+                "Assignment to eval or arguments is not allowed in strict mode.", _context,
                 _context!.RealmState));
         }
 
@@ -312,7 +312,7 @@ internal readonly struct AssignmentReference
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("ReferenceError:", StringComparison.Ordinal))
         {
-            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context!, _context!.RealmState);
+            var errorObject = StandardLibrary.CreateReferenceError(ex.Message, _context, _context!.RealmState);
             _context.SetThrow(errorObject);
             return JsValue.Undefined;
         }

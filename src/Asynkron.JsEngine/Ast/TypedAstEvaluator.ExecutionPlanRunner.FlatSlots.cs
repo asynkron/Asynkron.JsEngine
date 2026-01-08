@@ -62,7 +62,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            if (scopeId >= 0 && (_plan.FlatSlotMappings is null || !_plan.FlatSlotMappings.ContainsKey(scopeId)))
+            if (scopeId >= 0 && (_plan.FlatSlotMappings?.ContainsKey(scopeId) != true))
             {
                 throw new InvalidOperationException(
                     $"Flat slot mapping missing for scope. scopeId={scopeId}");

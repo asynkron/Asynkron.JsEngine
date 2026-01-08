@@ -13,7 +13,6 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 {
     private readonly Func<string, JsValue> _bindingLookup;
     private readonly Action? _ensureEvaluated;
-    private readonly ImmutableArray<string> _exportNames;
     private readonly bool _isDeferred;
     private readonly RealmState _realmState;
 
@@ -28,7 +27,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
     {
         _realmState = realmState ?? throw new ArgumentNullException(nameof(realmState));
         _bindingLookup = bindingLookup ?? throw new ArgumentNullException(nameof(bindingLookup));
-        _exportNames = exportNames?.OrderBy(static n => n, StringComparer.Ordinal).ToImmutableArray()
+        ExportNames = exportNames?.OrderBy(static n => n, StringComparer.Ordinal).ToImmutableArray()
                        ?? throw new ArgumentNullException(nameof(exportNames));
         _isDeferred = isDeferred;
         _ensureEvaluated = ensureEvaluated;
@@ -36,7 +35,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 
     private static string ToStringTagKey => SymbolKeys.ToStringTag;
 
-    internal ImmutableArray<string> ExportNames => _exportNames;
+    internal ImmutableArray<string> ExportNames { get; }
 
     public JsObject? Prototype => null;
     public bool IsSealed => true;
@@ -47,7 +46,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         get
         {
             EnsureExportsEvaluatedForList();
-            foreach (var name in _exportNames)
+            foreach (var name in ExportNames)
             {
                 yield return name;
             }
@@ -66,7 +65,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 
         if (IsSymbolLikeNamespaceKey(name))
         {
-            if (_exportNames.Contains(name, StringComparer.Ordinal))
+            if (ExportNames.Contains(name, StringComparer.Ordinal))
             {
                 value = _bindingLookup(name);
                 return true;
@@ -77,7 +76,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
 
         EnsureExportsEvaluated(name);
-        if (_exportNames.Contains(name, StringComparer.Ordinal))
+        if (ExportNames.Contains(name, StringComparer.Ordinal))
         {
             var lookedUp = _bindingLookup(name);
             EnsureInitialized(name, lookedUp);
@@ -116,7 +115,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
 
         if (IsSymbolLikeNamespaceKey(name))
         {
-            if (_exportNames.Contains(name, StringComparer.Ordinal))
+            if (ExportNames.Contains(name, StringComparer.Ordinal))
             {
                 var lookedUp = _bindingLookup(name);
                 return new PropertyDescriptor
@@ -132,7 +131,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
 
         EnsureExportsEvaluated(name);
-        if (_exportNames.Contains(name, StringComparer.Ordinal))
+        if (ExportNames.Contains(name, StringComparer.Ordinal))
         {
             var lookedUp = _bindingLookup(name);
             EnsureInitialized(name, lookedUp);
@@ -151,13 +150,13 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
     public IEnumerable<string> GetOwnPropertyNames()
     {
         EnsureExportsEvaluatedForList();
-        return _exportNames;
+        return ExportNames;
     }
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
         EnsureExportsEvaluatedForList();
-        return _exportNames;
+        return ExportNames;
     }
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
@@ -194,7 +193,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             EnsureExportsEvaluated(name);
         }
 
-        return !_exportNames.Contains(name, StringComparer.Ordinal) &&
+        return !ExportNames.Contains(name, StringComparer.Ordinal) &&
                !string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
@@ -272,7 +271,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         }
 
         // Property doesn't exist - return false
-        if (!_exportNames.Contains(name, StringComparer.Ordinal))
+        if (!ExportNames.Contains(name, StringComparer.Ordinal))
         {
             return false;
         }
@@ -296,18 +295,13 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
         var valueChange = descriptor.HasValue && !JsOps.StrictEquals(descriptor.JsValue, value);
 
         // Return true only if no change is requested
-        if (writable != currentWritable || enumerable != currentEnumerable || configurable != currentConfigurable ||
-            valueChange)
-        {
-            return false;
-        }
-
-        return true;
+        return writable == currentWritable && enumerable == currentEnumerable && configurable == currentConfigurable &&
+            !valueChange;
     }
 
     internal bool HasExport(string name)
     {
-        return _exportNames.Contains(name, StringComparer.Ordinal) ||
+        return ExportNames.Contains(name, StringComparer.Ordinal) ||
                string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
@@ -323,14 +317,14 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
             EnsureExportsEvaluated(name);
         }
 
-        return _exportNames.Contains(name, StringComparer.Ordinal) ||
+        return ExportNames.Contains(name, StringComparer.Ordinal) ||
                string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
     internal IEnumerable<object?> OwnKeys()
     {
         EnsureExportsEvaluatedForList();
-        foreach (var name in _exportNames)
+        foreach (var name in ExportNames)
         {
             yield return name;
         }

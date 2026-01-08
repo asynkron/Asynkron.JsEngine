@@ -18,45 +18,47 @@ public static partial class TypedAstEvaluator
     /// Executes an IR execution plan (compiled from AST).
     /// </summary>
     /// <remarks>
-    /// ## Script Completion Value (_scriptCompletionValue)
-    ///
+    /// <para>## Script Completion Value (_scriptCompletionValue)</para>
+    /// <para>
     /// In script/eval mode, we track the completion value per ES spec.
     /// The completion value is what eval() returns.
-    ///
-    /// ### Sentinel Pattern
-    ///
-    /// We use JsValue.Unit as a sentinel meaning "no value produced yet".
-    ///
+    /// </para>
+    /// <para>### Sentinel Pattern</para>
+    /// <para>We use JsValue.Unit as a sentinel meaning "no value produced yet".</para>
+    /// <para>
     /// - Script start: _scriptCompletionValue = Unit
     /// - Expression statement (e.g., 5+5;): _scriptCompletionValue = 10
     /// - At script end: if still Unit → return undefined, else return the value
-    ///
-    /// ### Loops, Try, Catch
-    ///
+    /// </para>
+    /// <para>### Loops, Try, Catch</para>
+    /// <para>
     /// These constructs have their own internal completion value per ES spec.
     /// They all follow the same pattern:
-    ///
+    /// </para>
+    /// <para>
     /// 1. On ENTER: _scriptCompletionValue = Unit (reset to sentinel)
     /// 2. Body executes: may or may not update _scriptCompletionValue
     /// 3. On EXIT: if (_scriptCompletionValue.IsUnit) → set to undefined
-    ///
+    /// </para>
+    /// <para>
     /// This ensures:
     /// - eval('7; for (...) {}') returns undefined (not 7)
     /// - eval('7; for (...) { 9; }') returns 9
     /// - eval('for (...) { 9; break; }') returns 9 (break doesn't touch completion value)
-    ///
-    /// ### Finally (Special Case)
-    ///
+    /// </para>
+    /// <para>### Finally (Special Case)</para>
+    /// <para>
     /// Finally is different: its completion value is DISCARDED if it completes normally.
     /// The try/catch completion value is restored.
-    ///
-    /// - eval('try { 7; } finally { 8; }') returns 7 (not 8)
-    ///
+    /// </para>
+    /// <para>- eval('try { 7; } finally { 8; }') returns 7 (not 8)</para>
+    /// <para>
     /// Implementation:
     /// 1. When entering finally: frame.SavedCompletionValue = _scriptCompletionValue
     /// 2. Finally body executes (its value is irrelevant if normal completion)
     /// 3. On normal exit: _scriptCompletionValue = SavedCompletionValue.IsUnit ? undefined : SavedCompletionValue
     /// 4. On abrupt exit (return/throw): abrupt completion takes over, completion value doesn't matter
+    /// </para>
     /// </remarks>
     private sealed partial class ExecutionPlanRunner
     {

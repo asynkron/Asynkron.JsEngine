@@ -10,12 +10,15 @@ using Asynkron.JsEngine.Ast;
 namespace Asynkron.JsEngine.Collections;
 
 /// <summary>
+/// <para>
 /// A dictionary optimized for small Symbol-keyed storage (typical JS environment bindings).
 /// Uses a simple array-based storage for environments with few bindings (cutover at 8 items),
 /// then switches to a full Dictionary when the environment grows beyond that threshold.
-///
+/// </para>
+/// <para>
 /// Uses reference equality for Symbol keys since Symbols are interned.
 /// Most function environments have very few bindings (parameters + this + arguments).
+/// </para>
 /// </summary>
 public sealed class SymbolHybridDictionary<TValue>
 {

@@ -31,10 +31,7 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
-            foreach (var item in EnumerateSpread(argsArrayJs, context))
-            {
-                argsBuilder.Add(item);
-            }
+            argsBuilder.AddRange(EnumerateSpread(argsArrayJs, context));
 
             if (context.ShouldStopEvaluation)
             {

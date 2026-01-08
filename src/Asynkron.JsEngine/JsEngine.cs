@@ -726,12 +726,13 @@ public sealed class JsEngine : IAsyncDisposable
     ///     AFTER all microtasks have drained.
     /// </summary>
     /// <remarks>
+    /// <para>
     ///     This is a convenience method that behaves like Jint's Evaluate() for async code.
     ///     If the script ends with a bare identifier (e.g., "finalResult;"), this method
     ///     will execute the script, drain all microtasks, and then return the updated value
     ///     of that identifier.
-    ///
-    ///     Example:
+    /// </para>
+    /// <para>    Example:</para>
     ///     <code>
     ///     let finalResult = 0;
     ///     Promise.resolve(42).then(x => { finalResult = x; });
@@ -799,13 +800,14 @@ public sealed class JsEngine : IAsyncDisposable
     ///     Promises, async/await, etc.). Use this when you know the code is purely synchronous.
     /// </summary>
     /// <remarks>
+    /// <para>
     ///     This method does NOT support:
     ///     - setTimeout/setInterval callbacks
     ///     - Promise resolution (Promises will be returned but not awaited)
     ///     - async/await (will throw or return unresolved promises)
     ///     - Any other event-loop dependent features
-    ///
-    ///     For code that uses these features, use <see cref="Evaluate"/> instead.
+    /// </para>
+    /// <para>    For code that uses these features, use <see cref="Evaluate"/> instead.</para>
     /// </remarks>
     /// <param name="source">The JavaScript source code to evaluate.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
@@ -915,7 +917,7 @@ public sealed class JsEngine : IAsyncDisposable
             }
 
             var configured = ExecutionTimeout;
-            var enforceTimeout = configured.HasValue && configured.Value > TimeSpan.Zero &&
+            var enforceTimeout = configured > TimeSpan.Zero &&
                                  configured.Value != Timeout.InfiniteTimeSpan;
             var timeout = enforceTimeout ? configured!.Value : Timeout.InfiniteTimeSpan;
 
@@ -1126,12 +1128,7 @@ public sealed class JsEngine : IAsyncDisposable
                         }
                     }
 
-                    if (tryStatement.Finally is { } finallyBlock && StatementContainsImportMeta(finallyBlock))
-                    {
-                        return true;
-                    }
-
-                    return false;
+                    return tryStatement.Finally is { } finallyBlock && StatementContainsImportMeta(finallyBlock);
                 case SwitchStatement switchStatement:
                     if (ExpressionContainsImportMeta(switchStatement.Discriminant))
                     {
@@ -2126,7 +2123,7 @@ public sealed class JsEngine : IAsyncDisposable
             await foreach (var action in queue.Reader.ReadAllAsync().ConfigureAwait(false))
             {
                 _eventLoopThreadId = Environment.CurrentManagedThreadId;
-                var decrementInline = true;
+                const bool decrementInline = true;
                 try
                 {
                     action();
@@ -5117,7 +5114,7 @@ public sealed class JsEngine : IAsyncDisposable
             if (AstShapeAnalyzer.ContainsAwait(calleeExpr))
             {
                 return TryEvaluateExpressionWithAwait(calleeExpr, env, isStrict,
-                    resolved => { continuation(resolved, JsValue.Undefined); });
+                    resolved => continuation(resolved, JsValue.Undefined));
             }
 
             try
@@ -5177,7 +5174,7 @@ public sealed class JsEngine : IAsyncDisposable
                     propertyAwaited = true;
                     propertyCompletedSynchronously = TryEvaluateExpressionWithAwait(memberExpression.Property, env,
                         isStrict,
-                        propertyResolved => { Finish(propertyResolved); });
+                        propertyResolved => Finish(propertyResolved));
                     return;
                 }
 

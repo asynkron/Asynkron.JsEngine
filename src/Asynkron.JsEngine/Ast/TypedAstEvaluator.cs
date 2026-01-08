@@ -53,15 +53,17 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// <para>
     /// Fast path for iteration: returns an IEnumerator&lt;JsValue&gt; for known iterable types
     /// without going through the full iterator protocol (which allocates {done, value} objects).
     /// Falls back to null for types that need the full protocol.
-    ///
+    /// </para>
+    /// <para>
     /// The enumerators are spec-compliant:
     /// - JsArray: checks length on each iteration, only used if no custom indexed properties
     /// - String: iterates by Unicode code points (handles surrogate pairs)
-    ///
-    /// NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.
+    /// </para>
+    /// <para>NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.</para>
     /// </summary>
     [MustDisposeResource]
     private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(in JsValue value)

@@ -1,12 +1,6 @@
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
-using Asynkron.JsEngine.Tests.Helpers;
-
-using Xunit;
 
 namespace Asynkron.JsEngine.Tests;
 

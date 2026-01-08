@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;

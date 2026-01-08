@@ -1,10 +1,7 @@
-using System.Linq;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
-using Asynkron.JsEngine.Tests.Helpers;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;

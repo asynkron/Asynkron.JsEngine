@@ -5,7 +5,7 @@ using Asynkron.JsEngine.Execution;
 namespace Asynkron.JsEngine.Tests;
 
 [Category(TestCategories.ScopeAnalysis)]
-public class ScopeIdentityTests
+public sealed partial class ScopeIdentityTests
 {
     [Fact]
     public void RootScopeIds_AreUniquePerFunctionPlan()
@@ -66,7 +66,10 @@ public class ScopeIdentityTests
 
     private static int? ExtractScopeId(string message)
     {
-        var match = Regex.Match(message, @"scopeId=(?<id>-?\d+)");
+        var match = MyRegex().Match(message);
         return match.Success && int.TryParse(match.Groups["id"].Value, out var value) ? value : null;
     }
+
+    [GeneratedRegex(@"scopeId=(?<id>-?\d+)")]
+    private static partial Regex MyRegex();
 }

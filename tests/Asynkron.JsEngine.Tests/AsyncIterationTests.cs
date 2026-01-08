@@ -415,7 +415,7 @@ public sealed class AsyncIterationTests(ITestOutputHelper output) : InternalTest
         Assert.Equal("123", result);
     }
 
-    [Fact(Timeout = 5000, Skip = "Hangs - for-await-of error propagation")]
+    [Fact(Timeout = 5000)]
     public async Task ForAwaitOf_ErrorPropagation()
     {
         await using var engine = CreateEngine();

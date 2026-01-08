@@ -25,9 +25,9 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
         }
 
         var steps = Assert.IsType<JsArray>(result);
-        var first = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[0].ToObject());
-        var second = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[1].ToObject());
-        var third = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[2].ToObject());
+        var first = Assert.IsType<IJsObjectLike>(steps.Items[0].ToObject(), exactMatch: false);
+        var second = Assert.IsType<IJsObjectLike>(steps.Items[1].ToObject(), exactMatch: false);
+        var third = Assert.IsType<IJsObjectLike>(steps.Items[2].ToObject(), exactMatch: false);
 
         Assert.True(first.TryGetProperty("done", out var firstDone));
         Assert.False(firstDone.AsBoolean());
@@ -41,6 +41,8 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
         Assert.True(thirdDone.AsBoolean());
         Assert.True(third.TryGetProperty("value", out _));
     }
+    private static readonly string[] expected = new[] { "a", "b", "c" };
+    private static readonly string[] expectedArray = new[] { "i", "g", "n", "o", "r", "e", "d" };
 
     [Fact]
     public async Task YieldYieldSpreadSuspendsAcrossOperandAndOuterYield()
@@ -61,10 +63,10 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
         var steps = Assert.IsType<JsArray>(result);
         Assert.Equal(4, steps.Items.Count);
 
-        var first = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[0].ToObject());
-        var second = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[1].ToObject());
-        var third = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[2].ToObject());
-        var fourth = Assert.IsAssignableFrom<IJsObjectLike>(steps.Items[3].ToObject());
+        var first = Assert.IsType<IJsObjectLike>(steps.Items[0].ToObject(), exactMatch: false);
+        var second = Assert.IsType<IJsObjectLike>(steps.Items[1].ToObject(), exactMatch: false);
+        var third = Assert.IsType<IJsObjectLike>(steps.Items[2].ToObject(), exactMatch: false);
+        var fourth = Assert.IsType<IJsObjectLike>(steps.Items[3].ToObject(), exactMatch: false);
 
         Assert.True(first.TryGetProperty("done", out var firstDone));
         Assert.False(firstDone.AsBoolean());
@@ -75,7 +77,7 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
             throw new InvalidOperationException($"second keys: {string.Join(",", second.Keys)}");
         }
         var secondArr = Assert.IsType<JsArray>(secondValue.ToObject());
-        Assert.Equal(new[] { "a", "b", "c" }, secondArr.Items.Select(v => v.ToObject()).ToArray());
+        Assert.Equal(expected, secondArr.Items.Select(v => v.ToObject()).ToArray());
         if (!second.TryGetProperty("done", out var secondDone))
         {
             throw new InvalidOperationException($"second keys: {string.Join(",", second.Keys)}");
@@ -84,7 +86,7 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
 
         Assert.True(third.TryGetProperty("value", out var thirdValue));
         var thirdArr = Assert.IsType<JsArray>(thirdValue.ToObject());
-        Assert.Equal(new[] { "i", "g", "n", "o", "r", "e", "d" }, thirdArr.Items.Select(v => v.ToObject()).ToArray());
+        Assert.Equal(expectedArray, thirdArr.Items.Select(v => v.ToObject()).ToArray());
         Assert.True(third.TryGetProperty("done", out var thirdDone));
         Assert.False(thirdDone.AsBoolean());
 
@@ -133,18 +135,18 @@ public sealed class GeneratorYieldSendTests(ITestOutputHelper output) : Internal
             throw new InvalidOperationException($"script error: {error}");
         }
 
-        var obj = Assert.IsAssignableFrom<IJsObjectLike>(result);
+        var obj = Assert.IsType<IJsObjectLike>(result, exactMatch: false);
         if (obj.TryGetProperty("err", out var errProp) && !errProp.IsUndefined)
         {
             throw new InvalidOperationException($"JS error: {errProp}");
         }
         Assert.True(obj.TryGetProperty("first", out var firstResult));
-        var first = Assert.IsAssignableFrom<IJsObjectLike>(firstResult.ToObject());
+        var first = Assert.IsType<IJsObjectLike>(firstResult.ToObject(), exactMatch: false);
         Assert.True(first.TryGetProperty("done", out var firstDone));
         Assert.False(firstDone.AsBoolean());
 
         Assert.True(obj.TryGetProperty("second", out var secondResult));
-        var second = Assert.IsAssignableFrom<IJsObjectLike>(secondResult.ToObject());
+        var second = Assert.IsType<IJsObjectLike>(secondResult.ToObject(), exactMatch: false);
         Assert.True(second.TryGetProperty("done", out var secondDone));
         Assert.True(secondDone.AsBoolean());
 

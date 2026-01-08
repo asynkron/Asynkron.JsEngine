@@ -77,7 +77,7 @@ public sealed class JsEnvironmentSlotTests(ITestOutputHelper output)
 
         env.DefineSlot(name, JsValue.FromDouble(0), SlotFlags.None);
 
-        for (int i = 1; i <= 5; i++)
+        for (var i = 1; i <= 5; i++)
         {
             ref var slot = ref env.TryGetSlotRef(name);
             slot.Value = JsValue.FromDouble(i);

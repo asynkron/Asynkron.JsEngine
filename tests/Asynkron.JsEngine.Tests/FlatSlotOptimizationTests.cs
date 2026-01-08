@@ -197,7 +197,7 @@ public sealed class FlatSlotOptimizationTests : InternalTestBase
         Assert.Equal(3.0, result);
     }
 
-    [Fact(Skip = "Bug #360: nested function declaration shadows parent's let binding incorrectly")]
+    [Fact]
     public async Task ShadowingInFunctionInsideBlock()
     {
         // Node.js correctly returns "inner" for inner(), but engine returns "outer"

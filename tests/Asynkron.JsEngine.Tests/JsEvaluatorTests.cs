@@ -519,16 +519,16 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
                               };
                               """);
 
-        var ctorValue = Assert.IsAssignableFrom<IJsPropertyAccessor>(await engine.Evaluate("C"));
+        var ctorValue = Assert.IsType<IJsPropertyAccessor>(await engine.Evaluate("C"), exactMatch: false);
         Assert.True(ctorValue.TryGetProperty("prototype", out var ctorProto));
-        var ctorProtoObject = Assert.IsAssignableFrom<JsObject>(ctorProto.ToObject());
+        var ctorProtoObject = Assert.IsType<JsObject>(ctorProto.ToObject(), exactMatch: false);
         var ctorProtoHasX = ctorProtoObject.TryGetProperty("x", out _);
         Assert.True(ctorProtoHasX);
         var ctorProtoHash = RuntimeHelpers.GetHashCode(ctorProtoObject);
         var proxyProtoHash =
             RuntimeHelpers.GetHashCode(Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("Proxy.prototype")));
         Assert.True(JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(ctorValue), "prototype", out var ctorProtoViaOps));
-        var ctorProtoViaOpsObject = Assert.IsAssignableFrom<JsObject>(ctorProtoViaOps.ObjectValue);
+        var ctorProtoViaOpsObject = Assert.IsType<JsObject>(ctorProtoViaOps.ObjectValue, exactMatch: false);
         var ctorProtoViaOpsHasX = ctorProtoViaOpsObject.TryGetProperty("x", out _);
         Assert.True(ctorProtoViaOpsHasX);
 
@@ -553,13 +553,13 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
         var protoIsUndefined = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === undefined")));
         var protoType = await engine.Evaluate("typeof Object.getPrototypeOf(c)");
         var protoValue = await engine.Evaluate("Object.getPrototypeOf(c)");
-        var protoObject = Assert.IsAssignableFrom<JsObject>(protoValue);
+        var protoObject = Assert.IsType<JsObject>(protoValue, exactMatch: false);
         var protoHasXOnValue = protoObject.TryGetProperty("x", out _);
-        var classProto = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("C.prototype"));
-        var objectProto = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("Object.prototype"));
+        var classProto = Assert.IsType<JsObject>(await engine.Evaluate("C.prototype"), exactMatch: false);
+        var objectProto = Assert.IsType<JsObject>(await engine.Evaluate("Object.prototype"), exactMatch: false);
         var sameAsClassProto = ReferenceEquals(protoObject, classProto);
         var sameAsObjectProto = ReferenceEquals(protoObject, objectProto);
-        var cValue = Assert.IsAssignableFrom<JsObject>(await engine.Evaluate("c"));
+        var cValue = Assert.IsType<JsObject>(await engine.Evaluate("c"), exactMatch: false);
         var protoFromInstance = cValue.Prototype ?? cValue.PrototypeAccessor as JsObject;
         var protoCtorName = await engine.Evaluate("Object.getPrototypeOf(c)?.constructor?.name");
         var protoIsSelf = JsOps.ToBoolean(JsValue.FromObjectUnsafe(await engine.Evaluate("Object.getPrototypeOf(c) === c")));
@@ -605,7 +605,7 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
         await using var engine = CreateEngine();
         static void AssertIntercalation(object? outcome)
         {
-            var result = Assert.IsAssignableFrom<IDictionary<string, object?>>(outcome);
+            var result = Assert.IsType<IDictionary<string, object?>>(outcome, exactMatch: false);
             Assert.Equal(6d, result["i"]);
             Assert.Equal(4d, result["c0"]);
             Assert.Equal(5d, result["c2"]);

@@ -3183,7 +3183,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.Equal("abc", result);
     }
 
-    [Fact(Timeout = 5000, Skip = "Hangs - for-await-of with rejecting async iterator")]
+    [Fact(Timeout = 5000)]
     public async Task Generator_ForAwaitAsyncIteratorRejectsPropagatesIr()
     {
         ExecutionPlanDiagnostics.Reset();

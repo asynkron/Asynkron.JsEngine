@@ -888,24 +888,31 @@ export default function() { return 23; };
         Assert.Equal(3.0, result);
     }
 
-    [Fact(Timeout = 5000, Skip = "Hangs - for-await-of with async generator")]
+    [Fact(Timeout = 5000, Skip = "hangs indefinitely")]
     public async Task TopLevelAwait_ForAwaitOf()
     {
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
         // for await...of loop with async generator
         await using var engine = CreateEngine();
 
-        var result = await engine.EvaluateModule("""
-                                                 var sum = 0;
-                                                 async function* gen() {
-                                                   yield 1;
-                                                   yield 2;
-                                                   yield 3;
-                                                 }
-                                                 for await (var x of gen()) {
-                                                   sum += x;
-                                                 }
-                                                 sum
-                                                 """);
+        var t = Task.Run(async () =>
+        {
+            await Task.Yield();
+            return await engine.EvaluateModule("""
+                                               var sum = 0;
+                                               async function* gen() {
+                                                 yield 1;
+                                                 yield 2;
+                                                 yield 3;
+                                               }
+                                               for await (var x of gen()) {
+                                                 sum += x;
+                                               }
+                                               sum
+                                               """, cancellationToken: cts.Token);
+        }, cts.Token).WaitAsync(TimeSpan.FromSeconds(5), cts.Token);
+        var result = await t;
 
         Assert.Equal(6.0, result);
     }

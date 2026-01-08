@@ -40,7 +40,7 @@ internal sealed class XunitLogger : ILogger
 /// <summary>
 /// Investigation tests for #432 - Exception handling broken when block env combined with for await...of
 /// </summary>
-public class Issue432InvestigateTests
+public sealed class Issue432InvestigateTests
 {
     private readonly ITestOutputHelper _output;
 

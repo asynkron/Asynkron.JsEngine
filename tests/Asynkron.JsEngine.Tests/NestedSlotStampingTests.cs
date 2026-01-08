@@ -2,7 +2,7 @@ using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Tests;
 
-public class NestedSlotStampingTests
+public sealed class NestedSlotStampingTests
 {
     [Fact]
     public async Task NestedClosure_ProducesExpectedSequence()

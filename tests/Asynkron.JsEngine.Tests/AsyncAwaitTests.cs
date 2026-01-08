@@ -714,6 +714,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         // Assert
         Assert.Equal("16", result);
     }
+    private static readonly string[] expected = new[] { "first", "second", "third" };
 
     [Fact(Timeout = 2000)]
     public async Task AsyncFunction_WithParallelDelays()
@@ -759,7 +760,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
                          """);
 
         // Assert
-        Assert.Equal(new[] { "first", "second", "third" }, results);
+        Assert.Equal(expected, results);
     }
 
     [Fact(Timeout = 2000)]

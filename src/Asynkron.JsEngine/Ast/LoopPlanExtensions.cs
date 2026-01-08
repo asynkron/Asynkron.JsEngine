@@ -205,7 +205,9 @@ public static partial class TypedAstEvaluator
                 continue;
             }
         }
-        while (plan.ExecuteCondition(iterationEnvironment, context));
+        while (plan.ConditionAfterBody
+            ? plan.ExecuteCondition(iterationEnvironment, context)
+            : true);
 
         static bool ShouldLogIteration(int iterationIndex)
         {

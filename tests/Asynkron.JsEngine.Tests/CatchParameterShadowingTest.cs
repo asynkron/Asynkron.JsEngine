@@ -1,5 +1,3 @@
-using Asynkron.JsEngine;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;

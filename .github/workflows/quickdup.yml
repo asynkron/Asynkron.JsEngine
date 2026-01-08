@@ -25,4 +25,4 @@ jobs:
         run: go install github.com/asynkron/Asynkron.QuickDup/cmd/quickdup@v0.2.0
 
       - name: Run QuickDup
-        run: quickdup -path src/Asynkron.JsEngine -ext .cs -exclude 'obj,bin' -timeout 60 --github-annotations --git-diff origin/${{ github.base_ref || 'main' }} --no-cache
+        run: quickdup -path src/Asynkron.JsEngine -ext .cs --github-annotations --git-diff origin/${{ github.base_ref || 'main' }} --no-cache

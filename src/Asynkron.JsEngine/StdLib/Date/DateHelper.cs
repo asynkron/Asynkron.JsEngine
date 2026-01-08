@@ -312,7 +312,7 @@ public static class DateHelper
         if (mn < 0)
         {
             mn += 12;
-            ym -= 1;
+            ym--;
         }
 
         var monthDayOffsets = IsLeapYear(ym)

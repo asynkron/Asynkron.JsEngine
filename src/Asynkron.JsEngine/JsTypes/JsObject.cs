@@ -239,7 +239,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         if (_virtualPropertyProvider is not null &&
-            (state is null || !state.Descriptors.ContainsKey(name)) &&
+            (state?.Descriptors.ContainsKey(name) != true) &&
             !ContainsKey(name) &&
             _virtualPropertyProvider.TryGetOwnProperty(name, out _, out var virtualDescriptor))
         {
@@ -666,7 +666,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             GetSetter(name) is null)  // NEW: Check for setters on prototype chain
         {
             // Track if this is a new property before setting it
-            var isNewProperty = _state is null || !_state.Storage.ContainsKey(name);
+            var isNewProperty = _state?.Storage.ContainsKey(name) != true;
             SetJsValue(name, value);
             TrackArrayWriteJsValue(name);
             if (isNewProperty)
@@ -1984,7 +1984,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private bool TryGetOwnProperty(string name, object? receiver, EvaluationContext? context, out object? value)
     {
         if (_virtualPropertyProvider is not null &&
-            (_state is null || !_state.Descriptors.ContainsKey(name)) &&
+            (_state?.Descriptors.ContainsKey(name) != true) &&
             !ContainsKey(name) &&
             _virtualPropertyProvider.TryGetOwnProperty(name, out value, out var virtualDescriptor))
         {
@@ -2039,7 +2039,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     private bool TryGetOwnPropertyJsValue(string name, JsValue receiver, EvaluationContext? context, out JsValue value)
     {
         if (_virtualPropertyProvider is not null &&
-            (_state is null || !_state.Descriptors.ContainsKey(name)) &&
+            (_state?.Descriptors.ContainsKey(name) != true) &&
             !ContainsKey(name) &&
             _virtualPropertyProvider.TryGetOwnProperty(name, out var virtualValue, out var virtualDescriptor))
         {

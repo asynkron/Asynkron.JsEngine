@@ -150,7 +150,7 @@ public static partial class NumberHelper
         }
 
         string result;
-        if (args.Count <= 0 || !args[0].TryGetDouble(out var d))
+        if (args.Count == 0 || !args[0].TryGetDouble(out var d))
         {
             result = num.ToString("e", CultureInfo.InvariantCulture);
         }

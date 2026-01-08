@@ -290,10 +290,7 @@ public static partial class TypedAstEvaluator
                     }
                     else
                     {
-                        foreach (var item in EnumerateSpread(spreadValueJs, context))
-                        {
-                            argsBuilder.Add(item);
-                        }
+                        argsBuilder.AddRange(EnumerateSpread(spreadValueJs, context));
                     }
 
                     if (context.ShouldStopEvaluation)

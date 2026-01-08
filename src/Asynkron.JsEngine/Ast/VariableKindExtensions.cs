@@ -40,8 +40,7 @@ public static partial class TypedAstEvaluator
         // Per ES spec 13.3.1.4: If IsAnonymousFunctionDefinition(Initializer) is true,
         // then perform SetFunctionName(value, bindingId).
         using var functionNameHint = targetIdentifier is not null &&
-                                     declarator.Initializer is not null &&
-                                     declarator.Initializer.IsAnonymousFunctionDefinitionNode()
+                                     declarator.Initializer?.IsAnonymousFunctionDefinitionNode() == true
             ? context.EnterFunctionNameHint(targetIdentifier.Name)
             : null;
 
@@ -105,8 +104,7 @@ public static partial class TypedAstEvaluator
         }
 
         // Per ES spec 13.3.1.4: Name inference only applies if IsAnonymousFunctionDefinition(Initializer) is true
-        var allowNameInference = declarator.Initializer is not null &&
-                                 declarator.Initializer.IsAnonymousFunctionDefinitionNode();
+        var allowNameInference = declarator.Initializer?.IsAnonymousFunctionDefinitionNode() == true;
         declarator.Target.ApplyBindingTarget(valueJs, environment, context, mode,
             declarator.Initializer is not null, allowNameInference);
     }

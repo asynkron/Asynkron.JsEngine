@@ -94,7 +94,7 @@ public static partial class TypedAstEvaluator
         // which includes loop IR. This fallback only runs when IR is disabled or failed.
 
         // Fallback: AST interpretation for loops
-        while (true)
+        do
         {
             context.ThrowIfCancellationRequested();
             iterationIndex++;
@@ -204,12 +204,8 @@ public static partial class TypedAstEvaluator
             {
                 continue;
             }
-
-            if (!plan.ExecuteCondition(iterationEnvironment, context))
-            {
-                break;
-            }
         }
+        while (plan.ExecuteCondition(iterationEnvironment, context));
 
         static bool ShouldLogIteration(int iterationIndex)
         {

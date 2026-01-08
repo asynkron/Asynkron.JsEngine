@@ -70,10 +70,7 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    foreach (var item in EnumerateSpread(spreadValueJs, context))
-                    {
-                        argsBuilder.Add(item);
-                    }
+                    argsBuilder.AddRange(EnumerateSpread(spreadValueJs, context));
 
                     if (context.ShouldStopEvaluation)
                     {

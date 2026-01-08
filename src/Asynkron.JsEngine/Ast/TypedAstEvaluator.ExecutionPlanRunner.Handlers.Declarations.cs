@@ -89,8 +89,7 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<SimpleVariableDeclarationInstruction>(instr);
-            var isAnonymousFunctionDefinition = instruction.Initializer is not null &&
-                instruction.Initializer.IsAnonymousFunctionDefinitionNode();
+            var isAnonymousFunctionDefinition = instruction.Initializer?.IsAnonymousFunctionDefinitionNode() == true;
 
             using var functionNameHint = isAnonymousFunctionDefinition
                 ? context.EnterFunctionNameHint(instruction.TargetSymbol)

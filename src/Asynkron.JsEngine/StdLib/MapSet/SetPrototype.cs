@@ -92,7 +92,7 @@ public sealed partial class SetPrototype
     private JsValue CreateSetIterator(JsSet set, SetIterationKind kind)
     {
         // Use the shared SetIteratorPrototype so @@iterator wiring stays consistent.
-        var iteratorPrototype = Realm.SetIteratorPrototype ?? (Realm.SetIteratorPrototype = (JsObject)SetIteratorPrototype.CreatePrototype(Realm));
+        var iteratorPrototype = Realm.SetIteratorPrototype ??= (JsObject)SetIteratorPrototype.CreatePrototype(Realm);
         var iterator = new JsSetIterator(set, kind, Realm, iteratorPrototype);
         return iterator.AsJsValue;
     }

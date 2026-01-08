@@ -101,7 +101,7 @@ public static partial class StandardLibrary
                 // Projector now returns JsValue directly - no boxing
                 var valueJs = projector(index);
                 index++;
-                if (typedAccessor is not null && typedAccessor.Buffer.Resizable)
+                if (typedAccessor?.Buffer.Resizable == true)
                 {
                     var result = new IteratorResultObject(valueJs, false);
                     result.Capture();

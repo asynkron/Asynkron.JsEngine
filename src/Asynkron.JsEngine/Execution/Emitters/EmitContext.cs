@@ -362,13 +362,8 @@ internal sealed class EmitContext(
                     }
                 }
 
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
+                return arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(arrayBinding.RestElement);
 
             case ObjectBinding objectBinding:
                 foreach (var prop in objectBinding.Properties)
@@ -389,13 +384,8 @@ internal sealed class EmitContext(
                     }
                 }
 
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
+                return objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldAnywhere(objectBinding.RestElement);
 
             case AssignmentTargetBinding assignmentTarget:
                 return AstShapeAnalyzer.ContainsYield(assignmentTarget.Expression);

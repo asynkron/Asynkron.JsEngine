@@ -74,13 +74,8 @@ internal static class AstShapeAnalyzer
                     }
                 }
 
-                if (arrayBinding.RestElement is not null &&
-                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
+                return arrayBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(arrayBinding.RestElement);
 
             case ObjectBinding objectBinding:
                 foreach (var prop in objectBinding.Properties)
@@ -96,13 +91,8 @@ internal static class AstShapeAnalyzer
                     }
                 }
 
-                if (objectBinding.RestElement is not null &&
-                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement))
-                {
-                    return true;
-                }
-
-                return false;
+                return objectBinding.RestElement is not null &&
+                    BindingTargetContainsYieldInDefaultValue(objectBinding.RestElement);
 
             case AssignmentTargetBinding assignmentTarget:
                 return ContainsYield(assignmentTarget.Expression);

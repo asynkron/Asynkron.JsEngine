@@ -687,8 +687,8 @@ internal static class JsOps
 
         // Fast path for null/undefined comparison
         if (
-            ((left.Kind == JsValueKind.Null && right.Kind == JsValueKind.Undefined) ||
-             (left.Kind == JsValueKind.Undefined && right.Kind == JsValueKind.Null)))
+            (left.Kind == JsValueKind.Null && right.Kind == JsValueKind.Undefined) ||
+             (left.Kind == JsValueKind.Undefined && right.Kind == JsValueKind.Null))
         {
             return true;
         }

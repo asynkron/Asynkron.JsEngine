@@ -78,12 +78,7 @@ public sealed class JsRopeString
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public string Flatten()
     {
-        if (_cached is not null)
-        {
-            return _cached;
-        }
-
-        return FlattenSlow();
+        return _cached ?? FlattenSlow();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

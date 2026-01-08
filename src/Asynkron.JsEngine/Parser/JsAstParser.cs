@@ -2207,9 +2207,7 @@ public sealed class JsAstParser(
             }
 
             var right = ParseExponentiation();
-            expr = CreateBinaryExpression("**", expr, right);
-
-            return expr;
+            return CreateBinaryExpression("**", expr, right);
         }
 
         private ExpressionNode ParseUnary()
@@ -3979,7 +3977,7 @@ public sealed class JsAstParser(
             }
             else
             {
-                while (true)
+                do
                 {
                     var isRest = Match(TokenType.DotDotDot);
                     FunctionParameter parameter;
@@ -4055,12 +4053,8 @@ public sealed class JsAstParser(
                     {
                         break;
                     }
-
-                    if (Check(TokenType.RightParen))
-                    {
-                        break;
-                    }
                 }
+                while (!Check(TokenType.RightParen));
 
                 if (!Check(TokenType.RightParen))
                 {

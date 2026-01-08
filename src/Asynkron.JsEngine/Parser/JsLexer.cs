@@ -1148,12 +1148,7 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
                 continue;
             }
 
-            if (IsLineTerminator(ch))
-            {
-                return true;
-            }
-
-            return false;
+            return IsLineTerminator(ch);
         }
 
         return true;
@@ -2228,12 +2223,10 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
             var maxLength = first is >= '0' and <= '3' ? 3 : 2;
 
             var value = first - '0';
-            var index = start + 1;
-            while (index < raw.Length && length < maxLength && IsOctalDigit(raw[index]))
+            for (var index = start + 1; index < raw.Length && length < maxLength && IsOctalDigit(raw[index]); index++)
             {
                 value = value * 8 + (raw[index] - '0');
                 length++;
-                index++;
             }
 
             return (value, length);

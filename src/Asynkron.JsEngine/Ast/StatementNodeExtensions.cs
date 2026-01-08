@@ -273,8 +273,7 @@ public static partial class TypedAstEvaluator
                             break;
                         }
 
-                        if (functionHoistDedupe is not null &&
-                            !functionHoistDedupe.Add(functionDeclaration.Name))
+                        if (functionHoistDedupe?.Add(functionDeclaration.Name) == false)
                         {
                             break;
                         }

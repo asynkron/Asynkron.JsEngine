@@ -275,23 +275,13 @@ public static partial class StandardLibrary
         var inspected = UnwrapProxy(candidate, realm, "Array.isArray");
         if (inspected.TryGetObject<JsArray>(out var jsArray))
         {
-            if (jsArray.TryGetProperty("__arguments__", out var isArgs) && isArgs.TryGetBoolean(out var isArgsValue) &&
-                isArgsValue)
-            {
-                return false;
-            }
-
-            return true;
+            return !jsArray.TryGetProperty("__arguments__", out var isArgs) || !isArgs.TryGetBoolean(out var isArgsValue) ||
+                !isArgsValue;
         }
 
-        if (realm?.ArrayPrototype is not null &&
+        return realm?.ArrayPrototype is not null &&
             inspected.TryGetObject(out var inspectedObj) &&
-            ReferenceEquals(inspectedObj, realm.ArrayPrototype))
-        {
-            return true;
-        }
-
-        return false;
+            ReferenceEquals(inspectedObj, realm.ArrayPrototype);
     }
 
     private static bool TryGetArrayForFlatten(JsValue candidate, RealmState? realm,

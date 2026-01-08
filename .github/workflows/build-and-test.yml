@@ -72,7 +72,7 @@ jobs:
       run: |
         dotnet restore tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj
         dotnet build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --configuration Release --no-restore
-        
+
     - name: Test ${{ matrix.test-class }}
       run: |
         dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj \

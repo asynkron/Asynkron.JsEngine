@@ -23,7 +23,7 @@ public static partial class TypedAstEvaluator
 
         private static InstructionHandler[] InitializeHandlers()
         {
-            var handlers = new InstructionHandler[36];
+            var handlers = new InstructionHandler[40];
             handlers[(int)InstructionKind.Statement] = HandleStatement;
             handlers[(int)InstructionKind.Throw] = HandleThrow;
             handlers[(int)InstructionKind.EvaluateAndDiscard] = HandleEvaluateAndDiscard;
@@ -60,6 +60,11 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.Expression] = DispatchExpression;
             handlers[(int)InstructionKind.ForInInit] = HandleForInInit;
             handlers[(int)InstructionKind.ForInMoveNext] = HandleForInMoveNext;
+            // Array destructuring
+            handlers[(int)InstructionKind.ArrayDestructuringInit] = HandleArrayDestructuringInit;
+            handlers[(int)InstructionKind.ArrayDestructuringElement] = HandleArrayDestructuringElement;
+            handlers[(int)InstructionKind.ArrayDestructuringRest] = HandleArrayDestructuringRest;
+            handlers[(int)InstructionKind.ArrayDestructuringClose] = HandleArrayDestructuringClose;
             return handlers;
         }
 

@@ -42,7 +42,13 @@ internal enum InstructionKind : byte
     SetCompletionValue,
     CompoundAssignmentSlot,
     ForInInit,
-    ForInMoveNext
+    ForInMoveNext,
+
+    // Array destructuring
+    ArrayDestructuringInit,
+    ArrayDestructuringElement,
+    ArrayDestructuringRest,
+    ArrayDestructuringClose
 }
 
 /// <summary>

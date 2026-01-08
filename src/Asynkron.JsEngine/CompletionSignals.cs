@@ -10,9 +10,7 @@ namespace Asynkron.JsEngine;
 ///     Represents a control flow signal used to manage JavaScript control flow statements
 ///     (return, break, continue, yield, throw, pending await) as typed result values instead of state machine.
 /// </summary>
-public interface ICompletionSignal
-{
-}
+public interface ICompletionSignal;
 
 /// <summary>
 ///     Signal indicating a break statement was encountered.
@@ -23,14 +21,6 @@ internal sealed record BreakCompletionSignal(Symbol? Label = null) : ICompletion
 ///     Signal indicating a continue statement was encountered.
 /// </summary>
 internal sealed record ContinueCompletionSignal(Symbol? Label = null) : ICompletionSignal;
-
-/// <summary>
-///     Signal indicating a return statement was encountered.
-/// </summary>
-internal sealed class ReturnCompletionSignal(JsValue jsValue) : ICompletionSignal
-{
-    public JsValue JsValue { get; } = jsValue;
-}
 
 /// <summary>
 ///     Signal indicating a throw statement was encountered.

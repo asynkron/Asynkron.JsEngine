@@ -1,5 +1,3 @@
 namespace Asynkron.JsEngine.Ast;
 
-public static partial class TypedAstEvaluator
-{
-}
+public static partial class TypedAstEvaluator;

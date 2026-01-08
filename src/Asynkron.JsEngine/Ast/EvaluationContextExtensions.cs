@@ -32,9 +32,6 @@ public static partial class TypedAstEvaluator
         {
             case null:
                 return;
-            case ReturnCompletionSignal returnSignal:
-                context.SetReturn(returnSignal.JsValue);
-                break;
             case BreakCompletionSignal breakSignal:
                 context.SetBreak(breakSignal.Label);
                 break;

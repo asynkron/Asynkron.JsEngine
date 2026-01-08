@@ -9,39 +9,6 @@ using Microsoft.Extensions.Logging;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// A generic disposable handle to a pooled object. Returns the object to the pool on dispose.
-/// This is a struct to avoid allocation - use with 'using' statement.
-/// Use 'default' for a no-op handle when pooling is conditional.
-/// </summary>
-/// <typeparam name="T">The type of pooled object</typeparam>
-internal readonly struct Pooled<T> : IDisposable where T : class
-{
-    public readonly T? Value;
-    private readonly Action<T>? _returnAction;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Pooled(T value, Action<T> returnAction)
-    {
-        Value = value;
-        _returnAction = returnAction;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose()
-    {
-        // No-op for default struct (Value is null)
-        if (Value is not null)
-        {
-            _returnAction?.Invoke(Value);
-        }
-    }
-
-    // Implicit conversion for convenience when passing to methods expecting T
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static implicit operator T(Pooled<T> pooled) => pooled.Value!;
-}
-
-/// <summary>
 /// Pool for JsEnvironment instances to reduce per-iteration allocations in hot loops.
 /// </summary>
 internal static class JsEnvironmentPool

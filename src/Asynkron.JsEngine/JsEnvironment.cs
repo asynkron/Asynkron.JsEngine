@@ -526,7 +526,17 @@ public sealed class JsEnvironment : IRentable
         IsStrictLocal = isStrict;
         _creatingSource = creatingSource;
         _description = description;
-        ClearSlots();
+        var slots = _slots;
+        if (slots is not null)
+        {
+            var count = _slotCount;
+            for (var i = 0; i < count; i++)
+            {
+                slots[i] = default;
+            }
+            _slotCount = 0;
+        }
+
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
@@ -3457,27 +3467,6 @@ public sealed class JsEnvironment : IRentable
     }
 
     #region Slot-based Variable Access
-
-    /// <summary>
-    /// Clears all slot values without deallocating the array.
-    /// Used during Reset/ResetForReuse.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ClearSlots()
-    {
-        var slots = _slots;
-        if (slots is null)
-        {
-            return;
-        }
-
-        var count = _slotCount;
-        for (var i = 0; i < count; i++)
-        {
-            slots[i] = default;
-        }
-        _slotCount = 0;
-    }
 
     /// <summary>
     /// Initializes slot storage for this environment.

@@ -3,7 +3,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Runtime;
-using JetBrains.Annotations;
 
 #endregion
 

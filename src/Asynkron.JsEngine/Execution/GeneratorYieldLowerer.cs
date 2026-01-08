@@ -1,6 +1,5 @@
 #region
 
-using System;
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;

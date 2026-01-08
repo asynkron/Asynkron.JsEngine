@@ -1,4 +1,3 @@
-using Asynkron.JsEngine;
 using Microsoft.Extensions.Logging;
 
 namespace Asynkron.JsEngine.Tests.Helpers;

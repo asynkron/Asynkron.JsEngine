@@ -1,7 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
-using Asynkron.JsEngine.Tests.Helpers;
 
 namespace Asynkron.JsEngine.Tests.Test262;
 

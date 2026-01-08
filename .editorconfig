@@ -23,95 +23,111 @@ insert_final_newline = true
 indent_size = 4
 dotnet_sort_system_directives_first = true
 
-# roslynator rules
+# RCS1261: Resource can be disposed asynchronously
 dotnet_diagnostic.RCS1261.severity = warning
 
-# Meziantou.Analyzer - disable ConfigureAwait requirement (not needed for apps)
+; Meziantou.Analyzer, disable ConfigureAwait requirement (not needed for apps)
 
-
+# MA0038: Make method static (deprecated, use CA1822 instead)
 dotnet_diagnostic.MA0038.severity = none
+
+# CA1822: Make member static
 dotnet_diagnostic.CA1822.severity = warning
+
+# MA0003: Add parameter name to improve readability
 dotnet_diagnostic.MA0003.severity = none
+
+# MA0007: Add a comma after the last value
 dotnet_diagnostic.MA0007.severity = none
+
+# MA0004: Use Task.ConfigureAwait
 dotnet_diagnostic.MA0004.severity = none
+
+# MA0049: Type name should not match containing namespace
 dotnet_diagnostic.MA0049.severity = none
 
-# Disable TODO comment warnings - we use TODOs extensively for tracking work
+# MA0026: Fix TODO comment
 dotnet_diagnostic.MA0026.severity = none
-# Disable XML comment warnings
+
+# MA0025: Implement the functionality instead of throwing NotImplementedException
 dotnet_diagnostic.MA0025.severity = none
 
-# File name doesn't need to match every type name (multiple types per file is OK)
+# MA0048: File name must match type name
 dotnet_diagnostic.MA0048.severity = none
 
-
+# RCS1093: File contains no code
 dotnet_diagnostic.RCS1093.severity = error
 
-# Exception ctors - disable
+# RCS1194: Implement exception constructors
 dotnet_diagnostic.RCS1194.severity = none
 
-# Add parenthesis when needed for clarity - disable
+# RCS1123: Add parentheses when necessary
 dotnet_diagnostic.RCS1123.severity = none
 
-# Unused field/parameter warnings 
+# CA1823: Avoid unused private fields
 dotnet_diagnostic.CA1823.severity = warning
-# Unused private code 
+
+# CA1801: Review unused parameters
 dotnet_diagnostic.CA1801.severity = warning
-# Unused private members 
-dotnet_diagnostic.CA1823.severity = warning
-# Unused parameters 
+
+# RCS1163: Unused parameter
 dotnet_diagnostic.RCS1163.severity = warning
 
-# Unreachable code - some debug code is intentionally unreachable
+# CS0162: Unreachable code detected
 dotnet_diagnostic.CS0162.severity = warning
 
-# Unused fields - may be used for future work or debugging
+# CS0169: Field is never used
 dotnet_diagnostic.CS0169.severity = warning
 
-# Method complexity - downgrade to suggestion
+# MA0061: Method overrides should not change default values
 dotnet_diagnostic.MA0061.severity = suggestion
 
-# Prefer return collection abstraction - nice to have but not critical
+# MA0016: Prefer using collection abstraction instead of implementation
 dotnet_diagnostic.MA0016.severity = suggestion
 
-# Embed files as resources - not critical for this project
+# MA0054: Embed the caught exception as innerException
 dotnet_diagnostic.MA0054.severity = none
 
-# Explicit enum values - downgrade to suggestion
+# MA0099: Use explicit enum value instead of 0
 dotnet_diagnostic.MA0099.severity = warning
 
-# Use Range/Index operators - nice to have but not critical for compatibility
+# MA0084: Local variables should not hide other symbols
 dotnet_diagnostic.MA0084.severity = warning
 
-# Method naming - downgrade to suggestion
+# MA0015: Specify the parameter name in ArgumentException
 dotnet_diagnostic.MA0015.severity = warning
 
-# Split long methods - downgrade to suggestion for complex evaluator code
+# MA0051: Method is too long
 dotnet_diagnostic.MA0051.severity = warning
 
-# String comparison semantics - enforce proper usage
+# MA0006: Use String.Equals instead of equality operator
 dotnet_diagnostic.MA0006.severity = warning
+
+# MA0074: Avoid implicit culture-sensitive methods
 dotnet_diagnostic.MA0074.severity = warning
+
+# MA0002: IEqualityComparer<string> or IComparer<string> is missing
 dotnet_diagnostic.MA0002.severity = warning
-# Don't use this. qualifier
+
+; Don't use this qualifier
 dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
 
-# use int x = .. over Int32
+; use int x = .. over Int32
 dotnet_style_predefined_type_for_locals_parameters_members = true:warning
 
-# use int.MaxValue over Int32.MaxValue
+; use int.MaxValue over Int32.MaxValue
 dotnet_style_predefined_type_for_member_access = true:warning
 
-# Require var all the time.
+; Require var all the time.
 csharp_style_var_for_built_in_types = true:warning
 csharp_style_var_when_type_is_apparent = true:warning
 csharp_style_var_elsewhere = true:suggestion
 
-# Disallow throw expressions.
+; Disallow throw expressions.
 csharp_style_throw_expression = false:suggestion
 
-# Newline settings
+; Newline settings
 csharp_new_line_before_open_brace = all
 csharp_new_line_before_else = true
 csharp_new_line_before_catch = true
@@ -119,13 +135,14 @@ csharp_new_line_before_finally = true
 csharp_new_line_before_members_in_object_initializers = true
 csharp_new_line_before_members_in_anonymous_types = true
 
-# Namespace settings
+; Namespace settings
 csharp_style_namespace_declarations = file_scoped
 
-# Brace settings
-csharp_prefer_braces = true # Prefer curly braces even for one line of code
+; Brace settings
+; Prefer curly braces even for one line of code
+csharp_prefer_braces = true
 
-# name all constant fields using PascalCase
+; name all constant fields using PascalCase
 dotnet_naming_rule.constant_fields_should_be_pascal_case.severity = suggestion
 dotnet_naming_rule.constant_fields_should_be_pascal_case.symbols = constant_fields
 dotnet_naming_rule.constant_fields_should_be_pascal_case.style = pascal_case_style
@@ -133,7 +150,7 @@ dotnet_naming_symbols.constant_fields.applicable_kinds = field
 dotnet_naming_symbols.constant_fields.required_modifiers = const
 dotnet_naming_style.pascal_case_style.capitalization = pascal_case
 
-# static fields should be PascalCase
+; static fields should be PascalCase
 dotnet_naming_rule.pascal_case_for_static_fields.severity = suggestion
 dotnet_naming_rule.pascal_case_for_static_fields.symbols = static_fields
 dotnet_naming_rule.pascal_case_for_static_fields.style = pascal_case_style
@@ -142,7 +159,7 @@ dotnet_naming_symbols.static_fields.applicable_kinds = field
 dotnet_naming_symbols.static_fields.applicable_accessibilities = public, private, internal
 dotnet_naming_symbols.static_fields.required_modifiers = static
 
-# internal and private instance fields should be _camelCase
+; internal and private instance fields should be _camelCase
 dotnet_naming_rule.camel_case_for_private_internal_fields.severity = suggestion
 dotnet_naming_rule.camel_case_for_private_internal_fields.symbols = private_internal_fields
 dotnet_naming_rule.camel_case_for_private_internal_fields.style = camel_case_underscore_style
@@ -155,7 +172,7 @@ dotnet_naming_style.camel_case_underscore_style.capitalization = camel_case
 [*.{xml,config,*proj,nuspec,props,resx,targets,yml,tasks}]
 indent_size = 2
 
-# Xml config files
+; Xml config files
 [*.{props,targets,ruleset,config,nuspec,resx,vsixmanifest,vsct}]
 indent_size = 2
 
@@ -167,11 +184,12 @@ indent_size = 4
 end_of_line = lf
 
 [*.{cs,vb}]
-# MA0051: Method too long
-# this one breaks extension modules!!!!
+# MA0051: Method is too long
 dotnet_diagnostic.MA0051.severity = silent
-# CA1801: Review unused parameters
+
+# CA2201: Do not raise reserved exception types
 dotnet_diagnostic.CA2201.severity = warning
+
 # SYSLIB1054: Use 'LibraryImportAttribute' instead of 'DllImportAttribute' to generate P/Invoke marshalling code at compile time
 dotnet_diagnostic.SYSLIB1054.severity = warning
 
@@ -208,13 +226,13 @@ dotnet_diagnostic.CA1802.severity = warning
 # CA1805: Do not initialize unnecessarily
 dotnet_diagnostic.CA1805.severity = warning
 
-# CA1810: Do not initialize unnecessarily
+# CA1810: Initialize reference type static fields inline
 dotnet_diagnostic.CA1810.severity = warning
 
 # CA1811: Avoid uncalled private code
 dotnet_diagnostic.CA1811.severity = warning
 
-# CA1821: Remove empty Finalizers
+# CA1821: Remove empty finalizers
 dotnet_diagnostic.CA1821.severity = warning
 
 # CA1822: Make member static
@@ -227,7 +245,7 @@ dotnet_diagnostic.CA1823.severity = warning
 # CA1825: Avoid zero-length array allocations
 dotnet_diagnostic.CA1825.severity = warning
 
-# CA1826: Do not use Enumerable methods on indexable collections. Instead use the collection directly
+# CA1826: Do not use Enumerable methods on indexable collections
 dotnet_diagnostic.CA1826.severity = warning
 
 # CA1827: Do not use Count() or LongCount() when Any() can be used
@@ -326,13 +344,13 @@ dotnet_diagnostic.CA2012.severity = warning
 # CA2013: Do not use ReferenceEquals with value types
 dotnet_diagnostic.CA2013.severity = warning
 
-# CA2014: Do not use stackalloc in loops.
+# CA2014: Do not use stackalloc in loops
 dotnet_diagnostic.CA2014.severity = warning
 
 # CA2016: Forward the 'CancellationToken' parameter to methods that take one
 dotnet_diagnostic.CA2016.severity = warning
 
-# CA2022: Avoid inexact read with `Stream.Read`
+# CA2022: Avoid inexact read with Stream.Read
 dotnet_diagnostic.CA2022.severity = warning
 
 # CA2200: Rethrow to preserve stack details
@@ -350,16 +368,16 @@ dotnet_diagnostic.CA2245.severity = warning
 # CA2246: Assigning symbol and its member in the same statement
 dotnet_diagnostic.CA2246.severity = warning
 
-# CA2249: Use string.Contains instead of string.IndexOf to improve readability.
+# CA2249: Use string.Contains instead of string.IndexOf to improve readability
 dotnet_diagnostic.CA2249.severity = warning
 
 # IDE0005: Remove unnecessary usings
 dotnet_diagnostic.IDE0005.severity = none
 
-# IDE0011: Curly braces to surround blocks of code
+# IDE0011: Add braces
 dotnet_diagnostic.IDE0011.severity = warning
 
-# IDE0020: Use pattern matching to avoid is check followed by a cast (with variable)
+# IDE0020: Use pattern matching
 dotnet_diagnostic.IDE0020.severity = warning
 
 # IDE0029: Use coalesce expression (non-nullable types)
@@ -378,7 +396,7 @@ dotnet_diagnostic.IDE0035.severity = warning
 csharp_preferred_modifier_order = public, private, protected, internal, static, extern, new, virtual, abstract, sealed, override, readonly, unsafe, volatile, async:suggestion
 dotnet_diagnostic.IDE0036.severity = warning
 
-# IDE0038: Use pattern matching to avoid is check followed by a cast (without variable)
+# IDE0038: Use pattern matching
 dotnet_diagnostic.IDE0038.severity = warning
 
 # IDE0043: Format string contains invalid placeholder
@@ -390,50 +408,52 @@ dotnet_diagnostic.IDE0044.severity = warning
 # IDE0051: Remove unused private members
 dotnet_diagnostic.IDE0051.severity = warning
 
-# IDE0055: All formatting rules
+# IDE0055: Fix formatting
 dotnet_diagnostic.IDE0055.severity = suggestion
 
-# IDE0059: Unnecessary assignment to a value
+# IDE0059: Unnecessary assignment
 dotnet_diagnostic.IDE0059.severity = warning
 
 # CS0162: Unreachable code detected
 dotnet_diagnostic.CS0162.severity = warning
 
-
 dotnet_code_quality_unused_parameters = non_public
 
+; Roslynator analyzers focused on dead/unused code
 
-# Roslynator analyzers focused on dead/unused code
+# RCS1163: Unused parameter
 dotnet_diagnostic.RCS1163.severity = warning
+
+# RCS1164: Unused type parameter
 dotnet_diagnostic.RCS1164.severity = warning
+
+# RCS1175: Unused 'this' parameter
 dotnet_diagnostic.RCS1175.severity = warning
+
+# RCS1213: Remove unused member declaration
 dotnet_diagnostic.RCS1213.severity = warning
 
 # IDE0062: Make local function static
 dotnet_diagnostic.IDE0062.severity = warning
 
-# IDE0073: File header
-#dotnet_diagnostic.IDE0073.severity = warning
-#file_header_template = Licensed to the .NET Foundation under one or more agreements.\nThe .NET Foundation licenses this file to you under the MIT license.
+; IDE0073: File header (disabled)
+; dotnet_diagnostic.IDE0073.severity = warning
+; file_header_template = Licensed to the .NET Foundation under one or more agreements.\nThe .NET Foundation licenses this file to you under the MIT license.
 
 # IDE0161: Convert to file-scoped namespace
 dotnet_diagnostic.IDE0161.severity = warning
 
-# IDE0200: Lambda expression can be removed
+# IDE0200: Remove unnecessary lambda expression
 dotnet_diagnostic.IDE0200.severity = warning
 
-# IDE2000: Disallow multiple blank lines
+# IDE2000: Avoid multiple blank lines
 dotnet_style_allow_multiple_blank_lines_experimental = false
 dotnet_diagnostic.IDE2000.severity = warning
 
-# # CA2016: Forward the 'CancellationToken' parameter to methods that take one
-# dotnet_diagnostic.CA2016.severity = suggestion
+; Defaults for content in the shared src/ and shared runtime dir
 
-# Defaults for content in the shared src/ and shared runtime dir
-
-
-# Verify settings
+; Verify settings
 
 [tests/**/*.cs]
-# Allow CS9107 in test classes (parameter captured warning in test fixtures)
+# CS9107: Parameter is captured into the state of the enclosing type and its value is also passed to the base constructor (the base class might capture it too)
 dotnet_diagnostic.CS9107.severity = silent

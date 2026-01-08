@@ -1,11 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
-using Asynkron.JsEngine;
-using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;

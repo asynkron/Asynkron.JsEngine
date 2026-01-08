@@ -2,7 +2,6 @@ using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using BenchmarkDotNet.Attributes;
 using Jint;
-using Jint.Native;
 
 namespace Asynkron.JsEngine.Benchmarks;
 

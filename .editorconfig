@@ -44,6 +44,10 @@ dotnet_diagnostic.MA0025.severity = none
 # File name doesn't need to match every type name (multiple types per file is OK)
 dotnet_diagnostic.MA0048.severity = none
 
+
+dotnet_diagnostic.RCS1194.severity = none
+dotnet_diagnostic.RCS1123.severity = none
+
 # Unused field/parameter warnings 
 dotnet_diagnostic.CA1823.severity = warning
 # Unused private code 

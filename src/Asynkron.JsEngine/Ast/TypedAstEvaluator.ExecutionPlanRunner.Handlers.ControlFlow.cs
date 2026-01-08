@@ -14,8 +14,8 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleBreakableEnter(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
+            ref JsEnvironment _,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BreakableEnterInstruction>(instr);
@@ -37,8 +37,8 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleBreakableExit(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
+            ref JsEnvironment _,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BreakableExitInstruction>(instr);
@@ -62,7 +62,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext ctx,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<BreakInstruction>(instr);
@@ -79,7 +79,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext ctx,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ContinueInstruction>(instr);
@@ -205,8 +205,8 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleJump(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
+            ref JsEnvironment _,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             runner._programCounter = Unsafe.As<JumpInstruction>(instr).TargetIndex;

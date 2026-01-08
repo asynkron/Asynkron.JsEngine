@@ -110,7 +110,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext context,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ForInMoveNextInstruction>(instr);

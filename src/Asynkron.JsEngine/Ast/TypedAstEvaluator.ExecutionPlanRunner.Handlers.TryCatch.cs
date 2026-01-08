@@ -81,7 +81,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext ctx,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EnterTryInstruction>(instr);
@@ -95,8 +95,8 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleLeaveTry(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
+            ref JsEnvironment _,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<LeaveTryInstruction>(instr);
@@ -109,7 +109,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext ctx,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EnterCatchInstruction>(instr);
@@ -198,8 +198,8 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleEndFinally(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
+            ref JsEnvironment _,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<EndFinallyInstruction>(instr);

@@ -81,6 +81,7 @@ public static partial class TypedAstEvaluator
         // Fast path: if body is a single statement without block environment needs,
         // we can skip block dispatch overhead entirely (like Jint's ProbablyBlockStatement)
         var singleStatement = plan.SingleBodyStatement;
+        var repeatAfterBody = plan.ConditionAfterBody;
 
         // Try ultra-fast path for simple numeric for loops
         // Pattern: for (let i = 0; i < limit; i++) { s += i; }
@@ -205,14 +206,9 @@ public static partial class TypedAstEvaluator
                 continue;
             }
         }
-        while (plan.ConditionAfterBody
-            ? plan.ExecuteCondition(iterationEnvironment, context)
-            : true);
 
-        static bool ShouldLogIteration(int iterationIndex)
-        {
-            return iterationIndex <= 10 || (iterationIndex & (iterationIndex - 1)) == 0;
-        }
+        // DON'T TOUCH :-)
+        while (!repeatAfterBody || plan.ExecuteCondition(iterationEnvironment, context));
 
         if (hasPerIterationBindings &&
             !ReferenceEquals(iterationEnvironment, environment))
@@ -225,6 +221,11 @@ public static partial class TypedAstEvaluator
         }
 
         return lastValueJs;
+
+        static bool ShouldLogIteration(int iterationIndex)
+        {
+            return iterationIndex <= 10 || (iterationIndex & (iterationIndex - 1)) == 0;
+        }
     }
 
     private static JsEnvironment CreatePerIterationEnvironment(this LoopPlan plan, JsEnvironment sourceEnvironment,

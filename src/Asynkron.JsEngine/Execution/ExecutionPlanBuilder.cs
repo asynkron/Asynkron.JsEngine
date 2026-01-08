@@ -225,17 +225,6 @@ internal sealed partial class ExecutionPlanBuilder
         var seedSlots = new List<Symbol>(_slotSymbols.Count + hoistedFunctions.Count + parameterNames.Count);
         var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
 
-        void AppendIfMissing(IEnumerable<Symbol> symbols)
-        {
-            foreach (var symbol in symbols)
-            {
-                if (seen.Add(symbol))
-                {
-                    seedSlots.Add(symbol);
-                }
-            }
-        }
-
         AppendIfMissing(_slotSymbols);
         AppendIfMissing(hoistedFunctions);
         AppendIfMissing(parameterNames);
@@ -265,6 +254,17 @@ internal sealed partial class ExecutionPlanBuilder
 
         Debug.Assert(analysis is not null);
         return analysis;
+
+        void AppendIfMissing(IEnumerable<Symbol> symbols)
+        {
+            foreach (var symbol in symbols)
+            {
+                if (seen.Add(symbol))
+                {
+                    seedSlots.Add(symbol);
+                }
+            }
+        }
     }
 
     private void StampIteratorBodies(FunctionExpression function, SlotAssignmentRewriter rewriter)

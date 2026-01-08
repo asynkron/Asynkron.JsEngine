@@ -1,5 +1,3 @@
 namespace Asynkron.JsEngine.JsTypes;
 
-internal interface IIsHtmlDda
-{
-}
+internal interface IIsHtmlDda;

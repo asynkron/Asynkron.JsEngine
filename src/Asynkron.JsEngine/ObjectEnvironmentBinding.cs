@@ -1,7 +1,3 @@
-#region
-
-#endregion
-
 namespace Asynkron.JsEngine;
 
 internal readonly record struct ObjectEnvironmentBinding(

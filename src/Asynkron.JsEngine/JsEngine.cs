@@ -418,7 +418,6 @@ public sealed class JsEngine : IAsyncDisposable
         var controlFlowState = context.CurrentSignal switch
         {
             null => "None",
-            ReturnCompletionSignal => "Return",
             BreakCompletionSignal => "Break",
             ContinueCompletionSignal => "Continue",
             ThrowFlowCompletionSignal => "Throw",

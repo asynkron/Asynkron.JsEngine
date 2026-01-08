@@ -14,11 +14,11 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 public static class ExecutionPlanDiagnostics
 {
-    private static readonly object Sync = new();
+    private static readonly Lock Sync = new();
 
-    private static int _totalAttempts;
-    private static int _totalSucceeded;
-    private static int _totalFailed;
+    private static int TotalAttempts;
+    private static int TotalSucceeded;
+    private static int TotalFailed;
     private static string? _lastFailureReason;
     private static string? _lastFunctionDescription;
 
@@ -48,9 +48,9 @@ public static class ExecutionPlanDiagnostics
     {
         lock (Sync)
         {
-            _totalAttempts = 0;
-            _totalSucceeded = 0;
-            _totalFailed = 0;
+            TotalAttempts = 0;
+            TotalSucceeded = 0;
+            TotalFailed = 0;
             _lastFailureReason = null;
             _lastFunctionDescription = null;
         }
@@ -60,14 +60,14 @@ public static class ExecutionPlanDiagnostics
     {
         lock (Sync)
         {
-            _totalAttempts++;
+            TotalAttempts++;
             if (succeeded)
             {
-                _totalSucceeded++;
+                TotalSucceeded++;
             }
             else
             {
-                _totalFailed++;
+                TotalFailed++;
                 _lastFailureReason = failureReason;
                 _lastFunctionDescription = DescribeFunction(function);
             }
@@ -78,7 +78,7 @@ public static class ExecutionPlanDiagnostics
     {
         lock (Sync)
         {
-            return (_totalAttempts, _totalSucceeded, _totalFailed);
+            return (TotalAttempts, TotalSucceeded, TotalFailed);
         }
     }
 

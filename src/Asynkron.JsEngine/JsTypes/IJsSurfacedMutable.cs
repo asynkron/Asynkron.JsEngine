@@ -18,6 +18,4 @@ namespace Asynkron.JsEngine.JsTypes;
 /// - ThenMethod - while exposed via .then property, it's a method object (function)
 /// - ResolvedPromiseValue - pooled but carefully managed
 /// </summary>
-public interface IJsSurfacedMutable
-{
-}
+public interface IJsSurfacedMutable;

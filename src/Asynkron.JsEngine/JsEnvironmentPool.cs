@@ -34,8 +34,8 @@ internal static class JsEnvironmentPool
         bool isBodyEnvironment = false,
         ILogger? logger = null)
     {
-        var env = Pool.Rent(logger);
-        env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description,
+        var env = Pool.Rent(logger);  // OnRent() clears state
+        env.Initialize(enclosing, isFunctionScope, isStrict, creatingSource, description,
             isParameterEnvironment, isBodyEnvironment);
         if (PoolGuard.Enabled)
         {

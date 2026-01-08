@@ -10,7 +10,7 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// A fast, lock-free object pool using a fixed-size array.
 /// Uses Interlocked operations for thread-safety with minimal contention.
-/// If T implements IRentable, Reset() is called automatically on return.
+/// If T implements IRentable, OnRent() is called on rent, OnReturn() on return.
 /// </summary>
 internal sealed class ObjectPool<T>(int size, Func<T> factory)
     where T : class

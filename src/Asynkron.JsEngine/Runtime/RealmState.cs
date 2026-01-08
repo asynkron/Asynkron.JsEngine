@@ -162,8 +162,8 @@ public sealed class RealmState
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
-        var env = _environmentPool.Rent();
-        env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
+        var env = _environmentPool.Rent();  // OnRent() clears state
+        env.Initialize(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
             isBodyEnvironment);
         return env;
     }

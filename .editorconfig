@@ -64,7 +64,7 @@ dotnet_diagnostic.CS0162.severity = warning
 # Unused fields - may be used for future work or debugging
 dotnet_diagnostic.CS0169.severity = warning
 
-# Method complexity - downgrade to suggestion, we have some complex evaluator methods
+# Method complexity - downgrade to suggestion
 dotnet_diagnostic.MA0061.severity = suggestion
 
 # Prefer return collection abstraction - nice to have but not critical
@@ -74,7 +74,7 @@ dotnet_diagnostic.MA0016.severity = suggestion
 dotnet_diagnostic.MA0054.severity = none
 
 # Explicit enum values - downgrade to suggestion
-dotnet_diagnostic.MA0099.severity = suggestion
+dotnet_diagnostic.MA0099.severity = warning
 
 # Use Range/Index operators - nice to have but not critical for compatibility
 dotnet_diagnostic.MA0084.severity = warning

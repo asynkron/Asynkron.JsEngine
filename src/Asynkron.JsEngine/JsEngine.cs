@@ -4980,27 +4980,6 @@ public sealed class JsEngine : IAsyncDisposable
             var argList = callExpr.Arguments.ToList();
             var completedSynchronously = true;
 
-            static string DescribeCallee(ExpressionNode expr)
-            {
-                static string DescribeTarget(ExpressionNode target)
-                {
-                    return target switch
-                    {
-                        IdentifierExpression id => id.Name.Name,
-                        _ => target.GetType().Name
-                    };
-                }
-
-                return expr switch
-                {
-                    IdentifierExpression id => id.Name.Name,
-                    MemberExpression { Property: IdentifierExpression pid } member =>
-                        $"{DescribeTarget(member.Target)}.{pid.Name.Name}",
-                    MemberExpression member => $"{DescribeTarget(member.Target)}.[computed]",
-                    _ => expr.GetType().Name
-                };
-            }
-
             var calleeResult = EvaluateCalleeWithAwait(callExpr.Callee, env, isStrict, (calleeValue, thisValue) =>
             {
                 var argsResult = TryEvaluateArgumentsWithAwait(argList, 0, evaluatedArgs, env, isStrict, () =>
@@ -5054,6 +5033,27 @@ public sealed class JsEngine : IAsyncDisposable
             });
 
             return calleeResult && completedSynchronously;
+
+            static string DescribeCallee(ExpressionNode expr)
+            {
+                return expr switch
+                {
+                    IdentifierExpression id => id.Name.Name,
+                    MemberExpression { Property: IdentifierExpression pid } member =>
+                        $"{DescribeTarget(member.Target)}.{pid.Name.Name}",
+                    MemberExpression member => $"{DescribeTarget(member.Target)}.[computed]",
+                    _ => expr.GetType().Name
+                };
+
+                static string DescribeTarget(ExpressionNode target)
+                {
+                    return target switch
+                    {
+                        IdentifierExpression id => id.Name.Name,
+                        _ => target.GetType().Name
+                    };
+                }
+            }
         }
 
         private bool TryEvaluateArgumentsWithAwait(List<CallArgument> args, int index, List<JsValue> evaluated,
@@ -5143,26 +5143,6 @@ public sealed class JsEngine : IAsyncDisposable
             {
                 var thisValue = targetResolved;
 
-                bool Finish(JsValue propertyResolved)
-                {
-                    JsValue calleeValue;
-                    try
-                    {
-                        calleeValue = JsOps.TryGetPropertyValueJsValue(thisValue, propertyResolved, out var val,
-                            _engine.RealmState?.CreateContext())
-                            ? val
-                            : JsValue.Undefined;
-                    }
-                    catch (ThrowSignal signal)
-                    {
-                        Fail(signal);
-                        return false;
-                    }
-
-                    continuation(calleeValue, thisValue);
-                    return true;
-                }
-
                 if (memberExpression.Property is IdentifierExpression identifier)
                 {
                     propertyCompletedSynchronously = Finish((JsValue)identifier.Name.Name);
@@ -5189,6 +5169,28 @@ public sealed class JsEngine : IAsyncDisposable
                 {
                     Fail(signal);
                     propertyCompletedSynchronously = false;
+                }
+
+                return;
+
+                bool Finish(JsValue propertyResolved)
+                {
+                    JsValue calleeValue;
+                    try
+                    {
+                        calleeValue = JsOps.TryGetPropertyValueJsValue(thisValue, propertyResolved, out var val,
+                            _engine.RealmState?.CreateContext())
+                            ? val
+                            : JsValue.Undefined;
+                    }
+                    catch (ThrowSignal signal)
+                    {
+                        Fail(signal);
+                        return false;
+                    }
+
+                    continuation(calleeValue, thisValue);
+                    return true;
                 }
             });
 

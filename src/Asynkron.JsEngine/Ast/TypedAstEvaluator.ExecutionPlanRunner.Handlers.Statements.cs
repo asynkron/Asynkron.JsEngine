@@ -107,8 +107,8 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleSetCompletionValue(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment environment,
-            EvaluationContext ctx,
+            ref JsEnvironment _,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<SetCompletionValueInstruction>(instr);

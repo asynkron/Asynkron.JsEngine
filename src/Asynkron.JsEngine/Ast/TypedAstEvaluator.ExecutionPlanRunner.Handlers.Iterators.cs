@@ -16,7 +16,7 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext ctx,
+            EvaluationContext __,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<IteratorCloseInstruction>(instr);

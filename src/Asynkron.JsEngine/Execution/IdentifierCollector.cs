@@ -128,6 +128,13 @@ internal sealed class ScopeSlotCollector : AstVisitor
         var seen = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
         var index = 0;
 
+        AppendOrdered(existingSlots);
+        AppendOrdered(_parameterSymbols);
+
+        rootInfo.SlotCountHint = Math.Max(rootInfo.SlotCountHint, index);
+        rootInfo.NextSlotIndex = Math.Max(rootInfo.NextSlotIndex, index);
+        return;
+
         void AppendOrdered(IEnumerable<Symbol> symbols)
         {
             foreach (var symbol in symbols)
@@ -138,12 +145,6 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 }
             }
         }
-
-        AppendOrdered(existingSlots);
-        AppendOrdered(_parameterSymbols);
-
-        rootInfo.SlotCountHint = Math.Max(rootInfo.SlotCountHint, index);
-        rootInfo.NextSlotIndex = Math.Max(rootInfo.NextSlotIndex, index);
     }
 
     private ScopeSlotInfo GetOrCreateScopeInfo(int scopeId)

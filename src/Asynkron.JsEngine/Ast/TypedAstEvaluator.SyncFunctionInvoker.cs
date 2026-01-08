@@ -1907,7 +1907,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             context.MaxCallDepth = callingContext.MaxCallDepth;
 
             functionEnvironment =
-                RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
+                JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source, _functionDescription, logger: RealmState.Logger);
             InitializeFunctionEnvironmentForThis(functionEnvironment, thisValue);
         }
 
@@ -1998,7 +1998,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             RealmState.ReturnContext(context);
-            RealmState.ReturnEnvironment(functionEnvironment);
+            JsEnvironmentPool.Return(functionEnvironment, RealmState.Logger);
             return result;
         }
 
@@ -2231,7 +2231,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             // Create environment for function execution - use pooling when safe (no inner closures)
             var functionEnvironment = _canPoolInvocationEnvironment
-                ? RealmState.RentEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription)
+                ? JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source, _functionDescription, logger: RealmState.Logger)
                 : new JsEnvironment(_closure, true, _isStrict, _function.Source, _functionDescription);
 
             InitializeFunctionEnvironmentForThis(functionEnvironment, thisValue);
@@ -2299,7 +2299,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 // Return environment to pool if pooling was used
                 if (_canPoolInvocationEnvironment)
                 {
-                    RealmState.ReturnEnvironment(functionEnvironment);
+                    JsEnvironmentPool.Return(functionEnvironment, RealmState.Logger);
                 }
             }
         }

@@ -16,12 +16,10 @@ namespace Asynkron.JsEngine.Runtime;
 public sealed class RealmState
 {
     private readonly ObjectPool<EvaluationContext> _contextPool;
-    private readonly ObjectPool<JsEnvironment> _environmentPool;
 
     public RealmState()
     {
         _contextPool = new ObjectPool<EvaluationContext>(16, () => new EvaluationContext(this));
-        _environmentPool = new ObjectPool<JsEnvironment>(32, static () => new JsEnvironment(null, false, false));
     }
 
     public IJsEngineOptions Options { get; internal init; } = JsEngineOptions.Default;
@@ -148,30 +146,6 @@ public sealed class RealmState
     /// Returns an EvaluationContext to the pool for reuse.
     /// </summary>
     public void ReturnContext(EvaluationContext context) => _contextPool.Return(context);
-
-    /// <summary>
-    /// Rents a JsEnvironment from the pool or creates a new one.
-    /// Call ReturnEnvironment when done to return it to the pool.
-    /// </summary>
-    public JsEnvironment RentEnvironment(
-        JsEnvironment? enclosing,
-        bool isFunctionScope,
-        bool isStrict,
-        SourceReference? creatingSource = null,
-        string? description = null,
-        bool isParameterEnvironment = false,
-        bool isBodyEnvironment = false)
-    {
-        var env = _environmentPool.Rent();  // OnRent() clears state
-        env.Initialize(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
-            isBodyEnvironment);
-        return env;
-    }
-
-    /// <summary>
-    /// Returns a JsEnvironment to the pool for reuse.
-    /// </summary>
-    public void ReturnEnvironment(JsEnvironment env) => _environmentPool.Return(env);
 
     public EvaluationContext CreateStrictContext(
         ScopeKind kind = ScopeKind.Function,

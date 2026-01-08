@@ -141,7 +141,7 @@ public static partial class TypedAstEvaluator
         // This throws ReferenceError if this is uninitialized
         if (!context.IsThisInitialized)
         {
-            throw environment.CreateSuperReferenceError(context, null);
+            throw environment.CreateSuperReferenceError(context);
         }
 
         var binding = environment.ExpectSuperBinding(context);

@@ -222,7 +222,7 @@ internal static class AssignmentReferenceResolver
                 {
                     if (!binding.IsThisInitialized)
                     {
-                        throw environment.CreateSuperReferenceError(context, null);
+                        throw environment.CreateSuperReferenceError(context);
                     }
 
                     if (binding.Prototype is null)

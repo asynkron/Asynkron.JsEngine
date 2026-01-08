@@ -203,8 +203,7 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
-    internal static Exception CreateSuperReferenceError(this JsEnvironment environment, EvaluationContext context,
-        Exception? inner)
+    internal static Exception CreateSuperReferenceError(this JsEnvironment environment, EvaluationContext context)
     {
         environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}",
             context.IsThisInitialized);

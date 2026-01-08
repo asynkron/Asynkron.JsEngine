@@ -173,8 +173,10 @@ public static partial class TypedAstEvaluator
         {
             typedFunction.SetSuperBinding(superConstructor, superPrototype);
             var instanceFields = resolvedFields.Where(static field => !field.IsStatic).ToImmutableArray();
-            var resolvedInstanceFields = definition.ResolveInstanceFieldNames(instanceFields,
-                evaluationEnvironment, context, privateNameScope);
+            _ = evaluationEnvironment;
+            _ = context;
+            _ = privateNameScope;
+            var resolvedInstanceFields = instanceFields;
             if (context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
@@ -304,21 +306,6 @@ public static partial class TypedAstEvaluator
         }
 
         return builder.ToImmutable();
-    }
-
-    // Instance field keys must already be resolved; this simply returns
-    // the provided collection (kept for clarity / future adjustments).
-    [UsedImplicitly]
-    public static ImmutableArray<ClassField> ResolveInstanceFieldNames(this ClassDefinition _definition,
-        ImmutableArray<ClassField> fields,
-        JsEnvironment environment,
-        EvaluationContext context,
-        PrivateNameScope? privateNameScope)
-    {
-        _ = environment;
-        _ = context;
-        _ = privateNameScope;
-        return fields;
     }
 
     [UsedImplicitly]

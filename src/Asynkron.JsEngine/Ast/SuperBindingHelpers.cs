@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
 
         if (!binding.IsThisInitialized)
         {
-            throw environment.CreateSuperReferenceError(context, null);
+            throw environment.CreateSuperReferenceError(context);
         }
 
         if (binding.Prototype is null)

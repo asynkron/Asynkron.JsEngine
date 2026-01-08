@@ -143,7 +143,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             foreach (var key in sourceAccessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
                 var descriptor = sourceAccessor.GetOwnPropertyDescriptor(key);
-                if (descriptor is null || !descriptor.Enumerable)
+                if (descriptor?.Enumerable != true)
                 {
                     continue;
                 }

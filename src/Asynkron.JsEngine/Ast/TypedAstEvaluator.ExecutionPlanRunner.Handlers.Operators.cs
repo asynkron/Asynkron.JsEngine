@@ -13,6 +13,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleBinaryOp(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -24,49 +25,103 @@ public static partial class TypedAstEvaluator
             var binLeft = instruction.Left.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
-                if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
-                {
-                    returnValue = pendingBinLeftResult;
-                    return InstructionResult.Return;
-                }
-
-                if (context.IsThrow)
-                {
-                    var binThrown = context.FlowValue;
-                    context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
-                    {
-                        returnValue = default;
-                        return InstructionResult.Continue;
-                    }
-
-                    runner.TryCatchStateRef.TryStack.Clear();
-                    throw new ThrowSignal(binThrown);
-                }
+                return HandleBinaryOpLeftSlow(runner, instruction, binLeft, ref environment, context, out returnValue);
             }
 
             var binRight = instruction.Right.EvaluateExpression(environment, context);
             if (context.ShouldStopEvaluation)
             {
-                if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
+                return HandleBinaryOpRightSlow(runner, instruction, binLeft, binRight, ref environment, context, out returnValue);
+            }
+
+            var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);
+
+            if (instruction.ResultSlot is not null)
+            {
+                environment.AssignJsValue(instruction.ResultSlot, binResult);
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleBinaryOpLeftSlow(
+            ExecutionPlanRunner runner,
+            BinaryOpInstruction instruction,
+            JsValue binLeft,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBinLeftResult, environment))
+            {
+                returnValue = pendingBinLeftResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var binThrown = context.FlowValue;
+                context.Clear();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
                 {
-                    returnValue = pendingBinRightResult;
-                    return InstructionResult.Return;
+                    returnValue = default;
+                    return InstructionResult.Continue;
                 }
 
-                if (context.IsThrow)
-                {
-                    var binThrown = context.FlowValue;
-                    context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
-                    {
-                        returnValue = default;
-                        return InstructionResult.Continue;
-                    }
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(binThrown);
+            }
 
-                    runner.TryCatchStateRef.TryStack.Clear();
-                    throw new ThrowSignal(binThrown);
+            // Continue evaluation of right operand after handling left operand signals
+            var binRight = instruction.Right.EvaluateExpression(environment, context);
+            if (context.ShouldStopEvaluation)
+            {
+                return HandleBinaryOpRightSlow(runner, instruction, binLeft, binRight, ref environment, context, out returnValue);
+            }
+
+            var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);
+
+            if (instruction.ResultSlot is not null)
+            {
+                environment.AssignJsValue(instruction.ResultSlot, binResult);
+            }
+
+            runner._programCounter = instruction.Next;
+            returnValue = default;
+            return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleBinaryOpRightSlow(
+            ExecutionPlanRunner runner,
+            BinaryOpInstruction instruction,
+            JsValue binLeft,
+            JsValue binRight,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingBinRightResult, environment))
+            {
+                returnValue = pendingBinRightResult;
+                return InstructionResult.Return;
+            }
+
+            if (context.IsThrow)
+            {
+                var binThrown = context.FlowValue;
+                context.Clear();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, binThrown))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
                 }
+
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(binThrown);
             }
 
             var binResult = ApplyBinaryOperator(instruction.Operator, binLeft, binRight, context);

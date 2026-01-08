@@ -11,6 +11,7 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleThrow(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -29,31 +30,49 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var existingThrown = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, existingThrown))
+                return HandleThrowExistingSlow(runner, context, out returnValue);
+            }
+
+            return HandleThrowNewSlow(runner, throwValue, out returnValue);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleThrowExistingSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var existingThrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, existingThrown))
+            {
+                if (runner._programCounter != runner._currentInstructionIndex)
                 {
-                    if (runner._programCounter != runner._currentInstructionIndex)
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                if (runner.TryCatchStateRef.TryStack.Count > 0)
+                {
+                    runner.TryCatchStateRef.TryStack.Pop();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, existingThrown))
                     {
                         returnValue = default;
                         return InstructionResult.Continue;
                     }
-
-                    if (runner.TryCatchStateRef.TryStack.Count > 0)
-                    {
-                        runner.TryCatchStateRef.TryStack.Pop();
-                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, existingThrown))
-                        {
-                            returnValue = default;
-                            return InstructionResult.Continue;
-                        }
-                    }
                 }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(existingThrown);
             }
 
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(existingThrown);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleThrowNewSlow(
+            ExecutionPlanRunner runner,
+            JsValue throwValue,
+            out JsValue returnValue)
+        {
             if (runner.HandleAbruptCompletion(AbruptKind.Throw, throwValue))
             {
                 if (runner._programCounter != runner._currentInstructionIndex)
@@ -128,6 +147,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleEnterCatchWithDestructuring(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -147,16 +167,7 @@ public static partial class TypedAstEvaluator
             {
                 if (context.IsThrow)
                 {
-                    var exception = context.FlowValue;
-                    context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, exception))
-                    {
-                        returnValue = default;
-                        return InstructionResult.Continue;
-                    }
-
-                    runner.TryCatchStateRef.TryStack.Clear();
-                    throw new ThrowSignal(exception);
+                    return HandleEnterCatchWithDestructuringThrowSlow(runner, context, out returnValue);
                 }
             }
 
@@ -164,6 +175,24 @@ public static partial class TypedAstEvaluator
             runner._programCounter = instruction.Next;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleEnterCatchWithDestructuringThrowSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var exception = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, exception))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(exception);
         }
 
         private static JsValue PrepareCatchEnvironment(

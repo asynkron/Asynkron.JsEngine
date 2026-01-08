@@ -134,6 +134,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleReturn(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -152,20 +153,7 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var pendingThrow = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, pendingThrow))
-                {
-                    if (runner._programCounter == runner._currentInstructionIndex)
-                    {
-                        runner._programCounter = instruction.Next;
-                    }
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(pendingThrow);
+                return HandleReturnThrowSlow(runner, instruction, context, out returnValue);
             }
 
             if (context.IsReturn)
@@ -197,6 +185,29 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Return;
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleReturnThrowSlow(
+            ExecutionPlanRunner runner,
+            ReturnInstruction instruction,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var pendingThrow = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, pendingThrow))
+            {
+                if (runner._programCounter == runner._currentInstructionIndex)
+                {
+                    runner._programCounter = instruction.Next;
+                }
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(pendingThrow);
+        }
+
 #if NO_INLINING
         [MethodImpl(MethodImplOptions.NoInlining)]
 #else
@@ -214,6 +225,7 @@ public static partial class TypedAstEvaluator
             return InstructionResult.Continue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static InstructionResult HandleBranch(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
@@ -232,21 +244,30 @@ public static partial class TypedAstEvaluator
 
             if (context.IsThrow)
             {
-                var thrownValue = context.FlowValue;
-                context.Clear();
-                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue))
-                {
-                    returnValue = default;
-                    return InstructionResult.Continue;
-                }
-
-                runner.TryCatchStateRef.TryStack.Clear();
-                throw new ThrowSignal(thrownValue);
+                return HandleBranchThrowSlow(runner, context, out returnValue);
             }
 
             runner._programCounter = testValue.IsTruthy ? instruction.ConsequentIndex : instruction.AlternateIndex;
             returnValue = default;
             return InstructionResult.Continue;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleBranchThrowSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var thrownValue = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrownValue))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrownValue);
         }
     }
 }

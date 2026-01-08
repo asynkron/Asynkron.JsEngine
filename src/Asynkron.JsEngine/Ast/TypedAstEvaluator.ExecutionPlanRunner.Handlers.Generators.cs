@@ -38,30 +38,12 @@ public static partial class TypedAstEvaluator
 
                 if (context.IsThrow)
                 {
-                    var thrown = context.FlowValue;
-                    context.Clear();
-                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
-                    {
-                        returnValue = default;
-                        return InstructionResult.Continue;
-                    }
-
-                    runner.TryCatchStateRef.TryStack.Clear();
-                    throw new ThrowSignal(thrown);
+                    return HandleYieldThrowSlow(runner, context, out returnValue);
                 }
 
                 if (context.IsYield)
                 {
-                    yieldedValue = context.FlowValue;
-                    var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
-                    context.Clear();
-                    runner._programCounter = runner._currentInstructionIndex;
-                    runner.RecordYield(context, environment);
-                    runner._state = GeneratorState.Suspended;
-                    returnValue = nestedIteratorResult is not null
-                        ? JsValue.FromObjectUnsafe(nestedIteratorResult)
-                        : CreateIteratorResult(yieldedValue, false);
-                    return InstructionResult.Return;
+                    return HandleYieldNestedSlow(runner, ref environment, context, out returnValue);
                 }
             }
 
@@ -69,6 +51,43 @@ public static partial class TypedAstEvaluator
             runner.RecordYield(context, environment);
             runner._state = GeneratorState.Suspended;
             returnValue = CreateIteratorResult(yieldedValue, false);
+            return InstructionResult.Return;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleYieldThrowSlow(
+            ExecutionPlanRunner runner,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var thrown = context.FlowValue;
+            context.Clear();
+            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            runner.TryCatchStateRef.TryStack.Clear();
+            throw new ThrowSignal(thrown);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static InstructionResult HandleYieldNestedSlow(
+            ExecutionPlanRunner runner,
+            ref JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue returnValue)
+        {
+            var yieldedValue = context.FlowValue;
+            var nestedIteratorResult = (context.CurrentSignal as YieldCompletionSignal)?.IteratorResultObject;
+            context.Clear();
+            runner._programCounter = runner._currentInstructionIndex;
+            runner.RecordYield(context, environment);
+            runner._state = GeneratorState.Suspended;
+            returnValue = nestedIteratorResult is not null
+                ? JsValue.FromObjectUnsafe(nestedIteratorResult)
+                : CreateIteratorResult(yieldedValue, false);
             return InstructionResult.Return;
         }
 

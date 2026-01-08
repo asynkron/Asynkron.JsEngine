@@ -475,3 +475,72 @@ internal sealed record ForInMoveNextInstruction(
     int BreakIndex,
     int Next)
     : ExecutionInstruction(InstructionKind.ForInMoveNext, Next);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Array Destructuring Instructions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+///     Initializes array destructuring by evaluating the source expression and
+///     getting an iterator from it. Stores the iterator state in a slot.
+/// </summary>
+/// <param name="SourceExpression">Expression that produces the value to destructure (e.g., arr in `let [a] = arr`).</param>
+/// <param name="IteratorSlot">Symbol for storing the iterator state.</param>
+/// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
+/// <param name="Next">Jump target after initialization (first element instruction).</param>
+internal sealed record ArrayDestructuringInitInstruction(
+    ExpressionNode SourceExpression,
+    Symbol IteratorSlot,
+    int IteratorSlotIndex,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ArrayDestructuringInit, Next);
+
+/// <summary>
+///     Extracts the next element from the iterator and binds it to a target symbol.
+///     For holes (null target), advances the iterator without binding.
+/// </summary>
+/// <param name="IteratorSlot">Symbol for the iterator state.</param>
+/// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
+/// <param name="TargetSymbol">The target identifier to bind to (null for holes).</param>
+/// <param name="TargetSlotIndex">Pre-resolved slot index for target (-1 if not resolved or null target).</param>
+/// <param name="VarKind">The variable declaration kind (var/let/const).</param>
+/// <param name="Next">Jump target after this element.</param>
+internal sealed record ArrayDestructuringElementInstruction(
+    Symbol IteratorSlot,
+    int IteratorSlotIndex,
+    Symbol? TargetSymbol,
+    int TargetSlotIndex,
+    VariableKind VarKind,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ArrayDestructuringElement, Next);
+
+/// <summary>
+///     Collects all remaining iterator values into an array and binds it to the rest target.
+/// </summary>
+/// <param name="IteratorSlot">Symbol for the iterator state.</param>
+/// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
+/// <param name="RestSymbol">The rest target identifier to bind to.</param>
+/// <param name="RestSlotIndex">Pre-resolved slot index for rest target (-1 if not resolved).</param>
+/// <param name="VarKind">The variable declaration kind (var/let/const).</param>
+/// <param name="Next">Jump target after rest collection.</param>
+internal sealed record ArrayDestructuringRestInstruction(
+    Symbol IteratorSlot,
+    int IteratorSlotIndex,
+    Symbol RestSymbol,
+    int RestSlotIndex,
+    VariableKind VarKind,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ArrayDestructuringRest, Next);
+
+/// <summary>
+///     Closes the iterator after array destructuring is complete.
+///     Must be called even if destructuring completes normally (per ES spec).
+/// </summary>
+/// <param name="IteratorSlot">Symbol for the iterator state.</param>
+/// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
+/// <param name="Next">Jump target after closing.</param>
+internal sealed record ArrayDestructuringCloseInstruction(
+    Symbol IteratorSlot,
+    int IteratorSlotIndex,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ArrayDestructuringClose, Next);

@@ -91,9 +91,63 @@ internal static class DeclarationEmitter
             return true;
         }
 
+        // Try array destructuring IR emission (Phase 1: simple cases only)
+        if (TryEmitArrayDestructuringDeclaration(ctx, declaration, nextIndex, out entryIndex))
+        {
+            return true;
+        }
+
         // Use ComplexVariableDeclarationInstruction for declarations with destructuring
         entryIndex = ctx.Append(new ComplexVariableDeclarationInstruction(nextIndex, declaration));
         return true;
+    }
+
+    /// <summary>
+    /// Try to emit IR for array destructuring declarations.
+    /// Only handles single declarator with array binding and no awaits in initializer.
+    /// </summary>
+    private static bool TryEmitArrayDestructuringDeclaration(
+        EmitContext ctx,
+        VariableDeclaration declaration,
+        int nextIndex,
+        out int entryIndex)
+    {
+        entryIndex = -1;
+
+        // Don't handle using/await using
+        if (declaration.Kind is VariableKind.Using or VariableKind.AwaitUsing)
+        {
+            return false;
+        }
+
+        // Only handle single declarator for now
+        if (declaration.Declarators.Length != 1)
+        {
+            return false;
+        }
+
+        var declarator = declaration.Declarators[0];
+
+        // Must be array binding
+        if (declarator.Target is not ArrayBinding arrayBinding)
+        {
+            return false;
+        }
+
+        // Must have initializer
+        if (declarator.Initializer is null)
+        {
+            return false;
+        }
+
+        // No awaits in initializer (async context handling is complex)
+        if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer))
+        {
+            return false;
+        }
+
+        return DestructuringEmitter.TryEmitArrayDestructuring(
+            ctx, arrayBinding, declarator.Initializer, declaration.Kind, nextIndex, out entryIndex);
     }
 
     private static bool TryEmitYieldInitializer(

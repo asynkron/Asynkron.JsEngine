@@ -13,8 +13,9 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
-- [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use the gh CLI patterns there to view/create/comment/patch and log every session’s progress.
+- [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use the gh CLI patterns there to view/create/comment/patch and log every session's progress.
 - [Git worktree workflow](agents/how-to-worktrees.md)
+- **Pre-PR checklist**: Use `/pre-pr` skill before any PR — runs roslynator fix, tests, quickdup, format
 
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)

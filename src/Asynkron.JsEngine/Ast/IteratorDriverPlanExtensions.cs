@@ -88,6 +88,7 @@ public static partial class TypedAstEvaluator
         var iteratorDone = false;
 
         var state = IteratorDriverStatePool.Rent();
+        state.OnReturn(null);
         state.IteratorObject = iterator;
         state.Enumerator = enumerator;
         state.IsAsyncIterator = plan.Kind == IteratorDriverKind.Await;

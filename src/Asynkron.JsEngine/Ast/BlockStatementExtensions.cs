@@ -61,8 +61,15 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateBlockSlow(this BlockStatement block, JsEnvironment environment,
         EvaluationContext context)
     {
-        using var scope = JsEnvironmentPool.Rent(environment, false, block.IsStrict, logger: context.RealmState.Logger);
-        return block.EvaluateBlockSlowCore(scope, context);
+        var scope = JsEnvironmentPool.Rent(environment, false, block.IsStrict, logger: context.RealmState.Logger);
+        try
+        {
+            return block.EvaluateBlockSlowCore(scope, context);
+        }
+        finally
+        {
+            JsEnvironmentPool.Return(scope, context.RealmState.Logger);
+        }
     }
 
     /// <summary>

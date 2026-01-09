@@ -394,14 +394,14 @@ public static partial class TypedAstEvaluator
                 constFlagSpan[i] = currentIterationEnvironment.IsConstBinding(bindingName);
             }
 
-            // Reset the environment in place to mimic a fresh per-iteration lexical environment,
-            // but keep the enclosing/scope metadata intact.
-            currentIterationEnvironment.Reset(
+            // Initialize the environment in place to mimic a fresh per-iteration lexical environment.
+            // Note: OnRent() has already cleared the environment if it came from pool.
+            currentIterationEnvironment.Initialize(
                 outerEnvironment,
-                false,
-                false,
-                null,
-                "for-iteration");
+                isFunctionScope: false,
+                isStrict: false,
+                creatingSource: null,
+                description: "for-iteration");
 
             currentIterationEnvironment.Initialize(plan.IterationScopeId, plan.IterationSlotMap);
 

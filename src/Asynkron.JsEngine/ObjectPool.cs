@@ -10,7 +10,8 @@ namespace Asynkron.JsEngine;
 /// <summary>
 /// A fast, lock-free object pool using a fixed-size array.
 /// Uses Interlocked operations for thread-safety with minimal contention.
-/// If T implements IRentable, Reset() is called automatically on return.
+/// If T implements IRentable, OnRent() is called on rent, OnReturn() on return.
+/// When JsEngineConstants.DisablePooling is true, always creates new instances and Return is a no-op.
 /// </summary>
 internal sealed class ObjectPool<T>(int size, Func<T> factory)
     where T : class
@@ -22,6 +23,17 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public T Rent(ILogger? logger = null)
     {
+        // Kill switch: always create fresh instance
+        if (JsEngineConstants.DisablePooling)
+        {
+            var freshItem = factory();
+            if (IsRentable)
+            {
+                ((IRentable)freshItem).OnRent(logger);
+            }
+            return freshItem;
+        }
+
         var items = _items;
         for (var i = 0; i < items.Length; i++)
         {
@@ -49,6 +61,12 @@ internal sealed class ObjectPool<T>(int size, Func<T> factory)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Return(T item, ILogger? logger = null)
     {
+        // Kill switch: do nothing, let GC handle it
+        if (JsEngineConstants.DisablePooling)
+        {
+            return;
+        }
+
         if (IsRentable)
         {
             ((IRentable)item).OnReturn(logger);

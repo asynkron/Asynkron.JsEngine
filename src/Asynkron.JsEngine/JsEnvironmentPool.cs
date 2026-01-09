@@ -9,55 +9,68 @@ using Microsoft.Extensions.Logging;
 namespace Asynkron.JsEngine;
 
 /// <summary>
-/// A generic disposable handle to a pooled object. Returns the object to the pool on dispose.
-/// This is a struct to avoid allocation - use with 'using' statement.
-/// Use 'default' for a no-op handle when pooling is conditional.
+/// Disposable wrapper for a rented JsEnvironment. Use with 'using' for automatic return.
 /// </summary>
-/// <typeparam name="T">The type of pooled object</typeparam>
-internal readonly struct Pooled<T> : IDisposable where T : class
+internal readonly struct RentedEnvironment : IDisposable
 {
-    public readonly T? Value;
-    private readonly Action<T>? _returnAction;
+    public readonly JsEnvironment? Value;
+    private readonly ILogger? _logger;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Pooled(T value, Action<T> returnAction)
+    internal RentedEnvironment(JsEnvironment? value, ILogger? logger)
     {
         Value = value;
-        _returnAction = returnAction;
+        _logger = logger;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        // No-op for default struct (Value is null)
         if (Value is not null)
         {
-            _returnAction?.Invoke(Value);
+            JsEnvironmentPool.Return(Value, _logger);
         }
     }
 
-    // Implicit conversion for convenience when passing to methods expecting T
+    // Allow implicit conversion to JsEnvironment for convenience
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static implicit operator T(Pooled<T> pooled) => pooled.Value!;
+    public static implicit operator JsEnvironment?(RentedEnvironment rented) => rented.Value;
 }
 
 /// <summary>
 /// Pool for JsEnvironment instances to reduce per-iteration allocations in hot loops.
+/// Use Rent() to get an environment, Return() to release it back to the pool.
+/// Or use RentScoped() with 'using' for automatic return.
 /// </summary>
 internal static class JsEnvironmentPool
 {
     private static readonly ObjectPool<JsEnvironment> Pool = new(32,
         static () => new JsEnvironment(null, false, false));
 
-    // Cached delegate for common case (no logger) - avoids closure allocation
-    private static readonly Action<JsEnvironment> ReturnWithoutLogger = static e => Return(e, null);
-
     /// <summary>
-    /// Rents a pooled environment wrapped in a disposable handle.
-    /// Use with 'using' for automatic return: using var scope = JsEnvironmentPool.Rent(...);
+    /// Rents a pooled environment wrapped in a disposable. Use with 'using' for automatic return.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Pooled<JsEnvironment> Rent(
+    public static RentedEnvironment RentScoped(
+        JsEnvironment? enclosing,
+        bool isFunctionScope,
+        bool isStrict,
+        SourceReference? creatingSource = null,
+        string? description = null,
+        bool isParameterEnvironment = false,
+        bool isBodyEnvironment = false,
+        ILogger? logger = null)
+    {
+        var env = Rent(enclosing, isFunctionScope, isStrict, creatingSource, description,
+            isParameterEnvironment, isBodyEnvironment, logger);
+        return new RentedEnvironment(env, logger);
+    }
+
+    /// <summary>
+    /// Rents a pooled environment. Caller MUST call Return() when done.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsEnvironment Rent(
         JsEnvironment? enclosing,
         bool isFunctionScope,
         bool isStrict,
@@ -68,24 +81,27 @@ internal static class JsEnvironmentPool
         ILogger? logger = null)
     {
         var env = Pool.Rent(logger);
-        env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description,
+        env.Initialize(enclosing, isFunctionScope, isStrict, creatingSource, description,
             isParameterEnvironment, isBodyEnvironment);
         if (PoolGuard.Enabled)
         {
             env.MarkLeased(PoolGuard.NextLeaseId());
         }
 
-        // Use cached delegate when no logger to avoid closure allocation
-        var returnAction = logger is null
-            ? ReturnWithoutLogger
-            : e => Return(e, logger);
-
-        return new Pooled<JsEnvironment>(env, returnAction);
+        return env;
     }
 
+    /// <summary>
+    /// Returns an environment to the pool. Safe to call on captured or null environments (no-op).
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void Return(JsEnvironment environment, ILogger? logger = null)
+    public static void Return(JsEnvironment? environment, ILogger? logger = null)
     {
+        if (environment is null)
+        {
+            return;
+        }
+
         // Captured environments cannot be pooled - they're held by closures
         if (environment.IsCaptured)
         {

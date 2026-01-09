@@ -1,7 +1,6 @@
 #region
 
 using System.Collections.Concurrent;
-using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Microsoft.Extensions.Logging;
 
@@ -16,12 +15,10 @@ namespace Asynkron.JsEngine.Runtime;
 public sealed class RealmState
 {
     private readonly ObjectPool<EvaluationContext> _contextPool;
-    private readonly ObjectPool<JsEnvironment> _environmentPool;
 
     public RealmState()
     {
         _contextPool = new ObjectPool<EvaluationContext>(16, () => new EvaluationContext(this));
-        _environmentPool = new ObjectPool<JsEnvironment>(32, static () => new JsEnvironment(null, false, false));
     }
 
     public IJsEngineOptions Options { get; internal init; } = JsEngineOptions.Default;
@@ -39,13 +36,6 @@ public sealed class RealmState
     /// Scopes are stored here instead of a static dictionary to allow GC when the realm is disposed.
     /// </summary>
     internal ConcurrentDictionary<int, PrivateNameScope> PrivateNameScopes { get; } = new();
-
-    /// <summary>
-    /// Per-realm registry of JsSymbol instances by their ID.
-    /// Used to resolve symbol property keys (e.g., "@@symbol:123") back to the original symbol.
-    /// Stored here instead of a static dictionary to allow GC when the realm is disposed.
-    /// </summary>
-    internal ConcurrentDictionary<int, JsSymbol> JsSymbolRegistry { get; } = new();
 
     public JsObject? ObjectPrototype { get; set; }
     public IJsObjectLike? FunctionPrototype { get; set; }
@@ -148,42 +138,4 @@ public sealed class RealmState
     /// Returns an EvaluationContext to the pool for reuse.
     /// </summary>
     public void ReturnContext(EvaluationContext context) => _contextPool.Return(context);
-
-    /// <summary>
-    /// Rents a JsEnvironment from the pool or creates a new one.
-    /// Call ReturnEnvironment when done to return it to the pool.
-    /// </summary>
-    public JsEnvironment RentEnvironment(
-        JsEnvironment? enclosing,
-        bool isFunctionScope,
-        bool isStrict,
-        SourceReference? creatingSource = null,
-        string? description = null,
-        bool isParameterEnvironment = false,
-        bool isBodyEnvironment = false)
-    {
-        var env = _environmentPool.Rent();
-        env.Reset(enclosing, isFunctionScope, isStrict, creatingSource, description, isParameterEnvironment,
-            isBodyEnvironment);
-        return env;
-    }
-
-    /// <summary>
-    /// Returns a JsEnvironment to the pool for reuse.
-    /// </summary>
-    public void ReturnEnvironment(JsEnvironment env) => _environmentPool.Return(env);
-
-    public EvaluationContext CreateStrictContext(
-        ScopeKind kind = ScopeKind.Function,
-        CancellationToken cancellationToken = default,
-        ExecutionKind executionKind = ExecutionKind.Script,
-        bool pushScope = true)
-    {
-        return CreateContext(
-            kind,
-            ScopeMode.Strict,
-            cancellationToken,
-            executionKind,
-            pushScope);
-    }
 }

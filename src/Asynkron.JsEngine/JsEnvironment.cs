@@ -227,10 +227,10 @@ public sealed class JsEnvironment : IRentable
     }
 
     /// <summary>
-    ///     Resets the environment for reuse from a pool.
-    ///     Sets new enclosing and clears all bindings.
+    ///     Initializes the environment for use. Clears and sets up all state.
+    ///     Can be called after OnRent() from pool, or for in-place reuse.
     /// </summary>
-    internal void Reset(
+    internal void Initialize(
         JsEnvironment? enclosing,
         bool isFunctionScope,
         bool isStrict,
@@ -239,15 +239,44 @@ public sealed class JsEnvironment : IRentable
         bool isParameterEnvironment = false,
         bool isBodyEnvironment = false)
     {
-        ResetCommonFields(enclosing, isFunctionScope, isStrict, creatingSource, description);
+        // Set params
+        Enclosing = enclosing;
+        IsFunctionScope = isFunctionScope;
+        IsStrictLocal = isStrict;
+        _creatingSource = creatingSource;
+        _description = description;
         IsParameterEnvironment = isParameterEnvironment;
         IsBodyEnvironment = isBodyEnvironment;
         IsArrowFunctionEnvironment = false;
         IsCaptured = false;
+
+        // Clear slots - just set to null (slots returned to pool in OnReturn)
         _slots = null;
         _slotCount = 0;
         ScopeId = -1;
         LayoutId = -1;
+
+        // Clear caches
+        _identifierBindingCache?.Clear();
+        _bindingObservers?.Clear();
+        _bodyLexicalNames?.Clear();
+        _simpleCatchParameters?.Clear();
+
+        // Reset other state
+        _isDefaultDerivedConstructor = false;
+        _varEnvironmentOverride = null;
+        _withObject = null;
+        _treatAsGlobalFunctionScope = false;
+        _inheritStrictness = true;
+        _thisValue = default;
+        _hasThisValue = false;
+
+        // Inherit from enclosing
+        _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
+        RealmState = enclosing?.RealmState;
+        ModulePath = enclosing?.ModulePath;
+        IsAsyncModule = enclosing?.IsAsyncModule ?? false;
+        Depth = (enclosing?.Depth ?? 0) + 1;
     }
 
     [Conditional("DEBUG")]
@@ -470,11 +499,12 @@ public sealed class JsEnvironment : IRentable
 
     /// <summary>
     ///     Called when environment is rented from pool.
-    ///     Implements IRentable.Activate().
+    ///     Initialize() will be called after this to set up state.
     /// </summary>
     void IRentable.OnRent(ILogger? logger)
     {
-        logger?.LogInformation("JsEnvironment.Activate description={Description}", _description);
+        logger?.LogInformation("JsEnvironment.OnRent description={Description}", _description);
+        // Initialize() does the actual state setup - this is just a hook for logging/debugging
     }
 
     /// <summary>
@@ -484,7 +514,7 @@ public sealed class JsEnvironment : IRentable
     void IRentable.OnReturn(ILogger? logger)
     {
         logger?.LogInformation("JsEnvironment.Reset description={Description}", _description);
-        JsSlotArrayPool.Return(_slots);
+       // JsSlotArrayPool.Return(_slots); //<- only if we also Rent in OnRent
         //TODO: anything else?
     }
 
@@ -526,7 +556,17 @@ public sealed class JsEnvironment : IRentable
         IsStrictLocal = isStrict;
         _creatingSource = creatingSource;
         _description = description;
-        ClearSlots();
+        var slots = _slots;
+        if (slots is not null)
+        {
+            var count = _slotCount;
+            for (var i = 0; i < count; i++)
+            {
+                slots[i] = default;
+            }
+            _slotCount = 0;
+        }
+
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
@@ -3459,27 +3499,6 @@ public sealed class JsEnvironment : IRentable
     #region Slot-based Variable Access
 
     /// <summary>
-    /// Clears all slot values without deallocating the array.
-    /// Used during Reset/ResetForReuse.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ClearSlots()
-    {
-        var slots = _slots;
-        if (slots is null)
-        {
-            return;
-        }
-
-        var count = _slotCount;
-        for (var i = 0; i < count; i++)
-        {
-            slots[i] = default;
-        }
-        _slotCount = 0;
-    }
-
-    /// <summary>
     /// Initializes slot storage for this environment.
     /// Internal use only - prefer Initialize() for public API.
     /// </summary>
@@ -3617,7 +3636,7 @@ public sealed class JsEnvironment : IRentable
     /// <param name="scopeId">Unique ID for this scope from scope analysis.</param>
     /// <param name="slotMap">Mapping from symbol names to slot indices.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Initialize(int scopeId, System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
+    public void Initialize(int scopeId, ImmutableDictionary<Symbol, int> slotMap)
     {
         ValidateScopeId(scopeId);
         ScopeId = scopeId;
@@ -3651,7 +3670,7 @@ public sealed class JsEnvironment : IRentable
     /// Preserves existing slots that already have names (e.g., Symbol.This from GlobalEnvironment).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void SetSlotMap(System.Collections.Immutable.ImmutableDictionary<Symbol, int> slotMap)
+    internal void SetSlotMap(ImmutableDictionary<Symbol, int> slotMap)
     {
         var count = slotMap.Count;
 

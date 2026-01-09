@@ -89,6 +89,37 @@ public sealed class DestructuringIteratorTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public async Task ElisionDestructuringConsumesIterator()
+    {
+        // This mimics Test262's ary-ptrn-elision-iter-close.js test
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const iter = (function* () {
+              yield 1;
+              yield 2;
+            })();
+
+            function fn() {
+              for (var [,] = iter; ; ) {
+                return;
+              }
+            }
+
+            fn();
+
+            iter.next().done;
+            """);
+
+        Output.WriteLine($"Result: {result}");
+        Output.WriteLine($"Result kind: {result?.GetType().Name}");
+
+        // After destructuring with [,] (one elision), iter.next() should be done
+        Assert.True(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result)),
+            $"Expected iter.next().done to be true, got {result}");
+    }
+
+    [Fact]
     public async Task DeletedArrayIteratorInForLoopThrowsTypeError()
     {
         // This mimics Test262's for loop version

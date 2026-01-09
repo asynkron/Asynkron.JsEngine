@@ -245,15 +245,22 @@ public static partial class TypedAstEvaluator
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
             ref JsEnvironment environment,
-            EvaluationContext _,
+            EvaluationContext context,
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ArrayDestructuringCloseInstruction>(instr);
 
-            // Get state from slot and dispose
+            // Get state from slot and close/dispose
             if (TryGetValueBySlot(environment, instruction.IteratorSlot, instruction.IteratorSlotIndex, out var stateValue) &&
                 stateValue.TryGetObject<ArrayDestructuringState>(out var state))
             {
+                // If we have a JavaScript iterator, call IteratorClose to invoke return() method
+                // This is required per ES spec to properly close generators and other iterators
+                if (state.Iterator is not null && !state.Done)
+                {
+                    state.Iterator.IteratorClose(context);
+                }
+
                 state.Dispose();
             }
 

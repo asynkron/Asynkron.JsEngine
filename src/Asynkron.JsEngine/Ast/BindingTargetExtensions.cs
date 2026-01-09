@@ -1,4 +1,6 @@
 
+#pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
+
 namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator

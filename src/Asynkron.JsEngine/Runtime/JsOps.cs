@@ -2161,4 +2161,218 @@ internal static class JsOps
         BigInt,
         Object
     }
+
+    #region Arithmetic Operations
+
+    /// <summary>
+    /// Addition operation (a + b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Add(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Add(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Subtraction operation (a - b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Sub(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Subtract(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Multiplication operation (a * b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Mul(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Multiply(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Division operation (a / b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Div(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Divide(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Modulo operation (a % b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Mod(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Modulo(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Exponentiation operation (a ** b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Exp(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Power(a, b, ctx);
+    }
+
+    #endregion
+
+    #region Comparison Operations
+
+    /// <summary>
+    /// Loose equality comparison (a == b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Eq(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return LooseEquals(a, b, ctx) ? JsValue.True : JsValue.False;
+    }
+
+    /// <summary>
+    /// Strict equality comparison (a === b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue StrictEq(JsValue a, JsValue b)
+    {
+        return StrictEquals(a, b) ? JsValue.True : JsValue.False;
+    }
+
+    /// <summary>
+    /// Less than comparison (a &lt; b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Lt(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return LessThan(a, b, ctx) ? JsValue.True : JsValue.False;
+    }
+
+    /// <summary>
+    /// Less than or equal comparison (a &lt;= b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Lte(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return LessThanOrEqual(a, b, ctx) ? JsValue.True : JsValue.False;
+    }
+
+    /// <summary>
+    /// Greater than comparison (a &gt; b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Gt(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return GreaterThan(a, b, ctx) ? JsValue.True : JsValue.False;
+    }
+
+    /// <summary>
+    /// Greater than or equal comparison (a &gt;= b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Gte(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return GreaterThanOrEqual(a, b, ctx) ? JsValue.True : JsValue.False;
+    }
+
+    #endregion
+
+    #region Unary Operations
+
+    /// <summary>
+    /// Unary negation (-a).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Neg(JsValue a, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.Negate(a, ctx);
+    }
+
+    /// <summary>
+    /// Logical NOT (!a).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue Not(JsValue a)
+    {
+        return ToBoolean(a) ? JsValue.False : JsValue.True;
+    }
+
+    /// <summary>
+    /// Typeof operator (typeof a).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue TypeOf(JsValue a)
+    {
+        return new JsValue(GetTypeofString(a));
+    }
+
+    #endregion
+
+    #region Bitwise Operations
+
+    /// <summary>
+    /// Bitwise AND (a &amp; b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue BitAnd(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.BitwiseAnd(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Bitwise OR (a | b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue BitOr(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.BitwiseOr(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Bitwise XOR (a ^ b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue BitXor(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.BitwiseXor(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Bitwise NOT (~a).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue BitNot(JsValue a, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.BitwiseNot(a, ctx);
+    }
+
+    /// <summary>
+    /// Left shift (a &lt;&lt; b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue LeftShift(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.LeftShift(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Right shift (a &gt;&gt; b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue RightShift(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.RightShift(a, b, ctx);
+    }
+
+    /// <summary>
+    /// Unsigned right shift (a &gt;&gt;&gt; b).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static JsValue UnsignedRightShift(JsValue a, JsValue b, EvaluationContext ctx)
+    {
+        return TypedAstEvaluator.UnsignedRightShift(a, b, ctx);
+    }
+
+    #endregion
 }

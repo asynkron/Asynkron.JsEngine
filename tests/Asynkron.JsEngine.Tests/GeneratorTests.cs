@@ -6412,4 +6412,150 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         Assert.Contains("\"d2\":true", resultStr, StringComparison.Ordinal);
         Assert.Contains("\"xProp\":22", resultStr, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Test for Issue #544: Pending finally execution on return/throw.
+    /// When gen.return() is called early, the finally block must run even without yield.
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ReturnExecutesPendingFinally_NoYieldInFinally()
+    {
+        await using var engine = CreateEngine();
+
+        // This is the exact scenario from Issue #544:
+        // A generator with a finally block that just calls cleanup() (no yield)
+        var result = await engine.Evaluate("""
+            let cleanupCalled = false;
+            function* gen() {
+                try {
+                    yield 1;
+                    yield 2;  // Never reached if return() called after first yield
+                } finally {
+                    cleanupCalled = true;  // Must still run!
+                }
+            }
+
+            let g = gen();
+            let r1 = g.next();     // Gets first yield: { value: 1, done: false }
+            let r2 = g['return'](99);  // Should trigger finally and return { value: 99, done: true }
+            JSON.stringify({ r1_value: r1.value, r1_done: r1.done, r2_value: r2.value, r2_done: r2.done, cleanupCalled });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"r1_value\":1", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"r1_done\":false", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"r2_value\":99", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"r2_done\":true", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"cleanupCalled\":true", resultStr, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Test for Issue #544: Pending finally execution on throw.
+    /// When gen.throw() is called, the finally block must run even without yield.
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ThrowExecutesPendingFinally_NoYieldInFinally()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            let cleanupCalled = false;
+            function* gen() {
+                try {
+                    yield 1;
+                    yield 2;  // Never reached if throw() called after first yield
+                } finally {
+                    cleanupCalled = true;  // Must still run!
+                }
+            }
+
+            let g = gen();
+            let r1 = g.next();  // Gets first yield
+            let errorThrown = null;
+            try {
+                g['throw']('boom');
+            } catch (e) {
+                errorThrown = e;
+            }
+            JSON.stringify({ r1_value: r1.value, cleanupCalled, errorThrown });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"r1_value\":1", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"cleanupCalled\":true", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"errorThrown\":\"boom\"", resultStr, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Test for Issue #544: Multiple nested finally blocks on return.
+    /// Each pending finally must be executed in order when return() is called.
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ReturnExecutesNestedPendingFinally_ChainsThrough()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            let log = [];
+            function* gen() {
+                try {
+                    try {
+                        yield 1;
+                        yield 2;
+                    } finally {
+                        log.push('inner-finally');
+                    }
+                } finally {
+                    log.push('outer-finally');
+                }
+            }
+
+            let g = gen();
+            g.next();  // Gets first yield
+            let r = g['return'](99);  // Should trigger both finally blocks
+            JSON.stringify({ value: r.value, done: r.done, log: log.join(',') });
+        """);
+
+        var resultStr = result?.ToString() ?? "";
+        Assert.Contains("\"value\":99", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"done\":true", resultStr, StringComparison.Ordinal);
+        Assert.Contains("\"log\":\"inner-finally,outer-finally\"", resultStr, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Test for Issue #544: Multiple nested finally blocks on throw.
+    /// Each pending finally must be executed in order when throw() is called.
+    /// </summary>
+    [Fact(Timeout = 2000)]
+    public async Task Generator_ThrowExecutesNestedPendingFinally_ChainsThrough()
+    {
+        await using var engine = CreateEngine();
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("""
+                let log = [];
+                function* gen() {
+                    try {
+                        try {
+                            yield 1;
+                            yield 2;
+                        } finally {
+                            log.push('inner-finally');
+                        }
+                    } finally {
+                        log.push('outer-finally');
+                    }
+                }
+
+                let g = gen();
+                g.next();  // Gets first yield
+                g['throw']('boom');  // Should trigger both finally blocks then throw
+            """));
+
+        Assert.Equal("boom", exception.ThrownValue);
+
+        // Verify log via separate query
+        var log = await engine.Evaluate("log.join(',');");
+        Assert.Equal("inner-finally,outer-finally", log);
+    }
 }
